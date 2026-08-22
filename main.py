@@ -4,7 +4,7 @@ from app.routers import (
     router_auth,
     router_cliente, router_ubicacion, router_usuario, router_producto,
     router_inventario, router_proveedor, router_compra, router_caja,
-    router_venta, router_cotizacion, router_configuracion,
+    router_venta, router_cotizacion, router_configuracion, router_reportes,
 )
 
 app = FastAPI(
@@ -62,7 +62,7 @@ app.include_router(router_cotizacion.router, prefix="/cotizaciones", tags=["Coti
 app.include_router(router_configuracion.router, prefix="/configuracion", tags=["Configuración"])
 app.include_router(router_configuracion.router_meta, prefix="/metas-financieras", tags=["Metas Financieras"])
 
-
+app.include_router(router_reportes.router, prefix="/reportes", tags=["Reportes"])
 @app.get("/")
 def read_root():
     return {"status": "Online", "docs": "/docs"}

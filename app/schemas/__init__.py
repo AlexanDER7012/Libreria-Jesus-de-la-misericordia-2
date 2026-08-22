@@ -67,3 +67,9 @@ from app.schemas.schema_configuracion import (
     MetaFinancieraCreate, MetaFinancieraResponse,
 )
 from app.schemas.schema_auth import LoginRequest, TokenResponse
+from app.schemas.schema_reportes import (
+    VentasDiariasResponse, ConciliacionPagosResponse,
+    ConciliacionPagoItem,
+    UtilidadResponse, UtilidadItem,
+    ProductoMasVendidoItem,
+)
