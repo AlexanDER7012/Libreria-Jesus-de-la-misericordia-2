@@ -66,3 +66,4 @@ from app.schemas.schema_configuracion import (
     ConfiguracionGeneralUpdate, ConfiguracionGeneralResponse,
     MetaFinancieraCreate, MetaFinancieraResponse,
 )
+from app.schemas.schema_auth import LoginRequest, TokenResponse

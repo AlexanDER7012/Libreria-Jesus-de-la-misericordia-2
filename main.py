@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.routers import (
+    router_auth,
     router_cliente, router_ubicacion, router_usuario, router_producto,
     router_inventario, router_proveedor, router_compra, router_caja,
     router_venta, router_cotizacion, router_configuracion,
@@ -11,6 +12,8 @@ app = FastAPI(
     description="API del sistema de gestión de inventario, compras, ventas y cotizaciones.",
     version="1.0.0",
 )
+
+app.include_router(router_auth.router, prefix="/login", tags=["Autenticación"])
 
 app.include_router(router_cliente.router, prefix="/clientes", tags=["Clientes"])
 
@@ -58,7 +61,6 @@ app.include_router(router_cotizacion.router, prefix="/cotizaciones", tags=["Coti
 
 app.include_router(router_configuracion.router, prefix="/configuracion", tags=["Configuración"])
 app.include_router(router_configuracion.router_meta, prefix="/metas-financieras", tags=["Metas Financieras"])
-
 
 
 @app.get("/")
