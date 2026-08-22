@@ -14,3 +14,18 @@ from app.schemas.schema_usuario import (
     HistoricoPagoEmpleadoCreate, HistoricoPagoEmpleadoResponse,
     LogActividadResponse,
 )
+from app.schemas.schema_producto import (
+    ProductoCreate, ProductoUpdate, ProductoResponse,
+    CategoriaCreate, CategoriaResponse,
+    MarcaCreate, MarcaResponse,
+    UnidadMedidaCreate, UnidadMedidaResponse,
+    HistoricoPrecioResponse,
+)
+from app.schemas.schema_inventario import (
+    TipoMovimientoInventarioCreate, TipoMovimientoInventarioResponse,
+    MovimientoInventarioCreate, MovimientoInventarioResponse,
+    MovimientoInventarioDetalleCreate, MovimientoInventarioDetalleResponse,
+    InventarioFisicoCreate, InventarioFisicoResponse,
+    TrasladoSucursalCreate, TrasladoSucursalResponse,
+    AlertaResponse,
+)
