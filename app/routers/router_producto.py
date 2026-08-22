@@ -2,6 +2,7 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.pagination import PaginationParams
 from app.models.model_producto import Producto, Categoria, Marca, UnidadMedida, HistoricoPrecio
 from app.schemas.schema_producto import (
     ProductoCreate, ProductoUpdate, ProductoResponse,
@@ -48,6 +49,7 @@ def listar_productos(
     id_categoria: Optional[int] = None,
     id_marca: Optional[int] = None,
     buscar: Optional[str] = None,
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
     query = db.query(Producto)
@@ -62,11 +64,15 @@ def listar_productos(
     if buscar:
         like = f"%{buscar}%"
         query = query.filter((Producto.nombre.ilike(like)) | (Producto.codigo.ilike(like)))
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router.get("/buscar-codigo/{codigo}", response_model=ProductoResponse)
 def buscar_por_codigo(codigo: str, db: Session = Depends(get_db)):
+    """
+    Búsqueda exacta por código de barras — pensado para cuando el lector
+    USB/Bluetooth 'escribe' el código completo y se dispara la búsqueda.
+    """
     producto = db.query(Producto).filter(Producto.codigo == codigo).first()
     if not producto:
         raise HTTPException(status_code=404, detail="No existe ningún producto con ese código")
@@ -100,7 +106,6 @@ def crear_producto(datos: ProductoCreate, db: Session = Depends(get_db)):
 
     datos_dict = datos.model_dump()
 
-    #Si el precio es automático, se calcula aquí en vez de confiar en lo que mandó el cliente
     if datos_dict.get("precio_automatico") == 1:
         datos_dict["precio_venta"] = _calcular_precio_venta(
             datos_dict.get("precio_compra"), datos_dict.get("margen_ganancia")
@@ -111,7 +116,6 @@ def crear_producto(datos: ProductoCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(nuevo)
 
-    #Primer precio del producto también queda en el histórico, con precio_anterior=None
     if nuevo.precio_venta is not None:
         _registrar_cambio_precio(db, nuevo, None, nuevo.precio_venta, motivo="Precio inicial al crear el producto")
         db.commit()
@@ -137,7 +141,7 @@ def actualizar_producto(producto_id: int, datos: ProductoUpdate, db: Session = D
     for campo, valor in datos_dict.items():
         setattr(producto, campo, valor)
 
-    # TODO: cuando exista el login, pasar aquí el id_usuario real (usuario autenticado)
+    # TODO: cuando exista el login, pasar aqui el id_usuario real (usuario autenticado)
     if producto.precio_venta != precio_anterior:
         _registrar_cambio_precio(db, producto, precio_anterior, producto.precio_venta, motivo="Actualización de producto")
 
@@ -170,7 +174,7 @@ def reactivar_producto(producto_id: int, db: Session = Depends(get_db)):
 
 
 # ===================================================================
-# CATEGORIA 
+# CATEGORIA (catalogo simple)
 # ===================================================================
 
 @router_categoria.get("/", response_model=List[CategoriaResponse])
@@ -188,7 +192,7 @@ def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db)):
 
 
 # ===================================================================
-# MARCA 
+# MARCA (catálogo simple)
 # ===================================================================
 
 @router_marca.get("/", response_model=List[MarcaResponse])
@@ -206,7 +210,7 @@ def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db)):
 
 
 # ===================================================================
-# UNIDAD_MEDIDA 
+# UNIDAD_MEDIDA (catalogo simple)
 # ===================================================================
 
 @router_unidad.get("/", response_model=List[UnidadMedidaResponse])

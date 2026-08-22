@@ -3,6 +3,7 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.pagination import PaginationParams
 from app.models.model_producto import Producto
 from app.models.model_inventario import (
     MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario,
@@ -52,13 +53,18 @@ def _generar_alerta_si_stock_bajo(db: Session, producto: Producto):
 # ===================================================================
 
 @router.get("/", response_model=List[MovimientoInventarioResponse])
-def listar_movimientos(id_producto: Optional[int] = None, db: Session = Depends(get_db)):
+def listar_movimientos(
+    id_producto: Optional[int] = None,
+    paginacion: PaginationParams = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(MovimientoInventario).order_by(MovimientoInventario.fecha.desc())
     if id_producto is not None:
         query = query.join(MovimientoInventarioDetalle).filter(
             MovimientoInventarioDetalle.id_producto == id_producto
         )
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router.get("/{movimiento_id}", response_model=MovimientoInventarioResponse)
@@ -116,6 +122,8 @@ def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(ge
             precio_unitario=d.precio_unitario,
         )
         db.add(detalle)
+
+        # Aquí es donde de verdad se mueve el stock
         producto = productos[d.id_producto]
         producto.stock_actual = float(producto.stock_actual or 0) + float(d.cantidad) * tipo.signo
         _generar_alerta_si_stock_bajo(db, producto)
@@ -218,6 +226,11 @@ def listar_traslados(
 
 @router_traslado.post("/", response_model=TrasladoSucursalResponse, status_code=201)
 def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db)):
+    """
+    Registra la salida de producto de una sucursal hacia otra, a precio de
+    costo. No cambia producto.stock_actual (es un total global: el traslado
+    no agrega ni quita mercancía de la librería, solo cambia su ubicación).
+    """
     if not db.query(Producto).filter(Producto.id == datos.id_producto).first():
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
@@ -247,7 +260,7 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: int, db: Session = 
 
 
 # ===================================================================
-# ALERTA (solo lectura + marcar como leida, el sistema las crea sola)
+# ALERTA (solo lectura + marcar como leída; el sistema las crea sola)
 # ===================================================================
 
 @router_alerta.get("/", response_model=List[AlertaResponse])

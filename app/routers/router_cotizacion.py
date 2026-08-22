@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.pagination import PaginationParams
 from app.models.model_producto import Producto
 from app.models.model_cotizacion import Cotizacion, DetalleCotizacion
 from app.schemas.schema_cotizacion import CotizacionCreate, CotizacionResponse
@@ -27,6 +28,7 @@ def _generar_numero_expediente(db: Session) -> str:
 def listar_cotizaciones(
     estado: Optional[str] = None,
     id_cliente: Optional[int] = None,
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
     query = db.query(Cotizacion).order_by(Cotizacion.fecha.desc())
@@ -34,7 +36,7 @@ def listar_cotizaciones(
         query = query.filter(Cotizacion.estado == estado)
     if id_cliente is not None:
         query = query.filter(Cotizacion.id_cliente == id_cliente)
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router.get("/{cotizacion_id}", response_model=CotizacionResponse)

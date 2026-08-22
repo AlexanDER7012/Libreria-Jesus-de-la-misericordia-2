@@ -1,7 +1,10 @@
 from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
 from app.database import get_db
+from app.pagination import PaginationParams
 from app.models.model_producto import Producto
 from app.models.model_compra import Compra, DetalleCompra, CompraPago, NotaEntrega, DevolucionCompra
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario
@@ -24,6 +27,7 @@ router_devolucion = APIRouter()  # /devoluciones-compra
 def listar_compras(
     estado: Optional[str] = None,
     id_proveedor: Optional[int] = None,
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
     query = db.query(Compra).order_by(Compra.fecha.desc())
@@ -31,7 +35,7 @@ def listar_compras(
         query = query.filter(Compra.estado == estado)
     if id_proveedor is not None:
         query = query.filter(Compra.id_proveedor == id_proveedor)
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router.get("/{compra_id}", response_model=CompraResponse)
@@ -131,6 +135,7 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
     db.commit()
     db.refresh(nueva_nota)
     return nueva_nota
+
 
 @router.post("/{compra_id}/pagos", response_model=CompraPagoResponse, status_code=201)
 def registrar_pago_compra(compra_id: int, datos: CompraPagoCreate, db: Session = Depends(get_db)):

@@ -2,6 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.pagination import PaginationParams
 from app.models.model_producto import Producto
 from app.models.model_caja import CajaTurno
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario, Alerta
@@ -40,6 +41,7 @@ def listar_ventas(
     estado: Optional[str] = None,
     id_cliente: Optional[int] = None,
     id_caja_turno: Optional[int] = None,
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
     query = db.query(Venta).order_by(Venta.fecha.desc())
@@ -49,7 +51,7 @@ def listar_ventas(
         query = query.filter(Venta.id_cliente == id_cliente)
     if id_caja_turno is not None:
         query = query.filter(Venta.id_caja_turno == id_caja_turno)
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router.get("/{venta_id}", response_model=VentaResponse)
@@ -62,6 +64,7 @@ def obtener_venta(venta_id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=VentaResponse, status_code=201)
 def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
+
     turno = db.query(CajaTurno).filter(CajaTurno.id == datos.id_caja_turno).first()
     if not turno:
         raise HTTPException(status_code=404, detail="Turno de caja no encontrado")
@@ -118,6 +121,7 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
     db.add(nueva_venta)
     db.flush()
 
+    # Movimiento de inventario que baja el stock (cabecera + detalle)
     movimiento = MovimientoInventario(
         id_usuario=datos.id_usuario,
         id_tipo_movimiento=tipo_venta.id,
@@ -166,10 +170,6 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
 
 @router.patch("/{venta_id}/cancelar", response_model=VentaResponse)
 def cancelar_venta(venta_id: int, db: Session = Depends(get_db)):
-    """
-    Cancela una venta ya registrada: regresa el stock a producto (ajuste
-    inverso) y resta el total de caja_turno.total_ventas.
-    """
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")

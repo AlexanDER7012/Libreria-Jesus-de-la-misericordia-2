@@ -2,6 +2,7 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.pagination import PaginationParams
 from app.models.model_producto import Producto
 from app.models.model_proveedor import Proveedor, TipoProveedor, Pedido, DetallePedido
 from app.schemas.schema_proveedor import (
@@ -37,6 +38,7 @@ def _calcular_total_pedido(db: Session, pedido: Pedido) -> float:
 @router.get("/", response_model=List[ProveedorResponse])
 def listar_proveedores(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
     query = db.query(Proveedor)
@@ -44,7 +46,7 @@ def listar_proveedores(
         query = query.filter(Proveedor.activo == 1)
     elif estado == "inactivos":
         query = query.filter(Proveedor.activo == 0)
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router.get("/{proveedor_id}", response_model=ProveedorResponse)
@@ -100,7 +102,7 @@ def reactivar_proveedor(proveedor_id: int, db: Session = Depends(get_db)):
 
 
 # ===================================================================
-# TIPO_PROVEEDOR (catálogo simple)
+# TIPO_PROVEEDOR (catalogo simple)
 # ===================================================================
 
 @router_tipo.get("/", response_model=List[TipoProveedorResponse])
@@ -125,6 +127,7 @@ def crear_tipo_proveedor(datos: TipoProveedorCreate, db: Session = Depends(get_d
 def listar_pedidos(
     estado: Optional[str] = None,
     id_proveedor: Optional[int] = None,
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
     query = db.query(Pedido).order_by(Pedido.fecha.desc())
@@ -132,7 +135,7 @@ def listar_pedidos(
         query = query.filter(Pedido.estado == estado)
     if id_proveedor is not None:
         query = query.filter(Pedido.id_proveedor == id_proveedor)
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router_pedido.get("/{pedido_id}", response_model=PedidoResponse)
@@ -145,7 +148,7 @@ def obtener_pedido(pedido_id: int, db: Session = Depends(get_db)):
 
 @router_pedido.get("/{pedido_id}/total", response_model=PedidoTotalResponse)
 def calcular_total_pedido(pedido_id: int, db: Session = Depends(get_db)):
-    """Suma cantidad_pedida * precio_compra de todos los detalles, y dice si ya alcanza el mínimo de Q500."""
+    """Suma cantidad_pedida * precio_compra de todos los detalles, y dice si ya alcanza el minimo de Q500."""
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
@@ -155,11 +158,6 @@ def calcular_total_pedido(pedido_id: int, db: Session = Depends(get_db)):
 
 @router_pedido.post("/", response_model=PedidoResponse, status_code=201)
 def crear_pedido(datos: PedidoCreate, db: Session = Depends(get_db)):
-    """
-    Crea un pedido vacío (estado 'Pendiente'). Los productos se van
-    agregando después con POST /pedidos/{id}/detalles, acumulando hasta
-    alcanzar el mínimo de Q500 antes de aprobarlo.
-    """
     nuevo = Pedido(**datos.model_dump(), estado="Pendiente")
     db.add(nuevo)
     db.commit()

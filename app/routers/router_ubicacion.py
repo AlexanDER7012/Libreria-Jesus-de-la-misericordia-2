@@ -1,9 +1,8 @@
 from typing import List, Literal
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-
 from app.database import get_db
+from app.pagination import PaginationParams
 from app.models.model_ubicacion import Ubicacion, Sububicacion
 from app.schemas.schema_ubicacion import (
     UbicacionCreate,
@@ -26,15 +25,15 @@ sub_router = APIRouter()   # /sububicaciones
 @router.get("/", response_model=List[UbicacionResponse])
 def listar_ubicaciones(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
-    """Lista sucursales. Por defecto solo las activas."""
     query = db.query(Ubicacion)
     if estado == "activos":
         query = query.filter(Ubicacion.activo == 1)
     elif estado == "inactivos":
         query = query.filter(Ubicacion.activo == 0)
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router.get("/{ubicacion_id}", response_model=UbicacionConSububicaciones)

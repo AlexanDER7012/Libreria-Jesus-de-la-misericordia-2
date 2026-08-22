@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.pagination import PaginationParams
 from app.models.model_cliente import Cliente
 from app.schemas.schema_cliente import ClienteCreate, ClienteUpdate, ClienteResponse
 
@@ -13,19 +14,21 @@ router = APIRouter()
 @router.get("/", response_model=List[ClienteResponse])
 def listar_clientes(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
-    
+
     query = db.query(Cliente)
     if estado == "activos":
         query = query.filter(Cliente.activo == 1)
     elif estado == "inactivos":
         query = query.filter(Cliente.activo == 0)
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router.get("/{cliente_id}", response_model=ClienteResponse)
 def obtener_cliente(cliente_id: int, db: Session = Depends(get_db)):
+    """Obtiene un cliente por su id (activo o no)."""
     cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
@@ -34,6 +37,7 @@ def obtener_cliente(cliente_id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=ClienteResponse, status_code=201)
 def crear_cliente(datos: ClienteCreate, db: Session = Depends(get_db)):
+    """Crea un nuevo cliente (siempre queda activo=1)."""
     nuevo_cliente = Cliente(**datos.model_dump(), activo=1)
     db.add(nuevo_cliente)
     db.commit()
@@ -43,6 +47,7 @@ def crear_cliente(datos: ClienteCreate, db: Session = Depends(get_db)):
 
 @router.put("/{cliente_id}", response_model=ClienteResponse)
 def actualizar_cliente(cliente_id: int, datos: ClienteUpdate, db: Session = Depends(get_db)):
+    """Actualiza uno o varios campos de un cliente existente."""
     cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
