@@ -16,6 +16,7 @@ Mako==1.4.1
 MarkupSafe==3.0.3
 mysql-connector-python==9.5.0
 passlib==1.7.4
+psycopg2-binary==2.9.12
 pyasn1==0.6.4
 pycparser==3.0
 pydantic==2.13.4

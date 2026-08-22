@@ -1,8 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, DECIMAL, DateTime, ForeignKey
-from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-
 from app.database import Base
 
 
@@ -10,7 +8,7 @@ class Categoria(Base):
     __tablename__ = "categoria"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nombre = Column(String(100))  
+    nombre = Column(String(100)) 
     descripcion = Column(Text)
 
     productos = relationship("Producto", back_populates="categoria")
@@ -30,8 +28,8 @@ class UnidadMedida(Base):
     __tablename__ = "unidad_medida"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nombre = Column(String(50))  
-    abreviatura = Column(String(10)) 
+    nombre = Column(String(50)) 
+    abreviatura = Column(String(10))  
     descripcion = Column(Text)
 
 
@@ -39,28 +37,27 @@ class Producto(Base):
     __tablename__ = "producto"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    codigo = Column(String(50), unique=True) 
+    codigo = Column(String(50), unique=True)
     nombre = Column(String(100))
     descripcion = Column(Text)
 
     id_marca = Column(Integer, ForeignKey("marca.id"))
     id_categoria = Column(Integer, ForeignKey("categoria.id"))
     id_sububicacion = Column(Integer, ForeignKey("sububicacion.id"))  # estante donde vive
-
     id_unidad_compra = Column(Integer, ForeignKey("unidad_medida.id"))
     id_unidad_venta = Column(Integer, ForeignKey("unidad_medida.id"))
-    factor_conversion = Column(DECIMAL(10, 4)) 
+    factor_conversion = Column(DECIMAL(10, 4))  
 
     precio_compra = Column(DECIMAL(12, 2))
     precio_venta = Column(DECIMAL(12, 2))
-    precio_automatico = Column(TINYINT, default=0)  # 1=calculado con margen, 0=manual
-    margen_ganancia = Column(DECIMAL(5, 2))  
+    precio_automatico = Column(Integer, default=0) 
+    margen_ganancia = Column(DECIMAL(5, 2)) 
 
     stock_actual = Column(DECIMAL(12, 2), default=0)
-    stock_minimo = Column(DECIMAL(12, 2))  
+    stock_minimo = Column(DECIMAL(12, 2))
     stock_maximo = Column(DECIMAL(12, 2))
 
-    activo = Column(TINYINT, default=1)
+    activo = Column(Integer, default=1)
     fecha_creacion = Column(DateTime, server_default=func.now())
 
     marca = relationship("Marca", back_populates="productos")

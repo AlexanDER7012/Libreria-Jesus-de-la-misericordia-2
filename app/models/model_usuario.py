@@ -1,46 +1,40 @@
 from sqlalchemy import Column, Integer, String, Text, Date, DateTime, DECIMAL, Time, ForeignKey
-from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-
 from app.database import Base
-
 
 class Modulo(Base):
     __tablename__ = "modulo"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nombre = Column(String(50))
+    nombre = Column(String(50))  # ej. Ventas, Compras, Inventario
     descripcion = Column(Text)
     icono = Column(String(50))
     orden = Column(Integer)
 
     permisos = relationship("Permiso", back_populates="modulo")
 
-
 class Permiso(Base):
     __tablename__ = "permiso"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nombre = Column(String(100)) 
+    nombre = Column(String(100))  # ej. ver_ventas, crear_compra, editar_producto
     descripcion = Column(Text)
     id_modulo = Column(Integer, ForeignKey("modulo.id"))
 
     modulo = relationship("Modulo", back_populates="permisos")
     rol_permisos = relationship("RolPermiso", back_populates="permiso")
 
-
 class Rol(Base):
     __tablename__ = "rol"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nombre = Column(String(50)) 
+    nombre = Column(String(50))  # Duenia, Administrador, Vendedor, Vacacionista
     descripcion = Column(Text)
-    nivel = Column(Integer)  
+    nivel = Column(Integer)  # 0=Duenia, 1=Administrador, 2=Vendedor, 3=Vacacionista
 
     rol_permisos = relationship("RolPermiso", back_populates="rol")
     usuarios = relationship("Usuario", back_populates="rol")
-
 
 class RolPermiso(Base):
     __tablename__ = "rol_permiso"
@@ -52,27 +46,24 @@ class RolPermiso(Base):
     rol = relationship("Rol", back_populates="rol_permisos")
     permiso = relationship("Permiso", back_populates="rol_permisos")
 
-
 class Puesto(Base):
     __tablename__ = "puesto"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nombre = Column(String(100))  
+    nombre = Column(String(100))
     descripcion = Column(Text)
 
     empleados = relationship("Empleado", back_populates="puesto")
-
 
 class Turno(Base):
     __tablename__ = "turno"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nombre = Column(String(50))  # Matutino, Vespertino
+    nombre = Column(String(50))
     hora_inicio = Column(Time)
     hora_fin = Column(Time)
 
     empleados = relationship("Empleado", back_populates="turno")
-
 
 class Empleado(Base):
     __tablename__ = "empleado"
@@ -88,7 +79,7 @@ class Empleado(Base):
     salario_base = Column(DECIMAL(12, 2))
     id_puesto = Column(Integer, ForeignKey("puesto.id"))
     id_turno = Column(Integer, ForeignKey("turno.id"))
-    activo = Column(TINYINT, default=1)
+    activo = Column(Integer, default=1)
 
     puesto = relationship("Puesto", back_populates="empleados")
     turno = relationship("Turno", back_populates="empleados")
@@ -102,11 +93,11 @@ class Usuario(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_empleado = Column(Integer, ForeignKey("empleado.id"))
     nombre_usuario = Column(String(50), unique=True)
-    password = Column(String(255))  # hash bcrypt (nunca texto plano)
+    password = Column(String(255))
     id_rol = Column(Integer, ForeignKey("rol.id"))
     fecha_ultimo_acceso = Column(DateTime)
     intentos_fallidos = Column(Integer, default=0)
-    activo = Column(TINYINT, default=1)
+    activo = Column(Integer, default=1)
 
     empleado = relationship("Empleado", back_populates="usuario")
     rol = relationship("Rol", back_populates="usuarios")
@@ -118,9 +109,9 @@ class HistoricoPagoEmpleado(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_empleado = Column(Integer, ForeignKey("empleado.id"))
     fecha_pago = Column(DateTime)
-    concepto = Column(String(50))  
+    concepto = Column(String(50)) 
     monto = Column(DECIMAL(12, 2))
-    periodo = Column(String(50))  
+    periodo = Column(String(50))
     referencia = Column(String(100))
     observaciones = Column(Text)
 
@@ -133,7 +124,7 @@ class LogActividad(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_usuario = Column(Integer, ForeignKey("usuario.id"))
     fecha = Column(DateTime, server_default=func.now())
-    accion = Column(String(20))  
+    accion = Column(String(20)) 
     modulo = Column(String(50))
     ip = Column(String(45))
-    detalles = Column(Text)  
+    detalles = Column(Text) 

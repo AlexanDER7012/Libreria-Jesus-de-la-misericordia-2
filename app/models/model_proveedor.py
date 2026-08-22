@@ -1,8 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, DECIMAL, ForeignKey
-from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-
 from app.database import Base
 
 
@@ -10,10 +8,11 @@ class TipoProveedor(Base):
     __tablename__ = "tipo_proveedor"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nombre = Column(String(100))  
+    nombre = Column(String(100))  # ej. Mayorista, Especializado, Nacional, Importador
     descripcion = Column(Text)
 
     proveedores = relationship("Proveedor", back_populates="tipo_proveedor")
+
 
 class Proveedor(Base):
     __tablename__ = "proveedor"
@@ -23,15 +22,16 @@ class Proveedor(Base):
     telefono = Column(String(20))
     email = Column(String(100))
     direccion = Column(Text)
-    contacto = Column(String(100))  
+    contacto = Column(String(100))
     id_tipo_proveedor = Column(Integer, ForeignKey("tipo_proveedor.id"))
     nit = Column(String(20))
     codigo_proveedor = Column(String(50)) 
     dias_credito = Column(Integer)
-    activo = Column(TINYINT, default=1)
+    activo = Column(Integer, default=1)
 
     tipo_proveedor = relationship("TipoProveedor", back_populates="proveedores")
     pedidos = relationship("Pedido", back_populates="proveedor")
+
 
 class Pedido(Base):
     __tablename__ = "pedido"
@@ -40,7 +40,7 @@ class Pedido(Base):
     fecha = Column(DateTime, server_default=func.now())
     id_usuario = Column(Integer, ForeignKey("usuario.id"))
     id_proveedor = Column(Integer, ForeignKey("proveedor.id"))
-    estado = Column(String(20), default="Pendiente") 
+    estado = Column(String(20), default="Pendiente")
     observaciones = Column(Text)
 
     proveedor = relationship("Proveedor", back_populates="pedidos")
@@ -53,8 +53,8 @@ class DetallePedido(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_pedido = Column(Integer, ForeignKey("pedido.id"), nullable=False)
     id_producto = Column(Integer, ForeignKey("producto.id"), nullable=False)
-    cantidad_sugerida = Column(DECIMAL(12, 2)) 
-    cantidad_pedida = Column(DECIMAL(12, 2))
+    cantidad_sugerida = Column(DECIMAL(12, 2))
+    cantidad_pedida = Column(DECIMAL(12, 2))  
     observaciones = Column(Text)
 
     pedido = relationship("Pedido", back_populates="detalles")

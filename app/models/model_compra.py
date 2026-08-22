@@ -1,8 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Date, DECIMAL, ForeignKey
-from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-
 from app.database import Base
 
 
@@ -11,13 +9,13 @@ class Compra(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_proveedor = Column(Integer, ForeignKey("proveedor.id"))
-    id_ubicacion_destino = Column(Integer, ForeignKey("ubicacion.id"))  
+    id_ubicacion_destino = Column(Integer, ForeignKey("ubicacion.id"))  # sucursal que recibe
     numero_factura = Column(String(50))
     fecha = Column(DateTime, server_default=func.now())
     subtotal = Column(DECIMAL(12, 2))
     iva = Column(DECIMAL(12, 2))
     total = Column(DECIMAL(12, 2))
-    estado = Column(String(20), default="Pendiente")  
+    estado = Column(String(20), default="Pendiente")  # Pendiente, Recibida, Pagada, Parcial
     fecha_recepcion = Column(DateTime)
     id_usuario_registra = Column(Integer, ForeignKey("usuario.id"))
     observaciones = Column(Text)
@@ -67,8 +65,8 @@ class NotaEntrega(Base):
     numero_nota = Column(String(50))
     fecha_recepcion = Column(DateTime, server_default=func.now())
     id_usuario_receptor = Column(Integer, ForeignKey("usuario.id"))
-    conforme = Column(TINYINT) 
-    observaciones = Column(Text) 
+    conforme = Column(Integer)
+    observaciones = Column(Text)  
 
     compra = relationship("Compra", back_populates="notas_entrega")
 
