@@ -51,4 +51,18 @@ from app.schemas.schema_caja import (
     CajaDenominacionCreate, CajaDenominacionResponse,
     CajaChicaMovimientoCreate, CajaChicaMovimientoResponse,
 )
-
+from app.schemas.schema_venta import (
+    VentaCreate, VentaResponse,
+    DetalleVentaCreate, DetalleVentaResponse,
+    MetodoPagoVentaCreate, MetodoPagoVentaResponse,
+    ServicioAdicionalCreate, ServicioAdicionalResponse,
+    DetalleServicioCreate, DetalleServicioResponse,
+)
+from app.schemas.schema_cotizacion import (
+    CotizacionCreate, CotizacionResponse,
+    DetalleCotizacionCreate, DetalleCotizacionResponse,
+)
+from app.schemas.schema_configuracion import (
+    ConfiguracionGeneralUpdate, ConfiguracionGeneralResponse,
+    MetaFinancieraCreate, MetaFinancieraResponse,
+)

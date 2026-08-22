@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.routers import (
     router_cliente, router_ubicacion, router_usuario, router_producto,
     router_inventario, router_proveedor, router_compra, router_caja,
+    router_venta, router_cotizacion, router_configuracion,
 )
 
 app = FastAPI(
@@ -49,6 +50,16 @@ app.include_router(router_caja.router_caja_chica, prefix="/caja-chica", tags=["C
 app.include_router(router_caja.router_gasto, prefix="/gastos", tags=["Gastos"])
 app.include_router(router_caja.router_tipo_gasto, prefix="/tipos-gasto", tags=["Tipos de Gasto"])
 app.include_router(router_caja.router_tipo_pago, prefix="/tipos-pago", tags=["Tipos de Pago"])
+
+app.include_router(router_venta.router, prefix="/ventas", tags=["Ventas"])
+app.include_router(router_venta.router_servicio, prefix="/servicios-adicionales", tags=["Servicios Adicionales"])
+
+app.include_router(router_cotizacion.router, prefix="/cotizaciones", tags=["Cotizaciones"])
+
+app.include_router(router_configuracion.router, prefix="/configuracion", tags=["Configuración"])
+app.include_router(router_configuracion.router_meta, prefix="/metas-financieras", tags=["Metas Financieras"])
+
+
 
 @app.get("/")
 def read_root():
