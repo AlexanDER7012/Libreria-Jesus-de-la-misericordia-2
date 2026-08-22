@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 
 from app.routers import (
-    router_cliente, router_ubicacion, router_usuario, router_producto, router_inventario,
+    router_cliente, router_ubicacion, router_usuario, router_producto,
+    router_inventario, router_proveedor, router_compra, router_caja,
 )
 
 app = FastAPI(
@@ -36,10 +37,18 @@ app.include_router(router_inventario.router_fisico, prefix="/inventario-fisico",
 app.include_router(router_inventario.router_traslado, prefix="/traslados", tags=["Traslados entre Sucursales"])
 app.include_router(router_inventario.router_alerta, prefix="/alertas", tags=["Alertas"])
 
-# Los demás routers se agregan aquí conforme se van creando, por ejemplo:
-# from app.routers import router_proveedor
-# app.include_router(router_proveedor.router, prefix="/proveedores", tags=["Proveedores"])
+app.include_router(router_proveedor.router, prefix="/proveedores", tags=["Proveedores"])
+app.include_router(router_proveedor.router_tipo, prefix="/tipos-proveedor", tags=["Tipos de Proveedor"])
+app.include_router(router_proveedor.router_pedido, prefix="/pedidos", tags=["Pedidos"])
 
+app.include_router(router_compra.router, prefix="/compras", tags=["Compras"])
+app.include_router(router_compra.router_devolucion, prefix="/devoluciones-compra", tags=["Devoluciones de Compra"])
+
+app.include_router(router_caja.router, prefix="/caja-turno", tags=["Caja - Turnos"])
+app.include_router(router_caja.router_caja_chica, prefix="/caja-chica", tags=["Caja Chica"])
+app.include_router(router_caja.router_gasto, prefix="/gastos", tags=["Gastos"])
+app.include_router(router_caja.router_tipo_gasto, prefix="/tipos-gasto", tags=["Tipos de Gasto"])
+app.include_router(router_caja.router_tipo_pago, prefix="/tipos-pago", tags=["Tipos de Pago"])
 
 @app.get("/")
 def read_root():

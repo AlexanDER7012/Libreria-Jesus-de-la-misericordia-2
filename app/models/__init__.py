@@ -9,3 +9,7 @@ from app.models.model_inventario import (
     TipoMovimientoInventario, MovimientoInventario, MovimientoInventarioDetalle,
     InventarioFisico, TrasladoSucursal, Alerta,
 )
+from app.models.model_proveedor import Proveedor, TipoProveedor, Pedido, DetallePedido
+from app.models.model_compra import Compra, DetalleCompra, CompraPago, NotaEntrega, DevolucionCompra
+from app.models.model_caja import TipoPago, TipoGasto, Gasto, CajaTurno, CajaDenominacion, CajaChicaMovimiento
+
