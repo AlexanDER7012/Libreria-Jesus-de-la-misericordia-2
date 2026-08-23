@@ -1,13 +1,14 @@
-// INVENTARIO
+// inventario.js
 
 let movimientosData = [];
 let tiposMovimientoData = [];
 let inventarioFisicoData = [];
-let alertasData = [];
-let sububicacionesData = [];
 let trasladosData = [];
+let alertasData = [];
 
-// CARGA DEL MÓDULO
+// =============================================
+// CARGA DEL MÓDULO PRINCIPAL
+// =============================================
 async function loadInventarioModule() {
   const container = document.getElementById("mainContent");
   if (!container) return;
@@ -16,60 +17,78 @@ async function loadInventarioModule() {
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4><i class="fas fa-warehouse me-2 text-secondary"></i>Inventario</h4>
             <div>
-                <button class="btn btn-secondary btn-sm me-2" onclick="showCreateMovimientoModal()">
+                <button class="btn btn-primary btn-sm me-2" onclick="showMovimientoModal()">
                     <i class="fas fa-exchange-alt me-1"></i>Movimiento
                 </button>
-                <button class="btn btn-outline-secondary btn-sm me-2" onclick="showCreateInventarioFisicoModal()">
+                <button class="btn btn-warning btn-sm me-2" onclick="showConteoFisicoModal()">
                     <i class="fas fa-clipboard-list me-1"></i>Conteo Físico
                 </button>
-                <button class="btn btn-outline-secondary btn-sm" onclick="showCreateTrasladoModal()">
+                <button class="btn btn-info btn-sm" onclick="showTrasladoModal()">
                     <i class="fas fa-arrows-alt-h me-1"></i>Traslado
                 </button>
             </div>
         </div>
 
-        <ul class="nav nav-tabs mb-3" id="inventarioTabs">
+        <ul class="nav nav-tabs mb-3" id="inventarioTabs" role="tablist">
             <li class="nav-item">
-                <a class="nav-link active" data-bs-toggle="tab" href="#movimientosTab">
+                <button class="nav-link active" id="tab-movimientos" data-bs-toggle="tab"
+                        data-bs-target="#panel-movimientos" type="button" role="tab">
                     <i class="fas fa-exchange-alt me-1"></i>Movimientos
-                </a>
+                </button>
             </li>
             <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#stockTab">
-                    <i class="fas fa-boxes me-1"></i>Stock Actual
-                </a>
+                <button class="nav-link" id="tab-conteo" data-bs-toggle="tab"
+                        data-bs-target="#panel-conteo" type="button" role="tab">
+                    <i class="fas fa-clipboard-list me-1"></i>Conteo Físico
+                </button>
             </li>
             <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#alertasTab">
-                    <i class="fas fa-exclamation-triangle me-1"></i>Alertas
-                    <span id="alertasBadge" class="badge bg-danger ms-1" style="display:none;">0</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#trasladosTab">
+                <button class="nav-link" id="tab-traslados" data-bs-toggle="tab"
+                        data-bs-target="#panel-traslados" type="button" role="tab">
                     <i class="fas fa-arrows-alt-h me-1"></i>Traslados
-                </a>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="tab-alertas" data-bs-toggle="tab"
+                        data-bs-target="#panel-alertas" type="button" role="tab">
+                    <i class="fas fa-exclamation-triangle me-1"></i>Alertas
+                </button>
             </li>
         </ul>
 
-        <div class="tab-content">
-            <div class="tab-pane fade show active" id="movimientosTab">
+        <div class="tab-content" id="inventarioTabContent">
+            <!-- PANEL: MOVIMIENTOS -->
+            <div class="tab-pane fade show active" id="panel-movimientos" role="tabpanel">
                 <div id="movimientosContainer">
                     <div class="text-center py-5">
-                        <div class="spinner-border text-secondary" role="status"></div>
+                        <div class="spinner-border text-primary" role="status"></div>
                         <p class="mt-2 text-muted">Cargando movimientos...</p>
                     </div>
                 </div>
             </div>
-            <div class="tab-pane fade" id="stockTab">
-                <div id="stockContainer">
+
+            <!-- PANEL: CONTEO FÍSICO -->
+            <div class="tab-pane fade" id="panel-conteo" role="tabpanel">
+                <div id="conteoContainer">
                     <div class="text-center py-5">
-                        <div class="spinner-border text-secondary" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando inventario físico...</p>
+                        <div class="spinner-border text-warning" role="status"></div>
+                        <p class="mt-2 text-muted">Cargando conteos físicos...</p>
                     </div>
                 </div>
             </div>
-            <div class="tab-pane fade" id="alertasTab">
+
+            <!-- PANEL: TRASLADOS -->
+            <div class="tab-pane fade" id="panel-traslados" role="tabpanel">
+                <div id="trasladosContainer">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-info" role="status"></div>
+                        <p class="mt-2 text-muted">Cargando traslados...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL: ALERTAS -->
+            <div class="tab-pane fade" id="panel-alertas" role="tabpanel">
                 <div id="alertasContainer">
                     <div class="text-center py-5">
                         <div class="spinner-border text-danger" role="status"></div>
@@ -77,79 +96,499 @@ async function loadInventarioModule() {
                     </div>
                 </div>
             </div>
-            <div class="tab-pane fade" id="trasladosTab">
-                <div id="trasladosContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-secondary" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando traslados...</p>
-                    </div>
-                </div>
-            </div>
         </div>
     `;
 
+  // Crear modales si no existen
+  crearModalesInventario();
+
   try {
-    const [
-      movimientos,
-      tiposMov,
-      inventario,
-      alertas,
-      productos,
-      ubicaciones,
-      traslados,
-    ] = await Promise.all([
-      api.getMovimientosInventario().catch(() => []),
-      api.getTiposMovimiento().catch(() => []),
-      api.getInventarioFisico().catch(() => []),
-      api.getAlertasStock().catch(() => []),
-      api.getProductos().catch(() => []),
-      api.request("/ubicaciones").catch(() => []),
-      api.getTraslados().catch(() => []),
-    ]);
+    const [movimientos, tiposMov, conteo, traslados, alertas] =
+      await Promise.all([
+        api.getMovimientosInventario().catch(() => []),
+        api.getTiposMovimiento().catch(() => []),
+        api.getInventarioFisico().catch(() => []),
+        api.getTraslados().catch(() => []),
+        api.getAlertasStock().catch(() => []),
+      ]);
 
     movimientosData = movimientos || [];
     tiposMovimientoData = tiposMov || [];
-    inventarioFisicoData = inventario || [];
-    alertasData = alertas || [];
-    // Usar variables globales (definidas en otros archivos)
-    window.productosData = productos || [];
-    window.ubicacionesData = ubicaciones || [];
+    inventarioFisicoData = conteo || [];
     trasladosData = traslados || [];
-
-    try {
-      sububicacionesData = (await api.request("/sububicaciones")) || [];
-    } catch (e) {
-      sububicacionesData = [];
-    }
+    alertasData = alertas || [];
 
     renderMovimientos(movimientosData);
-    renderStock(inventarioFisicoData);
-    renderAlertas(alertasData);
+    renderConteoFisico(inventarioFisicoData);
     renderTraslados(trasladosData);
+    renderAlertas(alertasData);
 
-    const badge = document.getElementById("alertasBadge");
-    if (alertasData.length > 0) {
-      badge.style.display = "inline";
-      badge.textContent = alertasData.length;
-    }
+    // Poblar selects
+    populateSelectsInventario();
   } catch (error) {
+    console.error("Error cargando inventario:", error);
     document.getElementById("movimientosContainer").innerHTML = `
-            <div class="alert alert-danger">Error al cargar datos: ${error.message}</div>
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                Error al cargar datos: ${error.message}
+            </div>
         `;
   }
 }
 
-// RENDERIZAR MOVIMIENTOS
+// =============================================
+// POBLAR SELECTS
+// =============================================
+function populateSelectsInventario() {
+  // Productos
+  const productSelects = document.querySelectorAll(".inv-producto-select");
+  productSelects.forEach((select) => {
+    select.innerHTML = '<option value="">Seleccionar producto</option>';
+    (window.productosData || []).forEach((p) => {
+      select.innerHTML += `<option value="${p.id}">${p.codigo} - ${p.nombre} (Stock: ${p.stock_actual || 0})</option>`;
+    });
+  });
+
+  // Tipos de movimiento
+  const tipoSelects = document.querySelectorAll(".inv-tipo-movimiento");
+  tipoSelects.forEach((select) => {
+    select.innerHTML = '<option value="">Seleccionar tipo</option>';
+    tiposMovimientoData.forEach((t) => {
+      select.innerHTML += `<option value="${t.id}">${t.nombre}</option>`;
+    });
+  });
+
+  // Ubicaciones
+  const ubicacionSelects = document.querySelectorAll(".inv-ubicacion-select");
+  ubicacionSelects.forEach((select) => {
+    select.innerHTML = '<option value="">Seleccionar ubicación</option>';
+    (window.ubicacionesData || []).forEach((u) => {
+      select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
+    });
+  });
+}
+
+// =============================================
+// CREAR MODALES
+// =============================================
+function crearModalesInventario() {
+  // Modal Movimiento
+  if (!document.getElementById("movimientoModal")) {
+    const html = `
+            <div class="modal fade" id="movimientoModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Nuevo Movimiento de Inventario</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="movimientoForm" novalidate>
+                                <input type="hidden" id="movimientoId" />
+                                <div class="mb-3">
+                                    <label class="form-label">Producto *</label>
+                                    <select class="form-select inv-producto-select" id="movimientoProducto" required></select>
+                                    <div class="invalid-feedback" id="movimientoProductoError">Seleccione un producto</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Tipo de Movimiento *</label>
+                                    <select class="form-select inv-tipo-movimiento" id="movimientoTipo" required></select>
+                                    <div class="invalid-feedback" id="movimientoTipoError">Seleccione un tipo</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Cantidad *</label>
+                                    <input type="number" step="0.01" class="form-control" id="movimientoCantidad" required />
+                                    <div class="invalid-feedback" id="movimientoCantidadError">Ingrese una cantidad válida</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Motivo / Observación</label>
+                                    <textarea class="form-control" id="movimientoObservacion" rows="2"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">Guardar Movimiento</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    document.body.insertAdjacentHTML("beforeend", html);
+    document.getElementById("movimientoForm").onsubmit = saveMovimiento;
+  }
+
+  // Modal Conteo Físico
+  if (!document.getElementById("conteoModal")) {
+    const html = `
+            <div class="modal fade" id="conteoModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Conteo Físico de Inventario</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="conteoForm" novalidate>
+                                <input type="hidden" id="conteoId" />
+                                <div class="mb-3">
+                                    <label class="form-label">Producto *</label>
+                                    <select class="form-select inv-producto-select" id="conteoProducto" required></select>
+                                    <div class="invalid-feedback" id="conteoProductoError">Seleccione un producto</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Ubicación *</label>
+                                    <select class="form-select inv-ubicacion-select" id="conteoUbicacion" required></select>
+                                    <div class="invalid-feedback" id="conteoUbicacionError">Seleccione una ubicación</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Cantidad Contada *</label>
+                                    <input type="number" step="0.01" class="form-control" id="conteoCantidad" required />
+                                    <div class="invalid-feedback" id="conteoCantidadError">Ingrese una cantidad válida</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Stock en Sistema</label>
+                                    <input type="number" step="0.01" class="form-control" id="conteoStockSistema" readonly />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Observaciones</label>
+                                    <textarea class="form-control" id="conteoObservacion" rows="2"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-warning w-100">Guardar Conteo</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    document.body.insertAdjacentHTML("beforeend", html);
+    document.getElementById("conteoForm").onsubmit = saveConteoFisico;
+
+    // Actualizar stock al seleccionar producto
+    document
+      .getElementById("conteoProducto")
+      .addEventListener("change", function () {
+        const producto = (window.productosData || []).find(
+          (p) => p.id === parseInt(this.value),
+        );
+        document.getElementById("conteoStockSistema").value = producto
+          ? producto.stock_actual || 0
+          : 0;
+      });
+  }
+
+  // Modal Traslado
+  if (!document.getElementById("trasladoModal")) {
+    const html = `
+            <div class="modal fade" id="trasladoModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Traslado de Inventario</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="trasladoForm" novalidate>
+                                <input type="hidden" id="trasladoId" />
+                                <div class="mb-3">
+                                    <label class="form-label">Producto *</label>
+                                    <select class="form-select inv-producto-select" id="trasladoProducto" required></select>
+                                    <div class="invalid-feedback" id="trasladoProductoError">Seleccione un producto</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Ubicación Origen *</label>
+                                    <select class="form-select inv-ubicacion-select" id="trasladoOrigen" required></select>
+                                    <div class="invalid-feedback" id="trasladoOrigenError">Seleccione una ubicación</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Ubicación Destino *</label>
+                                    <select class="form-select inv-ubicacion-select" id="trasladoDestino" required></select>
+                                    <div class="invalid-feedback" id="trasladoDestinoError">Seleccione una ubicación</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Cantidad *</label>
+                                    <input type="number" step="0.01" class="form-control" id="trasladoCantidad" required />
+                                    <div class="invalid-feedback" id="trasladoCantidadError">Ingrese una cantidad válida</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Observaciones</label>
+                                    <textarea class="form-control" id="trasladoObservacion" rows="2"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-info w-100">Guardar Traslado</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    document.body.insertAdjacentHTML("beforeend", html);
+    document.getElementById("trasladoForm").onsubmit = saveTraslado;
+  }
+}
+
+// =============================================
+// FUNCIONES PARA ABRIR MODALES
+// =============================================
+function showMovimientoModal() {
+  const modal = document.getElementById("movimientoModal");
+  if (!modal) {
+    crearModalesInventario();
+    setTimeout(() => showMovimientoModal(), 100);
+    return;
+  }
+
+  document.getElementById("movimientoForm").reset();
+  document.getElementById("movimientoId").value = "";
+  limpiarErroresFormulario("movimientoForm");
+  populateSelectsInventario();
+
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+}
+
+function showConteoFisicoModal() {
+  const modal = document.getElementById("conteoModal");
+  if (!modal) {
+    crearModalesInventario();
+    setTimeout(() => showConteoFisicoModal(), 100);
+    return;
+  }
+
+  document.getElementById("conteoForm").reset();
+  document.getElementById("conteoId").value = "";
+  document.getElementById("conteoStockSistema").value = 0;
+  limpiarErroresFormulario("conteoForm");
+  populateSelectsInventario();
+
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+}
+
+function showTrasladoModal() {
+  const modal = document.getElementById("trasladoModal");
+  if (!modal) {
+    crearModalesInventario();
+    setTimeout(() => showTrasladoModal(), 100);
+    return;
+  }
+
+  document.getElementById("trasladoForm").reset();
+  document.getElementById("trasladoId").value = "";
+  limpiarErroresFormulario("trasladoForm");
+  populateSelectsInventario();
+
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+}
+
+// =============================================
+// GUARDAR MOVIMIENTO
+// =============================================
+async function saveMovimiento(event) {
+  event.preventDefault();
+
+  let valid = true;
+
+  const idProducto = parseInt(
+    document.getElementById("movimientoProducto").value,
+  );
+  if (!idProducto) {
+    mostrarErrorCampo("movimientoProducto", "Seleccione un producto");
+    valid = false;
+  } else {
+    limpiarErrorCampo("movimientoProducto");
+  }
+
+  const idTipo = parseInt(document.getElementById("movimientoTipo").value);
+  if (!idTipo) {
+    mostrarErrorCampo("movimientoTipo", "Seleccione un tipo de movimiento");
+    valid = false;
+  } else {
+    limpiarErrorCampo("movimientoTipo");
+  }
+
+  const cantidad = parseFloat(
+    document.getElementById("movimientoCantidad").value,
+  );
+  if (!cantidad || cantidad <= 0) {
+    mostrarErrorCampo("movimientoCantidad", "Ingrese una cantidad válida");
+    valid = false;
+  } else {
+    limpiarErrorCampo("movimientoCantidad");
+  }
+
+  if (!valid) return;
+
+  const data = {
+    id_producto: idProducto,
+    id_tipo_movimiento: idTipo,
+    cantidad: cantidad,
+    observacion:
+      document.getElementById("movimientoObservacion").value.trim() || null,
+  };
+
+  try {
+    const result = await api.createMovimientoInventario(data);
+    showToast(`Movimiento #${result.id} registrado correctamente`, "success");
+
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("movimientoModal"),
+    );
+    if (modal) modal.hide();
+
+    await loadInventarioModule();
+  } catch (error) {
+    showToast(error.message || "Error al registrar movimiento", "error");
+  }
+}
+
+// =============================================
+// GUARDAR CONTEO FÍSICO
+// =============================================
+async function saveConteoFisico(event) {
+  event.preventDefault();
+
+  let valid = true;
+
+  const idProducto = parseInt(document.getElementById("conteoProducto").value);
+  if (!idProducto) {
+    mostrarErrorCampo("conteoProducto", "Seleccione un producto");
+    valid = false;
+  } else {
+    limpiarErrorCampo("conteoProducto");
+  }
+
+  const idUbicacion = parseInt(
+    document.getElementById("conteoUbicacion").value,
+  );
+  if (!idUbicacion) {
+    mostrarErrorCampo("conteoUbicacion", "Seleccione una ubicación");
+    valid = false;
+  } else {
+    limpiarErrorCampo("conteoUbicacion");
+  }
+
+  const cantidad = parseFloat(document.getElementById("conteoCantidad").value);
+  if (!cantidad || cantidad < 0) {
+    mostrarErrorCampo("conteoCantidad", "Ingrese una cantidad válida");
+    valid = false;
+  } else {
+    limpiarErrorCampo("conteoCantidad");
+  }
+
+  if (!valid) return;
+
+  const data = {
+    id_producto: idProducto,
+    id_ubicacion: idUbicacion,
+    cantidad_contada: cantidad,
+    observaciones:
+      document.getElementById("conteoObservacion").value.trim() || null,
+  };
+
+  try {
+    await api.request("/inventario-fisico", "POST", data);
+    showToast("Conteo físico registrado correctamente", "success");
+
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("conteoModal"),
+    );
+    if (modal) modal.hide();
+
+    await loadInventarioModule();
+  } catch (error) {
+    showToast(error.message || "Error al registrar conteo", "error");
+  }
+}
+
+// =============================================
+// GUARDAR TRASLADO
+// =============================================
+async function saveTraslado(event) {
+  event.preventDefault();
+
+  let valid = true;
+
+  const idProducto = parseInt(
+    document.getElementById("trasladoProducto").value,
+  );
+  if (!idProducto) {
+    mostrarErrorCampo("trasladoProducto", "Seleccione un producto");
+    valid = false;
+  } else {
+    limpiarErrorCampo("trasladoProducto");
+  }
+
+  const idOrigen = parseInt(document.getElementById("trasladoOrigen").value);
+  if (!idOrigen) {
+    mostrarErrorCampo("trasladoOrigen", "Seleccione una ubicación origen");
+    valid = false;
+  } else {
+    limpiarErrorCampo("trasladoOrigen");
+  }
+
+  const idDestino = parseInt(document.getElementById("trasladoDestino").value);
+  if (!idDestino) {
+    mostrarErrorCampo("trasladoDestino", "Seleccione una ubicación destino");
+    valid = false;
+  } else {
+    limpiarErrorCampo("trasladoDestino");
+  }
+
+  if (idOrigen === idDestino) {
+    mostrarErrorCampo(
+      "trasladoDestino",
+      "Origen y destino no pueden ser iguales",
+    );
+    valid = false;
+  }
+
+  const cantidad = parseFloat(
+    document.getElementById("trasladoCantidad").value,
+  );
+  if (!cantidad || cantidad <= 0) {
+    mostrarErrorCampo("trasladoCantidad", "Ingrese una cantidad válida");
+    valid = false;
+  } else {
+    limpiarErrorCampo("trasladoCantidad");
+  }
+
+  if (!valid) return;
+
+  const data = {
+    id_producto: idProducto,
+    id_ubicacion_origen: idOrigen,
+    id_ubicacion_destino: idDestino,
+    cantidad: cantidad,
+    observaciones:
+      document.getElementById("trasladoObservacion").value.trim() || null,
+  };
+
+  try {
+    await api.request("/traslados", "POST", data);
+    showToast("Traslado registrado correctamente", "success");
+
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("trasladoModal"),
+    );
+    if (modal) modal.hide();
+
+    await loadInventarioModule();
+  } catch (error) {
+    showToast(error.message || "Error al registrar traslado", "error");
+  }
+}
+
+// =============================================
+// RENDER: MOVIMIENTOS
+// =============================================
 function renderMovimientos(movimientos) {
   const container = document.getElementById("movimientosContainer");
   if (!container) return;
 
   if (!movimientos || movimientos.length === 0) {
     container.innerHTML = `
-            <div class="text-center py-4 text-muted">
-                <i class="fas fa-exchange-alt fa-3x mb-3"></i>
-                <p>No hay movimientos registrados</p>
-                <button class="btn btn-secondary btn-sm" onclick="showCreateMovimientoModal()">
+            <div class="text-center py-5">
+                <i class="fas fa-exchange-alt fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No hay movimientos registrados</p>
+                <button class="btn btn-primary btn-sm" onclick="showMovimientoModal()">
                     <i class="fas fa-plus me-2"></i>Registrar Movimiento
                 </button>
             </div>
@@ -162,48 +601,43 @@ function renderMovimientos(movimientos) {
             <table class="table table-hover table-striped">
                 <thead class="table-light">
                     <tr>
-                        <th>Fecha</th>
-                        <th>Tipo</th>
+                        <th>ID</th>
                         <th>Producto</th>
+                        <th>Tipo</th>
                         <th>Cantidad</th>
-                        <th>Origen</th>
-                        <th>Destino</th>
-                        <th>Referencia</th>
+                        <th>Stock Actual</th>
+                        <th>Fecha</th>
+                        <th>Observación</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
 
   movimientos.forEach((m) => {
+    const producto = (window.productosData || []).find(
+      (p) => p.id === m.id_producto,
+    );
     const tipo = tiposMovimientoData.find((t) => t.id === m.id_tipo_movimiento);
-    const detalles = m.detalles || [];
+    const esEntrada =
+      tipo && tipo.nombre && tipo.nombre.toLowerCase().includes("entrada");
 
-    detalles.forEach((d) => {
-      const producto = (window.productosData || []).find(
-        (p) => p.id === d.id_producto,
-      );
-      const origen = (window.ubicacionesData || []).find(
-        (u) => u.id === m.id_ubicacion_origen,
-      );
-      const destino = (window.ubicacionesData || []).find(
-        (u) => u.id === m.id_ubicacion_destino,
-      );
-
-      const signo = tipo ? (tipo.signo === 1 ? "+" : "-") : "";
-      const clase = signo === "+" ? "text-success" : "text-danger";
-
-      html += `
-                <tr>
-                    <td>${m.fecha ? new Date(m.fecha).toLocaleString() : "--"}</td>
-                    <td><span class="badge bg-secondary">${tipo ? tipo.nombre : "--"}</span></td>
-                    <td>${producto ? producto.nombre : "--"}</td>
-                    <td class="${clase} fw-bold">${signo} ${d.cantidad || 0}</td>
-                    <td>${origen ? origen.nombre : "--"}</td>
-                    <td>${destino ? destino.nombre : "--"}</td>
-                    <td>${m.referencia || "--"}</td>
-                </tr>
-            `;
-    });
+    html += `
+            <tr>
+                <td>${m.id}</td>
+                <td>${producto ? producto.nombre : "--"}</td>
+                <td>
+                    <span class="badge ${esEntrada ? "bg-success" : "bg-danger"}">
+                        ${tipo ? tipo.nombre : "--"}
+                    </span>
+                </td>
+                <td class="${esEntrada ? "text-success" : "text-danger"} fw-bold">
+                    ${esEntrada ? "+" : "-"} ${m.cantidad || 0}
+                </td>
+                <td>${m.stock_actual || 0}</td>
+                <td>${m.fecha ? new Date(m.fecha).toLocaleString() : "--"}</td>
+                <td>${m.observacion || "--"}</td>
+            </tr>
+        `;
   });
 
   html += `
@@ -218,30 +652,21 @@ function renderMovimientos(movimientos) {
   container.innerHTML = html;
 }
 
-// RENDERIZAR STOCK ACTUAL
-function renderStock(inventario) {
-  const container = document.getElementById("stockContainer");
+// =============================================
+// RENDER: CONTEO FÍSICO
+// =============================================
+function renderConteoFisico(conteos) {
+  const container = document.getElementById("conteoContainer");
   if (!container) return;
 
-  const stockMap = new Map();
-  (window.productosData || []).forEach((p) => {
-    const item = inventario.find((i) => i.id_producto === p.id);
-    stockMap.set(p.id, {
-      producto: p,
-      stock_sistema: p.stock_actual || 0,
-      stock_real: item ? item.stock_real : null,
-      diferencia: item ? item.diferencia : null,
-      ultimo_conteo: item ? item.fecha : null,
-    });
-  });
-
-  const stockArray = Array.from(stockMap.values());
-
-  if (stockArray.length === 0) {
+  if (!conteos || conteos.length === 0) {
     container.innerHTML = `
-            <div class="text-center py-4 text-muted">
-                <i class="fas fa-boxes fa-3x mb-3"></i>
-                <p>No hay productos en inventario</p>
+            <div class="text-center py-5">
+                <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No hay conteos físicos registrados</p>
+                <button class="btn btn-warning btn-sm" onclick="showConteoFisicoModal()">
+                    <i class="fas fa-plus me-2"></i>Nuevo Conteo
+                </button>
             </div>
         `;
     return;
@@ -252,115 +677,39 @@ function renderStock(inventario) {
             <table class="table table-hover table-striped">
                 <thead class="table-light">
                     <tr>
-                        <th>Código</th>
+                        <th>ID</th>
                         <th>Producto</th>
+                        <th>Ubicación</th>
+                        <th>Cantidad Contada</th>
                         <th>Stock Sistema</th>
-                        <th>Stock Real</th>
                         <th>Diferencia</th>
-                        <th>Último Conteo</th>
-                        <th>Estado</th>
+                        <th>Fecha</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
 
-  stockArray.forEach((item) => {
-    const p = item.producto;
-    const diferencia = item.diferencia || 0;
-    const estado =
-      item.stock_real !== null && diferencia !== 0
-        ? "warning"
-        : p.stock_actual <= p.stock_minimo
-          ? "danger"
-          : "success";
-    const estadoText =
-      item.stock_real !== null && diferencia !== 0
-        ? "Ajustar"
-        : p.stock_actual <= p.stock_minimo
-          ? "Stock Bajo"
-          : "OK";
+  conteos.forEach((c) => {
+    const producto = (window.productosData || []).find(
+      (p) => p.id === c.id_producto,
+    );
+    const ubicacion = (window.ubicacionesData || []).find(
+      (u) => u.id === c.id_ubicacion,
+    );
+    const diferencia = (c.cantidad_contada || 0) - (c.stock_sistema || 0);
+    const esDiferencia = diferencia !== 0;
 
     html += `
             <tr>
-                <td><code>${p.codigo || "--"}</code></td>
-                <td>${p.nombre || "--"}</td>
-                <td>${p.stock_actual || 0}</td>
-                <td>${item.stock_real !== null ? item.stock_real : "--"}</td>
-                <td class="${diferencia !== 0 ? "text-danger fw-bold" : ""}">
-                    ${diferencia !== 0 ? diferencia : "--"}
-                </td>
-                <td>${item.ultimo_conteo ? new Date(item.ultimo_conteo).toLocaleDateString() : "--"}</td>
-                <td>
-                    <span class="badge bg-${estado}">${estadoText}</span>
-                </td>
-            </tr>
-        `;
-  });
-
-  html += `
-                </tbody>
-            </table>
-        </div>
-    `;
-
-  container.innerHTML = html;
-}
-
-// RENDERIZAR ALERTAS
-function renderAlertas(alertas) {
-  const container = document.getElementById("alertasContainer");
-  if (!container) return;
-
-  if (!alertas || alertas.length === 0) {
-    container.innerHTML = `
-            <div class="text-center py-4 text-muted">
-                <i class="fas fa-check-circle fa-3x mb-3 text-success"></i>
-                <p>No hay alertas de stock</p>
-            </div>
-        `;
-    return;
-  }
-
-  let html = `
-        <div class="table-responsive">
-            <table class="table table-hover table-striped">
-                <thead class="table-light">
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Tipo</th>
-                        <th>Producto</th>
-                        <th>Mensaje</th>
-                        <th>Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
-
-  alertas.forEach((a) => {
-    const producto = (window.productosData || []).find(
-      (p) => p.id === a.id_producto,
-    );
-    const leida = a.leida === 1;
-
-    html += `
-            <tr class="${!leida ? "table-warning" : ""}">
-                <td>${a.fecha ? new Date(a.fecha).toLocaleString() : "--"}</td>
-                <td><span class="badge ${a.tipo === "stock_minimo" ? "bg-danger" : "bg-warning"}">${a.tipo || "--"}</span></td>
+                <td>${c.id}</td>
                 <td>${producto ? producto.nombre : "--"}</td>
-                <td>${a.mensaje || "--"}</td>
-                <td>
-                    ${
-                      !leida
-                        ? `
-                        <button class="btn btn-sm btn-outline-success" onclick="marcarAlertaLeida(${a.id})">
-                            <i class="fas fa-check"></i> Marcar leída
-                        </button>
-                    `
-                        : `
-                        <span class="badge bg-success">Leída</span>
-                    `
-                    }
+                <td>${ubicacion ? ubicacion.nombre || ubicacion.id : "--"}</td>
+                <td>${c.cantidad_contada || 0}</td>
+                <td>${c.stock_sistema || 0}</td>
+                <td class="${esDiferencia ? (diferencia > 0 ? "text-success" : "text-danger") : ""}">
+                    ${diferencia !== 0 ? (diferencia > 0 ? "+" : "") + diferencia : "0"}
                 </td>
+                <td>${c.fecha ? new Date(c.fecha).toLocaleString() : "--"}</td>
             </tr>
         `;
   });
@@ -369,22 +718,27 @@ function renderAlertas(alertas) {
                 </tbody>
             </table>
         </div>
+        <div class="text-end">
+            <small class="text-muted">Total: ${conteos.length} conteos</small>
+        </div>
     `;
 
   container.innerHTML = html;
 }
 
-// RENDERIZAR TRASLADOS
+// =============================================
+// RENDER: TRASLADOS
+// =============================================
 function renderTraslados(traslados) {
   const container = document.getElementById("trasladosContainer");
   if (!container) return;
 
   if (!traslados || traslados.length === 0) {
     container.innerHTML = `
-            <div class="text-center py-4 text-muted">
-                <i class="fas fa-arrows-alt-h fa-3x mb-3"></i>
-                <p>No hay traslados registrados</p>
-                <button class="btn btn-secondary btn-sm" onclick="showCreateTrasladoModal()">
+            <div class="text-center py-5">
+                <i class="fas fa-arrows-alt-h fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No hay traslados registrados</p>
+                <button class="btn btn-info btn-sm" onclick="showTrasladoModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Traslado
                 </button>
             </div>
@@ -397,14 +751,13 @@ function renderTraslados(traslados) {
             <table class="table table-hover table-striped">
                 <thead class="table-light">
                     <tr>
-                        <th>Fecha</th>
+                        <th>ID</th>
                         <th>Producto</th>
-                        <th>Cantidad</th>
                         <th>Origen</th>
                         <th>Destino</th>
-                        <th>Método</th>
+                        <th>Cantidad</th>
                         <th>Estado</th>
-                        <th>Acciones</th>
+                        <th>Fecha</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -421,28 +774,121 @@ function renderTraslados(traslados) {
       (u) => u.id === t.id_ubicacion_destino,
     );
     const estado = t.estado || "Pendiente";
-    const estadoBadge =
-      estado === "Completado"
-        ? "bg-success"
-        : estado === "En tránsito"
-          ? "bg-warning"
-          : "bg-secondary";
 
     html += `
             <tr>
-                <td>${t.fecha ? new Date(t.fecha).toLocaleDateString() : "--"}</td>
+                <td>${t.id}</td>
                 <td>${producto ? producto.nombre : "--"}</td>
+                <td>${origen ? origen.nombre || origen.id : "--"}</td>
+                <td>${destino ? destino.nombre || destino.id : "--"}</td>
                 <td>${t.cantidad || 0}</td>
-                <td>${origen ? origen.nombre : "--"}</td>
-                <td>${destino ? destino.nombre : "--"}</td>
-                <td>${t.metodo_traslado || "--"}</td>
-                <td><span class="badge ${estadoBadge}">${estado}</span></td>
                 <td>
+                    <span class="badge ${estado === "Recibido" ? "bg-success" : "bg-warning"}">
+                        ${estado}
+                    </span>
                     ${
                       estado === "Pendiente"
                         ? `
-                        <button class="btn btn-sm btn-outline-success" onclick="confirmarTraslado(${t.id})">
+                        <button class="btn btn-sm btn-outline-success ms-1" onclick="recibirTraslado(${t.id})">
                             <i class="fas fa-check"></i>
+                        </button>
+                    `
+                        : ""
+                    }
+                </td>
+                <td>${t.fecha ? new Date(t.fecha).toLocaleString() : "--"}</td>
+            </tr>
+        `;
+  });
+
+  html += `
+                </tbody>
+            </table>
+        </div>
+        <div class="text-end">
+            <small class="text-muted">Total: ${traslados.length} traslados</small>
+        </div>
+    `;
+
+  container.innerHTML = html;
+}
+
+// =============================================
+// RECIBIR TRASLADO
+// =============================================
+async function recibirTraslado(id) {
+  const confirmado = await mostrarConfirmacion(
+    "Recibir Traslado",
+    "¿Confirmar recepción del traslado? Esto actualizará el stock en la ubicación destino.",
+  );
+
+  if (!confirmado) return;
+
+  try {
+    await api.request(`/traslados/${id}/recibir`, "PATCH");
+    showToast("Traslado recibido correctamente", "success");
+    await loadInventarioModule();
+  } catch (error) {
+    showToast(error.message || "Error al recibir traslado", "error");
+  }
+}
+
+// =============================================
+// RENDER: ALERTAS
+// =============================================
+function renderAlertas(alertas) {
+  const container = document.getElementById("alertasContainer");
+  if (!container) return;
+
+  if (!alertas || alertas.length === 0) {
+    container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                <p class="text-muted">No hay alertas de stock</p>
+            </div>
+        `;
+    return;
+  }
+
+  let html = `
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Producto</th>
+                        <th>Stock Actual</th>
+                        <th>Stock Mínimo</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+  alertas.forEach((a) => {
+    const producto = (window.productosData || []).find(
+      (p) => p.id === a.id_producto,
+    );
+    const leida = a.leida !== 0;
+
+    html += `
+            <tr>
+                <td>${a.id}</td>
+                <td>${producto ? producto.nombre : "--"}</td>
+                <td class="text-danger fw-bold">${a.stock_actual || 0}</td>
+                <td>${a.stock_minimo || 0}</td>
+                <td>
+                    <span class="badge ${leida ? "bg-secondary" : "bg-danger"}">
+                        ${leida ? "Leída" : "Pendiente"}
+                    </span>
+                </td>
+                <td>
+                    ${
+                      !leida
+                        ? `
+                        <button class="btn btn-sm btn-outline-success" onclick="marcarAlertaLeida(${a.id})">
+                            <i class="fas fa-check"></i> Marcar Leída
                         </button>
                     `
                         : ""
@@ -456,437 +902,17 @@ function renderTraslados(traslados) {
                 </tbody>
             </table>
         </div>
+        <div class="text-end">
+            <small class="text-muted">Total: ${alertas.length} alertas</small>
+        </div>
     `;
 
   container.innerHTML = html;
 }
 
-// CREAR MOVIMIENTO - MODAL
-function showCreateMovimientoModal() {
-  const modal = document.getElementById("inventarioModal");
-  if (!modal) {
-    crearModalInventario();
-    setTimeout(() => showCreateMovimientoModal(), 100);
-    return;
-  }
-
-  const form = document.getElementById("inventarioForm");
-  const title = document.getElementById("inventarioModalTitle");
-
-  title.textContent = "Nuevo Movimiento de Inventario";
-  form.reset();
-  document.getElementById("inventarioId").value = "";
-  document.getElementById("inventarioDetallesContainer").style.display =
-    "block";
-
-  const body = form.querySelector(".modal-body");
-  body.innerHTML = `
-        <div class="mb-3">
-            <label class="form-label">Tipo de Movimiento</label>
-            <select class="form-select" id="invTipoMovimiento" required>
-                <option value="">Seleccionar tipo</option>
-                ${tiposMovimientoData.map((t) => `<option value="${t.id}">${t.nombre} (${t.signo === 1 ? "Entrada" : "Salida"})</option>`).join("")}
-            </select>
-        </div>
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Ubicación Origen</label>
-                <select class="form-select" id="invUbicacionOrigen">
-                    <option value="">Seleccionar origen</option>
-                    ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
-                </select>
-            </div>
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Ubicación Destino</label>
-                <select class="form-select" id="invUbicacionDestino">
-                    <option value="">Seleccionar destino</option>
-                    ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
-                </select>
-            </div>
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Referencia</label>
-            <input type="text" class="form-control" id="invReferencia" placeholder="Ej: Ajuste, Devolución, etc." />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Observaciones</label>
-            <textarea class="form-control" id="invObservaciones" rows="2"></textarea>
-        </div>
-        <hr />
-        <h6 class="fw-bold">Detalles</h6>
-        <div id="invDetallesContainer">
-            <div class="row g-2 align-items-end" id="invDetalleRow">
-                <div class="col-md-5">
-                    <label class="form-label">Producto</label>
-                    <select class="form-select inv-detalle-producto">
-                        <option value="">Seleccionar producto</option>
-                        ${(window.productosData || []).map((p) => `<option value="${p.id}">${p.codigo} - ${p.nombre}</option>`).join("")}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Cantidad</label>
-                    <input type="number" step="0.01" class="form-control inv-detalle-cantidad" value="1" />
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Costo Unitario</label>
-                    <input type="number" step="0.01" class="form-control inv-detalle-costo" />
-                </div>
-                <div class="col-md-1">
-                    <button class="btn btn-success btn-sm mt-2" onclick="agregarDetalleInventario(event)">+</button>
-                </div>
-            </div>
-        </div>
-        <div id="invDetallesList" class="mt-2"></div>
-        <button type="submit" class="btn btn-secondary w-100 mt-3" onclick="saveMovimientoInventario(event)">Guardar Movimiento</button>
-    `;
-
-  window.invDetallesTemp = [];
-
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
-}
-
-// AGREGAR DETALLE DE INVENTARIO
-function agregarDetalleInventario(event) {
-  event.preventDefault();
-
-  const row = document.getElementById("invDetalleRow");
-  const productSelect = row.querySelector(".inv-detalle-producto");
-  const cantidadInput = row.querySelector(".inv-detalle-cantidad");
-  const costoInput = row.querySelector(".inv-detalle-costo");
-
-  const id_producto = parseInt(productSelect.value);
-  const cantidad = parseFloat(cantidadInput.value) || 1;
-  const costo_unitario = parseFloat(costoInput.value) || null;
-
-  if (!id_producto) {
-    showToast("Selecciona un producto", "error");
-    return;
-  }
-
-  const producto = (window.productosData || []).find(
-    (p) => p.id === id_producto,
-  );
-  if (!producto) {
-    showToast("Producto no encontrado", "error");
-    return;
-  }
-
-  if (!window.invDetallesTemp) window.invDetallesTemp = [];
-
-  window.invDetallesTemp.push({
-    id_producto: id_producto,
-    cantidad: cantidad,
-    costo_unitario: costo_unitario,
-    producto: producto,
-  });
-
-  renderDetallesInventario();
-  cantidadInput.value = 1;
-  costoInput.value = "";
-  productSelect.value = "";
-}
-
-function renderDetallesInventario() {
-  const container = document.getElementById("invDetallesList");
-  if (!window.invDetallesTemp || window.invDetallesTemp.length === 0) {
-    container.innerHTML =
-      '<p class="text-muted small">No hay productos agregados</p>';
-    return;
-  }
-
-  let html = '<ul class="list-group">';
-  window.invDetallesTemp.forEach((d, index) => {
-    html += `
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                    <strong>${d.producto.nombre}</strong>
-                    <span class="text-muted small"> x ${d.cantidad}</span>
-                    ${d.costo_unitario ? `<span class="text-muted small"> Q${d.costo_unitario} c/u</span>` : ""}
-                </div>
-                <div>
-                    <button class="btn btn-sm btn-outline-danger ms-2" onclick="eliminarDetalleInventario(${index})">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </li>
-        `;
-  });
-  html += "</ul>";
-  container.innerHTML = html;
-}
-
-function eliminarDetalleInventario(index) {
-  if (window.invDetallesTemp) {
-    window.invDetallesTemp.splice(index, 1);
-    renderDetallesInventario();
-  }
-}
-
-// GUARDAR MOVIMIENTO DE INVENTARIO
-async function saveMovimientoInventario(event) {
-  event.preventDefault();
-
-  const id_tipo_movimiento = parseInt(
-    document.getElementById("invTipoMovimiento").value,
-  );
-  const id_ubicacion_origen =
-    parseInt(document.getElementById("invUbicacionOrigen").value) || null;
-  const id_ubicacion_destino =
-    parseInt(document.getElementById("invUbicacionDestino").value) || null;
-  const referencia = document.getElementById("invReferencia").value || null;
-  const observaciones =
-    document.getElementById("invObservaciones").value || null;
-  const id_usuario = getCurrentUser()?.id || 1;
-
-  if (!id_tipo_movimiento) {
-    showToast("Selecciona un tipo de movimiento", "error");
-    return;
-  }
-  if (!window.invDetallesTemp || window.invDetallesTemp.length === 0) {
-    showToast("Agrega al menos un producto", "error");
-    return;
-  }
-
-  const data = {
-    id_usuario: id_usuario,
-    id_tipo_movimiento: id_tipo_movimiento,
-    id_ubicacion_origen: id_ubicacion_origen,
-    id_ubicacion_destino: id_ubicacion_destino,
-    referencia: referencia,
-    observaciones: observaciones,
-    detalles: window.invDetallesTemp.map((d) => ({
-      id_producto: d.id_producto,
-      cantidad: d.cantidad,
-      costo_unitario: d.costo_unitario,
-    })),
-  };
-
-  try {
-    await api.createMovimientoInventario(data);
-    showToast("Movimiento registrado correctamente", "success");
-    bootstrap.Modal.getInstance(
-      document.getElementById("inventarioModal"),
-    ).hide();
-    await loadInventarioModule();
-  } catch (error) {
-    showToast(error.message || "Error al registrar movimiento", "error");
-  }
-}
-
-// CREAR INVENTARIO FÍSICO - MODAL
-function showCreateInventarioFisicoModal() {
-  const modal = document.getElementById("inventarioModal");
-  if (!modal) {
-    crearModalInventario();
-    setTimeout(() => showCreateInventarioFisicoModal(), 100);
-    return;
-  }
-
-  const form = document.getElementById("inventarioForm");
-  const title = document.getElementById("inventarioModalTitle");
-
-  title.textContent = "Conteo Físico de Inventario";
-  form.reset();
-  document.getElementById("inventarioId").value = "";
-  document.getElementById("inventarioDetallesContainer").style.display = "none";
-
-  const body = form.querySelector(".modal-body");
-  body.innerHTML = `
-        <div class="mb-3">
-            <label class="form-label">Producto</label>
-            <select class="form-select" id="invFisicoProducto" required>
-                <option value="">Seleccionar producto</option>
-                ${(window.productosData || []).map((p) => `<option value="${p.id}">${p.codigo} - ${p.nombre} (Stock: ${p.stock_actual || 0})</option>`).join("")}
-            </select>
-        </div>
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Ubicación</label>
-                <select class="form-select" id="invFisicoUbicacion">
-                    <option value="">Seleccionar ubicación</option>
-                    ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
-                </select>
-            </div>
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Stock Real</label>
-                <input type="number" step="0.01" class="form-control" id="invFisicoStockReal" required />
-            </div>
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Observaciones</label>
-            <textarea class="form-control" id="invFisicoObservaciones" rows="2"></textarea>
-        </div>
-        <button type="submit" class="btn btn-secondary w-100" onclick="saveInventarioFisico(event)">Guardar Conteo</button>
-    `;
-
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
-}
-
-async function saveInventarioFisico(event) {
-  event.preventDefault();
-
-  const id_producto = parseInt(
-    document.getElementById("invFisicoProducto").value,
-  );
-  const id_ubicacion =
-    parseInt(document.getElementById("invFisicoUbicacion").value) || null;
-  const stock_real = parseFloat(
-    document.getElementById("invFisicoStockReal").value,
-  );
-  const observaciones =
-    document.getElementById("invFisicoObservaciones").value || null;
-  const id_usuario = getCurrentUser()?.id || 1;
-
-  if (!id_producto) {
-    showToast("Selecciona un producto", "error");
-    return;
-  }
-  if (!stock_real || stock_real < 0) {
-    showToast("Ingresa un stock real válido", "error");
-    return;
-  }
-
-  const data = {
-    id_producto: id_producto,
-    id_ubicacion: id_ubicacion,
-    stock_real: stock_real,
-    id_usuario: id_usuario,
-    observaciones: observaciones,
-  };
-
-  try {
-    await api.request("/inventario-fisico", "POST", data);
-    showToast("Conteo físico registrado correctamente", "success");
-    bootstrap.Modal.getInstance(
-      document.getElementById("inventarioModal"),
-    ).hide();
-    await loadInventarioModule();
-  } catch (error) {
-    showToast(error.message || "Error al registrar conteo", "error");
-  }
-}
-
-// CREAR TRASLADO - MODAL
-function showCreateTrasladoModal() {
-  const modal = document.getElementById("inventarioModal");
-  if (!modal) {
-    crearModalInventario();
-    setTimeout(() => showCreateTrasladoModal(), 100);
-    return;
-  }
-
-  const form = document.getElementById("inventarioForm");
-  const title = document.getElementById("inventarioModalTitle");
-
-  title.textContent = "Nuevo Traslado entre Sucursales";
-  form.reset();
-  document.getElementById("inventarioId").value = "";
-  document.getElementById("inventarioDetallesContainer").style.display = "none";
-
-  const body = form.querySelector(".modal-body");
-  body.innerHTML = `
-        <div class="mb-3">
-            <label class="form-label">Producto</label>
-            <select class="form-select" id="trasladoProducto" required>
-                <option value="">Seleccionar producto</option>
-                ${(window.productosData || []).map((p) => `<option value="${p.id}">${p.codigo} - ${p.nombre} (Stock: ${p.stock_actual || 0})</option>`).join("")}
-            </select>
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Cantidad</label>
-            <input type="number" step="0.01" class="form-control" id="trasladoCantidad" required />
-        </div>
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Ubicación Origen</label>
-                <select class="form-select" id="trasladoUbicacionOrigen" required>
-                    <option value="">Seleccionar origen</option>
-                    ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
-                </select>
-            </div>
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Ubicación Destino</label>
-                <select class="form-select" id="trasladoUbicacionDestino" required>
-                    <option value="">Seleccionar destino</option>
-                    ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
-                </select>
-            </div>
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Método de Traslado</label>
-            <select class="form-select" id="trasladoMetodo" required>
-                <option value="">Seleccionar método</option>
-                <option value="Uber Moto">Uber Moto</option>
-                <option value="Empleado Interno">Empleado Interno</option>
-            </select>
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Observaciones</label>
-            <textarea class="form-control" id="trasladoObservaciones" rows="2"></textarea>
-        </div>
-        <button type="submit" class="btn btn-secondary w-100" onclick="saveTraslado(event)">Guardar Traslado</button>
-    `;
-
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
-}
-
-async function saveTraslado(event) {
-  event.preventDefault();
-
-  const id_producto = parseInt(
-    document.getElementById("trasladoProducto").value,
-  );
-  const cantidad = parseFloat(
-    document.getElementById("trasladoCantidad").value,
-  );
-  const id_ubicacion_origen = parseInt(
-    document.getElementById("trasladoUbicacionOrigen").value,
-  );
-  const id_ubicacion_destino = parseInt(
-    document.getElementById("trasladoUbicacionDestino").value,
-  );
-  const metodo_traslado = document.getElementById("trasladoMetodo").value;
-  const observaciones =
-    document.getElementById("trasladoObservaciones").value || null;
-  const id_usuario_autoriza = getCurrentUser()?.id || 1;
-
-  if (
-    !id_producto ||
-    !cantidad ||
-    !id_ubicacion_origen ||
-    !id_ubicacion_destino ||
-    !metodo_traslado
-  ) {
-    showToast("Todos los campos son obligatorios", "error");
-    return;
-  }
-
-  const data = {
-    id_producto: id_producto,
-    cantidad: cantidad,
-    id_ubicacion_origen: id_ubicacion_origen,
-    id_ubicacion_destino: id_ubicacion_destino,
-    metodo_traslado: metodo_traslado,
-    id_usuario_autoriza: id_usuario_autoriza,
-    observaciones: observaciones,
-  };
-
-  try {
-    await api.request("/traslados", "POST", data);
-    showToast("Traslado registrado correctamente", "success");
-    bootstrap.Modal.getInstance(
-      document.getElementById("inventarioModal"),
-    ).hide();
-    await loadInventarioModule();
-  } catch (error) {
-    showToast(error.message || "Error al registrar traslado", "error");
-  }
-}
-
-// MARCAR ALERTA COMO LEÍDA
+// =============================================
+// MARCAR ALERTA LEÍDA
+// =============================================
 async function marcarAlertaLeida(id) {
   try {
     await api.request(`/alertas/${id}/leer`, "PATCH");
@@ -897,52 +923,15 @@ async function marcarAlertaLeida(id) {
   }
 }
 
-// CONFIRMAR TRASLADO
-async function confirmarTraslado(id) {
-  if (!confirm("¿Confirmar recepción de este traslado?")) return;
-
-  try {
-    await api.request(`/traslados/${id}/recibir`, "PATCH");
-    showToast("Traslado confirmado", "success");
-    await loadInventarioModule();
-  } catch (error) {
-    showToast(error.message || "Error al confirmar traslado", "error");
-  }
-}
-
-// CREAR MODAL DE INVENTARIO
-function crearModalInventario() {
-  const modalHtml = `
-        <div class="modal fade" id="inventarioModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="inventarioModalTitle">Inventario</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="inventarioForm">
-                            <input type="hidden" id="inventarioId" />
-                            <div id="inventarioDetallesContainer"></div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-  document.body.insertAdjacentHTML("beforeend", modalHtml);
-  window.invDetallesTemp = [];
-}
-
+// =============================================
 // EXPONER FUNCIONES GLOBALES
+// =============================================
 window.loadInventarioModule = loadInventarioModule;
-window.showCreateMovimientoModal = showCreateMovimientoModal;
-window.showCreateInventarioFisicoModal = showCreateInventarioFisicoModal;
-window.showCreateTrasladoModal = showCreateTrasladoModal;
-window.agregarDetalleInventario = agregarDetalleInventario;
-window.eliminarDetalleInventario = eliminarDetalleInventario;
-window.saveMovimientoInventario = saveMovimientoInventario;
-window.saveInventarioFisico = saveInventarioFisico;
+window.showMovimientoModal = showMovimientoModal;
+window.showConteoFisicoModal = showConteoFisicoModal;
+window.showTrasladoModal = showTrasladoModal;
+window.saveMovimiento = saveMovimiento;
+window.saveConteoFisico = saveConteoFisico;
 window.saveTraslado = saveTraslado;
+window.recibirTraslado = recibirTraslado;
 window.marcarAlertaLeida = marcarAlertaLeida;
-window.confirmarTraslado = confirmarTraslado;
