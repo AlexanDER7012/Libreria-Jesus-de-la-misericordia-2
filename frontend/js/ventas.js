@@ -1,4 +1,4 @@
-// VENTAS
+// VENTAS - CRUD completo
 
 let ventasData = [];
 let clientesData = [];
@@ -278,7 +278,7 @@ function renderDetallesVenta() {
   });
   html += `
         <li class="list-group-item fw-bold">
-            Total: Q${total.toFixed(2)}
+            Subtotal: Q${total.toFixed(2)}
         </li>
     </ul>`;
   container.innerHTML = html;
@@ -301,15 +301,6 @@ function mostrarTotalVenta(subtotal, descuento, total) {
     totalElement.textContent = `Subtotal: Q${subtotal.toFixed(2)} | Descuento: ${descuento}% | Total: Q${total.toFixed(2)}`;
   }
 }
-
-document.addEventListener("DOMContentLoaded", function () {
-  const descuentoInput = document.getElementById("ventaDescuento");
-  if (descuentoInput) {
-    descuentoInput.addEventListener("input", function () {
-      renderDetallesVenta();
-    });
-  }
-});
 
 // AGREGAR PAGO
 function agregarPagoVenta(event) {
