@@ -168,11 +168,20 @@ function showCreateProductoModal() {
   const form = document.getElementById("productoForm");
   const title = document.getElementById("productoModalTitle");
 
+  // Verificar que los elementos existen
+  if (!modal) {
+    console.error("Modal no encontrado");
+    return;
+  }
+
   title.textContent = "Nuevo Producto";
   form.reset();
-  document.getElementById("productoId").value = "";
-  document.getElementById("productoActivo").value = "1";
-  document.getElementById("productoPrecioAutomatico").value = "0";
+
+  const idInput = document.getElementById("productoId");
+  const activoInput = document.getElementById("productoActivo");
+
+  if (idInput) idInput.value = "";
+  if (activoInput) activoInput.value = "1";
 
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
