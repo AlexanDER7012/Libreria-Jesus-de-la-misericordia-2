@@ -8,9 +8,7 @@ let ventaDetallesTemp = [];
 let ventaPagosTemp = [];
 let vendedoresData = [];
 
-// =============================================
 // CARGA DEL MODULO PRINCIPAL
-// =============================================
 async function loadVentasModule() {
   const container = document.getElementById("mainContent");
   if (!container) return;
@@ -218,9 +216,7 @@ function renderVentasTable(ventas) {
   container.innerHTML = html;
 }
 
-// =============================================
-// VER FICHA CLIENTE (con historial)
-// =============================================
+// VER FICHA CLIENTE
 async function verFichaCliente(idCliente) {
   if (!idCliente) {
     showToast("Cliente no especificado", "warning");
@@ -877,9 +873,7 @@ async function anularVenta(id) {
   }
 }
 
-// =============================================
-// PESTAÑA: CLIENTES (CRUD completo)
-// =============================================
+// PESTAÑA: CLIENTES
 async function cargarSubClientes() {
   const container = document.getElementById("clientesSubContainer");
   if (!container) return;
@@ -972,9 +966,7 @@ async function cargarSubClientes() {
   }
 }
 
-// =============================================
-// CLIENTES - CRUD (funciones existentes)
-// =============================================
+// CLIENTES - CRUD
 function showCreateClienteSubModal() {
   const modal = document.getElementById("clienteModal");
   if (!modal) return;
@@ -1090,9 +1082,7 @@ async function deleteClienteSub(id) {
   }
 }
 
-// =============================================
 // PESTAÑA: VENDEDORES
-// =============================================
 async function cargarSubVendedores() {
   const container = document.getElementById("vendedoresSubContainer");
   if (!container) return;
@@ -1176,9 +1166,7 @@ async function cargarSubVendedores() {
   }
 }
 
-// =============================================
-// PESTAÑA: CAJA (mejorada con denominaciones)
-// =============================================
+// PESTAÑA: CAJA
 async function cargarSubCaja() {
   const container = document.getElementById("cajaSubContainer");
   if (!container) return;
@@ -1288,9 +1276,7 @@ async function cargarSubCaja() {
   }
 }
 
-// =============================================
 // CAJA - CERRAR TURNO CON DENOMINACIONES
-// =============================================
 function showCerrarTurnoSubModal() {
   const modal = document.getElementById("cajaModal");
   if (!modal) {
@@ -1421,9 +1407,7 @@ async function cerrarTurnoConDenominaciones(event) {
   }
 }
 
-// =============================================
 // EXPONER FUNCIONES GLOBALES
-// =============================================
 window.loadVentasModule = loadVentasModule;
 window.showCreateVentaModal = showCreateVentaModal;
 window.agregarDetalleVenta = agregarDetalleVenta;
