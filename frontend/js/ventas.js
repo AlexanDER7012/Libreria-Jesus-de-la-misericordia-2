@@ -1,4 +1,4 @@
-// VENTAS - CRUD completo + Caja
+// VENTAS - Modulo principal con submódulos
 
 let ventasData = [];
 let tiposPagoData = [];
@@ -8,7 +8,7 @@ let ventaDetallesTemp = [];
 let ventaPagosTemp = [];
 
 // =============================================
-// CARGA DEL MÓDULO
+// CARGA DEL MODULO PRINCIPAL
 // =============================================
 async function loadVentasModule() {
   const container = document.getElementById("mainContent");
@@ -18,43 +18,64 @@ async function loadVentasModule() {
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4><i class="fas fa-shopping-cart me-2 text-warning"></i>Ventas</h4>
             <div>
-                <button class="btn btn-warning btn-sm me-2" onclick="showCreateVentaModal()">
+                <button class="btn btn-warning btn-sm" onclick="showCreateVentaModal()">
                     <i class="fas fa-plus me-2"></i>Nueva Venta
                 </button>
-                <button class="btn btn-outline-warning btn-sm me-2" onclick="mostrarCaja()">
+            </div>
+        </div>
+
+        <ul class="nav nav-tabs mb-3" id="ventasSubTabs">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#subVentas">
+                    <i class="fas fa-list me-1"></i>Ventas
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#subClientes">
+                    <i class="fas fa-users me-1"></i>Clientes
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#subCaja">
                     <i class="fas fa-cash-register me-1"></i>Caja
-                </button>
-                <button class="btn btn-outline-warning btn-sm" onclick="showCreateTipoPagoModal()">
-                    <i class="fas fa-credit-card me-1"></i>Tipo Pago
-                </button>
-            </div>
-        </div>
-        <div id="ventasTableContainer">
-            <div class="text-center py-5">
-                <div class="spinner-border text-warning" role="status"></div>
-                <p class="mt-2 text-muted">Cargando ventas...</p>
-            </div>
-        </div>
-        <div id="cajaContainer" class="mt-4" style="display:none;">
-            <div class="card">
-                <div class="card-header bg-warning text-white">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-cash-register me-2"></i>Caja</h5>
-                        <button class="btn btn-sm btn-light" onclick="ocultarCaja()">Cerrar</button>
+                </a>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Pestaña: Ventas -->
+            <div class="tab-pane fade show active" id="subVentas">
+                <div id="ventasTableContainer">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-warning" role="status"></div>
+                        <p class="mt-2 text-muted">Cargando ventas...</p>
                     </div>
                 </div>
-                <div class="card-body">
-                    <div id="cajaContent">
-                        <div class="text-center py-3">
-                            <div class="spinner-border text-warning" role="status"></div>
-                            <p class="mt-2 text-muted">Cargando caja...</p>
-                        </div>
+            </div>
+
+            <!-- Pestaña: Clientes -->
+            <div class="tab-pane fade" id="subClientes">
+                <div id="clientesSubContainer">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">Cargando clientes...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pestaña: Caja -->
+            <div class="tab-pane fade" id="subCaja">
+                <div id="cajaSubContainer">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-warning" role="status"></div>
+                        <p class="mt-2 text-muted">Cargando caja...</p>
                     </div>
                 </div>
             </div>
         </div>
     `;
 
+  // Cargar datos principales
   try {
     const [ventas, clientes, productos, tiposPago, cajaTurnos, ubicaciones] =
       await Promise.all([
@@ -74,6 +95,8 @@ async function loadVentasModule() {
     ubicacionesData = ubicaciones || [];
 
     renderVentasTable(ventasData);
+    cargarSubClientes();
+    cargarSubCaja();
   } catch (error) {
     document.getElementById("ventasTableContainer").innerHTML = `
             <div class="alert alert-danger">Error al cargar datos: ${error.message}</div>
@@ -82,7 +105,7 @@ async function loadVentasModule() {
 }
 
 // =============================================
-// RENDERIZAR TABLA DE VENTAS
+// PESTAÑA: VENTAS
 // =============================================
 function renderVentasTable(ventas) {
   const container = document.getElementById("ventasTableContainer");
@@ -161,20 +184,216 @@ function renderVentasTable(ventas) {
 }
 
 // =============================================
-// MOSTRAR/OCULTAR CAJA
+// PESTAÑA: CLIENTES
 // =============================================
-function mostrarCaja() {
-  const container = document.getElementById("cajaContainer");
-  const content = document.getElementById("cajaContent");
-  container.style.display = "block";
-  cargarCaja(content);
+async function cargarSubClientes() {
+  const container = document.getElementById("clientesSubContainer");
+  if (!container) return;
+
+  try {
+    const clientes = await api.getClientes().catch(() => []);
+    window.clientesData = clientes || [];
+
+    if (!clientes || clientes.length === 0) {
+      container.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No hay clientes registrados</p>
+                    <button class="btn btn-primary btn-sm" onclick="showCreateClienteSubModal()">
+                        <i class="fas fa-plus me-2"></i>Agregar Cliente
+                    </button>
+                </div>
+            `;
+      return;
+    }
+
+    let html = `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Listado de Clientes</h6>
+                <button class="btn btn-primary btn-sm" onclick="showCreateClienteSubModal()">
+                    <i class="fas fa-plus me-2"></i>Nuevo Cliente
+                </button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-striped">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Teléfono</th>
+                            <th>Email</th>
+                            <th>NIT</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+    clientes.forEach((c) => {
+      const activo = c.activo !== 0;
+      html += `
+                <tr>
+                    <td>${c.id}</td>
+                    <td><strong>${c.nombre || "--"}</strong></td>
+                    <td>${c.telefono || "--"}</td>
+                    <td>${c.email || "--"}</td>
+                    <td>${c.nit || "--"}</td>
+                    <td><span class="badge bg-info">${c.tipo_cliente || "General"}</span></td>
+                    <td>
+                        <span class="badge ${activo ? "bg-success" : "bg-danger"}">
+                            ${activo ? "Activo" : "Inactivo"}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="showEditClienteSubModal(${c.id})">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteClienteSub(${c.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+    });
+
+    html += `
+                    </tbody>
+                </table>
+            </div>
+            <div class="text-end">
+                <small class="text-muted">Total: ${clientes.length} clientes</small>
+            </div>
+        `;
+
+    container.innerHTML = html;
+  } catch (error) {
+    container.innerHTML = `
+            <div class="alert alert-danger">Error al cargar clientes: ${error.message}</div>
+        `;
+  }
 }
 
-function ocultarCaja() {
-  document.getElementById("cajaContainer").style.display = "none";
+// Cliente - Crear
+function showCreateClienteSubModal() {
+  const modal = document.getElementById("clienteModal");
+  if (!modal) return;
+
+  const title = document.getElementById("clienteModalTitle");
+  title.textContent = "Nuevo Cliente";
+
+  document.getElementById("clienteForm").reset();
+  document.getElementById("clienteId").value = "";
+  document.getElementById("clienteActivo").value = "1";
+
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+
+  // Cambiar accion del boton guardar
+  const form = document.getElementById("clienteForm");
+  form.onsubmit = function (e) {
+    e.preventDefault();
+    saveClienteSub();
+  };
 }
 
-async function cargarCaja(container) {
+// Cliente - Editar
+async function showEditClienteSubModal(id) {
+  try {
+    const cliente = (window.clientesData || []).find((c) => c.id === id);
+    if (!cliente) {
+      showToast("Cliente no encontrado", "error");
+      return;
+    }
+
+    const modal = document.getElementById("clienteModal");
+    if (!modal) return;
+
+    const title = document.getElementById("clienteModalTitle");
+    title.textContent = "Editar Cliente";
+
+    document.getElementById("clienteId").value = cliente.id;
+    document.getElementById("clienteNombre").value = cliente.nombre || "";
+    document.getElementById("clienteTelefono").value = cliente.telefono || "";
+    document.getElementById("clienteEmail").value = cliente.email || "";
+    document.getElementById("clienteDireccion").value = cliente.direccion || "";
+    document.getElementById("clienteNit").value = cliente.nit || "";
+    document.getElementById("clienteTipo").value =
+      cliente.tipo_cliente || "General";
+    document.getElementById("clienteActivo").value =
+      cliente.activo !== 0 ? "1" : "0";
+
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+
+    const form = document.getElementById("clienteForm");
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      saveClienteSub();
+    };
+  } catch (error) {
+    showToast(error.message || "Error al cargar cliente", "error");
+  }
+}
+
+// Cliente - Guardar
+async function saveClienteSub() {
+  const id = document.getElementById("clienteId").value;
+  const data = {
+    nombre: document.getElementById("clienteNombre").value.trim(),
+    telefono: document.getElementById("clienteTelefono").value.trim() || null,
+    email: document.getElementById("clienteEmail").value.trim() || null,
+    direccion: document.getElementById("clienteDireccion").value.trim() || null,
+    nit: document.getElementById("clienteNit").value.trim() || null,
+    tipo_cliente: document.getElementById("clienteTipo").value,
+    activo: parseInt(document.getElementById("clienteActivo").value),
+  };
+
+  if (!data.nombre) {
+    showToast("El nombre es obligatorio", "error");
+    return;
+  }
+
+  try {
+    if (id) {
+      await api.updateCliente(id, data);
+      showToast("Cliente actualizado correctamente", "success");
+    } else {
+      await api.createCliente(data);
+      showToast("Cliente creado correctamente", "success");
+    }
+
+    bootstrap.Modal.getInstance(document.getElementById("clienteModal")).hide();
+    await cargarSubClientes();
+    // Recargar selects en ventas
+    llenarSelectCliente();
+  } catch (error) {
+    showToast(error.message || "Error al guardar cliente", "error");
+  }
+}
+
+// Cliente - Eliminar
+async function deleteClienteSub(id) {
+  if (!confirm("¿Estás seguro de eliminar este cliente?")) return;
+
+  try {
+    await api.deleteCliente(id);
+    showToast("Cliente eliminado correctamente", "success");
+    await cargarSubClientes();
+    llenarSelectCliente();
+  } catch (error) {
+    showToast(error.message || "Error al eliminar cliente", "error");
+  }
+}
+
+// =============================================
+// PESTAÑA: CAJA
+// =============================================
+async function cargarSubCaja() {
+  const container = document.getElementById("cajaSubContainer");
+  if (!container) return;
+
   try {
     const [turnos, gastos, tiposGasto, tiposPago, cajaChica] =
       await Promise.all([
@@ -188,95 +407,93 @@ async function cargarCaja(container) {
     const abiertos = turnos.filter((t) => t.estado === "Abierto");
 
     container.innerHTML = `
-        <div class="row">
-            <div class="col-md-6">
-                <h6 class="fw-bold">Turnos de Caja</h6>
-                <p class="small text-muted">Abiertos: ${abiertos.length} | Total: ${turnos.length}</p>
-                <button class="btn btn-sm btn-success mb-2" onclick="showAbrirTurnoModal()">
-                    <i class="fas fa-play me-1"></i>Abrir Turno
-                </button>
-                ${
-                  abiertos.length > 0
-                    ? `
-                    <button class="btn btn-sm btn-danger mb-2 ms-1" onclick="showCerrarTurnoModal()">
-                        <i class="fas fa-stop me-1"></i>Cerrar Turno
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Turnos de Caja</h6>
+                    <p class="small text-muted">Abiertos: ${abiertos.length} | Total: ${turnos.length}</p>
+                    <button class="btn btn-sm btn-success mb-2" onclick="showAbrirTurnoSubModal()">
+                        <i class="fas fa-play me-1"></i>Abrir Turno
                     </button>
-                `
-                    : ""
-                }
-                <div class="table-responsive mt-2">
-                    <table class="table table-sm table-striped">
-                        <thead><tr><th>ID</th><th>Estado</th><th>Apertura</th><th>Fondo</th></tr></thead>
-                        <tbody>
-                            ${turnos
-                              .slice(0, 5)
-                              .map(
-                                (t) => `
-                                <tr>
-                                    <td>${t.id}</td>
-                                    <td><span class="badge ${t.estado === "Abierto" ? "bg-success" : "bg-secondary"}">${t.estado}</span></td>
-                                    <td>${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : "--"}</td>
-                                    <td>Q${t.fondo_inicial || 0}</td>
-                                </tr>
-                            `,
-                              )
-                              .join("")}
-                        </tbody>
-                    </table>
+                    ${
+                      abiertos.length > 0
+                        ? `
+                        <button class="btn btn-sm btn-danger mb-2 ms-1" onclick="showCerrarTurnoSubModal()">
+                            <i class="fas fa-stop me-1"></i>Cerrar Turno
+                        </button>
+                    `
+                        : ""
+                    }
+                    <div class="table-responsive mt-2">
+                        <table class="table table-sm table-striped">
+                            <thead><tr><th>ID</th><th>Estado</th><th>Apertura</th><th>Fondo</th></tr></thead>
+                            <tbody>
+                                ${turnos
+                                  .slice(0, 10)
+                                  .map(
+                                    (t) => `
+                                    <tr>
+                                        <td>${t.id}</td>
+                                        <td><span class="badge ${t.estado === "Abierto" ? "bg-success" : "bg-secondary"}">${t.estado}</span></td>
+                                        <td>${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : "--"}</td>
+                                        <td>Q${t.fondo_inicial || 0}</td>
+                                    </tr>
+                                `,
+                                  )
+                                  .join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Tipos de Pago</h6>
+                    <div class="d-flex flex-wrap gap-1 mb-2">
+                        ${tiposPago
+                          .map(
+                            (t) => `
+                            <span class="badge bg-primary">${t.nombre}</span>
+                        `,
+                          )
+                          .join("")}
+                        <button class="btn btn-sm btn-outline-primary" onclick="showCreateTipoPagoSubModal()">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                    <h6 class="fw-bold mt-3">Gastos Recientes</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead><tr><th>Concepto</th><th>Monto</th></tr></thead>
+                            <tbody>
+                                ${gastos
+                                  .slice(0, 5)
+                                  .map(
+                                    (g) => `
+                                    <tr>
+                                        <td>${g.concepto || "--"}</td>
+                                        <td class="text-danger">Q${g.monto || 0}</td>
+                                    </tr>
+                                `,
+                                  )
+                                  .join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger mt-1" onclick="showRegistrarGastoSubModal()">
+                        <i class="fas fa-plus me-1"></i>Registrar Gasto
+                    </button>
                 </div>
             </div>
-            <div class="col-md-6">
-                <h6 class="fw-bold">Tipos de Pago</h6>
-                <div class="d-flex flex-wrap gap-1 mb-2">
-                    ${tiposPago
-                      .map(
-                        (t) => `
-                        <span class="badge bg-primary">${t.nombre}</span>
-                    `,
-                      )
-                      .join("")}
-                    <button class="btn btn-sm btn-outline-primary" onclick="showCreateTipoPagoModal()">
-                        <i class="fas fa-plus"></i>
-                    </button>
-                </div>
-                <h6 class="fw-bold mt-3">Gastos Recientes</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped">
-                        <thead><tr><th>Concepto</th><th>Monto</th></tr></thead>
-                        <tbody>
-                            ${gastos
-                              .slice(0, 3)
-                              .map(
-                                (g) => `
-                                <tr>
-                                    <td>${g.concepto || "--"}</td>
-                                    <td class="text-danger">Q${g.monto || 0}</td>
-                                </tr>
-                            `,
-                              )
-                              .join("")}
-                        </tbody>
-                    </table>
-                </div>
-                <button class="btn btn-sm btn-outline-danger mt-1" onclick="showRegistrarGastoModal()">
-                    <i class="fas fa-plus me-1"></i>Registrar Gasto
-                </button>
-            </div>
-        </div>
-    `;
+        `;
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
   }
 }
 
-// =============================================
-// ABRIR TURNO
-// =============================================
-function showAbrirTurnoModal() {
+// Caja - Abrir Turno
+function showAbrirTurnoSubModal() {
   const modal = document.getElementById("cajaModal");
   if (!modal) {
     crearModalCaja();
-    setTimeout(() => showAbrirTurnoModal(), 100);
+    setTimeout(() => showAbrirTurnoSubModal(), 100);
     return;
   }
 
@@ -298,7 +515,7 @@ function showAbrirTurnoModal() {
                 <label class="form-label">Fondo Inicial</label>
                 <input type="number" step="0.01" class="form-control" id="cajaFondoInicial" value="500" />
             </div>
-            <button type="submit" class="btn btn-success w-100" onclick="abrirTurno(event)">Abrir Turno</button>
+            <button type="submit" class="btn btn-success w-100" onclick="abrirTurnoSub(event)">Abrir Turno</button>
         </form>
     `;
 
@@ -306,7 +523,7 @@ function showAbrirTurnoModal() {
   modalInstance.show();
 }
 
-async function abrirTurno(event) {
+async function abrirTurnoSub(event) {
   event.preventDefault();
   const id_usuario = getCurrentUser()?.id || 1;
   const id_ubicacion = parseInt(document.getElementById("cajaUbicacion").value);
@@ -322,20 +539,18 @@ async function abrirTurno(event) {
     await api.createCajaTurno({ id_usuario, id_ubicacion, fondo_inicial });
     showToast("Turno abierto correctamente", "success");
     bootstrap.Modal.getInstance(document.getElementById("cajaModal")).hide();
-    await loadVentasModule();
+    await cargarSubCaja();
   } catch (error) {
     showToast(error.message || "Error al abrir turno", "error");
   }
 }
 
-// =============================================
-// CREAR TIPO DE PAGO
-// =============================================
-function showCreateTipoPagoModal() {
+// Caja - Tipo Pago
+function showCreateTipoPagoSubModal() {
   const modal = document.getElementById("tipoPagoModal");
   if (!modal) {
     crearModalTipoPago();
-    setTimeout(() => showCreateTipoPagoModal(), 100);
+    setTimeout(() => showCreateTipoPagoSubModal(), 100);
     return;
   }
 
@@ -349,7 +564,7 @@ function showCreateTipoPagoModal() {
   modalInstance.show();
 }
 
-async function saveTipoPago(event) {
+async function saveTipoPagoSub(event) {
   event.preventDefault();
   const nombre = document.getElementById("tipoPagoNombre").value.trim();
   const para_ventas = parseInt(document.getElementById("tipoPagoVentas").value);
@@ -372,20 +587,21 @@ async function saveTipoPago(event) {
     bootstrap.Modal.getInstance(
       document.getElementById("tipoPagoModal"),
     ).hide();
-    await loadVentasModule();
+    await cargarSubCaja();
+    // Recargar tipos de pago en ventas
+    tiposPagoData = await api.getTiposPago().catch(() => []);
+    llenarSelectTipoPago();
   } catch (error) {
     showToast(error.message || "Error al crear tipo de pago", "error");
   }
 }
 
-// =============================================
-// REGISTRAR GASTO
-// =============================================
-function showRegistrarGastoModal() {
+// Caja - Registrar Gasto
+function showRegistrarGastoSubModal() {
   const modal = document.getElementById("cajaModal");
   if (!modal) {
     crearModalCaja();
-    setTimeout(() => showRegistrarGastoModal(), 100);
+    setTimeout(() => showRegistrarGastoSubModal(), 100);
     return;
   }
 
@@ -413,7 +629,7 @@ function showRegistrarGastoModal() {
                 <label class="form-label">Observaciones</label>
                 <textarea class="form-control" id="gastoObservaciones" rows="2"></textarea>
             </div>
-            <button type="submit" class="btn btn-danger w-100" onclick="registrarGasto(event)">Registrar Gasto</button>
+            <button type="submit" class="btn btn-danger w-100" onclick="registrarGastoSub(event)">Registrar Gasto</button>
         </form>
     `;
 
@@ -432,7 +648,7 @@ function showRegistrarGastoModal() {
   modalInstance.show();
 }
 
-async function registrarGasto(event) {
+async function registrarGastoSub(event) {
   event.preventDefault();
   const concepto = document.getElementById("gastoConcepto").value.trim();
   const monto = parseFloat(document.getElementById("gastoMonto").value);
@@ -457,10 +673,15 @@ async function registrarGasto(event) {
     });
     showToast("Gasto registrado correctamente", "success");
     bootstrap.Modal.getInstance(document.getElementById("cajaModal")).hide();
-    await loadVentasModule();
+    await cargarSubCaja();
   } catch (error) {
     showToast(error.message || "Error al registrar gasto", "error");
   }
+}
+
+// Caja - Cerrar Turno (simplificado)
+function showCerrarTurnoSubModal() {
+  showToast("Funcionalidad en desarrollo - Cerrar Turno", "info");
 }
 
 // =============================================
@@ -514,7 +735,7 @@ function crearModalTipoPago() {
                                     </select>
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-primary w-100" onclick="saveTipoPago(event)">Guardar</button>
+                            <button type="submit" class="btn btn-primary w-100" onclick="saveTipoPagoSub(event)">Guardar</button>
                         </form>
                     </div>
                 </div>
@@ -525,11 +746,8 @@ function crearModalTipoPago() {
 }
 
 // =============================================
-// FUNCIONES EXISTENTES DE VENTAS
-// (showCreateVentaModal, agregarDetalleVenta, saveVenta, verVenta, anularVenta, etc.)
+// FUNCIONES DE VENTAS (CRUD)
 // =============================================
-
-// CREAR VENTA - MODAL
 function showCreateVentaModal() {
   ventaDetallesTemp = [];
   ventaPagosTemp = [];
@@ -557,7 +775,6 @@ function showCreateVentaModal() {
   modalInstance.show();
 }
 
-// LLENAR SELECTS
 function llenarSelectCliente() {
   const select = document.getElementById("ventaCliente");
   select.innerHTML = '<option value="">Sin cliente</option>';
@@ -605,7 +822,6 @@ function llenarSelectTipoPago() {
   });
 }
 
-// AGREGAR DETALLE DE VENTA
 function agregarDetalleVenta(event) {
   event.preventDefault();
 
@@ -703,7 +919,6 @@ function mostrarTotalVenta(subtotal, descuento, total) {
   }
 }
 
-// AGREGAR PAGO
 function agregarPagoVenta(event) {
   event.preventDefault();
 
@@ -779,7 +994,6 @@ function eliminarPagoVenta(index) {
   renderPagosVenta();
 }
 
-// GUARDAR VENTA
 async function saveVenta(event) {
   event.preventDefault();
 
@@ -857,7 +1071,6 @@ async function saveVenta(event) {
   }
 }
 
-// VER VENTA (detalle)
 async function verVenta(id) {
   try {
     const venta = await api.getVenta(id);
@@ -958,7 +1171,6 @@ async function verVenta(id) {
   }
 }
 
-// ANULAR VENTA
 async function anularVenta(id) {
   if (
     !confirm(
@@ -979,8 +1191,6 @@ async function anularVenta(id) {
 // =============================================
 // FUNCIONES GLOBALES
 // =============================================
-
-// Ventas
 window.loadVentasModule = loadVentasModule;
 window.showCreateVentaModal = showCreateVentaModal;
 window.agregarDetalleVenta = agregarDetalleVenta;
@@ -995,13 +1205,16 @@ window.renderPagosVenta = renderPagosVenta;
 window.llenarSelectProductoDetalle = llenarSelectProductoDetalle;
 window.llenarSelectTipoPago = llenarSelectTipoPago;
 
-// Caja
-window.mostrarCaja = mostrarCaja;
-window.ocultarCaja = ocultarCaja;
-window.cargarCaja = cargarCaja;
-window.showAbrirTurnoModal = showAbrirTurnoModal;
-window.abrirTurno = abrirTurno;
-window.showCreateTipoPagoModal = showCreateTipoPagoModal;
-window.saveTipoPago = saveTipoPago;
-window.showRegistrarGastoModal = showRegistrarGastoModal;
-window.registrarGasto = registrarGasto;
+// Submodulos
+window.cargarSubClientes = cargarSubClientes;
+window.cargarSubCaja = cargarSubCaja;
+window.showCreateClienteSubModal = showCreateClienteSubModal;
+window.showEditClienteSubModal = showEditClienteSubModal;
+window.deleteClienteSub = deleteClienteSub;
+window.saveClienteSub = saveClienteSub;
+window.showAbrirTurnoSubModal = showAbrirTurnoSubModal;
+window.abrirTurnoSub = abrirTurnoSub;
+window.showCreateTipoPagoSubModal = showCreateTipoPagoSubModal;
+window.saveTipoPagoSub = saveTipoPagoSub;
+window.showRegistrarGastoSubModal = showRegistrarGastoSubModal;
+window.registrarGastoSub = registrarGastoSub;
