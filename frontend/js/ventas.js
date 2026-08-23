@@ -1,8 +1,6 @@
-// VENTAS - CRUD completo
+// VENTAS
 
 let ventasData = [];
-let clientesData = [];
-let productosData = [];
 let tiposPagoData = [];
 let cajaTurnosData = [];
 let ubicacionesData = [];
@@ -41,8 +39,9 @@ async function loadVentasModule() {
       ]);
 
     ventasData = ventas || [];
-    clientesData = clientes || [];
-    productosData = productos || [];
+    // Usar variables globales (definidas en clientes.js y productos.js)
+    window.clientesData = clientes || [];
+    window.productosData = productos || [];
     tiposPagoData = tiposPago || [];
     cajaTurnosData = cajaTurnos || [];
     ubicacionesData = ubicaciones || [];
