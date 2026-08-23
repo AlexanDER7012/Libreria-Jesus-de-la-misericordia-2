@@ -1,10 +1,6 @@
 // COMPRAS
 
 let comprasData = [];
-let proveedoresData = [];
-let productosData = [];
-let ubicacionesData = [];
-let tiposPagoData = [];
 let compraDetallesTemp = [];
 
 // CARGA DEL MÓDULO
@@ -32,7 +28,6 @@ async function loadComprasModule() {
         </div>
     `;
 
-  // Cargar datos en paralelo
   try {
     const [compras, proveedores, productos, ubicaciones, tiposPago] =
       await Promise.all([
@@ -44,10 +39,11 @@ async function loadComprasModule() {
       ]);
 
     comprasData = compras || [];
-    proveedoresData = proveedores || [];
-    productosData = productos || [];
-    ubicacionesData = ubicaciones || [];
-    tiposPagoData = tiposPago || [];
+    // Usar variables globales (definidas en otros archivos)
+    window.proveedoresData = proveedores || [];
+    window.productosData = productos || [];
+    window.ubicacionesData = ubicaciones || [];
+    window.tiposPagoData = tiposPago || [];
 
     renderComprasTable(comprasData);
   } catch (error) {
