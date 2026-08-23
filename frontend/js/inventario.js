@@ -179,11 +179,13 @@ function renderMovimientos(movimientos) {
     const detalles = m.detalles || [];
 
     detalles.forEach((d) => {
-      const producto = productosData.find((p) => p.id === d.id_producto);
-      const origen = ubicacionesData.find(
+      const producto = (window.productosData || []).find(
+        (p) => p.id === d.id_producto,
+      );
+      const origen = (window.ubicacionesData || []).find(
         (u) => u.id === m.id_ubicacion_origen,
       );
-      const destino = ubicacionesData.find(
+      const destino = (window.ubicacionesData || []).find(
         (u) => u.id === m.id_ubicacion_destino,
       );
 
@@ -222,7 +224,7 @@ function renderStock(inventario) {
   if (!container) return;
 
   const stockMap = new Map();
-  productosData.forEach((p) => {
+  (window.productosData || []).forEach((p) => {
     const item = inventario.find((i) => i.id_producto === p.id);
     stockMap.set(p.id, {
       producto: p,
@@ -335,7 +337,9 @@ function renderAlertas(alertas) {
     `;
 
   alertas.forEach((a) => {
-    const producto = productosData.find((p) => p.id === a.id_producto);
+    const producto = (window.productosData || []).find(
+      (p) => p.id === a.id_producto,
+    );
     const leida = a.leida === 1;
 
     html += `
@@ -407,9 +411,13 @@ function renderTraslados(traslados) {
     `;
 
   traslados.forEach((t) => {
-    const producto = productosData.find((p) => p.id === t.id_producto);
-    const origen = ubicacionesData.find((u) => u.id === t.id_ubicacion_origen);
-    const destino = ubicacionesData.find(
+    const producto = (window.productosData || []).find(
+      (p) => p.id === t.id_producto,
+    );
+    const origen = (window.ubicacionesData || []).find(
+      (u) => u.id === t.id_ubicacion_origen,
+    );
+    const destino = (window.ubicacionesData || []).find(
       (u) => u.id === t.id_ubicacion_destino,
     );
     const estado = t.estado || "Pendiente";
@@ -485,14 +493,14 @@ function showCreateMovimientoModal() {
                 <label class="form-label">Ubicación Origen</label>
                 <select class="form-select" id="invUbicacionOrigen">
                     <option value="">Seleccionar origen</option>
-                    ${ubicacionesData.map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
+                    ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
                 </select>
             </div>
             <div class="col-md-6 mb-3">
                 <label class="form-label">Ubicación Destino</label>
                 <select class="form-select" id="invUbicacionDestino">
                     <option value="">Seleccionar destino</option>
-                    ${ubicacionesData.map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
+                    ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
                 </select>
             </div>
         </div>
@@ -512,7 +520,7 @@ function showCreateMovimientoModal() {
                     <label class="form-label">Producto</label>
                     <select class="form-select inv-detalle-producto">
                         <option value="">Seleccionar producto</option>
-                        ${productosData.map((p) => `<option value="${p.id}">${p.codigo} - ${p.nombre}</option>`).join("")}
+                        ${(window.productosData || []).map((p) => `<option value="${p.id}">${p.codigo} - ${p.nombre}</option>`).join("")}
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -556,7 +564,9 @@ function agregarDetalleInventario(event) {
     return;
   }
 
-  const producto = productosData.find((p) => p.id === id_producto);
+  const producto = (window.productosData || []).find(
+    (p) => p.id === id_producto,
+  );
   if (!producto) {
     showToast("Producto no encontrado", "error");
     return;
@@ -687,7 +697,7 @@ function showCreateInventarioFisicoModal() {
             <label class="form-label">Producto</label>
             <select class="form-select" id="invFisicoProducto" required>
                 <option value="">Seleccionar producto</option>
-                ${productosData.map((p) => `<option value="${p.id}">${p.codigo} - ${p.nombre} (Stock: ${p.stock_actual || 0})</option>`).join("")}
+                ${(window.productosData || []).map((p) => `<option value="${p.id}">${p.codigo} - ${p.nombre} (Stock: ${p.stock_actual || 0})</option>`).join("")}
             </select>
         </div>
         <div class="row">
@@ -695,7 +705,7 @@ function showCreateInventarioFisicoModal() {
                 <label class="form-label">Ubicación</label>
                 <select class="form-select" id="invFisicoUbicacion">
                     <option value="">Seleccionar ubicación</option>
-                    ${ubicacionesData.map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
+                    ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
                 </select>
             </div>
             <div class="col-md-6 mb-3">
@@ -781,7 +791,7 @@ function showCreateTrasladoModal() {
             <label class="form-label">Producto</label>
             <select class="form-select" id="trasladoProducto" required>
                 <option value="">Seleccionar producto</option>
-                ${productosData.map((p) => `<option value="${p.id}">${p.codigo} - ${p.nombre} (Stock: ${p.stock_actual || 0})</option>`).join("")}
+                ${(window.productosData || []).map((p) => `<option value="${p.id}">${p.codigo} - ${p.nombre} (Stock: ${p.stock_actual || 0})</option>`).join("")}
             </select>
         </div>
         <div class="mb-3">
@@ -793,14 +803,14 @@ function showCreateTrasladoModal() {
                 <label class="form-label">Ubicación Origen</label>
                 <select class="form-select" id="trasladoUbicacionOrigen" required>
                     <option value="">Seleccionar origen</option>
-                    ${ubicacionesData.map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
+                    ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
                 </select>
             </div>
             <div class="col-md-6 mb-3">
                 <label class="form-label">Ubicación Destino</label>
                 <select class="form-select" id="trasladoUbicacionDestino" required>
                     <option value="">Seleccionar destino</option>
-                    ${ubicacionesData.map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
+                    ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
                 </select>
             </div>
         </div>
