@@ -1,10 +1,7 @@
 // CAJA
-let cajaTurnosData = [];
 let cajaChicaData = [];
 let gastosData = [];
 let tiposGastoData = [];
-let tiposPagoData = [];
-let ubicacionesData = [];
 
 // CARGA DEL MÓDULO
 async function loadCajaModule() {
