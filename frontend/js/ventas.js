@@ -1,4 +1,4 @@
-// VENTAS - Modulo principal con submódulos
+// ventas.js
 
 let ventasData = [];
 let tiposPagoData = [];
