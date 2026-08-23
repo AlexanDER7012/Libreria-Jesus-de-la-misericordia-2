@@ -7,8 +7,34 @@ let unidadesData = [];
 
 // CARGA DE PRODUCTOS
 async function loadProductosModule() {
-  const container = document.getElementById("productosTableContainer");
+  const container = document.getElementById("mainContent");
   if (!container) return;
+
+  container.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4><i class="fas fa-box me-2 text-success"></i>Productos</h4>
+            <div>
+                <button class="btn btn-success btn-sm me-2" onclick="showCreateProductoModal()">
+                    <i class="fas fa-plus me-2"></i>Producto
+                </button>
+                <button class="btn btn-outline-primary btn-sm me-2" onclick="showCreateCategoriaModal()">
+                    <i class="fas fa-tag me-1"></i>Categoría
+                </button>
+                <button class="btn btn-outline-primary btn-sm me-2" onclick="showCreateMarcaModal()">
+                    <i class="fas fa-copyright me-1"></i>Marca
+                </button>
+                <button class="btn btn-outline-primary btn-sm" onclick="showCreateUnidadModal()">
+                    <i class="fas fa-ruler me-1"></i>Unidad
+                </button>
+            </div>
+        </div>
+        <div id="productosTableContainer">
+            <div class="text-center py-5">
+                <div class="spinner-border text-success" role="status"></div>
+                <p class="mt-2 text-muted">Cargando productos...</p>
+            </div>
+        </div>
+    `;
 
   try {
     const [productos, categorias, marcas, unidades] = await Promise.all([
@@ -27,7 +53,7 @@ async function loadProductosModule() {
     renderProductosTable(productosData);
   } catch (error) {
     console.error("Error cargando productos:", error);
-    container.innerHTML = `
+    document.getElementById("productosTableContainer").innerHTML = `
             <div class="alert alert-danger">
                 <i class="fas fa-exclamation-circle me-2"></i>
                 Error al cargar productos: ${error.message}
@@ -162,13 +188,15 @@ function renderProductosTable(productos) {
   container.innerHTML = html;
 }
 
-// CREAR PRODUCTO
+// =============================================
+// PRODUCTOS - CRUD
+// =============================================
+
 function showCreateProductoModal() {
   const modal = document.getElementById("productoModal");
   const form = document.getElementById("productoForm");
   const title = document.getElementById("productoModalTitle");
 
-  // Verificar que los elementos existen
   if (!modal) {
     console.error("Modal no encontrado");
     return;
@@ -187,7 +215,6 @@ function showCreateProductoModal() {
   modalInstance.show();
 }
 
-// EDITAR PRODUCTO
 async function showEditProductoModal(id) {
   try {
     const producto = await api.getProducto(id);
@@ -197,7 +224,6 @@ async function showEditProductoModal(id) {
     }
 
     const modal = document.getElementById("productoModal");
-    const form = document.getElementById("productoForm");
     const title = document.getElementById("productoModalTitle");
 
     title.textContent = "Editar Producto";
@@ -238,7 +264,6 @@ async function showEditProductoModal(id) {
   }
 }
 
-// GUARDAR PRODUCTO
 async function saveProducto(event) {
   event.preventDefault();
 
@@ -297,7 +322,6 @@ async function saveProducto(event) {
   }
 }
 
-// ELIMINAR PRODUCTO
 async function deleteProducto(id) {
   if (!confirm("¿Estás seguro de eliminar este producto?")) return;
 
@@ -311,9 +335,212 @@ async function deleteProducto(id) {
   }
 }
 
+// =============================================
+// CATEGORÍAS - CRUD
+// =============================================
+
+function showCreateCategoriaModal() {
+  const modal = document.getElementById("categoriaModal");
+  if (!modal) {
+    crearModalCategoria();
+    setTimeout(() => showCreateCategoriaModal(), 100);
+    return;
+  }
+  document.getElementById("categoriaForm").reset();
+  document.getElementById("categoriaId").value = "";
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+}
+
+async function saveCategoria(event) {
+  event.preventDefault();
+  const nombre = document.getElementById("categoriaNombre").value.trim();
+  if (!nombre) {
+    showToast("El nombre es obligatorio", "error");
+    return;
+  }
+  try {
+    await api.createCategoria({ nombre });
+    showToast("Categoría creada correctamente", "success");
+    bootstrap.Modal.getInstance(
+      document.getElementById("categoriaModal"),
+    ).hide();
+    await loadProductosModule();
+  } catch (error) {
+    showToast(error.message || "Error al crear categoría", "error");
+  }
+}
+
+function crearModalCategoria() {
+  const html = `
+        <div class="modal fade" id="categoriaModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Nueva Categoría</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="categoriaForm">
+                            <input type="hidden" id="categoriaId" />
+                            <div class="mb-3">
+                                <label class="form-label">Nombre</label>
+                                <input type="text" class="form-control" id="categoriaNombre" required />
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100" onclick="saveCategoria(event)">Guardar</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+  document.body.insertAdjacentHTML("beforeend", html);
+}
+
+// =============================================
+// MARCAS - CRUD
+// =============================================
+
+function showCreateMarcaModal() {
+  const modal = document.getElementById("marcaModal");
+  if (!modal) {
+    crearModalMarca();
+    setTimeout(() => showCreateMarcaModal(), 100);
+    return;
+  }
+  document.getElementById("marcaForm").reset();
+  document.getElementById("marcaId").value = "";
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+}
+
+async function saveMarca(event) {
+  event.preventDefault();
+  const nombre = document.getElementById("marcaNombre").value.trim();
+  if (!nombre) {
+    showToast("El nombre es obligatorio", "error");
+    return;
+  }
+  try {
+    await api.createMarca({ nombre });
+    showToast("Marca creada correctamente", "success");
+    bootstrap.Modal.getInstance(document.getElementById("marcaModal")).hide();
+    await loadProductosModule();
+  } catch (error) {
+    showToast(error.message || "Error al crear marca", "error");
+  }
+}
+
+function crearModalMarca() {
+  const html = `
+        <div class="modal fade" id="marcaModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Nueva Marca</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="marcaForm">
+                            <input type="hidden" id="marcaId" />
+                            <div class="mb-3">
+                                <label class="form-label">Nombre</label>
+                                <input type="text" class="form-control" id="marcaNombre" required />
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100" onclick="saveMarca(event)">Guardar</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+  document.body.insertAdjacentHTML("beforeend", html);
+}
+
+// =============================================
+// UNIDADES DE MEDIDA - CRUD
+// =============================================
+
+function showCreateUnidadModal() {
+  const modal = document.getElementById("unidadModal");
+  if (!modal) {
+    crearModalUnidad();
+    setTimeout(() => showCreateUnidadModal(), 100);
+    return;
+  }
+  document.getElementById("unidadForm").reset();
+  document.getElementById("unidadId").value = "";
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+}
+
+async function saveUnidad(event) {
+  event.preventDefault();
+  const nombre = document.getElementById("unidadNombre").value.trim();
+  const abreviatura = document.getElementById("unidadAbreviatura").value.trim();
+  if (!nombre) {
+    showToast("El nombre es obligatorio", "error");
+    return;
+  }
+  try {
+    await api.request("/unidades-medida", "POST", { nombre, abreviatura });
+    showToast("Unidad creada correctamente", "success");
+    bootstrap.Modal.getInstance(document.getElementById("unidadModal")).hide();
+    await loadProductosModule();
+  } catch (error) {
+    showToast(error.message || "Error al crear unidad", "error");
+  }
+}
+
+function crearModalUnidad() {
+  const html = `
+        <div class="modal fade" id="unidadModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Nueva Unidad de Medida</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="unidadForm">
+                            <input type="hidden" id="unidadId" />
+                            <div class="mb-3">
+                                <label class="form-label">Nombre</label>
+                                <input type="text" class="form-control" id="unidadNombre" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Abreviatura</label>
+                                <input type="text" class="form-control" id="unidadAbreviatura" />
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100" onclick="saveUnidad(event)">Guardar</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+  document.body.insertAdjacentHTML("beforeend", html);
+}
+
+// =============================================
 // EXPONER FUNCIONES GLOBALES
+// =============================================
+
+// Productos
 window.loadProductosModule = loadProductosModule;
 window.showCreateProductoModal = showCreateProductoModal;
 window.showEditProductoModal = showEditProductoModal;
 window.saveProducto = saveProducto;
 window.deleteProducto = deleteProducto;
+
+// Categorías
+window.showCreateCategoriaModal = showCreateCategoriaModal;
+window.saveCategoria = saveCategoria;
+
+// Marcas
+window.showCreateMarcaModal = showCreateMarcaModal;
+window.saveMarca = saveMarca;
+
+// Unidades
+window.showCreateUnidadModal = showCreateUnidadModal;
+window.saveUnidad = saveUnidad;
