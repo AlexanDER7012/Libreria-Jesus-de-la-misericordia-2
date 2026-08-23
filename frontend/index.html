@@ -1,0 +1,864 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Librería Jesús de la Misericordia</title>
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <!-- BARRA SUPERIOR -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+      <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="#">
+          <i class="fas fa-book-open me-2"></i>
+          Librería Jesús de la Misericordia
+        </a>
+
+        <div class="d-flex align-items-center gap-3">
+          <span class="text-white-50 small d-none d-sm-inline">
+            <i class="fas fa-user me-1"></i>
+            <span id="userName">Usuario</span>
+          </span>
+          <button class="btn btn-outline-light btn-sm" onclick="verDashboard()">
+            <i class="fas fa-chart-bar me-1"></i> Dashboard
+          </button>
+          <button class="btn btn-outline-light btn-sm" onclick="logout()">
+            <i class="fas fa-sign-out-alt"></i>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <div class="container mt-4">
+      <!-- ACCESOS RÁPIDOS -->
+      <div id="modulosContainer">
+        <div class="row g-4">
+          <!-- Clientes -->
+          <div class="col-6 col-md-3 col-lg-2">
+            <div
+              class="card modulo-card text-center p-3"
+              onclick="cargarModulo('clientes')"
+            >
+              <div class="modulo-icon bg-primary">
+                <i class="fas fa-users fa-2x text-white"></i>
+              </div>
+              <h6 class="mt-2 mb-0">Clientes</h6>
+            </div>
+          </div>
+
+          <!-- Productos -->
+          <div class="col-6 col-md-3 col-lg-2">
+            <div
+              class="card modulo-card text-center p-3"
+              onclick="cargarModulo('productos')"
+            >
+              <div class="modulo-icon bg-success">
+                <i class="fas fa-box fa-2x text-white"></i>
+              </div>
+              <h6 class="mt-2 mb-0">Productos</h6>
+            </div>
+          </div>
+
+          <!-- Ventas -->
+          <div class="col-6 col-md-3 col-lg-2">
+            <div
+              class="card modulo-card text-center p-3"
+              onclick="cargarModulo('ventas')"
+            >
+              <div class="modulo-icon bg-warning">
+                <i class="fas fa-shopping-cart fa-2x text-white"></i>
+              </div>
+              <h6 class="mt-2 mb-0">Ventas</h6>
+            </div>
+          </div>
+
+          <!-- Compras -->
+          <div class="col-6 col-md-3 col-lg-2">
+            <div
+              class="card modulo-card text-center p-3"
+              onclick="cargarModulo('compras')"
+            >
+              <div class="modulo-icon bg-info">
+                <i class="fas fa-truck fa-2x text-white"></i>
+              </div>
+              <h6 class="mt-2 mb-0">Compras</h6>
+            </div>
+          </div>
+
+          <!-- Inventario -->
+          <div class="col-6 col-md-3 col-lg-2">
+            <div
+              class="card modulo-card text-center p-3"
+              onclick="cargarModulo('inventario')"
+            >
+              <div class="modulo-icon bg-secondary">
+                <i class="fas fa-warehouse fa-2x text-white"></i>
+              </div>
+              <h6 class="mt-2 mb-0">Inventario</h6>
+            </div>
+          </div>
+
+          <!-- Usuarios -->
+          <div class="col-6 col-md-3 col-lg-2">
+            <div
+              class="card modulo-card text-center p-3"
+              onclick="cargarModulo('usuarios')"
+            >
+              <div class="modulo-icon bg-danger">
+                <i class="fas fa-user-shield fa-2x text-white"></i>
+              </div>
+              <h6 class="mt-2 mb-0">Usuarios</h6>
+            </div>
+          </div>
+
+          <!-- Configuración -->
+          <div class="col-6 col-md-3 col-lg-2">
+            <div
+              class="card modulo-card text-center p-3"
+              onclick="cargarModulo('configuracion')"
+            >
+              <div class="modulo-icon bg-dark">
+                <i class="fas fa-cog fa-2x text-white"></i>
+              </div>
+              <h6 class="mt-2 mb-0">Configuración</h6>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DASHBOARD -->
+      <div id="dashboardContainer" class="mt-4" style="display: none">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4><i class="fas fa-chart-bar me-2 text-primary"></i>Dashboard</h4>
+          <button
+            class="btn btn-sm btn-outline-secondary"
+            onclick="ocultarDashboard()"
+          >
+            <i class="fas fa-times me-1"></i> Cerrar
+          </button>
+        </div>
+        <div id="dashboardContent">
+          <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Cargando estadísticas...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTENIDO DEL MÓDULO SELECCIONADO -->
+      <div id="mainContent" class="mt-4"></div>
+    </div>
+
+    <!-- MODALES GLOBALES -->
+
+    <!-- Modal de Clientes -->
+    <div class="modal fade" id="clienteModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="clienteModalTitle">Cliente</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="clienteForm">
+              <input type="hidden" id="clienteId" />
+              <div class="mb-3">
+                <label class="form-label">Nombre</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="clienteNombre"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Teléfono</label>
+                <input type="text" class="form-control" id="clienteTelefono" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-control" id="clienteEmail" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Dirección</label>
+                <input type="text" class="form-control" id="clienteDireccion" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">NIT</label>
+                <input type="text" class="form-control" id="clienteNit" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Tipo</label>
+                <select class="form-select" id="clienteTipo">
+                  <option value="General">General</option>
+                  <option value="Frecuente">Frecuente</option>
+                  <option value="Mayorista">Mayorista</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Estado</label>
+                <select class="form-select" id="clienteActivo">
+                  <option value="1">Activo</option>
+                  <option value="0">Inactivo</option>
+                </select>
+              </div>
+              <button
+                type="submit"
+                class="btn btn-primary w-100"
+                onclick="saveCliente(event)"
+              >
+                Guardar
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Productos -->
+    <div class="modal fade" id="productoModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="productoModalTitle">Producto</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="productoForm">
+              <input type="hidden" id="productoId" />
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Código</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="productoCodigo"
+                    required
+                  />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Nombre</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="productoNombre"
+                    required
+                  />
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Descripción</label>
+                <textarea
+                  class="form-control"
+                  id="productoDescripcion"
+                  rows="2"
+                ></textarea>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Categoría</label>
+                  <select class="form-select" id="productoCategoria"></select>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Marca</label>
+                  <select class="form-select" id="productoMarca"></select>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Precio Compra</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    class="form-control"
+                    id="productoPrecioCompra"
+                  />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Precio Venta</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    class="form-control"
+                    id="productoPrecioVenta"
+                  />
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Stock Mínimo</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    class="form-control"
+                    id="productoStockMinimo"
+                  />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Stock Máximo</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    class="form-control"
+                    id="productoStockMaximo"
+                  />
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Unidad Compra</label>
+                  <select
+                    class="form-select"
+                    id="productoUnidadCompra"
+                  ></select>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Unidad Venta</label>
+                  <select class="form-select" id="productoUnidadVenta"></select>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Factor Conversión</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    class="form-control"
+                    id="productoFactorConversion"
+                    value="1"
+                  />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Estado</label>
+                  <select class="form-select" id="productoActivo">
+                    <option value="1">Activo</option>
+                    <option value="0">Inactivo</option>
+                  </select>
+                </div>
+              </div>
+              <button
+                type="submit"
+                class="btn btn-success w-100"
+                onclick="saveProducto(event)"
+              >
+                Guardar
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Ventas -->
+    <div class="modal fade" id="ventaModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="ventaModalTitle">Nueva Venta</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="ventaForm">
+              <input type="hidden" id="ventaId" />
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Cliente</label>
+                  <select class="form-select" id="ventaCliente"></select>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Caja Turno</label>
+                  <select
+                    class="form-select"
+                    id="ventaCajaTurno"
+                    required
+                  ></select>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Ubicación</label>
+                  <select
+                    class="form-select"
+                    id="ventaUbicacion"
+                    required
+                  ></select>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Descuento %</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    class="form-control"
+                    id="ventaDescuento"
+                    value="0"
+                  />
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Observaciones</label>
+                <textarea
+                  class="form-control"
+                  id="ventaObservaciones"
+                  rows="2"
+                ></textarea>
+              </div>
+
+              <hr />
+              <h6 class="fw-bold">Detalles de Venta</h6>
+              <div id="ventaDetallesContainer">
+                <div class="row g-2 align-items-end" id="ventaDetalleRow">
+                  <div class="col-md-6">
+                    <label class="form-label">Producto</label>
+                    <select class="form-select venta-detalle-producto"></select>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Cantidad</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      class="form-control venta-detalle-cantidad"
+                      value="1"
+                    />
+                  </div>
+                  <div class="col-md-2">
+                    <button
+                      class="btn btn-success btn-sm mt-2"
+                      onclick="agregarDetalleVenta(event)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div id="ventaDetallesList" class="mt-2"></div>
+
+              <hr />
+              <h6 class="fw-bold">Pagos</h6>
+              <div id="ventaPagosContainer">
+                <div class="row g-2 align-items-end" id="ventaPagoRow">
+                  <div class="col-md-4">
+                    <label class="form-label">Tipo Pago</label>
+                    <select class="form-select venta-pago-tipo"></select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Monto</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      class="form-control venta-pago-monto"
+                    />
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Referencia</label>
+                    <input
+                      type="text"
+                      class="form-control venta-pago-referencia"
+                    />
+                  </div>
+                  <div class="col-md-1">
+                    <button
+                      class="btn btn-success btn-sm mt-2"
+                      onclick="agregarPagoVenta(event)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div id="ventaPagosList" class="mt-2"></div>
+
+              <button
+                type="submit"
+                class="btn btn-warning w-100 mt-3"
+                onclick="saveVenta(event)"
+              >
+                Guardar Venta
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Compras -->
+    <div class="modal fade" id="compraModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="compraModalTitle">Nueva Compra</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="compraForm">
+              <input type="hidden" id="compraId" />
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Proveedor</label>
+                  <select
+                    class="form-select"
+                    id="compraProveedor"
+                    required
+                  ></select>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">N° Factura</label>
+                  <input type="text" class="form-control" id="compraFactura" />
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Ubicación Destino</label>
+                  <select class="form-select" id="compraUbicacion"></select>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">IVA %</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    class="form-control"
+                    id="compraIva"
+                    value="0"
+                  />
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Observaciones</label>
+                <textarea
+                  class="form-control"
+                  id="compraObservaciones"
+                  rows="2"
+                ></textarea>
+              </div>
+
+              <hr />
+              <h6 class="fw-bold">Detalles de Compra</h6>
+              <div id="compraDetallesContainer">
+                <div class="row g-2 align-items-end" id="compraDetalleRow">
+                  <div class="col-md-4">
+                    <label class="form-label">Producto</label>
+                    <select
+                      class="form-select compra-detalle-producto"
+                    ></select>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Cantidad</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      class="form-control compra-detalle-cantidad"
+                      value="1"
+                    />
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Costo Unitario</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      class="form-control compra-detalle-costo"
+                    />
+                  </div>
+                  <div class="col-md-2">
+                    <button
+                      class="btn btn-success btn-sm mt-2"
+                      onclick="agregarDetalleCompra(event)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div id="compraDetallesList" class="mt-2"></div>
+
+              <button
+                type="submit"
+                class="btn btn-info w-100 mt-3"
+                onclick="saveCompra(event)"
+              >
+                Guardar Compra
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Caja -->
+    <div class="modal fade" id="cajaModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="cajaModalTitle">Caja</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="cajaForm">
+              <input type="hidden" id="cajaId" />
+              <div class="mb-3">
+                <label class="form-label">Ubicación</label>
+                <select
+                  class="form-select"
+                  id="cajaUbicacion"
+                  required
+                ></select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Fondo Inicial</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  class="form-control"
+                  id="cajaFondoInicial"
+                  value="500"
+                />
+              </div>
+              <div class="mb-3" id="cajaDenominacionesContainer">
+                <label class="form-label">Denominaciones</label>
+                <div id="cajaDenominacionesList"></div>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-primary mt-2"
+                  onclick="agregarDenominacion()"
+                >
+                  <i class="fas fa-plus"></i> Agregar denominación
+                </button>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Observaciones</label>
+                <textarea
+                  class="form-control"
+                  id="cajaObservaciones"
+                  rows="2"
+                ></textarea>
+              </div>
+              <button
+                type="submit"
+                class="btn btn-primary w-100"
+                onclick="saveCaja(event)"
+              >
+                Guardar
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Módulos JS -->
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/clientes.js"></script>
+    <script src="js/productos.js"></script>
+    <script src="js/ventas.js"></script>
+    <script src="js/compras.js"></script>
+    <script src="js/proveedores.js"></script>
+    <script src="js/inventario.js"></script>
+    <script src="js/caja.js"></script>
+    <script src="js/usuarios.js"></script>
+    <script src="js/configuracion.js"></script>
+    <script src="js/componentes.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const user = getCurrentUser();
+        if (user) {
+          document.getElementById("userName").textContent =
+            user.nombre_usuario || "Usuario";
+        }
+      });
+
+      function verDashboard() {
+        const container = document.getElementById("dashboardContainer");
+        const content = document.getElementById("dashboardContent");
+        container.style.display = "block";
+        cargarDashboard(content);
+      }
+
+      function ocultarDashboard() {
+        document.getElementById("dashboardContainer").style.display = "none";
+      }
+
+      function cargarModulo(modulo) {
+        ocultarDashboard();
+        if (window.app) {
+          window.app.loadModule(modulo);
+        }
+      }
+
+      function cargarDashboard(container) {
+        // Cargar estadísticas reales desde la API
+        Promise.all([
+          api.getClientes().catch(() => []),
+          api.getProductos().catch(() => []),
+          api.getVentas().catch(() => []),
+          api.getAlertasStock().catch(() => []),
+        ])
+          .then(([clientes, productos, ventas, alertas]) => {
+            container.innerHTML = `
+                    <div class="row g-4">
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <div class="card bg-primary bg-gradient text-white border-0 shadow-sm">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="text-white-50 mb-1">Total Clientes</h6>
+                                            <h2 class="mb-0">${clientes.length}</h2>
+                                        </div>
+                                        <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                                            <i class="fas fa-users fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <div class="card bg-success bg-gradient text-white border-0 shadow-sm">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="text-white-50 mb-1">Total Productos</h6>
+                                            <h2 class="mb-0">${productos.length}</h2>
+                                        </div>
+                                        <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                                            <i class="fas fa-box fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <div class="card bg-warning bg-gradient text-white border-0 shadow-sm">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="text-white-50 mb-1">Total Ventas</h6>
+                                            <h2 class="mb-0">${ventas.length}</h2>
+                                        </div>
+                                        <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                                            <i class="fas fa-shopping-cart fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <div class="card bg-danger bg-gradient text-white border-0 shadow-sm">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="text-white-50 mb-1">Alertas Stock</h6>
+                                            <h2 class="mb-0">${alertas.length}</h2>
+                                        </div>
+                                        <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                                            <i class="fas fa-exclamation-triangle fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white">
+                                    <h5 class="mb-0"><i class="fas fa-clock me-2 text-primary"></i>Ventas Recientes</h5>
+                                </div>
+                                <div class="card-body">
+                                    ${
+                                      ventas.length > 0
+                                        ? `
+                                        <div class="table-responsive">
+                                            <table class="table table-hover">
+                                                <thead>
+                                                    <tr>
+                                                        <th>#</th>
+                                                        <th>Cliente</th>
+                                                        <th>Fecha</th>
+                                                        <th>Total</th>
+                                                        <th>Estado</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${ventas
+                                                      .slice(0, 5)
+                                                      .map(
+                                                        (v, i) => `
+                                                        <tr>
+                                                            <td>${i + 1}</td>
+                                                            <td>${v.id_cliente || "--"}</td>
+                                                            <td>${v.fecha ? new Date(v.fecha).toLocaleDateString() : "--"}</td>
+                                                            <td>Q${v.total || 0}</td>
+                                                            <td><span class="badge bg-success">${v.estado || "Completada"}</span></td>
+                                                        </tr>
+                                                    `,
+                                                      )
+                                                      .join("")}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    `
+                                        : `
+                                        <div class="text-center py-4 text-muted">
+                                            <i class="fas fa-inbox fa-3x mb-3"></i>
+                                            <p>No hay ventas registradas</p>
+                                        </div>
+                                    `
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+          })
+          .catch((error) => {
+            container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Error al cargar el dashboard: ${error.message}
+                    </div>
+                `;
+          });
+      }
+
+      // funciones globales
+      window.verDashboard = verDashboard;
+      window.ocultarDashboard = ocultarDashboard;
+      window.cargarModulo = cargarModulo;
+      window.cargarDashboard = cargarDashboard;
+    </script>
+  </body>
+</html>

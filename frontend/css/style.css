@@ -1,0 +1,171 @@
+/* ----- Tarjetas de módulos----- */
+.modulo-card {
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: #fff;
+}
+
+.modulo-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.modulo-card .modulo-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.modulo-card h6 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #333;
+}
+
+/* ----- Tablas ----- */
+.table thead th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.table tbody td {
+  vertical-align: middle;
+  font-size: 0.9rem;
+}
+
+/* ----- Badges ----- */
+.badge {
+  font-weight: 500;
+  padding: 0.4rem 0.7rem;
+}
+
+/* ----- Modales ----- */
+.modal-content {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  border-bottom: 1px solid #e9ecef;
+  padding: 1.25rem 1.5rem;
+}
+
+.modal-header .modal-title {
+  font-weight: 600;
+}
+
+.modal-footer {
+  border-top: 1px solid #e9ecef;
+  padding: 1rem 1.5rem;
+}
+
+/* ----- Formularios ----- */
+.form-label {
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: #495057;
+}
+
+.form-control,
+.form-select {
+  border-radius: 8px;
+  border: 1px solid #ced4da;
+  font-size: 0.9rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+}
+
+/* ----- Botones ----- */
+.btn {
+  border-radius: 8px;
+  font-weight: 500;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+}
+
+.btn-sm {
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+}
+
+/* ----- Dashboard stats ----- */
+.dashboard-stat {
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+/* ----- Navbar ----- */
+.navbar {
+  padding: 0.75rem 1rem;
+}
+
+.navbar-brand {
+  font-size: 1.1rem;
+  letter-spacing: 0.5px;
+}
+
+/* ----- Responsive ----- */
+@media (max-width: 768px) {
+  .modulo-card {
+    padding: 0.75rem !important;
+  }
+  .modulo-card .modulo-icon {
+    width: 40px;
+    height: 40px;
+  }
+  .modulo-card .modulo-icon i {
+    font-size: 1.2rem !important;
+  }
+  .modulo-card h6 {
+    font-size: 0.7rem;
+  }
+  .navbar-brand {
+    font-size: 0.9rem;
+  }
+}
+
+/* ----- Toast / Alertas flotantes ----- */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+}
+
+/* ----- Scrollbar personalizada ----- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c7cd;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a0a7ae;
+}
