@@ -15,8 +15,11 @@ async function loadComprasModule() {
                 <button class="btn btn-info btn-sm me-2" onclick="showCreateCompraModal()">
                     <i class="fas fa-plus me-2"></i>Nueva Compra
                 </button>
-                <button class="btn btn-outline-info btn-sm" onclick="cargarModulo('proveedores')">
+                <button class="btn btn-outline-info btn-sm me-2" onclick="cargarModulo('proveedores')">
                     <i class="fas fa-building me-1"></i>Proveedores
+                </button>
+                <button class="btn btn-outline-info btn-sm" onclick="showCreateTipoPagoCompraModal()">
+                    <i class="fas fa-credit-card me-1"></i>Tipo Pago
                 </button>
             </div>
         </div>
@@ -39,7 +42,6 @@ async function loadComprasModule() {
       ]);
 
     comprasData = compras || [];
-    // Usar variables globales (definidas en otros archivos)
     window.proveedoresData = proveedores || [];
     window.productosData = productos || [];
     window.ubicacionesData = ubicaciones || [];
@@ -91,7 +93,9 @@ function renderComprasTable(compras) {
     `;
 
   compras.forEach((c) => {
-    const proveedor = proveedoresData.find((p) => p.id === c.id_proveedor);
+    const proveedor = (window.proveedoresData || []).find(
+      (p) => p.id === c.id_proveedor,
+    );
     const nombreProveedor = proveedor ? proveedor.nombre : "--";
     const estado = c.estado || "Pendiente";
     const estadoBadge =
@@ -149,12 +153,10 @@ function showCreateCompraModal() {
   document.getElementById("compraIva").value = 0;
   document.getElementById("compraObservaciones").value = "";
 
-  // Llenar selects
   llenarSelectProveedor();
   llenarSelectUbicacionCompra();
   llenarSelectProductoCompra();
 
-  // Limpiar lista de detalles
   document.getElementById("compraDetallesList").innerHTML = "";
 
   const modalInstance = new bootstrap.Modal(modal);
@@ -165,7 +167,7 @@ function showCreateCompraModal() {
 function llenarSelectProveedor() {
   const select = document.getElementById("compraProveedor");
   select.innerHTML = '<option value="">Seleccionar proveedor</option>';
-  proveedoresData.forEach((p) => {
+  (window.proveedoresData || []).forEach((p) => {
     select.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
   });
 }
@@ -173,7 +175,7 @@ function llenarSelectProveedor() {
 function llenarSelectUbicacionCompra() {
   const select = document.getElementById("compraUbicacion");
   select.innerHTML = '<option value="">Seleccionar ubicación</option>';
-  ubicacionesData.forEach((u) => {
+  (window.ubicacionesData || []).forEach((u) => {
     select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
   });
 }
@@ -182,7 +184,7 @@ function llenarSelectProductoCompra() {
   const selects = document.querySelectorAll(".compra-detalle-producto");
   selects.forEach((select) => {
     select.innerHTML = '<option value="">Seleccionar producto</option>';
-    productosData.forEach((p) => {
+    (window.productosData || []).forEach((p) => {
       select.innerHTML += `<option value="${p.id}">${p.codigo} - ${p.nombre}</option>`;
     });
   });
@@ -206,7 +208,9 @@ function agregarDetalleCompra(event) {
     return;
   }
 
-  const producto = productosData.find((p) => p.id === id_producto);
+  const producto = (window.productosData || []).find(
+    (p) => p.id === id_producto,
+  );
   if (!producto) {
     showToast("Producto no encontrado", "error");
     return;
@@ -262,7 +266,6 @@ function renderDetallesCompra() {
     </ul>`;
   container.innerHTML = html;
 
-  // Actualizar IVA y total
   const ivaInput = document.getElementById("compraIva");
   const iva = parseFloat(ivaInput.value) || 0;
   const totalConIva = total + (total * iva) / 100;
@@ -345,12 +348,16 @@ async function verCompra(id) {
       return;
     }
 
-    const proveedor = proveedoresData.find((p) => p.id === compra.id_proveedor);
+    const proveedor = (window.proveedoresData || []).find(
+      (p) => p.id === compra.id_proveedor,
+    );
     const nombreProveedor = proveedor ? proveedor.nombre : "--";
 
-    let detallesHtml = compra.detalles
+    let detallesHtml = (compra.detalles || [])
       .map((d) => {
-        const producto = productosData.find((p) => p.id === d.id_producto);
+        const producto = (window.productosData || []).find(
+          (p) => p.id === d.id_producto,
+        );
         return `
                 <tr>
                     <td>${producto ? producto.nombre : "--"}</td>
@@ -444,6 +451,95 @@ async function recibirCompra(id) {
   }
 }
 
+// TIPO DE PAGO - COMPRAS
+function showCreateTipoPagoCompraModal() {
+  const modal = document.getElementById("tipoPagoModal");
+  if (!modal) {
+    crearModalTipoPago();
+    setTimeout(() => showCreateTipoPagoCompraModal(), 100);
+    return;
+  }
+
+  const title = document.getElementById("tipoPagoModalTitle");
+  title.textContent = "Nuevo Tipo de Pago";
+
+  const form = document.getElementById("tipoPagoForm");
+  form.reset();
+
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+}
+
+async function saveTipoPagoCompra(event) {
+  event.preventDefault();
+  const nombre = document.getElementById("tipoPagoNombre").value.trim();
+  const para_ventas = parseInt(document.getElementById("tipoPagoVentas").value);
+  const para_compras = parseInt(
+    document.getElementById("tipoPagoCompras").value,
+  );
+
+  if (!nombre) {
+    showToast("El nombre es obligatorio", "error");
+    return;
+  }
+
+  try {
+    await api.request("/tipos-pago", "POST", {
+      nombre,
+      para_ventas,
+      para_compras,
+    });
+    showToast("Tipo de pago creado correctamente", "success");
+    bootstrap.Modal.getInstance(
+      document.getElementById("tipoPagoModal"),
+    ).hide();
+    await loadComprasModule();
+  } catch (error) {
+    showToast(error.message || "Error al crear tipo de pago", "error");
+  }
+}
+
+function crearModalTipoPago() {
+  const html = `
+        <div class="modal fade" id="tipoPagoModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="tipoPagoModalTitle">Tipo de Pago</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="tipoPagoForm">
+                            <div class="mb-3">
+                                <label class="form-label">Nombre</label>
+                                <input type="text" class="form-control" id="tipoPagoNombre" required />
+                            </div>
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <label class="form-label">¿Para ventas?</label>
+                                    <select class="form-select" id="tipoPagoVentas">
+                                        <option value="1">Sí</option>
+                                        <option value="0">No</option>
+                                    </select>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label class="form-label">¿Para compras?</label>
+                                    <select class="form-select" id="tipoPagoCompras">
+                                        <option value="1">Sí</option>
+                                        <option value="0">No</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100" onclick="saveTipoPagoCompra(event)">Guardar</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+  document.body.insertAdjacentHTML("beforeend", html);
+}
+
 // FUNCIONES GLOBALES
 window.loadComprasModule = loadComprasModule;
 window.showCreateCompraModal = showCreateCompraModal;
@@ -454,3 +550,5 @@ window.verCompra = verCompra;
 window.recibirCompra = recibirCompra;
 window.renderDetallesCompra = renderDetallesCompra;
 window.llenarSelectProductoCompra = llenarSelectProductoCompra;
+window.showCreateTipoPagoCompraModal = showCreateTipoPagoCompraModal;
+window.saveTipoPagoCompra = saveTipoPagoCompra;
