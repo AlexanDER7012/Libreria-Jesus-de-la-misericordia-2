@@ -1,9 +1,9 @@
-// autenticación
+// AUTENTICACION
 
 function checkAuth() {
   const token = localStorage.getItem("token");
   if (!token) {
-    window.location.href = "/login.html";
+    window.location.href = "login.html";
     return false;
   }
   return true;
@@ -26,14 +26,14 @@ function getCurrentUser() {
 function logout() {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
-  window.location.href = "/login.html";
+  window.location.href = "login.html";
 }
 
 function getToken() {
   return localStorage.getItem("token");
 }
 
-// Fun globales
+// Funciones globales
 window.checkAuth = checkAuth;
 window.requireAuth = requireAuth;
 window.getCurrentUser = getCurrentUser;
