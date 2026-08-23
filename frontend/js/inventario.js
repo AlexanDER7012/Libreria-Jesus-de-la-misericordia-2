@@ -4,8 +4,6 @@ let movimientosData = [];
 let tiposMovimientoData = [];
 let inventarioFisicoData = [];
 let alertasData = [];
-let productosData = [];
-let ubicacionesData = [];
 let sububicacionesData = [];
 let trasladosData = [];
 
@@ -113,8 +111,9 @@ async function loadInventarioModule() {
     tiposMovimientoData = tiposMov || [];
     inventarioFisicoData = inventario || [];
     alertasData = alertas || [];
-    productosData = productos || [];
-    ubicacionesData = ubicaciones || [];
+    // Usar variables globales (definidas en otros archivos)
+    window.productosData = productos || [];
+    window.ubicacionesData = ubicaciones || [];
     trasladosData = traslados || [];
 
     try {
