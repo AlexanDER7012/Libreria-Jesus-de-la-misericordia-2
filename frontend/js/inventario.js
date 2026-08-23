@@ -6,9 +6,7 @@ let inventarioFisicoData = [];
 let trasladosData = [];
 let alertasData = [];
 
-// =============================================
 // CARGA DEL MÓDULO PRINCIPAL
-// =============================================
 async function loadInventarioModule() {
   const container = document.getElementById("mainContent");
   if (!container) return;
@@ -136,9 +134,7 @@ async function loadInventarioModule() {
   }
 }
 
-// =============================================
 // POBLAR SELECTS
-// =============================================
 function populateSelectsInventario() {
   // Productos
   const productSelects = document.querySelectorAll(".inv-producto-select");
@@ -168,9 +164,7 @@ function populateSelectsInventario() {
   });
 }
 
-// =============================================
 // CREAR MODALES
-// =============================================
 function crearModalesInventario() {
   // Modal Movimiento
   if (!document.getElementById("movimientoModal")) {
@@ -323,9 +317,7 @@ function crearModalesInventario() {
   }
 }
 
-// =============================================
 // FUNCIONES PARA ABRIR MODALES
-// =============================================
 function showMovimientoModal() {
   const modal = document.getElementById("movimientoModal");
   if (!modal) {
@@ -378,9 +370,7 @@ function showTrasladoModal() {
   modalInstance.show();
 }
 
-// =============================================
 // GUARDAR MOVIMIENTO
-// =============================================
 async function saveMovimiento(event) {
   event.preventDefault();
 
@@ -439,9 +429,7 @@ async function saveMovimiento(event) {
   }
 }
 
-// =============================================
 // GUARDAR CONTEO FÍSICO
-// =============================================
 async function saveConteoFisico(event) {
   event.preventDefault();
 
@@ -498,9 +486,7 @@ async function saveConteoFisico(event) {
   }
 }
 
-// =============================================
 // GUARDAR TRASLADO
-// =============================================
 async function saveTraslado(event) {
   event.preventDefault();
 
@@ -576,9 +562,7 @@ async function saveTraslado(event) {
   }
 }
 
-// =============================================
 // RENDER: MOVIMIENTOS
-// =============================================
 function renderMovimientos(movimientos) {
   const container = document.getElementById("movimientosContainer");
   if (!container) return;
@@ -652,9 +636,7 @@ function renderMovimientos(movimientos) {
   container.innerHTML = html;
 }
 
-// =============================================
 // RENDER: CONTEO FÍSICO
-// =============================================
 function renderConteoFisico(conteos) {
   const container = document.getElementById("conteoContainer");
   if (!container) return;
@@ -726,9 +708,7 @@ function renderConteoFisico(conteos) {
   container.innerHTML = html;
 }
 
-// =============================================
 // RENDER: TRASLADOS
-// =============================================
 function renderTraslados(traslados) {
   const container = document.getElementById("trasladosContainer");
   if (!container) return;
@@ -813,9 +793,7 @@ function renderTraslados(traslados) {
   container.innerHTML = html;
 }
 
-// =============================================
 // RECIBIR TRASLADO
-// =============================================
 async function recibirTraslado(id) {
   const confirmado = await mostrarConfirmacion(
     "Recibir Traslado",
@@ -833,9 +811,7 @@ async function recibirTraslado(id) {
   }
 }
 
-// =============================================
 // RENDER: ALERTAS
-// =============================================
 function renderAlertas(alertas) {
   const container = document.getElementById("alertasContainer");
   if (!container) return;
@@ -910,9 +886,7 @@ function renderAlertas(alertas) {
   container.innerHTML = html;
 }
 
-// =============================================
 // MARCAR ALERTA LEÍDA
-// =============================================
 async function marcarAlertaLeida(id) {
   try {
     await api.request(`/alertas/${id}/leer`, "PATCH");
@@ -923,9 +897,7 @@ async function marcarAlertaLeida(id) {
   }
 }
 
-// =============================================
 // EXPONER FUNCIONES GLOBALES
-// =============================================
 window.loadInventarioModule = loadInventarioModule;
 window.showMovimientoModal = showMovimientoModal;
 window.showConteoFisicoModal = showConteoFisicoModal;
