@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!doctype html>
 <html lang="es">
   <head>
@@ -44,18 +45,8 @@
       <!-- ACCESOS RÁPIDOS -->
       <div id="modulosContainer">
         <div class="row g-4">
-          <!-- Clientes -->
-          <div class="col-6 col-md-3 col-lg-2">
-            <div
-              class="card modulo-card text-center p-3"
-              onclick="cargarModulo('clientes')"
-            >
-              <div class="modulo-icon bg-primary">
-                <i class="fas fa-users fa-2x text-white"></i>
-              </div>
-              <h6 class="mt-2 mb-0">Clientes</h6>
-            </div>
-          </div>
+          <!-- Clientes - OCULTO (ya está en Ventas) -->
+          <!-- <div class="col-6 col-md-3 col-lg-2">...</div> -->
 
           <!-- Productos -->
           <div class="col-6 col-md-3 col-lg-2">
@@ -160,7 +151,9 @@
       <div id="mainContent" class="mt-4"></div>
     </div>
 
-    <!-- MODALES GLOBALES -->
+    <!-- ======================================== -->
+    <!-- MODALES GLOBALES                         -->
+    <!-- ======================================== -->
 
     <!-- Modal de Clientes -->
     <div class="modal fade" id="clienteModal" tabindex="-1">
@@ -185,6 +178,7 @@
                   id="clienteNombre"
                   required
                 />
+                <div class="invalid-feedback" id="clienteNombreError"></div>
               </div>
               <div class="mb-3">
                 <label class="form-label">Teléfono</label>
@@ -217,11 +211,7 @@
                   <option value="0">Inactivo</option>
                 </select>
               </div>
-              <button
-                type="submit"
-                class="btn btn-primary w-100"
-                onclick="saveCliente(event)"
-              >
+              <button type="submit" class="btn btn-primary w-100">
                 Guardar
               </button>
             </form>
@@ -230,7 +220,9 @@
       </div>
     </div>
 
-    <!-- Modal de Productos -->
+    <!-- ======================================== -->
+    <!-- MODAL DE PRODUCTOS (COMPLETO)            -->
+    <!-- ======================================== -->
     <div class="modal fade" id="productoModal" tabindex="-1">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -243,28 +235,38 @@
             ></button>
           </div>
           <div class="modal-body">
-            <form id="productoForm">
+            <form id="productoForm" novalidate>
               <input type="hidden" id="productoId" />
+
+              <!-- Código y Nombre -->
               <div class="row">
                 <div class="col-md-6 mb-3">
-                  <label class="form-label">Código</label>
+                  <label class="form-label">Código *</label>
                   <input
                     type="text"
                     class="form-control"
                     id="productoCodigo"
                     required
                   />
+                  <div class="invalid-feedback" id="productoCodigoError">
+                    El código es obligatorio
+                  </div>
                 </div>
                 <div class="col-md-6 mb-3">
-                  <label class="form-label">Nombre</label>
+                  <label class="form-label">Nombre *</label>
                   <input
                     type="text"
                     class="form-control"
                     id="productoNombre"
                     required
                   />
+                  <div class="invalid-feedback" id="productoNombreError">
+                    El nombre es obligatorio
+                  </div>
                 </div>
               </div>
+
+              <!-- Descripción -->
               <div class="mb-3">
                 <label class="form-label">Descripción</label>
                 <textarea
@@ -273,6 +275,8 @@
                   rows="2"
                 ></textarea>
               </div>
+
+              <!-- Categoría y Marca -->
               <div class="row">
                 <div class="col-md-6 mb-3">
                   <label class="form-label">Categoría</label>
@@ -283,8 +287,10 @@
                   <select class="form-select" id="productoMarca"></select>
                 </div>
               </div>
+
+              <!-- Precios -->
               <div class="row">
-                <div class="col-md-6 mb-3">
+                <div class="col-md-4 mb-3">
                   <label class="form-label">Precio Compra</label>
                   <input
                     type="number"
@@ -292,8 +298,11 @@
                     class="form-control"
                     id="productoPrecioCompra"
                   />
+                  <div class="invalid-feedback" id="productoPrecioCompraError">
+                    Debe ser un número
+                  </div>
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-4 mb-3">
                   <label class="form-label">Precio Venta</label>
                   <input
                     type="number"
@@ -301,28 +310,47 @@
                     class="form-control"
                     id="productoPrecioVenta"
                   />
+                  <div class="invalid-feedback" id="productoPrecioVentaError">
+                    Debe ser un número
+                  </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label class="form-label">Precio Automático</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    class="form-control"
+                    id="productoPrecioAutomatico"
+                    value="0"
+                  />
                 </div>
               </div>
+
+              <!-- Margen y Factor -->
               <div class="row">
                 <div class="col-md-6 mb-3">
-                  <label class="form-label">Stock Mínimo</label>
+                  <label class="form-label">Margen Ganancia %</label>
                   <input
                     type="number"
                     step="0.01"
                     class="form-control"
-                    id="productoStockMinimo"
+                    id="productoMargenGanancia"
+                    value="0"
                   />
                 </div>
                 <div class="col-md-6 mb-3">
-                  <label class="form-label">Stock Máximo</label>
+                  <label class="form-label">Factor Conversión</label>
                   <input
                     type="number"
                     step="0.01"
                     class="form-control"
-                    id="productoStockMaximo"
+                    id="productoFactorConversion"
+                    value="1"
                   />
                 </div>
               </div>
+
+              <!-- Unidades -->
               <div class="row">
                 <div class="col-md-6 mb-3">
                   <label class="form-label">Unidad Compra</label>
@@ -336,31 +364,42 @@
                   <select class="form-select" id="productoUnidadVenta"></select>
                 </div>
               </div>
+
+              <!-- Stock -->
               <div class="row">
                 <div class="col-md-6 mb-3">
-                  <label class="form-label">Factor Conversión</label>
+                  <label class="form-label">Stock Mínimo</label>
                   <input
                     type="number"
                     step="0.01"
                     class="form-control"
-                    id="productoFactorConversion"
-                    value="1"
+                    id="productoStockMinimo"
+                    value="0"
                   />
                 </div>
                 <div class="col-md-6 mb-3">
-                  <label class="form-label">Estado</label>
-                  <select class="form-select" id="productoActivo">
-                    <option value="1">Activo</option>
-                    <option value="0">Inactivo</option>
-                  </select>
+                  <label class="form-label">Stock Máximo</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    class="form-control"
+                    id="productoStockMaximo"
+                    value="0"
+                  />
                 </div>
               </div>
-              <button
-                type="submit"
-                class="btn btn-success w-100"
-                onclick="saveProducto(event)"
-              >
-                Guardar
+
+              <!-- Estado -->
+              <div class="mb-3">
+                <label class="form-label">Estado</label>
+                <select class="form-select" id="productoActivo">
+                  <option value="1">Activo</option>
+                  <option value="0">Inactivo</option>
+                </select>
+              </div>
+
+              <button type="submit" class="btn btn-success w-100">
+                <i class="fas fa-save me-2"></i>Guardar
               </button>
             </form>
           </div>
@@ -674,13 +713,17 @@
       </div>
     </div>
 
-    <!-- SCRIPTS -->
+    <!-- ======================================== -->
+    <!-- SCRIPTS                                  -->
+    <!-- ======================================== -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Módulos JS -->
+    <!-- Módulos JS - ORDEN CORRECTO -->
     <script src="js/api.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/app.js"></script>
+    <script src="js/components.js"></script>
+    <!-- ⬅️ MOVIDO ANTES DE productos.js -->
     <script src="js/clientes.js"></script>
     <script src="js/productos.js"></script>
     <script src="js/ventas.js"></script>
@@ -690,7 +733,6 @@
     <script src="js/caja.js"></script>
     <script src="js/usuarios.js"></script>
     <script src="js/configuracion.js"></script>
-    <script src="js/components.js"></script>
 
     <script>
       document.addEventListener("DOMContentLoaded", function () {
@@ -720,7 +762,6 @@
       }
 
       function cargarDashboard(container) {
-        // Cargar estadísticas reales desde la API
         Promise.all([
           api.getClientes().catch(() => []),
           api.getProductos().catch(() => []),
@@ -854,7 +895,6 @@
           });
       }
 
-      // funciones globales
       window.verDashboard = verDashboard;
       window.ocultarDashboard = ocultarDashboard;
       window.cargarModulo = cargarModulo;
