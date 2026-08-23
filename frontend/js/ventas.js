@@ -1,4 +1,4 @@
-// VENTAS
+// VENTAS - CRUD completo + Caja
 
 let ventasData = [];
 let tiposPagoData = [];
@@ -7,7 +7,9 @@ let ubicacionesData = [];
 let ventaDetallesTemp = [];
 let ventaPagosTemp = [];
 
+// =============================================
 // CARGA DEL MÓDULO
+// =============================================
 async function loadVentasModule() {
   const container = document.getElementById("mainContent");
   if (!container) return;
@@ -15,14 +17,40 @@ async function loadVentasModule() {
   container.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4><i class="fas fa-shopping-cart me-2 text-warning"></i>Ventas</h4>
-            <button class="btn btn-warning" onclick="showCreateVentaModal()">
-                <i class="fas fa-plus me-2"></i>Nueva Venta
-            </button>
+            <div>
+                <button class="btn btn-warning btn-sm me-2" onclick="showCreateVentaModal()">
+                    <i class="fas fa-plus me-2"></i>Nueva Venta
+                </button>
+                <button class="btn btn-outline-warning btn-sm me-2" onclick="mostrarCaja()">
+                    <i class="fas fa-cash-register me-1"></i>Caja
+                </button>
+                <button class="btn btn-outline-warning btn-sm" onclick="showCreateTipoPagoModal()">
+                    <i class="fas fa-credit-card me-1"></i>Tipo Pago
+                </button>
+            </div>
         </div>
         <div id="ventasTableContainer">
             <div class="text-center py-5">
                 <div class="spinner-border text-warning" role="status"></div>
                 <p class="mt-2 text-muted">Cargando ventas...</p>
+            </div>
+        </div>
+        <div id="cajaContainer" class="mt-4" style="display:none;">
+            <div class="card">
+                <div class="card-header bg-warning text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-cash-register me-2"></i>Caja</h5>
+                        <button class="btn btn-sm btn-light" onclick="ocultarCaja()">Cerrar</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="cajaContent">
+                        <div class="text-center py-3">
+                            <div class="spinner-border text-warning" role="status"></div>
+                            <p class="mt-2 text-muted">Cargando caja...</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -39,7 +67,6 @@ async function loadVentasModule() {
       ]);
 
     ventasData = ventas || [];
-    // Usar variables globales (definidas en clientes.js y productos.js)
     window.clientesData = clientes || [];
     window.productosData = productos || [];
     tiposPagoData = tiposPago || [];
@@ -54,7 +81,9 @@ async function loadVentasModule() {
   }
 }
 
+// =============================================
 // RENDERIZAR TABLA DE VENTAS
+// =============================================
 function renderVentasTable(ventas) {
   const container = document.getElementById("ventasTableContainer");
   if (!container) return;
@@ -91,7 +120,9 @@ function renderVentasTable(ventas) {
     `;
 
   ventas.forEach((v) => {
-    const cliente = clientesData.find((c) => c.id === v.id_cliente);
+    const cliente = (window.clientesData || []).find(
+      (c) => c.id === v.id_cliente,
+    );
     const nombreCliente = cliente ? cliente.nombre : "--";
     const estado = v.estado || "Completada";
     const estadoBadge = estado === "Completada" ? "bg-success" : "bg-warning";
@@ -129,6 +160,375 @@ function renderVentasTable(ventas) {
   container.innerHTML = html;
 }
 
+// =============================================
+// MOSTRAR/OCULTAR CAJA
+// =============================================
+function mostrarCaja() {
+  const container = document.getElementById("cajaContainer");
+  const content = document.getElementById("cajaContent");
+  container.style.display = "block";
+  cargarCaja(content);
+}
+
+function ocultarCaja() {
+  document.getElementById("cajaContainer").style.display = "none";
+}
+
+async function cargarCaja(container) {
+  try {
+    const [turnos, gastos, tiposGasto, tiposPago, cajaChica] =
+      await Promise.all([
+        api.getCajaTurnos().catch(() => []),
+        api.getGastos().catch(() => []),
+        api.getTiposGasto().catch(() => []),
+        api.getTiposPago().catch(() => []),
+        api.getCajaChica().catch(() => []),
+      ]);
+
+    const abiertos = turnos.filter((t) => t.estado === "Abierto");
+
+    container.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="fw-bold">Turnos de Caja</h6>
+                <p class="small text-muted">Abiertos: ${abiertos.length} | Total: ${turnos.length}</p>
+                <button class="btn btn-sm btn-success mb-2" onclick="showAbrirTurnoModal()">
+                    <i class="fas fa-play me-1"></i>Abrir Turno
+                </button>
+                ${
+                  abiertos.length > 0
+                    ? `
+                    <button class="btn btn-sm btn-danger mb-2 ms-1" onclick="showCerrarTurnoModal()">
+                        <i class="fas fa-stop me-1"></i>Cerrar Turno
+                    </button>
+                `
+                    : ""
+                }
+                <div class="table-responsive mt-2">
+                    <table class="table table-sm table-striped">
+                        <thead><tr><th>ID</th><th>Estado</th><th>Apertura</th><th>Fondo</th></tr></thead>
+                        <tbody>
+                            ${turnos
+                              .slice(0, 5)
+                              .map(
+                                (t) => `
+                                <tr>
+                                    <td>${t.id}</td>
+                                    <td><span class="badge ${t.estado === "Abierto" ? "bg-success" : "bg-secondary"}">${t.estado}</span></td>
+                                    <td>${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : "--"}</td>
+                                    <td>Q${t.fondo_inicial || 0}</td>
+                                </tr>
+                            `,
+                              )
+                              .join("")}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <h6 class="fw-bold">Tipos de Pago</h6>
+                <div class="d-flex flex-wrap gap-1 mb-2">
+                    ${tiposPago
+                      .map(
+                        (t) => `
+                        <span class="badge bg-primary">${t.nombre}</span>
+                    `,
+                      )
+                      .join("")}
+                    <button class="btn btn-sm btn-outline-primary" onclick="showCreateTipoPagoModal()">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <h6 class="fw-bold mt-3">Gastos Recientes</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped">
+                        <thead><tr><th>Concepto</th><th>Monto</th></tr></thead>
+                        <tbody>
+                            ${gastos
+                              .slice(0, 3)
+                              .map(
+                                (g) => `
+                                <tr>
+                                    <td>${g.concepto || "--"}</td>
+                                    <td class="text-danger">Q${g.monto || 0}</td>
+                                </tr>
+                            `,
+                              )
+                              .join("")}
+                        </tbody>
+                    </table>
+                </div>
+                <button class="btn btn-sm btn-outline-danger mt-1" onclick="showRegistrarGastoModal()">
+                    <i class="fas fa-plus me-1"></i>Registrar Gasto
+                </button>
+            </div>
+        </div>
+    `;
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+  }
+}
+
+// =============================================
+// ABRIR TURNO
+// =============================================
+function showAbrirTurnoModal() {
+  const modal = document.getElementById("cajaModal");
+  if (!modal) {
+    crearModalCaja();
+    setTimeout(() => showAbrirTurnoModal(), 100);
+    return;
+  }
+
+  const title = document.getElementById("cajaModalTitle");
+  title.textContent = "Abrir Turno de Caja";
+
+  const body = document.getElementById("cajaModalBody");
+  body.innerHTML = `
+        <form id="cajaForm">
+            <input type="hidden" id="cajaId" />
+            <div class="mb-3">
+                <label class="form-label">Ubicación</label>
+                <select class="form-select" id="cajaUbicacion" required>
+                    <option value="">Seleccionar</option>
+                    ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Fondo Inicial</label>
+                <input type="number" step="0.01" class="form-control" id="cajaFondoInicial" value="500" />
+            </div>
+            <button type="submit" class="btn btn-success w-100" onclick="abrirTurno(event)">Abrir Turno</button>
+        </form>
+    `;
+
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+}
+
+async function abrirTurno(event) {
+  event.preventDefault();
+  const id_usuario = getCurrentUser()?.id || 1;
+  const id_ubicacion = parseInt(document.getElementById("cajaUbicacion").value);
+  const fondo_inicial =
+    parseFloat(document.getElementById("cajaFondoInicial").value) || 500;
+
+  if (!id_ubicacion) {
+    showToast("Selecciona una ubicación", "error");
+    return;
+  }
+
+  try {
+    await api.createCajaTurno({ id_usuario, id_ubicacion, fondo_inicial });
+    showToast("Turno abierto correctamente", "success");
+    bootstrap.Modal.getInstance(document.getElementById("cajaModal")).hide();
+    await loadVentasModule();
+  } catch (error) {
+    showToast(error.message || "Error al abrir turno", "error");
+  }
+}
+
+// =============================================
+// CREAR TIPO DE PAGO
+// =============================================
+function showCreateTipoPagoModal() {
+  const modal = document.getElementById("tipoPagoModal");
+  if (!modal) {
+    crearModalTipoPago();
+    setTimeout(() => showCreateTipoPagoModal(), 100);
+    return;
+  }
+
+  const title = document.getElementById("tipoPagoModalTitle");
+  title.textContent = "Nuevo Tipo de Pago";
+
+  const form = document.getElementById("tipoPagoForm");
+  form.reset();
+
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+}
+
+async function saveTipoPago(event) {
+  event.preventDefault();
+  const nombre = document.getElementById("tipoPagoNombre").value.trim();
+  const para_ventas = parseInt(document.getElementById("tipoPagoVentas").value);
+  const para_compras = parseInt(
+    document.getElementById("tipoPagoCompras").value,
+  );
+
+  if (!nombre) {
+    showToast("El nombre es obligatorio", "error");
+    return;
+  }
+
+  try {
+    await api.request("/tipos-pago", "POST", {
+      nombre,
+      para_ventas,
+      para_compras,
+    });
+    showToast("Tipo de pago creado correctamente", "success");
+    bootstrap.Modal.getInstance(
+      document.getElementById("tipoPagoModal"),
+    ).hide();
+    await loadVentasModule();
+  } catch (error) {
+    showToast(error.message || "Error al crear tipo de pago", "error");
+  }
+}
+
+// =============================================
+// REGISTRAR GASTO
+// =============================================
+function showRegistrarGastoModal() {
+  const modal = document.getElementById("cajaModal");
+  if (!modal) {
+    crearModalCaja();
+    setTimeout(() => showRegistrarGastoModal(), 100);
+    return;
+  }
+
+  const title = document.getElementById("cajaModalTitle");
+  title.textContent = "Registrar Gasto";
+
+  const body = document.getElementById("cajaModalBody");
+  body.innerHTML = `
+        <form id="gastoForm">
+            <div class="mb-3">
+                <label class="form-label">Concepto</label>
+                <input type="text" class="form-control" id="gastoConcepto" required />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Monto</label>
+                <input type="number" step="0.01" class="form-control" id="gastoMonto" required />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Tipo de Gasto</label>
+                <select class="form-select" id="gastoTipo">
+                    <option value="">Seleccionar</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Observaciones</label>
+                <textarea class="form-control" id="gastoObservaciones" rows="2"></textarea>
+            </div>
+            <button type="submit" class="btn btn-danger w-100" onclick="registrarGasto(event)">Registrar Gasto</button>
+        </form>
+    `;
+
+  // Cargar tipos de gasto
+  api
+    .getTiposGasto()
+    .then((tipos) => {
+      const select = document.getElementById("gastoTipo");
+      tipos.forEach((t) => {
+        select.innerHTML += `<option value="${t.id}">${t.nombre}</option>`;
+      });
+    })
+    .catch(() => {});
+
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+}
+
+async function registrarGasto(event) {
+  event.preventDefault();
+  const concepto = document.getElementById("gastoConcepto").value.trim();
+  const monto = parseFloat(document.getElementById("gastoMonto").value);
+  const id_tipo_gasto =
+    parseInt(document.getElementById("gastoTipo").value) || null;
+  const observaciones =
+    document.getElementById("gastoObservaciones").value || null;
+  const id_usuario_registra = getCurrentUser()?.id || 1;
+
+  if (!concepto || !monto) {
+    showToast("Concepto y monto son obligatorios", "error");
+    return;
+  }
+
+  try {
+    await api.request("/gastos", "POST", {
+      concepto,
+      monto,
+      id_tipo_gasto,
+      observaciones,
+      id_usuario_registra,
+    });
+    showToast("Gasto registrado correctamente", "success");
+    bootstrap.Modal.getInstance(document.getElementById("cajaModal")).hide();
+    await loadVentasModule();
+  } catch (error) {
+    showToast(error.message || "Error al registrar gasto", "error");
+  }
+}
+
+// =============================================
+// CREAR MODALES
+// =============================================
+function crearModalCaja() {
+  const html = `
+        <div class="modal fade" id="cajaModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="cajaModalTitle">Caja</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body" id="cajaModalBody"></div>
+                </div>
+            </div>
+        </div>
+    `;
+  document.body.insertAdjacentHTML("beforeend", html);
+}
+
+function crearModalTipoPago() {
+  const html = `
+        <div class="modal fade" id="tipoPagoModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="tipoPagoModalTitle">Tipo de Pago</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="tipoPagoForm">
+                            <div class="mb-3">
+                                <label class="form-label">Nombre</label>
+                                <input type="text" class="form-control" id="tipoPagoNombre" required />
+                            </div>
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <label class="form-label">¿Para ventas?</label>
+                                    <select class="form-select" id="tipoPagoVentas">
+                                        <option value="1">Sí</option>
+                                        <option value="0">No</option>
+                                    </select>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label class="form-label">¿Para compras?</label>
+                                    <select class="form-select" id="tipoPagoCompras">
+                                        <option value="1">Sí</option>
+                                        <option value="0">No</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100" onclick="saveTipoPago(event)">Guardar</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+  document.body.insertAdjacentHTML("beforeend", html);
+}
+
+// =============================================
+// FUNCIONES EXISTENTES DE VENTAS
+// (showCreateVentaModal, agregarDetalleVenta, saveVenta, verVenta, anularVenta, etc.)
+// =============================================
+
 // CREAR VENTA - MODAL
 function showCreateVentaModal() {
   ventaDetallesTemp = [];
@@ -161,7 +561,7 @@ function showCreateVentaModal() {
 function llenarSelectCliente() {
   const select = document.getElementById("ventaCliente");
   select.innerHTML = '<option value="">Sin cliente</option>';
-  clientesData.forEach((c) => {
+  (window.clientesData || []).forEach((c) => {
     select.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
   });
 }
@@ -171,7 +571,7 @@ function llenarSelectCajaTurno() {
   select.innerHTML = '<option value="">Seleccionar turno</option>';
   const abiertos = cajaTurnosData.filter((t) => t.estado === "Abierto");
   abiertos.forEach((t) => {
-    select.innerHTML += `<option value="${t.id}">Turno #${t.id} - ${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : ""}</option>`;
+    select.innerHTML += `<option value="${t.id}">Turno #${t.id}</option>`;
   });
 }
 
@@ -187,7 +587,7 @@ function llenarSelectProductoDetalle() {
   const selects = document.querySelectorAll(".venta-detalle-producto");
   selects.forEach((select) => {
     select.innerHTML = '<option value="">Seleccionar producto</option>';
-    productosData.forEach((p) => {
+    (window.productosData || []).forEach((p) => {
       select.innerHTML += `<option value="${p.id}">${p.codigo} - ${p.nombre} (Stock: ${p.stock_actual || 0})</option>`;
     });
   });
@@ -221,7 +621,9 @@ function agregarDetalleVenta(event) {
     return;
   }
 
-  const producto = productosData.find((p) => p.id === id_producto);
+  const producto = (window.productosData || []).find(
+    (p) => p.id === id_producto,
+  );
   if (!producto) {
     showToast("Producto no encontrado", "error");
     return;
@@ -464,12 +866,16 @@ async function verVenta(id) {
       return;
     }
 
-    const cliente = clientesData.find((c) => c.id === venta.id_cliente);
+    const cliente = (window.clientesData || []).find(
+      (c) => c.id === venta.id_cliente,
+    );
     const nombreCliente = cliente ? cliente.nombre : "Sin cliente";
 
-    let detallesHtml = venta.detalles
+    let detallesHtml = (venta.detalles || [])
       .map((d) => {
-        const producto = productosData.find((p) => p.id === d.id_producto);
+        const producto = (window.productosData || []).find(
+          (p) => p.id === d.id_producto,
+        );
         return `
                 <tr>
                     <td>${producto ? producto.nombre : "--"}</td>
@@ -481,7 +887,7 @@ async function verVenta(id) {
       })
       .join("");
 
-    let pagosHtml = venta.pagos
+    let pagosHtml = (venta.pagos || [])
       .map((p) => {
         const tipoPago = tiposPagoData.find((t) => t.id === p.id_tipo_pago);
         return `
@@ -501,37 +907,23 @@ async function verVenta(id) {
             </div>
             <div class="modal-body">
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Cliente:</strong> ${nombreCliente}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Fecha:</strong> ${venta.fecha ? new Date(venta.fecha).toLocaleString() : "--"}
-                    </div>
+                    <div class="col-md-6"><strong>Cliente:</strong> ${nombreCliente}</div>
+                    <div class="col-md-6"><strong>Fecha:</strong> ${venta.fecha ? new Date(venta.fecha).toLocaleString() : "--"}</div>
                 </div>
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Subtotal:</strong> Q${venta.subtotal || 0}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Total:</strong> Q${venta.total || 0}
-                    </div>
+                    <div class="col-md-6"><strong>Subtotal:</strong> Q${venta.subtotal || 0}</div>
+                    <div class="col-md-6"><strong>Total:</strong> Q${venta.total || 0}</div>
                 </div>
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Descuento:</strong> ${venta.descuento_porcentaje || 0}%
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Estado:</strong> <span class="badge bg-success">${venta.estado || "Completada"}</span>
-                    </div>
+                    <div class="col-md-6"><strong>Descuento:</strong> ${venta.descuento_porcentaje || 0}%</div>
+                    <div class="col-md-6"><strong>Estado:</strong> <span class="badge bg-success">${venta.estado || "Completada"}</span></div>
                 </div>
                 ${venta.observaciones ? `<div class="mb-3"><strong>Observaciones:</strong> ${venta.observaciones}</div>` : ""}
 
                 <h6 class="fw-bold mt-3">Detalles</h6>
                 <div class="table-responsive">
                     <table class="table table-sm">
-                        <thead>
-                            <tr><th>Producto</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th></tr>
-                        </thead>
+                        <thead><tr><th>Producto</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th></tr></thead>
                         <tbody>${detallesHtml || '<tr><td colspan="4" class="text-center">Sin detalles</td></tr>'}</tbody>
                     </table>
                 </div>
@@ -539,9 +931,7 @@ async function verVenta(id) {
                 <h6 class="fw-bold mt-3">Pagos</h6>
                 <div class="table-responsive">
                     <table class="table table-sm">
-                        <thead>
-                            <tr><th>Tipo</th><th>Monto</th><th>Referencia</th></tr>
-                        </thead>
+                        <thead><tr><th>Tipo</th><th>Monto</th><th>Referencia</th></tr></thead>
                         <tbody>${pagosHtml || '<tr><td colspan="3" class="text-center">Sin pagos</td></tr>'}</tbody>
                     </table>
                 </div>
@@ -586,7 +976,11 @@ async function anularVenta(id) {
   }
 }
 
+// =============================================
 // FUNCIONES GLOBALES
+// =============================================
+
+// Ventas
 window.loadVentasModule = loadVentasModule;
 window.showCreateVentaModal = showCreateVentaModal;
 window.agregarDetalleVenta = agregarDetalleVenta;
@@ -600,3 +994,14 @@ window.renderDetallesVenta = renderDetallesVenta;
 window.renderPagosVenta = renderPagosVenta;
 window.llenarSelectProductoDetalle = llenarSelectProductoDetalle;
 window.llenarSelectTipoPago = llenarSelectTipoPago;
+
+// Caja
+window.mostrarCaja = mostrarCaja;
+window.ocultarCaja = ocultarCaja;
+window.cargarCaja = cargarCaja;
+window.showAbrirTurnoModal = showAbrirTurnoModal;
+window.abrirTurno = abrirTurno;
+window.showCreateTipoPagoModal = showCreateTipoPagoModal;
+window.saveTipoPago = saveTipoPago;
+window.showRegistrarGastoModal = showRegistrarGastoModal;
+window.registrarGasto = registrarGasto;
