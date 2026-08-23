@@ -1,4 +1,4 @@
-// COMPONENTES - funciones reutilizables
+// COMPONENTES
 
 function showToast(message, type = "success") {
   const toast = document.createElement("div");
