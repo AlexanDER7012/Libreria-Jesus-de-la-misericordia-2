@@ -30,7 +30,6 @@ async function loadInventarioModule() {
             </div>
         </div>
 
-        <!-- Pestañas -->
         <ul class="nav nav-tabs mb-3" id="inventarioTabs">
             <li class="nav-item">
                 <a class="nav-link active" data-bs-toggle="tab" href="#movimientosTab">
@@ -56,7 +55,6 @@ async function loadInventarioModule() {
         </ul>
 
         <div class="tab-content">
-            <!-- Movimientos -->
             <div class="tab-pane fade show active" id="movimientosTab">
                 <div id="movimientosContainer">
                     <div class="text-center py-5">
@@ -65,8 +63,6 @@ async function loadInventarioModule() {
                     </div>
                 </div>
             </div>
-
-            <!-- Stock Actual -->
             <div class="tab-pane fade" id="stockTab">
                 <div id="stockContainer">
                     <div class="text-center py-5">
@@ -75,8 +71,6 @@ async function loadInventarioModule() {
                     </div>
                 </div>
             </div>
-
-            <!-- Alertas -->
             <div class="tab-pane fade" id="alertasTab">
                 <div id="alertasContainer">
                     <div class="text-center py-5">
@@ -85,8 +79,6 @@ async function loadInventarioModule() {
                     </div>
                 </div>
             </div>
-
-            <!-- Traslados -->
             <div class="tab-pane fade" id="trasladosTab">
                 <div id="trasladosContainer">
                     <div class="text-center py-5">
@@ -98,7 +90,6 @@ async function loadInventarioModule() {
         </div>
     `;
 
-  // Cargar datos en paralelo
   try {
     const [
       movimientos,
@@ -126,7 +117,6 @@ async function loadInventarioModule() {
     ubicacionesData = ubicaciones || [];
     trasladosData = traslados || [];
 
-    // Cargar sububicaciones si existen
     try {
       sububicacionesData = (await api.request("/sububicaciones")) || [];
     } catch (e) {
@@ -138,7 +128,6 @@ async function loadInventarioModule() {
     renderAlertas(alertasData);
     renderTraslados(trasladosData);
 
-    // Actualizar badge de alertas
     const badge = document.getElementById("alertasBadge");
     if (alertasData.length > 0) {
       badge.style.display = "inline";
@@ -233,7 +222,6 @@ function renderStock(inventario) {
   const container = document.getElementById("stockContainer");
   if (!container) return;
 
-  // Agrupar por producto
   const stockMap = new Map();
   productosData.forEach((p) => {
     const item = inventario.find((i) => i.id_producto === p.id);
@@ -484,7 +472,6 @@ function showCreateMovimientoModal() {
   document.getElementById("inventarioDetallesContainer").style.display =
     "block";
 
-  // Mostrar solo campos de movimiento
   const body = form.querySelector(".modal-body");
   body.innerHTML = `
         <div class="mb-3">
@@ -546,7 +533,6 @@ function showCreateMovimientoModal() {
         <button type="submit" class="btn btn-secondary w-100 mt-3" onclick="saveMovimientoInventario(event)">Guardar Movimiento</button>
     `;
 
-  // Inicializar variables para detalles
   window.invDetallesTemp = [];
 
   const modalInstance = new bootstrap.Modal(modal);
