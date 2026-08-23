@@ -29,7 +29,6 @@ async function loadVentasModule() {
         </div>
     `;
 
-  // Cargar datos en paralelo
   try {
     const [ventas, clientes, productos, tiposPago, cajaTurnos, ubicaciones] =
       await Promise.all([
@@ -146,14 +145,12 @@ function showCreateVentaModal() {
   document.getElementById("ventaDescuento").value = 0;
   document.getElementById("ventaObservaciones").value = "";
 
-  // Llenar selects
   llenarSelectCliente();
   llenarSelectCajaTurno();
   llenarSelectUbicacion();
   llenarSelectProductoDetalle();
   llenarSelectTipoPago();
 
-  // Limpiar listas de detalles y pagos
   document.getElementById("ventaDetallesList").innerHTML = "";
   document.getElementById("ventaPagosList").innerHTML = "";
 
@@ -231,7 +228,6 @@ function agregarDetalleVenta(event) {
     return;
   }
 
-  // Verificar stock
   if ((producto.stock_actual || 0) < cantidad) {
     showToast(
       `Stock insuficiente. Disponible: ${producto.stock_actual || 0}`,
@@ -240,7 +236,6 @@ function agregarDetalleVenta(event) {
     return;
   }
 
-  // Agregar a lista temporal
   ventaDetallesTemp.push({
     id_producto: id_producto,
     cantidad: cantidad,
@@ -288,7 +283,6 @@ function renderDetallesVenta() {
     </ul>`;
   container.innerHTML = html;
 
-  // Actualizar total en el descuento
   const descuentoInput = document.getElementById("ventaDescuento");
   const descuento = parseFloat(descuentoInput.value) || 0;
   const totalFinal = total - (total * descuento) / 100;
@@ -308,7 +302,6 @@ function mostrarTotalVenta(subtotal, descuento, total) {
   }
 }
 
-// Actualizar total al cambiar descuento
 document.addEventListener("DOMContentLoaded", function () {
   const descuentoInput = document.getElementById("ventaDescuento");
   if (descuentoInput) {
@@ -412,7 +405,6 @@ async function saveVenta(event) {
   const observaciones =
     document.getElementById("ventaObservaciones").value || null;
 
-  // Validar
   if (!id_caja_turno) {
     showToast("Selecciona un turno de caja abierto", "error");
     return;
@@ -430,13 +422,11 @@ async function saveVenta(event) {
     return;
   }
 
-  // Calcular total de detalles
   let subtotal = 0;
   ventaDetallesTemp.forEach((d) => {
     subtotal += d.cantidad * (d.producto.precio_venta || 0);
   });
 
-  // Total pagos
   let totalPagos = 0;
   ventaPagosTemp.forEach((p) => {
     totalPagos += p.monto;
@@ -571,7 +561,6 @@ async function verVenta(id) {
             </div>
         `;
 
-    // Crear modal dinámico
     const modalDiv = document.createElement("div");
     modalDiv.className = "modal fade";
     modalDiv.id = "ventaDetalleModal";
@@ -599,7 +588,6 @@ async function anularVenta(id) {
     return;
 
   try {
-    // El endpoint exacto puede variar, usar PATCH para cambiar estado
     await api.request(`/ventas/${id}`, "PATCH", { estado: "Anulada" });
     showToast("Venta anulada correctamente", "success");
     await loadVentasModule();
