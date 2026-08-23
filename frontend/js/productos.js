@@ -105,6 +105,12 @@ async function loadProductosModule() {
     marcasData = marcas || [];
     unidadesData = unidades || [];
 
+    // Asignar a window para uso global
+    window.productosData = productosData;
+    window.categoriasData = categoriasData;
+    window.marcasData = marcasData;
+    window.unidadesData = unidadesData;
+
     // Renderizar todas las tablas
     renderProductosTable(productosData);
     renderCategoriasTable(categoriasData);
@@ -1204,3 +1210,15 @@ window.showCreateUnidadModal = showCreateUnidadModal;
 window.showEditUnidadModal = showEditUnidadModal;
 window.saveUnidad = saveUnidad;
 window.toggleUnidadEstado = toggleUnidadEstado;
+
+// Event listener permanente para el formulario producto
+document.addEventListener("DOMContentLoaded", function () {
+  const form = document.getElementById("productoForm");
+  if (form) {
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      saveProducto(e);
+    });
+    console.log("Event listener de productoForm configurado");
+  }
+});
