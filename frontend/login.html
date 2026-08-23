@@ -134,7 +134,7 @@
 
         // Si ya está logueado, redirigir al dashboard
         if (localStorage.getItem("token")) {
-          window.location.href = "/index.html";
+          window.location.href = "index.html";
           return;
         }
 
@@ -204,7 +204,7 @@
             );
 
             // Redirigir al dashboard
-            window.location.href = "/index.html";
+            window.location.href = "index.html";
           } catch (error) {
             console.error("Error de login:", error);
             showError(error.message || "Error al iniciar sesión");
