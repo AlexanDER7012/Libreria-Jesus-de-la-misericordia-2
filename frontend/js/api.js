@@ -178,7 +178,7 @@ class ApiClient {
   }
 
   async createCajaTurno(data) {
-    return this.request("/caja-turno", "POST", data);
+    return this.request("/caja-turno/abrir", "POST", data);
   }
 
   async getCajaChica() {
