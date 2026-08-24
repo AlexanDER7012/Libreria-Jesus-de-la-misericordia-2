@@ -13,31 +13,6 @@ function getCurrentUser() {
   }
 }
 
-// CREAR MODAL CAJA
-function crearModalCaja() {
-  // Eliminar modal existente
-  const oldModal = document.getElementById("cajaModal");
-  if (oldModal) {
-    oldModal.remove();
-  }
-
-  const html = `
-    <div class="modal fade" id="cajaModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="cajaModalTitle">Caja</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body" id="cajaModalBody"></div>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.insertAdjacentHTML("beforeend", html);
-  console.log("✅ Modal caja creado con cajaModalBody");
-}
-
 // CARGA DEL MÓDULO PRINCIPAL
 async function loadCajaModule() {
   const container = document.getElementById("mainContent");
@@ -59,7 +34,6 @@ async function loadCajaModule() {
             </div>
         </div>
 
-        <!-- Pestañas -->
         <ul class="nav nav-tabs mb-3" id="cajaTabs">
             <li class="nav-item">
                 <a class="nav-link active" data-bs-toggle="tab" href="#turnosTab">
@@ -84,7 +58,6 @@ async function loadCajaModule() {
         </ul>
 
         <div class="tab-content">
-            <!-- Turnos -->
             <div class="tab-pane fade show active" id="turnosTab">
                 <div id="turnosContainer">
                     <div class="text-center py-5">
@@ -93,8 +66,6 @@ async function loadCajaModule() {
                     </div>
                 </div>
             </div>
-
-            <!-- Caja Chica -->
             <div class="tab-pane fade" id="cajaChicaTab">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6 class="mb-0">Movimientos de Caja Chica</h6>
@@ -109,8 +80,6 @@ async function loadCajaModule() {
                     </div>
                 </div>
             </div>
-
-            <!-- Gastos -->
             <div class="tab-pane fade" id="gastosTab">
                 <div id="gastosContainer">
                     <div class="text-center py-5">
@@ -119,8 +88,6 @@ async function loadCajaModule() {
                     </div>
                 </div>
             </div>
-
-            <!-- Catálogos -->
             <div class="tab-pane fade" id="tiposTab">
                 <div class="row">
                     <div class="col-md-6">
@@ -150,10 +117,6 @@ async function loadCajaModule() {
         </div>
     `;
 
-  // Crear modal si no existe
-  crearModalCaja();
-
-  // Cargar todos los datos
   await Promise.all([
     loadTurnos(),
     loadCajaChica(),
@@ -167,8 +130,6 @@ async function loadCajaModule() {
 // CARGA PARA CONTENEDOR (desde Ventas)
 async function cargarCajaEnContainer(container) {
   if (!container) return;
-
-  // Guardar referencia y cargar
   window.cajaContainer = container;
 
   try {
@@ -194,72 +155,72 @@ async function cargarCajaEnContainer(container) {
     );
 
     container.innerHTML = `
-            <div class="row">
-                <div class="col-md-6">
-                    <h6 class="fw-bold">Turnos de Caja</h6>
-                    <p class="small text-muted">Abiertos: ${abiertos.length} | Total: ${turnos.length}</p>
-                    <button class="btn btn-sm btn-success mb-2" onclick="showAbrirTurnoModal()">
-                        <i class="fas fa-play me-1"></i>Abrir Turno
-                    </button>
-                    ${
-                      abiertos.length > 0
-                        ? `
-                        <button class="btn btn-sm btn-danger mb-2 ms-1" onclick="showCerrarTurnoModal()">
-                            <i class="fas fa-stop me-1"></i>Cerrar Turno
-                        </button>
-                    `
-                        : ""
-                    }
-                    <div class="table-responsive mt-2">
-                        <table class="table table-sm table-striped">
-                            <thead><tr><th>ID</th><th>Estado</th><th>Apertura</th><th>Fondo</th></tr></thead>
-                            <tbody>
-                                ${turnos
-                                  .slice(0, 10)
-                                  .map(
-                                    (t) => `
-                                    <tr>
-                                        <td>${t.id}</td>
-                                        <td><span class="badge ${t.estado === "Abierto" ? "bg-success" : "bg-secondary"}">${t.estado}</span></td>
-                                        <td>${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : "--"}</td>
-                                        <td>Q${t.fondo_inicial || 0}</td>
-                                    </tr>
-                                `,
-                                  )
-                                  .join("")}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="card mt-3 border-success">
-                        <div class="card-body">
-                            <h6 class="fw-bold text-success">
-                                <i class="fas fa-piggy-bank me-2"></i>Saldo Caja Chica: Q${saldoCajaChica.toFixed(2)}
-                            </h6>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <h6 class="fw-bold">Tipos de Pago (Ventas)</h6>
-                    <div class="d-flex flex-wrap gap-1 mb-2">
-                        ${tiposPago
-                          .filter((t) => t.para_ventas === 1)
-                          .map(
-                            (t) => `
-                            <span class="badge bg-primary">${t.nombre}</span>
-                        `,
-                          )
-                          .join("")}
-                    </div>
-                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="showCrearTipoPagoModal()">
-                        <i class="fas fa-plus me-1"></i>Nuevo Tipo Pago
-                    </button>
-                    <div class="text-muted small mt-3">
-                        <i class="fas fa-info-circle me-1"></i>
-                        Para gestionar gastos y caja chica, usa el módulo Caja desde el menú principal.
-                    </div>
-                </div>
+      <div class="row">
+        <div class="col-md-6">
+          <h6 class="fw-bold">Turnos de Caja</h6>
+          <p class="small text-muted">Abiertos: ${abiertos.length} | Total: ${turnos.length}</p>
+          <button class="btn btn-sm btn-success mb-2" onclick="showAbrirTurnoModal()">
+            <i class="fas fa-play me-1"></i>Abrir Turno
+          </button>
+          ${
+            abiertos.length > 0
+              ? `
+              <button class="btn btn-sm btn-danger mb-2 ms-1" onclick="showCerrarTurnoModal()">
+                <i class="fas fa-stop me-1"></i>Cerrar Turno
+              </button>
+            `
+              : ""
+          }
+          <div class="table-responsive mt-2">
+            <table class="table table-sm table-striped">
+              <thead><tr><th>ID</th><th>Estado</th><th>Apertura</th><th>Fondo</th></tr></thead>
+              <tbody>
+                ${turnos
+                  .slice(0, 10)
+                  .map(
+                    (t) => `
+                    <tr>
+                      <td>${t.id}</td>
+                      <td><span class="badge ${t.estado === "Abierto" ? "bg-success" : "bg-secondary"}">${t.estado}</span></td>
+                      <td>${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : "--"}</td>
+                      <td>Q${t.fondo_inicial || 0}</td>
+                    </tr>
+                  `,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+          <div class="card mt-3 border-success">
+            <div class="card-body">
+              <h6 class="fw-bold text-success">
+                <i class="fas fa-piggy-bank me-2"></i>Saldo Caja Chica: Q${saldoCajaChica.toFixed(2)}
+              </h6>
             </div>
-        `;
+          </div>
+        </div>
+        <div class="col-md-6">
+          <h6 class="fw-bold">Tipos de Pago (Ventas)</h6>
+          <div class="d-flex flex-wrap gap-1 mb-2">
+            ${tiposPago
+              .filter((t) => t.para_ventas === 1)
+              .map(
+                (t) => `
+                <span class="badge bg-primary">${t.nombre}</span>
+              `,
+              )
+              .join("")}
+          </div>
+          <button class="btn btn-sm btn-outline-primary mt-2" onclick="showCrearTipoPagoModal()">
+            <i class="fas fa-plus me-1"></i>Nuevo Tipo Pago
+          </button>
+          <div class="text-muted small mt-3">
+            <i class="fas fa-info-circle me-1"></i>
+            Para gestionar gastos y caja chica, usa el módulo Caja desde el menú principal.
+          </div>
+        </div>
+      </div>
+    `;
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
   }
@@ -283,32 +244,32 @@ function renderTurnos(turnos) {
 
   if (!turnos || turnos.length === 0) {
     container.innerHTML = `
-            <div class="text-center py-4 text-muted">
-                <i class="fas fa-clock fa-3x mb-3"></i>
-                <p>No hay turnos registrados</p>
-            </div>
-        `;
+      <div class="text-center py-4 text-muted">
+        <i class="fas fa-clock fa-3x mb-3"></i>
+        <p>No hay turnos registrados</p>
+      </div>
+    `;
     return;
   }
 
   let html = `
-        <div class="table-responsive">
-            <table class="table table-hover table-striped">
-                <thead class="table-light">
-                    <tr>
-                        <th>ID</th>
-                        <th>Usuario</th>
-                        <th>Ubicación</th>
-                        <th>Apertura</th>
-                        <th>Cierre</th>
-                        <th>Fondo Inicial</th>
-                        <th>Total Ventas</th>
-                        <th>Total Contado</th>
-                        <th>Diferencia</th>
-                        <th>Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
+    <div class="table-responsive">
+      <table class="table table-hover table-striped">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Usuario</th>
+            <th>Ubicación</th>
+            <th>Apertura</th>
+            <th>Cierre</th>
+            <th>Fondo Inicial</th>
+            <th>Total Ventas</th>
+            <th>Total Contado</th>
+            <th>Diferencia</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
     `;
 
   turnos.forEach((t) => {
@@ -322,45 +283,59 @@ function renderTurnos(turnos) {
       : "--";
 
     html += `
-            <tr>
-                <td>${t.id}</td>
-                <td>${t.id_usuario || "--"}</td>
-                <td>${t.id_ubicacion || "--"}</td>
-                <td>${fechaApertura}</td>
-                <td>${fechaCierre}</td>
-                <td>Q${t.fondo_inicial || 0}</td>
-                <td>Q${t.total_ventas || 0}</td>
-                <td>Q${t.total_contado || 0}</td>
-                <td class="${t.diferencia && t.diferencia !== 0 ? "text-danger fw-bold" : ""}">
-                    Q${t.diferencia || 0}
-                </td>
-                <td><span class="badge ${estadoBadge}">${estado}</span></td>
-            </tr>
-        `;
+      <tr>
+        <td>${t.id}</td>
+        <td>${t.id_usuario || "--"}</td>
+        <td>${t.id_ubicacion || "--"}</td>
+        <td>${fechaApertura}</td>
+        <td>${fechaCierre}</td>
+        <td>Q${t.fondo_inicial || 0}</td>
+        <td>Q${t.total_ventas || 0}</td>
+        <td>Q${t.total_contado || 0}</td>
+        <td class="${t.diferencia && t.diferencia !== 0 ? "text-danger fw-bold" : ""}">
+          Q${t.diferencia || 0}
+        </td>
+        <td><span class="badge ${estadoBadge}">${estado}</span></td>
+      </tr>
+    `;
   });
 
   html += `
-                </tbody>
-            </table>
-        </div>
-        <div class="text-end">
-            <small class="text-muted">Total: ${turnos.length} turnos</small>
-        </div>
-    `;
+        </tbody>
+      </table>
+    </div>
+    <div class="text-end">
+      <small class="text-muted">Total: ${turnos.length} turnos</small>
+    </div>
+  `;
 
   container.innerHTML = html;
 }
 
-// ABRIR TURNO
-function abrirModalTurno() {
-  let modal = document.getElementById("cajaModal");
-  if (!modal) {
-    crearModalCaja();
-    modal = document.getElementById("cajaModal");
+// ABRIR TURNO - FUNCIÓN PRINCIPAL (se llama desde el botón)
+function showAbrirTurnoModal() {
+  // Verificar si hay ubicaciones cargadas
+  if (!window.ubicacionesData || window.ubicacionesData.length === 0) {
+    api
+      .request("/ubicaciones")
+      .then(function (ubicaciones) {
+        window.ubicacionesData = ubicaciones || [];
+        abrirModalTurno();
+      })
+      .catch(function () {
+        showToast("Error al cargar ubicaciones", "error");
+        abrirModalTurno(); // Abrir igual aunque no haya ubicaciones
+      });
+  } else {
+    abrirModalTurno();
   }
+}
 
+// ABRIR MODAL TURNO
+function abrirModalTurno() {
+  const modal = document.getElementById("cajaModal");
   if (!modal) {
-    showToast("Error: no se pudo crear el modal", "error");
+    showToast("Error: Modal de caja no encontrado", "error");
     return;
   }
 
@@ -393,6 +368,9 @@ function abrirModalTurno() {
     '<select class="form-select" id="cajaUbicacion" required>' +
     optionsHtml +
     "</select>" +
+    (ubicaciones.length === 0
+      ? '<div class="text-danger small mt-1">⚠️ No hay ubicaciones. Crea una en Configuración → Ubicaciones</div>'
+      : "") +
     "</div>" +
     '<div class="mb-3">' +
     '<label class="form-label">Fondo Inicial</label>' +
@@ -410,35 +388,11 @@ function abrirModalTurno() {
     '<button type="submit" class="btn btn-success w-100" onclick="abrirTurno(event)">Abrir Turno</button>' +
     "</form>";
 
-  // Quitar aria-hidden que bloquea
-  modal.removeAttribute("aria-hidden");
-
-  // Forzar visibilidad
-  modal.style.display = "block";
-  modal.style.background = "rgba(0,0,0,0.5)";
-  modal.style.position = "fixed";
-  modal.style.top = "0";
-  modal.style.left = "0";
-  modal.style.width = "100%";
-  modal.style.height = "100%";
-  modal.style.zIndex = "1050";
-  modal.style.overflow = "auto";
-
-  body.style.display = "block";
-  body.style.visibility = "visible";
-  body.style.opacity = "1";
-
-  modal.classList.add("show");
-  document.body.classList.add("modal-open");
-
-  if (!document.querySelector(".modal-backdrop")) {
-    const backdrop = document.createElement("div");
-    backdrop.className = "modal-backdrop fade show";
-    backdrop.style.zIndex = "1040";
-    document.body.appendChild(backdrop);
-  }
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
 }
 
+// GUARDAR TURNO
 async function abrirTurno(event) {
   event.preventDefault();
   const id_usuario = getCurrentUser()?.id || 1;
@@ -456,7 +410,6 @@ async function abrirTurno(event) {
     showToast("Turno abierto correctamente", "success");
     bootstrap.Modal.getInstance(document.getElementById("cajaModal")).hide();
     await loadTurnos();
-    // Actualizar vista en ventas si existe
     if (window.cajaContainer) {
       await cargarCajaEnContainer(window.cajaContainer);
     }
@@ -480,14 +433,10 @@ async function showCerrarTurnoModal() {
 
     turnoParaCerrar = abiertos[0];
 
-    let modal = document.getElementById("cajaModal");
+    const modal = document.getElementById("cajaModal");
     if (!modal) {
-      crearModalCaja();
-      modal = document.getElementById("cajaModal");
-      if (!modal) {
-        showToast("Error al crear modal de caja", "error");
-        return;
-      }
+      showToast("Error: Modal de caja no encontrado", "error");
+      return;
     }
 
     const title = document.getElementById("cajaModalTitle");
@@ -554,18 +503,18 @@ function renderDenominaciones() {
     .map(
       (d) => `
         <div class="row g-2 align-items-center mb-2">
-            <div class="col-4">
-                <label class="form-label small">${d.label}</label>
-            </div>
-            <div class="col-6">
-                <input type="number" class="form-control form-control-sm denominacion-cantidad" 
-                       data-denominacion="${d.valor}" value="0" min="0" />
-            </div>
-            <div class="col-2">
-                <span class="small">= Q${(d.valor * 0).toFixed(2)}</span>
-            </div>
+          <div class="col-4">
+            <label class="form-label small">${d.label}</label>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm denominacion-cantidad" 
+                   data-denominacion="${d.valor}" value="0" min="0" />
+          </div>
+          <div class="col-2">
+            <span class="small">= Q${(d.valor * 0).toFixed(2)}</span>
+          </div>
         </div>
-    `,
+      `,
     )
     .join("");
 
@@ -646,28 +595,28 @@ function renderCajaChica(movimientos) {
 
   if (!movimientos || movimientos.length === 0) {
     container.innerHTML = `
-            <div class="text-center py-4 text-muted">
-                <i class="fas fa-coins fa-3x mb-3"></i>
-                <p>No hay movimientos de caja chica</p>
-            </div>
-        `;
+      <div class="text-center py-4 text-muted">
+        <i class="fas fa-coins fa-3x mb-3"></i>
+        <p>No hay movimientos de caja chica</p>
+      </div>
+    `;
     return;
   }
 
   let html = `
-        <div class="table-responsive">
-            <table class="table table-hover table-striped">
-                <thead class="table-light">
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Tipo</th>
-                        <th>Concepto</th>
-                        <th>Monto</th>
-                        <th>Saldo</th>
-                        <th>Referencia</th>
-                    </tr>
-                </thead>
-                <tbody>
+    <div class="table-responsive">
+      <table class="table table-hover table-striped">
+        <thead class="table-light">
+          <tr>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th>Concepto</th>
+            <th>Monto</th>
+            <th>Saldo</th>
+            <th>Referencia</th>
+          </tr>
+        </thead>
+        <tbody>
     `;
 
   movimientos.forEach((m) => {
@@ -677,35 +626,31 @@ function renderCajaChica(movimientos) {
     const montoClass = monto >= 0 ? "text-success" : "text-danger";
 
     html += `
-            <tr>
-                <td>${m.fecha ? new Date(m.fecha).toLocaleString() : "--"}</td>
-                <td><span class="badge ${tipoBadge}">${tipo}</span></td>
-                <td>${m.concepto || "--"}</td>
-                <td class="${montoClass} fw-bold">Q${monto}</td>
-                <td>Q${m.saldo || 0}</td>
-                <td>${m.referencia || "--"}</td>
-            </tr>
-        `;
+      <tr>
+        <td>${m.fecha ? new Date(m.fecha).toLocaleString() : "--"}</td>
+        <td><span class="badge ${tipoBadge}">${tipo}</span></td>
+        <td>${m.concepto || "--"}</td>
+        <td class="${montoClass} fw-bold">Q${monto}</td>
+        <td>Q${m.saldo || 0}</td>
+        <td>${m.referencia || "--"}</td>
+      </tr>
+    `;
   });
 
   html += `
-                </tbody>
-            </table>
-        </div>
-    `;
+        </tbody>
+      </table>
+    </div>
+  `;
 
   container.innerHTML = html;
 }
 
 function showRegistrarCajaChicaModal() {
-  let modal = document.getElementById("cajaModal");
+  const modal = document.getElementById("cajaModal");
   if (!modal) {
-    crearModalCaja();
-    modal = document.getElementById("cajaModal");
-    if (!modal) {
-      showToast("Error al crear modal de caja", "error");
-      return;
-    }
+    showToast("Error: Modal de caja no encontrado", "error");
+    return;
   }
 
   const title = document.getElementById("cajaModalTitle");
@@ -808,60 +753,56 @@ function renderGastos(gastos) {
 
   if (!gastos || gastos.length === 0) {
     container.innerHTML = `
-            <div class="text-center py-4 text-muted">
-                <i class="fas fa-money-bill-wave fa-3x mb-3"></i>
-                <p>No hay gastos registrados</p>
-            </div>
-        `;
+      <div class="text-center py-4 text-muted">
+        <i class="fas fa-money-bill-wave fa-3x mb-3"></i>
+        <p>No hay gastos registrados</p>
+      </div>
+    `;
     return;
   }
 
   let html = `
-        <div class="table-responsive">
-            <table class="table table-hover table-striped">
-                <thead class="table-light">
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Tipo Gasto</th>
-                        <th>Concepto</th>
-                        <th>Monto</th>
-                        <th>Observaciones</th>
-                    </tr>
-                </thead>
-                <tbody>
+    <div class="table-responsive">
+      <table class="table table-hover table-striped">
+        <thead class="table-light">
+          <tr>
+            <th>Fecha</th>
+            <th>Tipo Gasto</th>
+            <th>Concepto</th>
+            <th>Monto</th>
+            <th>Observaciones</th>
+          </tr>
+        </thead>
+        <tbody>
     `;
 
   gastos.forEach((g) => {
     const tipoGasto = tiposGastoData.find((t) => t.id === g.id_tipo_gasto);
     html += `
-            <tr>
-                <td>${g.fecha ? new Date(g.fecha).toLocaleString() : "--"}</td>
-                <td>${tipoGasto ? tipoGasto.nombre : "--"}</td>
-                <td>${g.concepto || "--"}</td>
-                <td class="text-danger fw-bold">Q${g.monto || 0}</td>
-                <td>${g.observaciones || "--"}</td>
-            </tr>
-        `;
+      <tr>
+        <td>${g.fecha ? new Date(g.fecha).toLocaleString() : "--"}</td>
+        <td>${tipoGasto ? tipoGasto.nombre : "--"}</td>
+        <td>${g.concepto || "--"}</td>
+        <td class="text-danger fw-bold">Q${g.monto || 0}</td>
+        <td>${g.observaciones || "--"}</td>
+      </tr>
+    `;
   });
 
   html += `
-                </tbody>
-            </table>
-        </div>
-    `;
+        </tbody>
+      </table>
+    </div>
+  `;
 
   container.innerHTML = html;
 }
 
 function showRegistrarGastoModal() {
-  let modal = document.getElementById("cajaModal");
+  const modal = document.getElementById("cajaModal");
   if (!modal) {
-    crearModalCaja();
-    modal = document.getElementById("cajaModal");
-    if (!modal) {
-      showToast("Error al crear modal de caja", "error");
-      return;
-    }
+    showToast("Error: Modal de caja no encontrado", "error");
+    return;
   }
 
   const title = document.getElementById("cajaModalTitle");
@@ -961,23 +902,19 @@ function renderTiposGasto(tipos) {
     .map(
       (t) => `
         <div class="d-flex justify-content-between align-items-center border-bottom py-1">
-            <span>${t.nombre}</span>
-            <small class="text-muted">${t.es_fijo ? "Fijo" : "Variable"}</small>
+          <span>${t.nombre}</span>
+          <small class="text-muted">${t.es_fijo ? "Fijo" : "Variable"}</small>
         </div>
-    `,
+      `,
     )
     .join("");
 }
 
 function showCrearTipoGastoModal() {
-  let modal = document.getElementById("cajaModal");
+  const modal = document.getElementById("cajaModal");
   if (!modal) {
-    crearModalCaja();
-    modal = document.getElementById("cajaModal");
-    if (!modal) {
-      showToast("Error al crear modal de caja", "error");
-      return;
-    }
+    showToast("Error: Modal de caja no encontrado", "error");
+    return;
   }
 
   const title = document.getElementById("cajaModalTitle");
@@ -1062,25 +999,21 @@ function renderTiposPago(tipos) {
     .map(
       (t) => `
         <div class="d-flex justify-content-between align-items-center border-bottom py-1">
-            <span>${t.nombre}</span>
-            <small class="text-muted">
-                ${t.para_ventas ? "Ventas " : ""}${t.para_compras ? "Compras" : ""}
-            </small>
+          <span>${t.nombre}</span>
+          <small class="text-muted">
+            ${t.para_ventas ? "Ventas " : ""}${t.para_compras ? "Compras" : ""}
+          </small>
         </div>
-    `,
+      `,
     )
     .join("");
 }
 
 function showCrearTipoPagoModal() {
-  let modal = document.getElementById("cajaModal");
+  const modal = document.getElementById("cajaModal");
   if (!modal) {
-    crearModalCaja();
-    modal = document.getElementById("cajaModal");
-    if (!modal) {
-      showToast("Error al crear modal de caja", "error");
-      return;
-    }
+    showToast("Error: Modal de caja no encontrado", "error");
+    return;
   }
 
   const title = document.getElementById("cajaModalTitle");
@@ -1153,7 +1086,8 @@ async function crearTipoPago(event) {
 // UBICACIONES
 async function loadUbicaciones() {
   try {
-    window.ubicacionesData = (await api.request("/ubicaciones")) || [];
+    const ubicaciones = await api.request("/ubicaciones");
+    window.ubicacionesData = ubicaciones || [];
   } catch (error) {
     console.error("Error cargando ubicaciones:", error);
     window.ubicacionesData = [];
@@ -1163,7 +1097,7 @@ async function loadUbicaciones() {
 // EXPONER FUNCIONES GLOBALES
 window.loadCajaModule = loadCajaModule;
 window.cargarCajaEnContainer = cargarCajaEnContainer;
-window.showAbrirTurnoModal = abrirModalTurno;
+window.showAbrirTurnoModal = showAbrirTurnoModal;
 window.showCerrarTurnoModal = showCerrarTurnoModal;
 window.showRegistrarGastoModal = showRegistrarGastoModal;
 window.showRegistrarCajaChicaModal = showRegistrarCajaChicaModal;
@@ -1176,5 +1110,4 @@ window.showCrearTipoPagoModal = showCrearTipoPagoModal;
 window.abrirTurno = abrirTurno;
 window.cerrarTurno = cerrarTurno;
 window.renderDenominaciones = renderDenominaciones;
-window.crearModalCaja = crearModalCaja;
 window.abrirModalTurno = abrirModalTurno;
