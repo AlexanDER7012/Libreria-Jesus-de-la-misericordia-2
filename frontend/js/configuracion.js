@@ -78,7 +78,7 @@ async function loadConfiguracionModule() {
 
     renderConfiguracion(configuracionData);
     renderMetas(metasData);
-    renderUbicaciones(ubicacionesData);
+    renderUbicaciones(window.ubicacionesData);
   } catch (error) {
     document.getElementById("configuracionContainer").innerHTML = `
             <div class="alert alert-danger">Error al cargar datos: ${error.message}</div>
@@ -500,8 +500,9 @@ async function cargarUbicaciones() {
   if (!container) return;
 
   try {
-    window.ubicacionesData = await api.request("/ubicaciones").catch(() => []);
-    renderUbicaciones(ubicacionesData);
+    const ubicaciones = await api.request("/ubicaciones").catch(() => []);
+    window.ubicacionesData = ubicaciones;
+    renderUbicaciones(ubicaciones);
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">Error al cargar ubicaciones: ${error.message}</div>`;
   }
@@ -611,7 +612,7 @@ function showCreateUbicacionModal() {
 // Editar Ubicación
 async function showEditUbicacionModal(id) {
   try {
-    const ubicacion = ubicacionesData.find((u) => u.id === id);
+    const ubicacion = window.ubicacionesData.find((u) => u.id === id);
     if (!ubicacion) {
       showToast("Ubicación no encontrada", "error");
       return;
@@ -689,7 +690,7 @@ async function saveUbicacion(event) {
 
 // Cambiar estado
 async function toggleUbicacionEstado(id) {
-  const ubicacion = ubicacionesData.find((u) => u.id === id);
+  const ubicacion = window.ubicacionesData.find((u) => u.id === id);
   if (!ubicacion) return;
 
   const accion = ubicacion.activo !== 0 ? "inactivar" : "activar";
@@ -721,7 +722,6 @@ async function actualizarUbicacionesGlobales() {
   try {
     const ubicaciones = await api.request("/ubicaciones").catch(() => []);
     window.ubicacionesData = ubicaciones;
-    window.ubicacionesData = ubicaciones || [];
   } catch (error) {
     console.error("Error actualizando ubicaciones globales:", error);
   }
