@@ -410,18 +410,31 @@ function abrirModalTurno() {
     '<button type="submit" class="btn btn-success w-100" onclick="abrirTurno(event)">Abrir Turno</button>' +
     "</form>";
 
-  // FORZAR VISIBILIDAD
+  // Quitar aria-hidden que bloquea
+  modal.removeAttribute("aria-hidden");
+
+  // Forzar visibilidad
   modal.style.display = "block";
   modal.style.background = "rgba(0,0,0,0.5)";
+  modal.style.position = "fixed";
+  modal.style.top = "0";
+  modal.style.left = "0";
+  modal.style.width = "100%";
+  modal.style.height = "100%";
+  modal.style.zIndex = "1050";
+  modal.style.overflow = "auto";
+
   body.style.display = "block";
   body.style.visibility = "visible";
   body.style.opacity = "1";
+
   modal.classList.add("show");
   document.body.classList.add("modal-open");
 
   if (!document.querySelector(".modal-backdrop")) {
     const backdrop = document.createElement("div");
     backdrop.className = "modal-backdrop fade show";
+    backdrop.style.zIndex = "1040";
     document.body.appendChild(backdrop);
   }
 }
