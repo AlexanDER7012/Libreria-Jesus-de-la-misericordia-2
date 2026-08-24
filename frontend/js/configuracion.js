@@ -20,6 +20,11 @@ async function loadConfiguracionModule() {
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#ubicacionesTab">
+                    <i class="fas fa-map-marker-alt me-1"></i>Ubicaciones
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link" data-bs-toggle="tab" href="#metasTab">
                     <i class="fas fa-bullseye me-1"></i>Metas Financieras
                 </a>
@@ -32,6 +37,14 @@ async function loadConfiguracionModule() {
                     <div class="text-center py-5">
                         <div class="spinner-border text-dark" role="status"></div>
                         <p class="mt-2 text-muted">Cargando configuracion...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="ubicacionesTab">
+                <div id="ubicacionesContainer">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">Cargando ubicaciones...</p>
                     </div>
                 </div>
             </div>
@@ -53,16 +66,19 @@ async function loadConfiguracionModule() {
     `;
 
   try {
-    const [configuracion, metas] = await Promise.all([
+    const [configuracion, metas, ubicaciones] = await Promise.all([
       api.getConfiguracion().catch(() => null),
       api.getMetasFinancieras().catch(() => []),
+      api.request("/ubicaciones").catch(() => []),
     ]);
 
     configuracionData = configuracion;
     metasData = metas || [];
+    ubicacionesData = ubicaciones || [];
 
     renderConfiguracion(configuracionData);
     renderMetas(metasData);
+    renderUbicaciones(ubicacionesData);
   } catch (error) {
     document.getElementById("configuracionContainer").innerHTML = `
             <div class="alert alert-danger">Error al cargar datos: ${error.message}</div>
@@ -481,3 +497,307 @@ window.saveConfig = saveConfig;
 window.showCreateMetaModal = showCreateMetaModal;
 window.saveMeta = saveMeta;
 window.deleteMeta = deleteMeta;
+
+// =============================================
+// UBICACIONES
+// =============================================
+
+let ubicacionesData = [];
+
+// Cargar ubicaciones en Configuración
+async function cargarUbicaciones() {
+  const container = document.getElementById("ubicacionesContainer");
+  if (!container) return;
+
+  try {
+    ubicacionesData = await api.request("/ubicaciones").catch(() => []);
+    renderUbicaciones(ubicacionesData);
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error al cargar ubicaciones: ${error.message}</div>`;
+  }
+}
+
+function renderUbicaciones(ubicaciones) {
+  const container = document.getElementById("ubicacionesContainer");
+  if (!container) return;
+
+  if (!ubicaciones || ubicaciones.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-4 text-muted">
+        <i class="fas fa-map-marker-alt fa-3x mb-3"></i>
+        <p>No hay ubicaciones registradas</p>
+        <button class="btn btn-primary btn-sm" onclick="showCreateUbicacionModal()">
+          <i class="fas fa-plus me-1"></i>Nueva Ubicación
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  let html = `
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h6 class="mb-0">Listado de Ubicaciones</h6>
+      <button class="btn btn-primary btn-sm" onclick="showCreateUbicacionModal()">
+        <i class="fas fa-plus me-1"></i>Nueva Ubicación
+      </button>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-striped">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Descripción</th>
+            <th>Tipo</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  ubicaciones.forEach((u) => {
+    const activo = u.activo !== 0;
+    html += `
+      <tr>
+        <td>${u.id}</td>
+        <td><strong>${u.nombre || "--"}</strong></td>
+        <td>${u.descripcion || "--"}</td>
+        <td>${u.tipo || "--"}</td>
+        <td>
+          <span class="badge ${activo ? "bg-success" : "bg-danger"}">
+            ${activo ? "Activo" : "Inactivo"}
+          </span>
+        </td>
+        <td>
+          <button class="btn btn-sm btn-outline-primary" onclick="showEditUbicacionModal(${u.id})">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleUbicacionEstado(${u.id})">
+            <i class="fas fa-${activo ? "times" : "check"}"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+
+  html += `
+        </tbody>
+      </table>
+    </div>
+    <div class="text-end">
+      <small class="text-muted">Total: ${ubicaciones.length} ubicaciones</small>
+    </div>
+  `;
+
+  container.innerHTML = html;
+}
+
+// Crear Ubicación
+function showCreateUbicacionModal() {
+  let modal = document.getElementById("ubicacionModal");
+  if (!modal) {
+    crearModalUbicacion();
+    modal = document.getElementById("ubicacionModal");
+    if (!modal) {
+      showToast("Error al crear modal", "error");
+      return;
+    }
+  }
+
+  const title = document.getElementById("ubicacionModalTitle");
+  if (title) title.textContent = "Nueva Ubicación";
+
+  const form = document.getElementById("ubicacionForm");
+  if (form) form.reset();
+
+  document.getElementById("ubicacionId").value = "";
+  document.getElementById("ubicacionActivo").value = "1";
+
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+}
+
+// Editar Ubicación
+async function showEditUbicacionModal(id) {
+  try {
+    const ubicacion = ubicacionesData.find((u) => u.id === id);
+    if (!ubicacion) {
+      showToast("Ubicación no encontrada", "error");
+      return;
+    }
+
+    let modal = document.getElementById("ubicacionModal");
+    if (!modal) {
+      crearModalUbicacion();
+      modal = document.getElementById("ubicacionModal");
+      if (!modal) {
+        showToast("Error al crear modal", "error");
+        return;
+      }
+    }
+
+    const title = document.getElementById("ubicacionModalTitle");
+    if (title) title.textContent = "Editar Ubicación";
+
+    document.getElementById("ubicacionId").value = ubicacion.id;
+    document.getElementById("ubicacionNombre").value = ubicacion.nombre || "";
+    document.getElementById("ubicacionDescripcion").value =
+      ubicacion.descripcion || "";
+    document.getElementById("ubicacionTipo").value = ubicacion.tipo || "";
+    document.getElementById("ubicacionActivo").value =
+      ubicacion.activo !== 0 ? "1" : "0";
+
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+  } catch (error) {
+    showToast(error.message || "Error al cargar ubicación", "error");
+  }
+}
+
+// Guardar Ubicación
+async function saveUbicacion(event) {
+  event.preventDefault();
+
+  const id = document.getElementById("ubicacionId").value;
+  const nombre = document.getElementById("ubicacionNombre").value.trim();
+
+  if (!nombre) {
+    mostrarErrorCampo("ubicacionNombre", "El nombre es obligatorio");
+    return;
+  }
+  limpiarErrorCampo("ubicacionNombre");
+
+  const data = {
+    nombre: nombre,
+    descripcion:
+      document.getElementById("ubicacionDescripcion").value.trim() || null,
+    tipo: document.getElementById("ubicacionTipo").value || null,
+    activo: parseInt(document.getElementById("ubicacionActivo").value),
+  };
+
+  try {
+    if (id) {
+      await api.request(`/ubicaciones/${id}`, "PUT", data);
+      showToast("Ubicación actualizada correctamente", "success");
+    } else {
+      await api.request("/ubicaciones", "POST", data);
+      showToast("Ubicación creada correctamente", "success");
+    }
+
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("ubicacionModal"),
+    );
+    if (modal) modal.hide();
+
+    await cargarUbicaciones();
+    // Actualizar ubicaciones en ventas y caja
+    await actualizarUbicacionesGlobales();
+  } catch (error) {
+    showToast(error.message || "Error al guardar ubicación", "error");
+  }
+}
+
+// Cambiar estado
+async function toggleUbicacionEstado(id) {
+  const ubicacion = ubicacionesData.find((u) => u.id === id);
+  if (!ubicacion) return;
+
+  const accion = ubicacion.activo !== 0 ? "inactivar" : "activar";
+  const confirmado = await mostrarConfirmacion(
+    `${accion === "inactivar" ? "Inactivar" : "Activar"} Ubicación`,
+    `¿Está seguro de ${accion} la ubicación "${ubicacion.nombre}"?`,
+  );
+
+  if (!confirmado) return;
+
+  try {
+    await api.request(`/ubicaciones/${id}`, "PUT", {
+      ...ubicacion,
+      activo: ubicacion.activo !== 0 ? 0 : 1,
+    });
+    showToast(
+      `Ubicación ${accion === "inactivar" ? "inactivada" : "activada"} correctamente`,
+      "success",
+    );
+    await cargarUbicaciones();
+    await actualizarUbicacionesGlobales();
+  } catch (error) {
+    showToast(error.message || "Error al cambiar estado", "error");
+  }
+}
+
+// Actualizar ubicaciones en ventas y caja
+async function actualizarUbicacionesGlobales() {
+  try {
+    const ubicaciones = await api.request("/ubicaciones").catch(() => []);
+    window.ubicacionesData = ubicaciones;
+    // Actualizar también en ventas.js
+    if (typeof ubicacionesData !== "undefined") {
+      ubicacionesData = ubicaciones;
+    }
+  } catch (error) {
+    console.error("Error actualizando ubicaciones globales:", error);
+  }
+}
+
+// Crear Modal
+function crearModalUbicacion() {
+  if (document.getElementById("ubicacionModal")) return;
+
+  const html = `
+    <div class="modal fade" id="ubicacionModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="ubicacionModalTitle">Ubicación</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="ubicacionForm" novalidate>
+              <input type="hidden" id="ubicacionId" />
+              <div class="mb-3">
+                <label class="form-label">Nombre *</label>
+                <input type="text" class="form-control" id="ubicacionNombre" required />
+                <div class="invalid-feedback" id="ubicacionNombreError">El nombre es obligatorio</div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Descripción</label>
+                <input type="text" class="form-control" id="ubicacionDescripcion" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Tipo</label>
+                <select class="form-select" id="ubicacionTipo">
+                  <option value="">Seleccionar tipo</option>
+                  <option value="Física">Física</option>
+                  <option value="Virtual">Virtual</option>
+                  <option value="Almacén">Almacén</option>
+                  <option value="Tienda">Tienda</option>
+                  <option value="Bodega">Bodega</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Estado</label>
+                <select class="form-select" id="ubicacionActivo">
+                  <option value="1">Activo</option>
+                  <option value="0">Inactivo</option>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary w-100" onclick="saveUbicacion(event)">Guardar</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML("beforeend", html);
+}
+
+// EXPONER FUNCIONES
+window.cargarUbicaciones = cargarUbicaciones;
+window.showCreateUbicacionModal = showCreateUbicacionModal;
+window.showEditUbicacionModal = showEditUbicacionModal;
+window.saveUbicacion = saveUbicacion;
+window.toggleUbicacionEstado = toggleUbicacionEstado;
+window.actualizarUbicacionesGlobales = actualizarUbicacionesGlobales;
