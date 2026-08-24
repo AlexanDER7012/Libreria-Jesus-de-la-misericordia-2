@@ -3,9 +3,6 @@
 let cajaChicaData = [];
 let gastosData = [];
 let tiposGastoData = [];
-let cajaTurnosData = [];
-let tiposPagoData = [];
-let ubicacionesData = [];
 
 // HELPER
 function getCurrentUser() {

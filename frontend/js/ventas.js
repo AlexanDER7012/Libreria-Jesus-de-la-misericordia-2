@@ -1280,3 +1280,6 @@ window.showCreateClienteSubModal = showCreateClienteSubModal;
 window.showEditClienteSubModal = showEditClienteSubModal;
 window.deleteClienteSub = deleteClienteSub;
 window.saveClienteSub = saveClienteSub;
+window.cajaTurnosData = cajaTurnosData;
+window.tiposPagoData = tiposPagoData;
+window.ubicacionesData = ubicacionesData;
