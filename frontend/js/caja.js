@@ -1157,3 +1157,5 @@ window.cerrarTurno = cerrarTurno;
 window.renderDenominaciones = renderDenominaciones;
 window.crearModalCaja = crearModalCaja;
 window.abrirModalTurno = abrirModalTurno;
+// Alias
+window.showAbrirTurnoModal = abrirModalTurno;

@@ -2,7 +2,6 @@
 
 let configuracionData = null;
 let metasData = [];
-let ubicacionesData = [];
 
 // Carga del modulo
 async function loadConfiguracionModule() {
@@ -75,7 +74,7 @@ async function loadConfiguracionModule() {
 
     configuracionData = configuracion;
     metasData = metas || [];
-    ubicacionesData = ubicaciones || [];
+    window.ubicacionesData = ubicaciones || [];
 
     renderConfiguracion(configuracionData);
     renderMetas(metasData);
@@ -501,7 +500,7 @@ async function cargarUbicaciones() {
   if (!container) return;
 
   try {
-    ubicacionesData = await api.request("/ubicaciones").catch(() => []);
+    window.ubicacionesData = await api.request("/ubicaciones").catch(() => []);
     renderUbicaciones(ubicacionesData);
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">Error al cargar ubicaciones: ${error.message}</div>`;
@@ -722,7 +721,7 @@ async function actualizarUbicacionesGlobales() {
   try {
     const ubicaciones = await api.request("/ubicaciones").catch(() => []);
     window.ubicacionesData = ubicaciones;
-    ubicacionesData = ubicaciones;
+    window.ubicacionesData = ubicaciones || [];
   } catch (error) {
     console.error("Error actualizando ubicaciones globales:", error);
   }
