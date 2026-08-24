@@ -102,12 +102,92 @@ async function loadVentasModule() {
 
     renderVentasTable(ventasData);
     cargarSubClientes();
-    cargarSubCaja();
     cargarSubVendedores();
+
+    // Cargar Caja usando caja.js
+    const cajaContainer = document.getElementById("cajaSubContainer");
+    if (cajaContainer) {
+      if (typeof cargarCajaEnContainer === "function") {
+        await cargarCajaEnContainer(cajaContainer);
+      } else {
+        // Fallback si caja.js no está cargado
+        cajaContainer.innerHTML = `
+          <div class="text-center py-5">
+            <div class="spinner-border text-warning" role="status"></div>
+            <p class="mt-2 text-muted">Cargando caja...</p>
+          </div>
+        `;
+        // Cargar datos básicos
+        cargarSubCajaBasico(cajaContainer);
+      }
+    }
   } catch (error) {
     document.getElementById("ventasTableContainer").innerHTML = `
             <div class="alert alert-danger">Error al cargar datos: ${error.message}</div>
         `;
+  }
+}
+
+// CARGA BÁSICA DE CAJA (fallback)
+async function cargarSubCajaBasico(container) {
+  try {
+    const [turnos, tiposPago] = await Promise.all([
+      api.getCajaTurnos().catch(() => []),
+      api.getTiposPago().catch(() => []),
+    ]);
+
+    const abiertos = turnos.filter((t) => t.estado === "Abierto");
+
+    container.innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Turnos de Caja</h6>
+                    <p class="small text-muted">Abiertos: ${abiertos.length} | Total: ${turnos.length}</p>
+                    <button class="btn btn-sm btn-success mb-2" onclick="window.location.reload()">
+                        <i class="fas fa-sync me-1"></i>Gestionar Caja
+                    </button>
+                    <div class="table-responsive mt-2">
+                        <table class="table table-sm table-striped">
+                            <thead><tr><th>ID</th><th>Estado</th><th>Apertura</th><th>Fondo</th></tr></thead>
+                            <tbody>
+                                ${turnos
+                                  .slice(0, 5)
+                                  .map(
+                                    (t) => `
+                                    <tr>
+                                        <td>${t.id}</td>
+                                        <td><span class="badge ${t.estado === "Abierto" ? "bg-success" : "bg-secondary"}">${t.estado}</span></td>
+                                        <td>${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : "--"}</td>
+                                        <td>Q${t.fondo_inicial || 0}</td>
+                                    </tr>
+                                `,
+                                  )
+                                  .join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Tipos de Pago (Ventas)</h6>
+                    <div class="d-flex flex-wrap gap-1 mb-2">
+                        ${tiposPago
+                          .filter((t) => t.para_ventas === 1)
+                          .map(
+                            (t) => `
+                            <span class="badge bg-primary">${t.nombre}</span>
+                        `,
+                          )
+                          .join("")}
+                    </div>
+                    <div class="text-muted small mt-3">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Para gestionar turnos, caja chica y gastos, usa el módulo Caja desde el menú principal.
+                    </div>
+                </div>
+            </div>
+        `;
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
   }
 }
 
@@ -1173,414 +1253,6 @@ async function cargarSubVendedores() {
   }
 }
 
-// PESTAÑA: CAJA
-async function cargarSubCaja() {
-  const container = document.getElementById("cajaSubContainer");
-  if (!container) return;
-
-  try {
-    const [turnos, gastos, tiposGasto, tiposPago, cajaChica] =
-      await Promise.all([
-        api.getCajaTurnos().catch(() => []),
-        api.getGastos().catch(() => []),
-        api.getTiposGasto().catch(() => []),
-        api.getTiposPago().catch(() => []),
-        api.getCajaChica().catch(() => []),
-      ]);
-
-    const abiertos = turnos.filter((t) => t.estado === "Abierto");
-    const saldoCajaChica = cajaChica.reduce(
-      (sum, c) => sum + (c.monto || 0),
-      0,
-    );
-
-    container.innerHTML = `
-            <div class="row">
-                <div class="col-md-6">
-                    <h6 class="fw-bold">Turnos de Caja</h6>
-                    <p class="small text-muted">Abiertos: ${abiertos.length} | Total: ${turnos.length}</p>
-                    <button class="btn btn-sm btn-success mb-2" onclick="showAbrirTurnoSubModal()">
-                        <i class="fas fa-play me-1"></i>Abrir Turno
-                    </button>
-                    ${
-                      abiertos.length > 0
-                        ? `
-                        <button class="btn btn-sm btn-danger mb-2 ms-1" onclick="showCerrarTurnoSubModal()">
-                            <i class="fas fa-stop me-1"></i>Cerrar Turno
-                        </button>
-                    `
-                        : ""
-                    }
-                    <div class="table-responsive mt-2">
-                        <table class="table table-sm table-striped">
-                            <thead><tr><th>ID</th><th>Estado</th><th>Apertura</th><th>Fondo</th></tr></thead>
-                            <tbody>
-                                ${turnos
-                                  .slice(0, 10)
-                                  .map(
-                                    (t) => `
-                                    <tr>
-                                        <td>${t.id}</td>
-                                        <td><span class="badge ${t.estado === "Abierto" ? "bg-success" : "bg-secondary"}">${t.estado}</span></td>
-                                        <td>${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : "--"}</td>
-                                        <td>Q${t.fondo_inicial || 0}</td>
-                                    </tr>
-                                `,
-                                  )
-                                  .join("")}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="card mt-3 border-success">
-                        <div class="card-body">
-                            <h6 class="fw-bold text-success">
-                                <i class="fas fa-piggy-bank me-2"></i>Saldo Caja Chica: Q${saldoCajaChica.toFixed(2)}
-                            </h6>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <h6 class="fw-bold">Tipos de Pago (Ventas)</h6>
-                    <div class="d-flex flex-wrap gap-1 mb-2">
-                        ${tiposPago
-                          .filter((t) => t.para_ventas === 1)
-                          .map(
-                            (t) => `
-                            <span class="badge bg-primary">${t.nombre}</span>
-                        `,
-                          )
-                          .join("")}
-                        <button class="btn btn-sm btn-outline-primary" onclick="showCreateTipoPagoSubModal()">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
-                    <div class="text-muted small mt-1">Los gastos se registran en el módulo de Compras</div>
-                </div>
-            </div>
-        `;
-  } catch (error) {
-    container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
-  }
-}
-
-// CREAR MODALES
-function crearModalCaja() {
-  if (document.getElementById("cajaModal")) return;
-  const html = `
-    <div class="modal fade" id="cajaModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="cajaModalTitle">Caja</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body" id="cajaModalBody"></div>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.insertAdjacentHTML("beforeend", html);
-}
-
-function crearModalTipoPago() {
-  if (document.getElementById("tipoPagoModal")) return;
-  const html = `
-    <div class="modal fade" id="tipoPagoModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="tipoPagoModalTitle">Tipo de Pago</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <form id="tipoPagoForm">
-              <div class="mb-3">
-                <label class="form-label">Nombre</label>
-                <input type="text" class="form-control" id="tipoPagoNombre" required />
-              </div>
-              <div class="row">
-                <div class="col-6 mb-3">
-                  <label class="form-label">¿Para ventas?</label>
-                  <select class="form-select" id="tipoPagoVentas">
-                    <option value="1">Sí</option>
-                    <option value="0">No</option>
-                  </select>
-                </div>
-                <div class="col-6 mb-3">
-                  <label class="form-label">¿Para compras?</label>
-                  <select class="form-select" id="tipoPagoCompras">
-                    <option value="1">Sí</option>
-                    <option value="0">No</option>
-                  </select>
-                </div>
-              </div>
-              <button type="submit" class="btn btn-primary w-100" onclick="window.saveTipoPagoSub(event)">Guardar</button>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.insertAdjacentHTML("beforeend", html);
-}
-
-// CAJA - ABRIR TURNO
-function showAbrirTurnoSubModal() {
-  let modal = document.getElementById("cajaModal");
-  if (!modal) {
-    crearModalCaja();
-    modal = document.getElementById("cajaModal");
-    if (!modal) {
-      showToast("Error al crear modal de caja", "error");
-      return;
-    }
-  }
-
-  const title = document.getElementById("cajaModalTitle");
-  if (title) title.textContent = "Abrir Turno de Caja";
-
-  const body = document.getElementById("cajaModalBody");
-  if (!body) {
-    showToast("Error: cuerpo del modal no encontrado", "error");
-    return;
-  }
-
-  body.innerHTML = `
-    <form id="cajaForm">
-      <input type="hidden" id="cajaId" />
-      <div class="mb-3">
-        <label class="form-label">Ubicación</label>
-        <select class="form-select" id="cajaUbicacion" required>
-          <option value="">Seleccionar</option>
-          ${(ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
-        </select>
-        <div class="text-muted small mt-1">No hay ubicaciones? Crea una en Configuración</div>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Fondo Inicial</label>
-        <input type="number" step="0.01" class="form-control" id="cajaFondoInicial" value="500" />
-      </div>
-      <button type="submit" class="btn btn-success w-100" onclick="window.abrirTurnoSub(event)">Abrir Turno</button>
-    </form>
-  `;
-
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
-}
-
-async function abrirTurnoSub(event) {
-  event.preventDefault();
-  const id_usuario = getCurrentUser()?.id || 1;
-  const id_ubicacion = parseInt(document.getElementById("cajaUbicacion").value);
-  const fondo_inicial =
-    parseFloat(document.getElementById("cajaFondoInicial").value) || 500;
-
-  if (!id_ubicacion) {
-    showToast("Selecciona una ubicación", "error");
-    return;
-  }
-
-  try {
-    await api.createCajaTurno({ id_usuario, id_ubicacion, fondo_inicial });
-    showToast("Turno abierto correctamente", "success");
-    bootstrap.Modal.getInstance(document.getElementById("cajaModal")).hide();
-    await loadVentasModule();
-  } catch (error) {
-    showToast(error.message || "Error al abrir turno", "error");
-  }
-}
-
-// CAJA - CERRAR TURNO
-function showCerrarTurnoSubModal() {
-  let modal = document.getElementById("cajaModal");
-  if (!modal) {
-    crearModalCaja();
-    modal = document.getElementById("cajaModal");
-    if (!modal) {
-      showToast("Error al crear modal de caja", "error");
-      return;
-    }
-  }
-
-  const title = document.getElementById("cajaModalTitle");
-  if (title) title.textContent = "Cerrar Turno - Denominaciones";
-
-  const body = document.getElementById("cajaModalBody");
-  if (!body) {
-    showToast("Error: cuerpo del modal no encontrado", "error");
-    return;
-  }
-
-  body.innerHTML = `
-    <form id="cerrarTurnoForm">
-      <p class="text-muted small">Ingrese la cantidad de cada denominación para el cierre de turno</p>
-      <div class="row g-2">
-        <div class="col-6">
-          <label class="form-label">Billetes Q200</label>
-          <input type="number" class="form-control" id="den200" value="0" min="0" />
-        </div>
-        <div class="col-6">
-          <label class="form-label">Billetes Q100</label>
-          <input type="number" class="form-control" id="den100" value="0" min="0" />
-        </div>
-        <div class="col-6">
-          <label class="form-label">Billetes Q50</label>
-          <input type="number" class="form-control" id="den50" value="0" min="0" />
-        </div>
-        <div class="col-6">
-          <label class="form-label">Billetes Q20</label>
-          <input type="number" class="form-control" id="den20" value="0" min="0" />
-        </div>
-        <div class="col-6">
-          <label class="form-label">Billetes Q10</label>
-          <input type="number" class="form-control" id="den10" value="0" min="0" />
-        </div>
-        <div class="col-6">
-          <label class="form-label">Billetes Q5</label>
-          <input type="number" class="form-control" id="den5" value="0" min="0" />
-        </div>
-        <div class="col-6">
-          <label class="form-label">Monedas Q1</label>
-          <input type="number" class="form-control" id="den1" value="0" min="0" />
-        </div>
-        <div class="col-6">
-          <label class="form-label">Monedas Q0.50</label>
-          <input type="number" step="0.5" class="form-control" id="den05" value="0" min="0" />
-        </div>
-        <div class="col-6">
-          <label class="form-label">Monedas Q0.25</label>
-          <input type="number" step="0.25" class="form-control" id="den025" value="0" min="0" />
-        </div>
-      </div>
-      <div class="mt-3 p-2 bg-light rounded">
-        <strong>Total contado: Q<span id="totalContado">0.00</span></strong>
-      </div>
-      <button type="submit" class="btn btn-danger w-100 mt-3" onclick="cerrarTurnoConDenominaciones(event)">Cerrar Turno</button>
-    </form>
-  `;
-
-  document.querySelectorAll("#cerrarTurnoForm input").forEach((input) => {
-    input.addEventListener("input", function () {
-      calcularTotalDenominaciones();
-    });
-  });
-
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
-}
-
-function calcularTotalDenominaciones() {
-  const denominaciones = [
-    { id: "den200", valor: 200 },
-    { id: "den100", valor: 100 },
-    { id: "den50", valor: 50 },
-    { id: "den20", valor: 20 },
-    { id: "den10", valor: 10 },
-    { id: "den5", valor: 5 },
-    { id: "den1", valor: 1 },
-    { id: "den05", valor: 0.5 },
-    { id: "den025", valor: 0.25 },
-  ];
-
-  let total = 0;
-  denominaciones.forEach((d) => {
-    const input = document.getElementById(d.id);
-    if (input) {
-      total += (parseFloat(input.value) || 0) * d.valor;
-    }
-  });
-
-  const totalContado = document.getElementById("totalContado");
-  if (totalContado) totalContado.textContent = total.toFixed(2);
-}
-
-async function cerrarTurnoConDenominaciones(event) {
-  event.preventDefault();
-
-  const confirmado = await mostrarConfirmacion(
-    "Cerrar Turno",
-    "¿Está seguro de cerrar el turno? Se registrará el total contado.",
-  );
-
-  if (!confirmado) return;
-
-  const totalContado = parseFloat(
-    document.getElementById("totalContado")?.textContent || 0,
-  );
-
-  try {
-    const turnoAbierto = cajaTurnosData.find((t) => t.estado === "Abierto");
-    if (!turnoAbierto) {
-      showToast("No hay turno abierto", "error");
-      return;
-    }
-
-    await api.request(`/caja-turno/${turnoAbierto.id}/cerrar`, "PATCH", {
-      total_contado: totalContado,
-    });
-
-    showToast(
-      `Turno cerrado correctamente. Total contado: Q${totalContado.toFixed(2)}`,
-      "success",
-    );
-    bootstrap.Modal.getInstance(document.getElementById("cajaModal")).hide();
-    await loadVentasModule();
-  } catch (error) {
-    showToast(error.message || "Error al cerrar turno", "error");
-  }
-}
-
-// TIPO PAGO
-function showCreateTipoPagoSubModal() {
-  let modal = document.getElementById("tipoPagoModal");
-  if (!modal) {
-    crearModalTipoPago();
-    modal = document.getElementById("tipoPagoModal");
-    if (!modal) {
-      showToast("Error al crear modal de tipo pago", "error");
-      return;
-    }
-  }
-
-  const title = document.getElementById("tipoPagoModalTitle");
-  if (title) title.textContent = "Nuevo Tipo de Pago";
-
-  const form = document.getElementById("tipoPagoForm");
-  if (form) form.reset();
-
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
-}
-
-async function saveTipoPagoSub(event) {
-  event.preventDefault();
-  const nombre = document.getElementById("tipoPagoNombre").value.trim();
-  const para_ventas = parseInt(document.getElementById("tipoPagoVentas").value);
-  const para_compras = parseInt(
-    document.getElementById("tipoPagoCompras").value,
-  );
-
-  if (!nombre) {
-    showToast("El nombre es obligatorio", "error");
-    return;
-  }
-
-  try {
-    await api.request("/tipos-pago", "POST", {
-      nombre,
-      para_ventas,
-      para_compras,
-    });
-    showToast("Tipo de pago creado correctamente", "success");
-    bootstrap.Modal.getInstance(
-      document.getElementById("tipoPagoModal"),
-    ).hide();
-    await loadVentasModule();
-  } catch (error) {
-    showToast(error.message || "Error al crear tipo de pago", "error");
-  }
-}
-
 // HELPER
 function getCurrentUser() {
   try {
@@ -1603,16 +1275,8 @@ window.anularVenta = anularVenta;
 window.verFichaCliente = verFichaCliente;
 window.verFichaProducto = verFichaProducto;
 window.cargarSubClientes = cargarSubClientes;
-window.cargarSubCaja = cargarSubCaja;
 window.cargarSubVendedores = cargarSubVendedores;
 window.showCreateClienteSubModal = showCreateClienteSubModal;
 window.showEditClienteSubModal = showEditClienteSubModal;
 window.deleteClienteSub = deleteClienteSub;
 window.saveClienteSub = saveClienteSub;
-window.showAbrirTurnoSubModal = showAbrirTurnoSubModal;
-window.abrirTurnoSub = abrirTurnoSub;
-window.showCerrarTurnoSubModal = showCerrarTurnoSubModal;
-window.cerrarTurnoConDenominaciones = cerrarTurnoConDenominaciones;
-window.showCreateTipoPagoSubModal = showCreateTipoPagoSubModal;
-window.saveTipoPagoSub = saveTipoPagoSub;
-window.calcularTotalDenominaciones = calcularTotalDenominaciones;
