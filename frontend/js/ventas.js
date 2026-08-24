@@ -129,63 +129,97 @@ async function loadVentasModule() {
 }
 
 // CARGA BÁSICA DE CAJA (fallback)
-async function cargarSubCajaBasico(container) {
+async function cargarSubCaja() {
+  const container = document.getElementById("cajaSubContainer");
+  if (!container) return;
+
   try {
-    const [turnos, tiposPago] = await Promise.all([
-      api.getCajaTurnos().catch(() => []),
-      api.getTiposPago().catch(() => []),
-    ]);
+    const [turnos, gastos, tiposGasto, tiposPago, cajaChica, ubicaciones] =
+      await Promise.all([
+        api.getCajaTurnos().catch(() => []),
+        api.getGastos().catch(() => []),
+        api.getTiposGasto().catch(() => []),
+        api.getTiposPago().catch(() => []),
+        api.getCajaChica().catch(() => []),
+        api.request("/ubicaciones").catch(() => []),
+      ]);
+
+    // ASIGNAR UBICACIONES A window
+    window.ubicacionesData = ubicaciones || [];
 
     const abiertos = turnos.filter((t) => t.estado === "Abierto");
+    const saldoCajaChica = cajaChica.reduce(
+      (sum, c) => sum + (c.monto || 0),
+      0,
+    );
 
     container.innerHTML = `
-            <div class="row">
-                <div class="col-md-6">
-                    <h6 class="fw-bold">Turnos de Caja</h6>
-                    <p class="small text-muted">Abiertos: ${abiertos.length} | Total: ${turnos.length}</p>
-                    <button class="btn btn-sm btn-success mb-2" onclick="window.location.reload()">
-                        <i class="fas fa-sync me-1"></i>Gestionar Caja
-                    </button>
-                    <div class="table-responsive mt-2">
-                        <table class="table table-sm table-striped">
-                            <thead><tr><th>ID</th><th>Estado</th><th>Apertura</th><th>Fondo</th></tr></thead>
-                            <tbody>
-                                ${turnos
-                                  .slice(0, 5)
-                                  .map(
-                                    (t) => `
-                                    <tr>
-                                        <td>${t.id}</td>
-                                        <td><span class="badge ${t.estado === "Abierto" ? "bg-success" : "bg-secondary"}">${t.estado}</span></td>
-                                        <td>${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : "--"}</td>
-                                        <td>Q${t.fondo_inicial || 0}</td>
-                                    </tr>
-                                `,
-                                  )
-                                  .join("")}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <h6 class="fw-bold">Tipos de Pago (Ventas)</h6>
-                    <div class="d-flex flex-wrap gap-1 mb-2">
-                        ${tiposPago
-                          .filter((t) => t.para_ventas === 1)
-                          .map(
-                            (t) => `
-                            <span class="badge bg-primary">${t.nombre}</span>
-                        `,
-                          )
-                          .join("")}
-                    </div>
-                    <div class="text-muted small mt-3">
-                        <i class="fas fa-info-circle me-1"></i>
-                        Para gestionar turnos, caja chica y gastos, usa el módulo Caja desde el menú principal.
-                    </div>
-                </div>
+      <div class="row">
+        <div class="col-md-6">
+          <h6 class="fw-bold">Turnos de Caja</h6>
+          <p class="small text-muted">Abiertos: ${abiertos.length} | Total: ${turnos.length}</p>
+          <button class="btn btn-sm btn-success mb-2" onclick="showAbrirTurnoModal()">
+            <i class="fas fa-play me-1"></i>Abrir Turno
+          </button>
+          ${
+            abiertos.length > 0
+              ? `
+              <button class="btn btn-sm btn-danger mb-2 ms-1" onclick="showCerrarTurnoModal()">
+                <i class="fas fa-stop me-1"></i>Cerrar Turno
+              </button>
+            `
+              : ""
+          }
+          <div class="table-responsive mt-2">
+            <table class="table table-sm table-striped">
+              <thead><tr><th>ID</th><th>Estado</th><th>Apertura</th><th>Fondo</th></tr></thead>
+              <tbody>
+                ${turnos
+                  .slice(0, 10)
+                  .map(
+                    (t) => `
+                    <tr>
+                      <td>${t.id}</td>
+                      <td><span class="badge ${t.estado === "Abierto" ? "bg-success" : "bg-secondary"}">${t.estado}</span></td>
+                      <td>${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : "--"}</td>
+                      <td>Q${t.fondo_inicial || 0}</td>
+                    </tr>
+                  `,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+          <div class="card mt-3 border-success">
+            <div class="card-body">
+              <h6 class="fw-bold text-success">
+                <i class="fas fa-piggy-bank me-2"></i>Saldo Caja Chica: Q${saldoCajaChica.toFixed(2)}
+              </h6>
             </div>
-        `;
+          </div>
+        </div>
+        <div class="col-md-6">
+          <h6 class="fw-bold">Tipos de Pago (Ventas)</h6>
+          <div class="d-flex flex-wrap gap-1 mb-2">
+            ${tiposPago
+              .filter((t) => t.para_ventas === 1)
+              .map(
+                (t) => `
+                <span class="badge bg-primary">${t.nombre}</span>
+              `,
+              )
+              .join("")}
+          </div>
+          <button class="btn btn-sm btn-outline-primary mt-2" onclick="showCrearTipoPagoModal()">
+            <i class="fas fa-plus me-1"></i>Nuevo Tipo Pago
+          </button>
+          <div class="text-muted small mt-3">
+            <i class="fas fa-info-circle me-1"></i>
+            Para gestionar gastos y caja chica, usa el módulo Caja desde el menú principal.
+          </div>
+        </div>
+      </div>
+    `;
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
   }
