@@ -15,7 +15,9 @@ function getCurrentUser() {
 
 // CREAR MODALES
 function crearModalCaja() {
+  // Si ya existe, no hacer nada
   if (document.getElementById("cajaModal")) return;
+
   const html = `
     <div class="modal fade" id="cajaModal" tabindex="-1">
       <div class="modal-dialog">
@@ -346,19 +348,18 @@ function renderTurnos(turnos) {
 }
 
 // ABRIR TURNO
+// ABRIR TURNO - CORREGIDO
 function showAbrirTurnoModal() {
+  // Buscar o crear modal
   let modal = document.getElementById("cajaModal");
   if (!modal) {
     crearModalCaja();
-    modal = document.getElementById("cajaModal");
-    if (!modal) {
-      showToast("Error al crear modal de caja", "error");
-      return;
-    }
+    // Esperar a que el DOM se actualice
+    setTimeout(function () {
+      showAbrirTurnoModal();
+    }, 100);
+    return;
   }
-
-  const title = document.getElementById("cajaModalTitle");
-  if (title) title.textContent = "Abrir Turno de Caja";
 
   const body = document.getElementById("cajaModalBody");
   if (!body) {
@@ -366,14 +367,17 @@ function showAbrirTurnoModal() {
     return;
   }
 
+  const title = document.getElementById("cajaModalTitle");
+  if (title) title.textContent = "Abrir Turno de Caja";
+
   body.innerHTML = `
     <form id="cajaForm">
       <input type="hidden" id="cajaId" />
       <div class="mb-3">
-        <label class="form-label">Ubicación</label>
+        <label class="form-label">Ubicación *</label>
         <select class="form-select" id="cajaUbicacion" required>
-          <option value="">Seleccionar</option>
-          ${(ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
+          <option value="">Seleccionar ubicación</option>
+          ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
         </select>
         <div class="text-muted small mt-1">No hay ubicaciones? Crea una en Configuración</div>
       </div>
