@@ -703,7 +703,7 @@ function showRegistrarCajaChicaModal() {
         <label class="form-label">Ubicación</label>
         <select class="form-select" id="cajaChicaUbicacion" required>
           <option value="">Seleccionar ubicación</option>
-          ${(ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
+          ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
         </select>
       </div>
       <div class="mb-3">
@@ -865,7 +865,7 @@ function showRegistrarGastoModal() {
         <label class="form-label">Ubicación</label>
         <select class="form-select" id="gastoUbicacion">
           <option value="">Seleccionar ubicación</option>
-          ${(ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
+          ${(window.ubicacionesData || []).map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
         </select>
       </div>
       <div class="mb-3">
@@ -1132,17 +1132,17 @@ async function crearTipoPago(event) {
 // UBICACIONES
 async function loadUbicaciones() {
   try {
-    ubicacionesData = (await api.request("/ubicaciones")) || [];
+    window.ubicacionesData = (await api.request("/ubicaciones")) || [];
   } catch (error) {
     console.error("Error cargando ubicaciones:", error);
-    ubicacionesData = [];
+    window.ubicacionesData = [];
   }
 }
 
 // EXPONER FUNCIONES GLOBALES
 window.loadCajaModule = loadCajaModule;
 window.cargarCajaEnContainer = cargarCajaEnContainer;
-window.showAbrirTurnoModal = showAbrirTurnoModal;
+window.showAbrirTurnoModal = abrirModalTurno;
 window.showCerrarTurnoModal = showCerrarTurnoModal;
 window.showRegistrarGastoModal = showRegistrarGastoModal;
 window.showRegistrarCajaChicaModal = showRegistrarCajaChicaModal;
@@ -1157,5 +1157,3 @@ window.cerrarTurno = cerrarTurno;
 window.renderDenominaciones = renderDenominaciones;
 window.crearModalCaja = crearModalCaja;
 window.abrirModalTurno = abrirModalTurno;
-// Alias
-window.showAbrirTurnoModal = abrirModalTurno;
