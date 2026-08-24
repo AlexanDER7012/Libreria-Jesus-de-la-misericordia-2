@@ -13,18 +13,21 @@ function getCurrentUser() {
   }
 }
 
-// CREAR MODALES
+// CREAR MODAL CAJA
 function crearModalCaja() {
-  // Si ya existe, no hacer nada
-  if (document.getElementById("cajaModal")) return;
+  // Eliminar modal existente
+  const oldModal = document.getElementById("cajaModal");
+  if (oldModal) {
+    oldModal.remove();
+  }
 
   const html = `
-    <div class="modal fade" id="cajaModal" tabindex="-1">
+    <div class="modal fade" id="cajaModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title" id="cajaModalTitle">Caja</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body" id="cajaModalBody"></div>
         </div>
@@ -32,6 +35,7 @@ function crearModalCaja() {
     </div>
   `;
   document.body.insertAdjacentHTML("beforeend", html);
+  console.log("✅ Modal caja creado con cajaModalBody");
 }
 
 // CARGA DEL MÓDULO PRINCIPAL
