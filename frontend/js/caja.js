@@ -1161,4 +1161,4 @@ window.abrirTurno = abrirTurno;
 window.cerrarTurno = cerrarTurno;
 window.renderDenominaciones = renderDenominaciones;
 window.crearModalCaja = crearModalCaja;
-window.mostrarModalTurno = mostrarModalTurno;
+window.abrirModalTurno = abrirModalTurno;
