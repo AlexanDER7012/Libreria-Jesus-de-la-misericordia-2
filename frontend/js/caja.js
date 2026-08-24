@@ -375,7 +375,6 @@ function abrirModalTurno() {
 
   const ubicaciones = window.ubicacionesData || [];
 
-  // CONSTRUIR HTML MANUALMENTE (más seguro que template string)
   let optionsHtml = '<option value="">Seleccionar ubicación</option>';
   ubicaciones.forEach(function (u) {
     optionsHtml +=
@@ -394,9 +393,6 @@ function abrirModalTurno() {
     '<select class="form-select" id="cajaUbicacion" required>' +
     optionsHtml +
     "</select>" +
-    (ubicaciones.length === 0
-      ? '<div class="text-muted small mt-1">⚠️ No hay ubicaciones. Crea una en Configuración → Ubicaciones</div>'
-      : "") +
     "</div>" +
     '<div class="mb-3">' +
     '<label class="form-label">Fondo Inicial</label>' +
@@ -414,8 +410,20 @@ function abrirModalTurno() {
     '<button type="submit" class="btn btn-success w-100" onclick="abrirTurno(event)">Abrir Turno</button>' +
     "</form>";
 
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+  // FORZAR VISIBILIDAD
+  modal.style.display = "block";
+  modal.style.background = "rgba(0,0,0,0.5)";
+  body.style.display = "block";
+  body.style.visibility = "visible";
+  body.style.opacity = "1";
+  modal.classList.add("show");
+  document.body.classList.add("modal-open");
+
+  if (!document.querySelector(".modal-backdrop")) {
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop fade show";
+    document.body.appendChild(backdrop);
+  }
 }
 
 async function abrirTurno(event) {
