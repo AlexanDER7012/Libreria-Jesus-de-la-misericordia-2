@@ -312,9 +312,22 @@ function renderTurnos(turnos) {
   container.innerHTML = html;
 }
 
+// =============================================
+// FUNCIONES PARA LLENAR SELECT (COMO EN VENTAS)
+// =============================================
+
+function llenarSelectUbicacion() {
+  const select = document.getElementById("cajaUbicacion");
+  if (!select) return;
+  select.innerHTML = '<option value="">Seleccionar ubicación</option>';
+  (window.ubicacionesData || []).forEach((u) => {
+    select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
+  });
+}
+
 // ABRIR TURNO - FUNCIÓN PRINCIPAL (se llama desde el botón)
 function showAbrirTurnoModal() {
-  // Verificar si hay ubicaciones cargadas
+  // Si no hay ubicaciones, cargarlas primero
   if (!window.ubicacionesData || window.ubicacionesData.length === 0) {
     api
       .request("/ubicaciones")
@@ -324,14 +337,26 @@ function showAbrirTurnoModal() {
       })
       .catch(function () {
         showToast("Error al cargar ubicaciones", "error");
-        abrirModalTurno(); // Abrir igual aunque no haya ubicaciones
+        abrirModalTurno();
       });
   } else {
     abrirModalTurno();
   }
 }
 
-// ABRIR MODAL TURNO
+function llenarSelectUbicacion() {
+  const select = document.getElementById("cajaUbicacion");
+  if (!select) {
+    console.log("❌ Select no encontrado");
+    return;
+  }
+  select.innerHTML = '<option value="">Seleccionar ubicación</option>';
+  (window.ubicacionesData || []).forEach((u) => {
+    select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
+  });
+  console.log("✅ Select llenado con", select.options.length, "opciones");
+}
+
 function abrirModalTurno() {
   const modal = document.getElementById("cajaModal");
   if (!modal) {
@@ -339,71 +364,14 @@ function abrirModalTurno() {
     return;
   }
 
-  const body = document.getElementById("cajaModalBody");
-  if (!body) {
-    showToast("Error: cuerpo del modal no encontrado", "error");
-    return;
-  }
-
   const title = document.getElementById("cajaModalTitle");
   if (title) title.textContent = "Abrir Turno de Caja";
 
-  // 1. PRIMERO: Poner el HTML con un select vacío
-  let user = getCurrentUser();
-  let userName = user ? user.nombre_usuario : "admin";
-  let userId = user ? user.id : 1;
+  // Llenar el select que ya existe en el HTML
+  llenarSelectUbicacion();
 
-  body.innerHTML =
-    '<form id="cajaForm">' +
-    '<input type="hidden" id="cajaId" />' +
-    '<div class="mb-3">' +
-    '<label class="form-label">Ubicación *</label>' +
-    '<select class="form-select" id="cajaUbicacion" required>' +
-    '<option value="">Cargando ubicaciones...</option>' +
-    "</select>" +
-    "</div>" +
-    '<div class="mb-3">' +
-    '<label class="form-label">Fondo Inicial</label>' +
-    '<input type="number" step="0.01" class="form-control" id="cajaFondoInicial" value="500" />' +
-    "</div>" +
-    '<div class="mb-3">' +
-    '<label class="form-label text-muted small">' +
-    '<i class="fas fa-user me-1"></i>Usuario: ' +
-    userName +
-    " (ID: " +
-    userId +
-    ")" +
-    "</label>" +
-    "</div>" +
-    '<button type="submit" class="btn btn-success w-100" onclick="abrirTurno(event)">Abrir Turno</button>' +
-    "</form>";
-
-  // 2. SEGUNDO: Mostrar el modal
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
-
-  // 3. TERCERO: Cargar ubicaciones y llenar el select
-  api
-    .request("/ubicaciones")
-    .then(function (ubicaciones) {
-      window.ubicacionesData = ubicaciones || [];
-      const select = document.getElementById("cajaUbicacion");
-      if (select) {
-        select.innerHTML = '<option value="">Seleccionar ubicación</option>';
-        ubicaciones.forEach(function (u) {
-          select.innerHTML +=
-            '<option value="' + u.id + '">' + (u.nombre || u.id) + "</option>";
-        });
-        console.log("✅ Select llenado con", ubicaciones.length, "ubicaciones");
-      }
-    })
-    .catch(function () {
-      const select = document.getElementById("cajaUbicacion");
-      if (select) {
-        select.innerHTML =
-          '<option value="">Error al cargar ubicaciones</option>';
-      }
-    });
 }
 
 // GUARDAR TURNO
