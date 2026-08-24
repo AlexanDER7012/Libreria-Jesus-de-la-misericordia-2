@@ -348,14 +348,7 @@ function abrirModalTurno() {
   const title = document.getElementById("cajaModalTitle");
   if (title) title.textContent = "Abrir Turno de Caja";
 
-  const ubicaciones = window.ubicacionesData || [];
-
-  let optionsHtml = '<option value="">Seleccionar ubicación</option>';
-  ubicaciones.forEach(function (u) {
-    optionsHtml +=
-      '<option value="' + u.id + '">' + (u.nombre || u.id) + "</option>";
-  });
-
+  // 1. PRIMERO: Poner el HTML con un select vacío
   let user = getCurrentUser();
   let userName = user ? user.nombre_usuario : "admin";
   let userId = user ? user.id : 1;
@@ -366,11 +359,8 @@ function abrirModalTurno() {
     '<div class="mb-3">' +
     '<label class="form-label">Ubicación *</label>' +
     '<select class="form-select" id="cajaUbicacion" required>' +
-    optionsHtml +
+    '<option value="">Cargando ubicaciones...</option>' +
     "</select>" +
-    (ubicaciones.length === 0
-      ? '<div class="text-danger small mt-1">⚠️ No hay ubicaciones. Crea una en Configuración → Ubicaciones</div>'
-      : "") +
     "</div>" +
     '<div class="mb-3">' +
     '<label class="form-label">Fondo Inicial</label>' +
@@ -388,8 +378,32 @@ function abrirModalTurno() {
     '<button type="submit" class="btn btn-success w-100" onclick="abrirTurno(event)">Abrir Turno</button>' +
     "</form>";
 
+  // 2. SEGUNDO: Mostrar el modal
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
+
+  // 3. TERCERO: Cargar ubicaciones y llenar el select
+  api
+    .request("/ubicaciones")
+    .then(function (ubicaciones) {
+      window.ubicacionesData = ubicaciones || [];
+      const select = document.getElementById("cajaUbicacion");
+      if (select) {
+        select.innerHTML = '<option value="">Seleccionar ubicación</option>';
+        ubicaciones.forEach(function (u) {
+          select.innerHTML +=
+            '<option value="' + u.id + '">' + (u.nombre || u.id) + "</option>";
+        });
+        console.log("✅ Select llenado con", ubicaciones.length, "ubicaciones");
+      }
+    })
+    .catch(function () {
+      const select = document.getElementById("cajaUbicacion");
+      if (select) {
+        select.innerHTML =
+          '<option value="">Error al cargar ubicaciones</option>';
+      }
+    });
 }
 
 // GUARDAR TURNO
