@@ -19,103 +19,103 @@ async function loadCajaModule() {
   if (!container) return;
 
   container.innerHTML = `
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4><i class="fas fa-cash-register me-2 text-primary"></i>Caja</h4>
-            <div>
-                <button class="btn btn-primary btn-sm me-2" onclick="showAbrirTurnoModal()">
-                    <i class="fas fa-play me-1"></i>Abrir Turno
-                </button>
-                <button class="btn btn-warning btn-sm me-2" onclick="showCerrarTurnoModal()">
-                    <i class="fas fa-stop me-1"></i>Cerrar Turno
-                </button>
-                <button class="btn btn-success btn-sm" onclick="showRegistrarGastoModal()">
-                    <i class="fas fa-plus me-1"></i>Registrar Gasto
-                </button>
-            </div>
-        </div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h4><i class="fas fa-cash-register me-2 text-primary"></i>Caja</h4>
+      <div>
+        <button class="btn btn-primary btn-sm me-2" onclick="showAbrirTurnoModal()">
+          <i class="fas fa-play me-1"></i>Abrir Turno
+        </button>
+        <button class="btn btn-warning btn-sm me-2" onclick="showCerrarTurnoModal()">
+          <i class="fas fa-stop me-1"></i>Cerrar Turno
+        </button>
+        <button class="btn btn-success btn-sm" onclick="showRegistrarGastoModal()">
+          <i class="fas fa-plus me-1"></i>Registrar Gasto
+        </button>
+      </div>
+    </div>
 
-        <ul class="nav nav-tabs mb-3" id="cajaTabs">
-            <li class="nav-item">
-                <a class="nav-link active" data-bs-toggle="tab" href="#turnosTab">
-                    <i class="fas fa-clock me-1"></i>Turnos
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#cajaChicaTab">
-                    <i class="fas fa-coins me-1"></i>Caja Chica
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#gastosTab">
-                    <i class="fas fa-money-bill-wave me-1"></i>Gastos
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#tiposTab">
-                    <i class="fas fa-tags me-1"></i>Catálogos
-                </a>
-            </li>
-        </ul>
+    <ul class="nav nav-tabs mb-3" id="cajaTabs">
+      <li class="nav-item">
+        <a class="nav-link active" data-bs-toggle="tab" href="#turnosTab">
+          <i class="fas fa-clock me-1"></i>Turnos
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#cajaChicaTab">
+          <i class="fas fa-coins me-1"></i>Caja Chica
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#gastosTab">
+          <i class="fas fa-money-bill-wave me-1"></i>Gastos
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#tiposTab">
+          <i class="fas fa-tags me-1"></i>Catálogos
+        </a>
+      </li>
+    </ul>
 
-        <div class="tab-content">
-            <div class="tab-pane fade show active" id="turnosTab">
-                <div id="turnosContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando turnos...</p>
-                    </div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="cajaChicaTab">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="mb-0">Movimientos de Caja Chica</h6>
-                    <button class="btn btn-sm btn-outline-success" onclick="showRegistrarCajaChicaModal()">
-                        <i class="fas fa-plus me-1"></i>Registrar Movimiento
-                    </button>
-                </div>
-                <div id="cajaChicaContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-success" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando movimientos...</p>
-                    </div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="gastosTab">
-                <div id="gastosContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-warning" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando gastos...</p>
-                    </div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="tiposTab">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6 class="fw-bold">Tipos de Gasto</h6>
-                        <div id="tiposGastoContainer">
-                            <div class="text-center py-3">
-                                <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
-                            </div>
-                        </div>
-                        <button class="btn btn-sm btn-outline-primary mt-2" onclick="showCrearTipoGastoModal()">
-                            <i class="fas fa-plus me-1"></i>Nuevo Tipo
-                        </button>
-                    </div>
-                    <div class="col-md-6">
-                        <h6 class="fw-bold">Tipos de Pago</h6>
-                        <div id="tiposPagoContainer">
-                            <div class="text-center py-3">
-                                <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
-                            </div>
-                        </div>
-                        <button class="btn btn-sm btn-outline-primary mt-2" onclick="showCrearTipoPagoModal()">
-                            <i class="fas fa-plus me-1"></i>Nuevo Tipo
-                        </button>
-                    </div>
-                </div>
-            </div>
+    <div class="tab-content">
+      <div class="tab-pane fade show active" id="turnosTab">
+        <div id="turnosContainer">
+          <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Cargando turnos...</p>
+          </div>
         </div>
-    `;
+      </div>
+      <div class="tab-pane fade" id="cajaChicaTab">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="mb-0">Movimientos de Caja Chica</h6>
+          <button class="btn btn-sm btn-outline-success" onclick="showRegistrarCajaChicaModal()">
+            <i class="fas fa-plus me-1"></i>Registrar Movimiento
+          </button>
+        </div>
+        <div id="cajaChicaContainer">
+          <div class="text-center py-5">
+            <div class="spinner-border text-success" role="status"></div>
+            <p class="mt-2 text-muted">Cargando movimientos...</p>
+          </div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="gastosTab">
+        <div id="gastosContainer">
+          <div class="text-center py-5">
+            <div class="spinner-border text-warning" role="status"></div>
+            <p class="mt-2 text-muted">Cargando gastos...</p>
+          </div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="tiposTab">
+        <div class="row">
+          <div class="col-md-6">
+            <h6 class="fw-bold">Tipos de Gasto</h6>
+            <div id="tiposGastoContainer">
+              <div class="text-center py-3">
+                <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+              </div>
+            </div>
+            <button class="btn btn-sm btn-outline-primary mt-2" onclick="showCrearTipoGastoModal()">
+              <i class="fas fa-plus me-1"></i>Nuevo Tipo
+            </button>
+          </div>
+          <div class="col-md-6">
+            <h6 class="fw-bold">Tipos de Pago</h6>
+            <div id="tiposPagoContainer">
+              <div class="text-center py-3">
+                <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+              </div>
+            </div>
+            <button class="btn btn-sm btn-outline-primary mt-2" onclick="showCrearTipoPagoModal()">
+              <i class="fas fa-plus me-1"></i>Nuevo Tipo
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 
   await Promise.all([
     loadTurnos(),
@@ -142,10 +142,10 @@ async function cargarCajaEnContainer(container) {
         api.getCajaChica().catch(() => []),
       ]);
 
-    cajaTurnosData = turnos || [];
+    window.cajaTurnosData = turnos || [];
+    window.tiposPagoData = tiposPago || [];
     gastosData = gastos || [];
     tiposGastoData = tiposGasto || [];
-    tiposPagoData = tiposPago || [];
     cajaChicaData = cajaChica || [];
 
     const abiertos = turnos.filter((t) => t.estado === "Abierto");
@@ -231,8 +231,8 @@ async function loadTurnos() {
   const container = document.getElementById("turnosContainer");
   if (!container) return;
   try {
-    cajaTurnosData = (await api.getCajaTurnos()) || [];
-    renderTurnos(cajaTurnosData);
+    window.cajaTurnosData = (await api.getCajaTurnos()) || [];
+    renderTurnos(window.cajaTurnosData);
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
   }
@@ -312,22 +312,22 @@ function renderTurnos(turnos) {
   container.innerHTML = html;
 }
 
-// =============================================
-// FUNCIONES PARA LLENAR SELECT (COMO EN VENTAS)
-// =============================================
-
+// FUNCIONES PARA LLENAR SELECT
 function llenarSelectUbicacion() {
   const select = document.getElementById("cajaUbicacion");
-  if (!select) return;
+  if (!select) {
+    console.log("❌ Select no encontrado");
+    return;
+  }
   select.innerHTML = '<option value="">Seleccionar ubicación</option>';
   (window.ubicacionesData || []).forEach((u) => {
     select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
   });
+  console.log("✅ Select llenado con", select.options.length, "opciones");
 }
 
-// ABRIR TURNO - FUNCIÓN PRINCIPAL (se llama desde el botón)
+// ABRIR TURNO
 function showAbrirTurnoModal() {
-  // Si no hay ubicaciones, cargarlas primero
   if (!window.ubicacionesData || window.ubicacionesData.length === 0) {
     api
       .request("/ubicaciones")
@@ -344,19 +344,6 @@ function showAbrirTurnoModal() {
   }
 }
 
-function llenarSelectUbicacion() {
-  const select = document.getElementById("cajaUbicacion");
-  if (!select) {
-    console.log("❌ Select no encontrado");
-    return;
-  }
-  select.innerHTML = '<option value="">Seleccionar ubicación</option>';
-  (window.ubicacionesData || []).forEach((u) => {
-    select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
-  });
-  console.log("✅ Select llenado con", select.options.length, "opciones");
-}
-
 function abrirModalTurno() {
   const modal = document.getElementById("cajaModal");
   if (!modal) {
@@ -364,17 +351,94 @@ function abrirModalTurno() {
     return;
   }
 
-  const title = document.getElementById("cajaModalTitle");
-  if (title) title.textContent = "Abrir Turno de Caja";
+  document.getElementById("cajaModalTitle").textContent = "Abrir Turno de Caja";
+  document.getElementById("cajaDenominacionesContainer").style.display = "none";
+  document.getElementById("cajaDenominacionesList").innerHTML = "";
+  document.getElementById("cajaObservaciones").value = "";
+  document.getElementById("cajaFondoInicial").value = 500;
+  document.getElementById("cajaId").value = "";
+  document.getElementById("cajaUbicacion").disabled = false;
 
-  // Llenar el select que ya existe en el HTML
+  document.getElementById("btnAbrirTurno").style.display = "block";
+  document.getElementById("btnCerrarTurno").style.display = "none";
+
   llenarSelectUbicacion();
 
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
 }
 
-// GUARDAR TURNO
+// CERRAR TURNO
+let turnoParaCerrar = null;
+
+async function showCerrarTurnoModal() {
+  try {
+    const turnos = await api.getCajaTurnos();
+    const abiertos = turnos.filter((t) => t.estado === "Abierto");
+
+    if (abiertos.length === 0) {
+      showToast("No hay turnos abiertos para cerrar", "warning");
+      return;
+    }
+
+    turnoParaCerrar = abiertos[0];
+
+    const modal = document.getElementById("cajaModal");
+    if (!modal) {
+      showToast("Error: Modal de caja no encontrado", "error");
+      return;
+    }
+
+    document.getElementById("cajaModalTitle").textContent =
+      `Cerrar Turno #${turnoParaCerrar.id}`;
+    document.getElementById("cajaDenominacionesContainer").style.display =
+      "block";
+    document.getElementById("cajaDenominacionesList").innerHTML = "";
+    document.getElementById("cajaObservaciones").value = "";
+    document.getElementById("cajaId").value = turnoParaCerrar.id;
+    document.getElementById("cajaFondoInicial").value =
+      turnoParaCerrar.fondo_inicial || 0;
+    document.getElementById("cajaUbicacion").disabled = true;
+
+    document.getElementById("btnAbrirTurno").style.display = "none";
+    document.getElementById("btnCerrarTurno").style.display = "block";
+
+    llenarSelectUbicacion();
+
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+  } catch (error) {
+    showToast(error.message || "Error al cargar turnos", "error");
+  }
+}
+
+// AGREGAR DENOMINACION
+function agregarDenominacion() {
+  const container = document.getElementById("cajaDenominacionesList");
+  if (!container) {
+    showToast("Error: contenedor de denominaciones no encontrado", "error");
+    return;
+  }
+
+  const row = document.createElement("div");
+  row.className = "row g-2 align-items-center mb-2 denominacion-row";
+  row.innerHTML = `
+    <div class="col-4">
+      <input type="number" class="form-control form-control-sm" placeholder="Valor" min="0.01" step="0.01" />
+    </div>
+    <div class="col-6">
+      <input type="number" class="form-control form-control-sm" placeholder="Cantidad" min="0" step="1" />
+    </div>
+    <div class="col-2">
+      <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.denominacion-row').remove()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  `;
+  container.appendChild(row);
+}
+
+// GUARDAR TURNO (ABRIR)
 async function abrirTurno(event) {
   event.preventDefault();
   const id_usuario = getCurrentUser()?.id || 1;
@@ -400,138 +464,34 @@ async function abrirTurno(event) {
   }
 }
 
-// CERRAR TURNO
-let turnoParaCerrar = null;
-
-async function showCerrarTurnoModal() {
-  try {
-    const turnos = await api.getCajaTurnos();
-    const abiertos = turnos.filter((t) => t.estado === "Abierto");
-
-    if (abiertos.length === 0) {
-      showToast("No hay turnos abiertos para cerrar", "warning");
-      return;
-    }
-
-    turnoParaCerrar = abiertos[0];
-
-    const modal = document.getElementById("cajaModal");
-    if (!modal) {
-      showToast("Error: Modal de caja no encontrado", "error");
-      return;
-    }
-
-    const title = document.getElementById("cajaModalTitle");
-    if (title) title.textContent = `Cerrar Turno #${turnoParaCerrar.id}`;
-
-    const body = document.getElementById("cajaModalBody");
-    if (!body) {
-      showToast("Error: cuerpo del modal no encontrado", "error");
-      return;
-    }
-
-    body.innerHTML = `
-      <form id="cajaForm">
-        <input type="hidden" id="cajaId" value="${turnoParaCerrar.id}" />
-        <div class="mb-3">
-          <label class="form-label">Ubicación</label>
-          <input type="text" class="form-control" value="${turnoParaCerrar.id_ubicacion || "--"}" disabled />
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Fondo Inicial</label>
-          <input type="text" class="form-control" value="Q${turnoParaCerrar.fondo_inicial || 0}" disabled />
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Denominaciones</label>
-          <div id="cajaDenominacionesList"></div>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Observaciones</label>
-          <textarea class="form-control" id="cajaObservaciones" rows="2"></textarea>
-        </div>
-        <button type="submit" class="btn btn-danger w-100" onclick="cerrarTurno(event)">Cerrar Turno</button>
-      </form>
-    `;
-
-    renderDenominaciones();
-
-    const modalInstance = new bootstrap.Modal(modal);
-    modalInstance.show();
-  } catch (error) {
-    showToast(error.message || "Error al cargar turnos", "error");
-  }
-}
-
-function renderDenominaciones() {
-  const container = document.getElementById("cajaDenominacionesList");
-  if (!container) return;
-
-  const denominaciones = [
-    { valor: 0.01, label: "1¢" },
-    { valor: 0.05, label: "5¢" },
-    { valor: 0.1, label: "10¢" },
-    { valor: 0.25, label: "25¢" },
-    { valor: 0.5, label: "50¢" },
-    { valor: 1, label: "Q1" },
-    { valor: 5, label: "Q5" },
-    { valor: 10, label: "Q10" },
-    { valor: 20, label: "Q20" },
-    { valor: 50, label: "Q50" },
-    { valor: 100, label: "Q100" },
-    { valor: 200, label: "Q200" },
-  ];
-
-  container.innerHTML = denominaciones
-    .map(
-      (d) => `
-        <div class="row g-2 align-items-center mb-2">
-          <div class="col-4">
-            <label class="form-label small">${d.label}</label>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm denominacion-cantidad" 
-                   data-denominacion="${d.valor}" value="0" min="0" />
-          </div>
-          <div class="col-2">
-            <span class="small">= Q${(d.valor * 0).toFixed(2)}</span>
-          </div>
-        </div>
-      `,
-    )
-    .join("");
-
-  container.querySelectorAll(".denominacion-cantidad").forEach((input) => {
-    input.addEventListener("input", function () {
-      const valor = parseFloat(this.dataset.denominacion);
-      const cantidad = parseInt(this.value) || 0;
-      const total = valor * cantidad;
-      const span = this.closest(".row").querySelector(".col-2 span");
-      if (span) span.textContent = `= Q${total.toFixed(2)}`;
-    });
-  });
-}
-
+// CERRAR TURNO (GUARDAR)
 async function cerrarTurno(event) {
   event.preventDefault();
-  const turnoId = document.getElementById("cajaId").value;
 
-  const denominacionInputs = document.querySelectorAll(
-    ".denominacion-cantidad",
-  );
+  const turnoId = document.getElementById("cajaId").value;
+  if (!turnoId) {
+    showToast("Error: No hay turno para cerrar", "error");
+    return;
+  }
+
+  const container = document.getElementById("cajaDenominacionesList");
+  if (!container) {
+    showToast("Error: contenedor de denominaciones no encontrado", "error");
+    return;
+  }
+
+  const inputs = container.querySelectorAll("input");
   const denominaciones = [];
   let totalContado = 0;
 
-  denominacionInputs.forEach((input) => {
-    const cantidad = parseInt(input.value) || 0;
-    if (cantidad > 0) {
-      const denominacion = parseFloat(input.dataset.denominacion);
-      denominaciones.push({
-        denominacion: denominacion,
-        cantidad: cantidad,
-      });
-      totalContado += denominacion * cantidad;
+  for (let i = 0; i < inputs.length; i += 2) {
+    const valor = parseFloat(inputs[i].value) || 0;
+    const cantidad = parseInt(inputs[i + 1]?.value) || 0;
+    if (valor > 0 && cantidad > 0) {
+      denominaciones.push({ denominacion: valor, cantidad: cantidad });
+      totalContado += valor * cantidad;
     }
-  });
+  }
 
   if (denominaciones.length === 0) {
     showToast("Debes registrar al menos una denominación", "error");
@@ -635,15 +595,13 @@ function showRegistrarCajaChicaModal() {
     return;
   }
 
-  const title = document.getElementById("cajaModalTitle");
-  if (title) title.textContent = "Registrar Movimiento de Caja Chica";
+  document.getElementById("cajaModalTitle").textContent =
+    "Registrar Movimiento de Caja Chica";
+  document.getElementById("cajaDenominacionesContainer").style.display = "none";
+  document.getElementById("btnAbrirTurno").style.display = "none";
+  document.getElementById("btnCerrarTurno").style.display = "none";
 
   const body = document.getElementById("cajaModalBody");
-  if (!body) {
-    showToast("Error: cuerpo del modal no encontrado", "error");
-    return;
-  }
-
   body.innerHTML = `
     <form id="cajaForm">
       <input type="hidden" id="cajaId" />
@@ -787,15 +745,12 @@ function showRegistrarGastoModal() {
     return;
   }
 
-  const title = document.getElementById("cajaModalTitle");
-  if (title) title.textContent = "Registrar Gasto";
+  document.getElementById("cajaModalTitle").textContent = "Registrar Gasto";
+  document.getElementById("cajaDenominacionesContainer").style.display = "none";
+  document.getElementById("btnAbrirTurno").style.display = "none";
+  document.getElementById("btnCerrarTurno").style.display = "none";
 
   const body = document.getElementById("cajaModalBody");
-  if (!body) {
-    showToast("Error: cuerpo del modal no encontrado", "error");
-    return;
-  }
-
   body.innerHTML = `
     <form id="cajaForm">
       <div class="mb-3">
@@ -899,15 +854,12 @@ function showCrearTipoGastoModal() {
     return;
   }
 
-  const title = document.getElementById("cajaModalTitle");
-  if (title) title.textContent = "Nuevo Tipo de Gasto";
+  document.getElementById("cajaModalTitle").textContent = "Nuevo Tipo de Gasto";
+  document.getElementById("cajaDenominacionesContainer").style.display = "none";
+  document.getElementById("btnAbrirTurno").style.display = "none";
+  document.getElementById("btnCerrarTurno").style.display = "none";
 
   const body = document.getElementById("cajaModalBody");
-  if (!body) {
-    showToast("Error: cuerpo del modal no encontrado", "error");
-    return;
-  }
-
   body.innerHTML = `
     <form id="cajaForm">
       <div class="mb-3">
@@ -961,8 +913,8 @@ async function loadTiposPago() {
   const container = document.getElementById("tiposPagoContainer");
   if (!container) return;
   try {
-    tiposPagoData = (await api.getTiposPago()) || [];
-    renderTiposPago(tiposPagoData);
+    window.tiposPagoData = (await api.getTiposPago()) || [];
+    renderTiposPago(window.tiposPagoData);
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
   }
@@ -998,15 +950,12 @@ function showCrearTipoPagoModal() {
     return;
   }
 
-  const title = document.getElementById("cajaModalTitle");
-  if (title) title.textContent = "Nuevo Tipo de Pago";
+  document.getElementById("cajaModalTitle").textContent = "Nuevo Tipo de Pago";
+  document.getElementById("cajaDenominacionesContainer").style.display = "none";
+  document.getElementById("btnAbrirTurno").style.display = "none";
+  document.getElementById("btnCerrarTurno").style.display = "none";
 
   const body = document.getElementById("cajaModalBody");
-  if (!body) {
-    showToast("Error: cuerpo del modal no encontrado", "error");
-    return;
-  }
-
   body.innerHTML = `
     <form id="cajaForm">
       <div class="mb-3">
@@ -1091,5 +1040,5 @@ window.showCrearTipoGastoModal = showCrearTipoGastoModal;
 window.showCrearTipoPagoModal = showCrearTipoPagoModal;
 window.abrirTurno = abrirTurno;
 window.cerrarTurno = cerrarTurno;
-window.renderDenominaciones = renderDenominaciones;
 window.abrirModalTurno = abrirModalTurno;
+window.agregarDenominacion = agregarDenominacion;
