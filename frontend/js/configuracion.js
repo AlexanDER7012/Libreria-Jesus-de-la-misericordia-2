@@ -2,6 +2,7 @@
 
 let configuracionData = null;
 let metasData = [];
+let ubicacionesData = [];
 
 // Carga del modulo
 async function loadConfiguracionModule() {
@@ -490,21 +491,11 @@ function crearModalMeta() {
   document.body.insertAdjacentHTML("beforeend", modalHtml);
 }
 
-// Exponer funciones globales
-window.loadConfiguracionModule = loadConfiguracionModule;
-window.showEditConfigModal = showEditConfigModal;
-window.saveConfig = saveConfig;
-window.showCreateMetaModal = showCreateMetaModal;
-window.saveMeta = saveMeta;
-window.deleteMeta = deleteMeta;
-
 // =============================================
 // UBICACIONES
 // =============================================
 
-let ubicacionesData = [];
-
-// Cargar ubicaciones en Configuración
+// Cargar ubicaciones
 async function cargarUbicaciones() {
   const container = document.getElementById("ubicacionesContainer");
   if (!container) return;
@@ -691,7 +682,6 @@ async function saveUbicacion(event) {
     if (modal) modal.hide();
 
     await cargarUbicaciones();
-    // Actualizar ubicaciones en ventas y caja
     await actualizarUbicacionesGlobales();
   } catch (error) {
     showToast(error.message || "Error al guardar ubicación", "error");
@@ -727,21 +717,18 @@ async function toggleUbicacionEstado(id) {
   }
 }
 
-// Actualizar ubicaciones en ventas y caja
+// Actualizar ubicaciones globales
 async function actualizarUbicacionesGlobales() {
   try {
     const ubicaciones = await api.request("/ubicaciones").catch(() => []);
     window.ubicacionesData = ubicaciones;
-    // Actualizar también en ventas.js
-    if (typeof ubicacionesData !== "undefined") {
-      ubicacionesData = ubicaciones;
-    }
+    ubicacionesData = ubicaciones;
   } catch (error) {
     console.error("Error actualizando ubicaciones globales:", error);
   }
 }
 
-// Crear Modal
+// Crear Modal Ubicacion
 function crearModalUbicacion() {
   if (document.getElementById("ubicacionModal")) return;
 
@@ -794,7 +781,13 @@ function crearModalUbicacion() {
   document.body.insertAdjacentHTML("beforeend", html);
 }
 
-// EXPONER FUNCIONES
+// Exponer funciones globales
+window.loadConfiguracionModule = loadConfiguracionModule;
+window.showEditConfigModal = showEditConfigModal;
+window.saveConfig = saveConfig;
+window.showCreateMetaModal = showCreateMetaModal;
+window.saveMeta = saveMeta;
+window.deleteMeta = deleteMeta;
 window.cargarUbicaciones = cargarUbicaciones;
 window.showCreateUbicacionModal = showCreateUbicacionModal;
 window.showEditUbicacionModal = showEditUbicacionModal;
