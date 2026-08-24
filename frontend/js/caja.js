@@ -352,24 +352,6 @@ function renderTurnos(turnos) {
 }
 
 // ABRIR TURNO
-function showAbrirTurnoModal() {
-  // Intentar cargar ubicaciones desde window o desde API
-  if (!window.ubicacionesData || window.ubicacionesData.length === 0) {
-    api
-      .request("/ubicaciones")
-      .then((ubicaciones) => {
-        window.ubicacionesData = ubicaciones || [];
-        abrirModalTurno();
-      })
-      .catch(() => {
-        showToast("Error al cargar ubicaciones", "error");
-        abrirModalTurno();
-      });
-  } else {
-    abrirModalTurno();
-  }
-}
-
 function abrirModalTurno() {
   let modal = document.getElementById("cajaModal");
   if (!modal) {
@@ -393,31 +375,44 @@ function abrirModalTurno() {
 
   const ubicaciones = window.ubicacionesData || [];
 
-  body.innerHTML = `
-    <form id="cajaForm">
-      <input type="hidden" id="cajaId" />
-      <div class="mb-3">
-        <label class="form-label">Ubicación *</label>
-        <select class="form-select" id="cajaUbicacion" required>
-          <option value="">Seleccionar ubicación</option>
-          ${ubicaciones.map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`).join("")}
-        </select>
-        <div class="text-muted small mt-1">
-          ${ubicaciones.length === 0 ? "⚠️ No hay ubicaciones. Crea una en Configuración → Ubicaciones" : ""}
-        </div>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Fondo Inicial</label>
-        <input type="number" step="0.01" class="form-control" id="cajaFondoInicial" value="500" />
-      </div>
-      <div class="mb-3">
-        <label class="form-label text-muted small">
-          <i class="fas fa-user me-1"></i>Usuario: ${getCurrentUser()?.nombre_usuario || "admin"} (ID: ${getCurrentUser()?.id || 1})
-        </label>
-      </div>
-      <button type="submit" class="btn btn-success w-100" onclick="abrirTurno(event)">Abrir Turno</button>
-    </form>
-  `;
+  // CONSTRUIR HTML MANUALMENTE (más seguro que template string)
+  let optionsHtml = '<option value="">Seleccionar ubicación</option>';
+  ubicaciones.forEach(function (u) {
+    optionsHtml +=
+      '<option value="' + u.id + '">' + (u.nombre || u.id) + "</option>";
+  });
+
+  let user = getCurrentUser();
+  let userName = user ? user.nombre_usuario : "admin";
+  let userId = user ? user.id : 1;
+
+  body.innerHTML =
+    '<form id="cajaForm">' +
+    '<input type="hidden" id="cajaId" />' +
+    '<div class="mb-3">' +
+    '<label class="form-label">Ubicación *</label>' +
+    '<select class="form-select" id="cajaUbicacion" required>' +
+    optionsHtml +
+    "</select>" +
+    (ubicaciones.length === 0
+      ? '<div class="text-muted small mt-1">⚠️ No hay ubicaciones. Crea una en Configuración → Ubicaciones</div>'
+      : "") +
+    "</div>" +
+    '<div class="mb-3">' +
+    '<label class="form-label">Fondo Inicial</label>' +
+    '<input type="number" step="0.01" class="form-control" id="cajaFondoInicial" value="500" />' +
+    "</div>" +
+    '<div class="mb-3">' +
+    '<label class="form-label text-muted small">' +
+    '<i class="fas fa-user me-1"></i>Usuario: ' +
+    userName +
+    " (ID: " +
+    userId +
+    ")" +
+    "</label>" +
+    "</div>" +
+    '<button type="submit" class="btn btn-success w-100" onclick="abrirTurno(event)">Abrir Turno</button>' +
+    "</form>";
 
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
