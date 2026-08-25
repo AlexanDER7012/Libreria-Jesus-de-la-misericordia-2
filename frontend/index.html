@@ -22,7 +22,7 @@
       <div class="container-fluid">
         <a class="navbar-brand fw-bold" href="#">
           <i class="fas fa-book-open me-2"></i>
-          Librería Jesús de la Misericordia
+          Librería y Papelería Jesús de la Misericordia
         </a>
 
         <div class="d-flex align-items-center gap-3">
@@ -32,6 +32,13 @@
           </span>
           <button class="btn btn-outline-light btn-sm" onclick="verDashboard()">
             <i class="fas fa-chart-bar me-1"></i> Dashboard
+          </button>
+          <button
+            class="btn btn-outline-light btn-sm"
+            onclick="toggleTheme()"
+            title="Alternar modo oscuro"
+          >
+            <i class="fas fa-moon" id="themeIcon"></i>
           </button>
           <button class="btn btn-outline-light btn-sm" onclick="logout()">
             <i class="fas fa-sign-out-alt"></i>
@@ -909,6 +916,34 @@
                 `;
           });
       }
+
+      function toggleTheme() {
+        const html = document.documentElement;
+        const icon = document.getElementById("themeIcon");
+        const currentTheme = html.getAttribute("data-bs-theme");
+        const newTheme = currentTheme === "dark" ? "light" : "dark";
+
+        html.setAttribute("data-bs-theme", newTheme);
+        localStorage.setItem("theme", newTheme);
+
+        // Cambiar icono
+        if (icon) {
+          icon.className = newTheme === "dark" ? "fas fa-sun" : "fas fa-moon";
+        }
+      }
+
+      // Cargar tema guardado al iniciar
+      document.addEventListener("DOMContentLoaded", function () {
+        const savedTheme = localStorage.getItem("theme") || "light";
+        document.documentElement.setAttribute("data-bs-theme", savedTheme);
+        const icon = document.getElementById("themeIcon");
+        if (icon) {
+          icon.className = savedTheme === "dark" ? "fas fa-sun" : "fas fa-moon";
+        }
+      });
+
+      // Exponer función global
+      window.toggleTheme = toggleTheme;
 
       window.verDashboard = verDashboard;
       window.ocultarDashboard = ocultarDashboard;
