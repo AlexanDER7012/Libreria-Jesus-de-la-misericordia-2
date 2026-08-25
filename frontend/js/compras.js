@@ -2,6 +2,7 @@
 
 let comprasData = [];
 let compraDetallesTemp = [];
+let comprasTiposPagoData = []; // ← renombrado para evitar conflicto
 
 // CARGA DEL MÓDULO
 async function loadComprasModule() {
@@ -15,18 +16,49 @@ async function loadComprasModule() {
                 <button class="btn btn-info btn-sm me-2" onclick="showCreateCompraModal()">
                     <i class="fas fa-plus me-2"></i>Nueva Compra
                 </button>
-                <button class="btn btn-outline-info btn-sm me-2" onclick="cargarModulo('proveedores')">
+                <button class="btn btn-outline-info btn-sm me-2" onclick="irAProveedores()">
                     <i class="fas fa-building me-1"></i>Proveedores
                 </button>
                 <button class="btn btn-outline-info btn-sm" onclick="showCreateTipoPagoCompraModal()">
-                    <i class="fas fa-credit-card me-1"></i>Tipo Pago
+                    <i class="fas fa-credit-card me-1"></i>Nuevo Tipo Pago
                 </button>
             </div>
         </div>
-        <div id="comprasTableContainer">
-            <div class="text-center py-5">
-                <div class="spinner-border text-info" role="status"></div>
-                <p class="mt-2 text-muted">Cargando compras...</p>
+
+        <ul class="nav nav-tabs mb-3" id="comprasTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" id="tab-compras" data-bs-toggle="tab"
+                        data-bs-target="#panel-compras" type="button" role="tab">
+                    <i class="fas fa-list me-1"></i>Compras
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="tab-tipos-pago" data-bs-toggle="tab"
+                        data-bs-target="#panel-tipos-pago" type="button" role="tab">
+                    <i class="fas fa-credit-card me-1"></i>Tipos de Pago (Compras)
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="comprasTabContent">
+            <!-- PANEL: COMPRAS -->
+            <div class="tab-pane fade show active" id="panel-compras" role="tabpanel">
+                <div id="comprasTableContainer">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-info" role="status"></div>
+                        <p class="mt-2 text-muted">Cargando compras...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL: TIPOS DE PAGO -->
+            <div class="tab-pane fade" id="panel-tipos-pago" role="tabpanel">
+                <div id="tiposPagoContainer">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">Cargando tipos de pago...</p>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -45,13 +77,28 @@ async function loadComprasModule() {
     window.proveedoresData = proveedores || [];
     window.productosData = productos || [];
     window.ubicacionesData = ubicaciones || [];
-    window.tiposPagoData = tiposPago || [];
+    comprasTiposPagoData = tiposPago || [];
+    window.tiposPagoData = tiposPago || []; // ← también actualiza la global si se necesita
 
     renderComprasTable(comprasData);
+    renderTiposPagoCompras(comprasTiposPagoData);
   } catch (error) {
     document.getElementById("comprasTableContainer").innerHTML = `
             <div class="alert alert-danger">Error al cargar datos: ${error.message}</div>
         `;
+  }
+}
+
+// IR A PROVEEDORES (con manejo de error)
+function irAProveedores() {
+  try {
+    if (typeof cargarModulo === "function") {
+      cargarModulo("proveedores");
+    } else {
+      showToast("El módulo de proveedores no está disponible", "warning");
+    }
+  } catch (error) {
+    showToast("Módulo de proveedores no encontrado", "warning");
   }
 }
 
@@ -133,6 +180,72 @@ function renderComprasTable(compras) {
         </div>
         <div class="text-end">
             <small class="text-muted">Total: ${compras.length} compras</small>
+        </div>
+    `;
+
+  container.innerHTML = html;
+}
+
+// =============================================
+// TIPOS DE PAGO PARA COMPRAS
+// =============================================
+
+function renderTiposPagoCompras(tipos) {
+  const container = document.getElementById("tiposPagoContainer");
+  if (!container) return;
+
+  const tiposCompra = (tipos || []).filter((t) => t.para_compras === 1);
+
+  if (tiposCompra.length === 0) {
+    container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No hay tipos de pago registrados para compras</p>
+                <button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
+                    <i class="fas fa-plus me-2"></i>Crear Tipo de Pago
+                </button>
+            </div>
+        `;
+    return;
+  }
+
+  let html = `
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Tipos de Pago para Compras</h6>
+            <button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
+                <i class="fas fa-plus me-1"></i>Nuevo Tipo
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Para Ventas</th>
+                        <th>Para Compras</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+  tiposCompra.forEach((t) => {
+    html += `
+            <tr>
+                <td>${t.id}</td>
+                <td><strong>${t.nombre}</strong></td>
+                <td><span class="badge ${t.para_ventas === 1 ? "bg-success" : "bg-secondary"}">${t.para_ventas === 1 ? "Sí" : "No"}</span></td>
+                <td><span class="badge bg-success">Sí</span></td>
+            </tr>
+        `;
+  });
+
+  html += `
+                </tbody>
+            </table>
+        </div>
+        <div class="text-end">
+            <small class="text-muted">Total: ${tiposCompra.length} tipos</small>
         </div>
     `;
 
@@ -461,10 +574,12 @@ function showCreateTipoPagoCompraModal() {
   }
 
   const title = document.getElementById("tipoPagoModalTitle");
-  title.textContent = "Nuevo Tipo de Pago";
+  title.textContent = "Nuevo Tipo de Pago para Compras";
 
   const form = document.getElementById("tipoPagoForm");
   form.reset();
+  document.getElementById("tipoPagoCompras").value = "1";
+  document.getElementById("tipoPagoVentas").value = "0";
 
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
@@ -500,6 +615,8 @@ async function saveTipoPagoCompra(event) {
 }
 
 function crearModalTipoPago() {
+  if (document.getElementById("tipoPagoModal")) return;
+
   const html = `
         <div class="modal fade" id="tipoPagoModal" tabindex="-1">
             <div class="modal-dialog">
@@ -511,7 +628,7 @@ function crearModalTipoPago() {
                     <div class="modal-body">
                         <form id="tipoPagoForm">
                             <div class="mb-3">
-                                <label class="form-label">Nombre</label>
+                                <label class="form-label">Nombre *</label>
                                 <input type="text" class="form-control" id="tipoPagoNombre" required />
                             </div>
                             <div class="row">
@@ -519,13 +636,13 @@ function crearModalTipoPago() {
                                     <label class="form-label">¿Para ventas?</label>
                                     <select class="form-select" id="tipoPagoVentas">
                                         <option value="1">Sí</option>
-                                        <option value="0">No</option>
+                                        <option value="0" selected>No</option>
                                     </select>
                                 </div>
                                 <div class="col-6 mb-3">
                                     <label class="form-label">¿Para compras?</label>
                                     <select class="form-select" id="tipoPagoCompras">
-                                        <option value="1">Sí</option>
+                                        <option value="1" selected>Sí</option>
                                         <option value="0">No</option>
                                     </select>
                                 </div>
@@ -541,7 +658,7 @@ function crearModalTipoPago() {
 }
 
 // FUNCIONES GLOBALES
-window.loadComprasModule = loadComprasModule;
+window.loadComprasModule = loadComprasModule; // ← AGREGADO
 window.showCreateCompraModal = showCreateCompraModal;
 window.agregarDetalleCompra = agregarDetalleCompra;
 window.eliminarDetalleCompra = eliminarDetalleCompra;
@@ -552,3 +669,5 @@ window.renderDetallesCompra = renderDetallesCompra;
 window.llenarSelectProductoCompra = llenarSelectProductoCompra;
 window.showCreateTipoPagoCompraModal = showCreateTipoPagoCompraModal;
 window.saveTipoPagoCompra = saveTipoPagoCompra;
+window.irAProveedores = irAProveedores;
+window.comprasTiposPagoData = comprasTiposPagoData;

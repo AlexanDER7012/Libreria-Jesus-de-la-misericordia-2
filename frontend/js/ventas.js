@@ -3,7 +3,7 @@
 let ventasData = [];
 let tiposPagoData = [];
 let cajaTurnosData = [];
-let ubicacionesData = [];
+// <-- CAMBIO: Eliminada la variable local ubicacionesData
 let ventaDetallesTemp = [];
 let ventaPagosTemp = [];
 let vendedoresData = [];
@@ -83,14 +83,14 @@ async function loadVentasModule() {
     `;
 
   try {
-    const [ventas, clientes, productos, tiposPago, cajaTurnos, ubicaciones] =
+    // <-- CAMBIO: Ya no pedimos ubicaciones aquí, usamos window.ubicacionesData
+    const [ventas, clientes, productos, tiposPago, cajaTurnos] =
       await Promise.all([
         api.getVentas().catch(() => []),
         api.getClientes().catch(() => []),
         api.getProductos().catch(() => []),
         api.getTiposPago().catch(() => []),
         api.getCajaTurnos().catch(() => []),
-        api.request("/ubicaciones").catch(() => []),
       ]);
 
     ventasData = ventas || [];
@@ -98,7 +98,23 @@ async function loadVentasModule() {
     window.productosData = productos || [];
     tiposPagoData = tiposPago || [];
     cajaTurnosData = cajaTurnos || [];
-    ubicacionesData = ubicaciones || [];
+
+    // <-- CAMBIO: Si window.ubicacionesData está vacío, intentar cargar desde localStorage
+    if (!window.ubicacionesData || window.ubicacionesData.length === 0) {
+      try {
+        const backup = localStorage.getItem("ubicaciones_backup");
+        if (backup) {
+          const parsed = JSON.parse(backup);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            window.ubicacionesData = parsed;
+            console.log(
+              "📦 Ubicaciones cargadas desde localStorage:",
+              window.ubicacionesData.length,
+            );
+          }
+        }
+      } catch (e) {}
+    }
 
     renderVentasTable(ventasData);
     cargarSubClientes();
@@ -117,7 +133,6 @@ async function loadVentasModule() {
             <p class="mt-2 text-muted">Cargando caja...</p>
           </div>
         `;
-        // Cargar datos básicos
         cargarSubCajaBasico(cajaContainer);
       }
     }
@@ -523,6 +538,37 @@ function showCreateVentaModal() {
 
   llenarSelectCliente();
   llenarSelectCajaTurno();
+  llenarSelectUbicacion(); // Usa window.ubicacionesData
+  llenarSelectProductoDetalle();
+  llenarSelectTipoPago();
+
+  document.getElementById("ventaDetallesList").innerHTML = "";
+  document.getElementById("ventaPagosList").innerHTML = "";
+
+  // <-- CAMBIO: Ya no necesitamos setTimeout porque los datos están en window.ubicacionesData
+  // Si aún así quieres forzar una actualización, puedes llamar a actualizarSelectsUbicacion()
+  if (typeof window.actualizarSelectsUbicacion === "function") {
+    window.actualizarSelectsUbicacion();
+  }
+
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+}
+
+function abrirModalVenta() {
+  const modal = document.getElementById("ventaModal");
+  const form = document.getElementById("ventaForm");
+  const title = document.getElementById("ventaModalTitle");
+
+  title.textContent = "Nueva Venta";
+  form.reset();
+  document.getElementById("ventaId").value = "";
+  document.getElementById("ventaDescuento").value = 0;
+  document.getElementById("ventaObservaciones").value = "";
+  limpiarErroresFormulario("ventaForm");
+
+  llenarSelectCliente();
+  llenarSelectCajaTurno();
   llenarSelectUbicacion();
   llenarSelectProductoDetalle();
   llenarSelectTipoPago();
@@ -552,13 +598,21 @@ function llenarSelectCajaTurno() {
   });
 }
 
+// <-- CAMBIO: Modificada para usar window.ubicacionesData y la función global si existe
 function llenarSelectUbicacion() {
   const select = document.getElementById("ventaUbicacion");
   if (!select) return;
-  select.innerHTML = '<option value="">Seleccionar ubicación</option>';
-  (window.ubicacionesData || []).forEach((u) => {
-    select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
-  });
+
+  // Intentar usar la función global definida en configuracion.js
+  if (typeof window.llenarSelectUbicacion === "function") {
+    window.llenarSelectUbicacion(select, window.ubicacionesData || []);
+  } else {
+    // Fallback local
+    select.innerHTML = '<option value="">Seleccionar ubicación</option>';
+    (window.ubicacionesData || []).forEach((u) => {
+      select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
+    });
+  }
   console.log(
     "✅ Select ubicaciones ventas llenado con",
     (window.ubicacionesData || []).length,
@@ -1322,4 +1376,5 @@ window.deleteClienteSub = deleteClienteSub;
 window.saveClienteSub = saveClienteSub;
 window.cajaTurnosData = cajaTurnosData;
 window.tiposPagoData = tiposPagoData;
-window.ubicacionesData = ubicacionesData;
+// <-- CAMBIO: Ya no exponemos ubicacionesData local porque usamos window.ubicacionesData
+// window.ubicacionesData = ubicacionesData;  // eliminado
