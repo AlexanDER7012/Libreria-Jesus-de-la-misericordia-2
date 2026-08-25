@@ -52,6 +52,12 @@ async function loadInventarioModule() {
                     <i class="fas fa-exclamation-triangle me-1"></i>Alertas
                 </button>
             </li>
+            <li class="nav-item">
+                <button class="nav-link" id="tab-tipos-movimiento" data-bs-toggle="tab"
+                        data-bs-target="#panel-tipos-movimiento" type="button" role="tab">
+                    <i class="fas fa-tags me-1"></i>Tipos de Movimiento
+                </button>
+            </li>
         </ul>
 
         <div class="tab-content" id="inventarioTabContent">
@@ -94,11 +100,34 @@ async function loadInventarioModule() {
                     </div>
                 </div>
             </div>
+
+            <!-- PANEL: TIPOS DE MOVIMIENTO -->
+            <div class="tab-pane fade" id="panel-tipos-movimiento" role="tabpanel">
+                <div id="tiposMovimientoContainer">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-success" role="status"></div>
+                        <p class="mt-2 text-muted">Cargando tipos de movimiento...</p>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
 
   // Crear modales si no existen
   crearModalesInventario();
+
+  // Asegurar que window.ubicacionesData tenga datos
+  if (!window.ubicacionesData || window.ubicacionesData.length === 0) {
+    try {
+      const backup = localStorage.getItem("ubicaciones_backup");
+      if (backup) {
+        const parsed = JSON.parse(backup);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          window.ubicacionesData = parsed;
+        }
+      }
+    } catch (e) {}
+  }
 
   try {
     const [movimientos, tiposMov, conteo, traslados, alertas] =
@@ -116,10 +145,15 @@ async function loadInventarioModule() {
     trasladosData = traslados || [];
     alertasData = alertas || [];
 
+    // Ya no creamos alertas automáticamente (el backend debería hacerlo)
+    // Solo recargamos alertas si es necesario
+    // await verificarAlertasStock();  // COMENTADO
+
     renderMovimientos(movimientosData);
     renderConteoFisico(inventarioFisicoData);
     renderTraslados(trasladosData);
     renderAlertas(alertasData);
+    renderTiposMovimiento(tiposMovimientoData);
 
     // Poblar selects
     populateSelectsInventario();
@@ -133,6 +167,8 @@ async function loadInventarioModule() {
         `;
   }
 }
+
+// (Función verificarAlertasStock eliminada o comentada)
 
 // POBLAR SELECTS
 function populateSelectsInventario() {
@@ -154,13 +190,17 @@ function populateSelectsInventario() {
     });
   });
 
-  // Ubicaciones
+  // Ubicaciones - usar window.ubicacionesData
   const ubicacionSelects = document.querySelectorAll(".inv-ubicacion-select");
   ubicacionSelects.forEach((select) => {
-    select.innerHTML = '<option value="">Seleccionar ubicación</option>';
-    (window.ubicacionesData || []).forEach((u) => {
-      select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
-    });
+    if (typeof window.llenarSelectUbicacion === "function") {
+      window.llenarSelectUbicacion(select, window.ubicacionesData || []);
+    } else {
+      select.innerHTML = '<option value="">Seleccionar ubicación</option>';
+      (window.ubicacionesData || []).forEach((u) => {
+        select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
+      });
+    }
   });
 }
 
@@ -255,7 +295,6 @@ function crearModalesInventario() {
     document.body.insertAdjacentHTML("beforeend", html);
     document.getElementById("conteoForm").onsubmit = saveConteoFisico;
 
-    // Actualizar stock al seleccionar producto
     document
       .getElementById("conteoProducto")
       .addEventListener("change", function () {
@@ -314,6 +353,46 @@ function crearModalesInventario() {
         `;
     document.body.insertAdjacentHTML("beforeend", html);
     document.getElementById("trasladoForm").onsubmit = saveTraslado;
+  }
+
+  // Modal Tipo de Movimiento (corregido)
+  if (!document.getElementById("tipoMovimientoModal")) {
+    const html = `
+            <div class="modal fade" id="tipoMovimientoModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="tipoMovimientoModalTitle">Tipo de Movimiento</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="tipoMovimientoForm" novalidate>
+                                <input type="hidden" id="tipoMovimientoId" />
+                                <div class="mb-3">
+                                    <label class="form-label">Nombre *</label>
+                                    <input type="text" class="form-control" id="tipoMovimientoNombre" required />
+                                    <div class="invalid-feedback" id="tipoMovimientoNombreError">El nombre es obligatorio</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Descripción</label>
+                                    <input type="text" class="form-control" id="tipoMovimientoDescripcion" />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Signo</label>
+                                    <select class="form-select" id="tipoMovimientoSigno">
+                                        <option value="+">Entrada (+)</option>
+                                        <option value="-">Salida (-)</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-success w-100">Guardar</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    document.body.insertAdjacentHTML("beforeend", html);
+    document.getElementById("tipoMovimientoForm").onsubmit = saveTipoMovimiento;
   }
 }
 
@@ -602,8 +681,7 @@ function renderMovimientos(movimientos) {
       (p) => p.id === m.id_producto,
     );
     const tipo = tiposMovimientoData.find((t) => t.id === m.id_tipo_movimiento);
-    const esEntrada =
-      tipo && tipo.nombre && tipo.nombre.toLowerCase().includes("entrada");
+    const esEntrada = tipo && tipo.signo === "+";
 
     html += `
             <tr>
@@ -847,27 +925,35 @@ function renderAlertas(alertas) {
       (p) => p.id === a.id_producto,
     );
     const leida = a.leida !== 0;
+    // Verificar si el stock actual ya superó el mínimo (para auto-marcar como leída)
+    const stockActual = producto ? producto.stock_actual || 0 : 0;
+    const stockMinimo = producto ? producto.stock_minimo || 0 : 0;
+    const yaResuelta = stockActual > stockMinimo;
 
     html += `
             <tr>
                 <td>${a.id}</td>
                 <td>${producto ? producto.nombre : "--"}</td>
-                <td class="text-danger fw-bold">${a.stock_actual || 0}</td>
-                <td>${a.stock_minimo || 0}</td>
+                <td class="${stockActual <= stockMinimo ? "text-danger" : "text-success"} fw-bold">
+                    ${stockActual}
+                </td>
+                <td>${stockMinimo}</td>
                 <td>
-                    <span class="badge ${leida ? "bg-secondary" : "bg-danger"}">
-                        ${leida ? "Leída" : "Pendiente"}
+                    <span class="badge ${leida || yaResuelta ? "bg-secondary" : "bg-danger"}">
+                        ${leida || yaResuelta ? "Leída" : "Pendiente"}
                     </span>
                 </td>
                 <td>
                     ${
-                      !leida
+                      !leida && !yaResuelta
                         ? `
                         <button class="btn btn-sm btn-outline-success" onclick="marcarAlertaLeida(${a.id})">
                             <i class="fas fa-check"></i> Marcar Leída
                         </button>
                     `
-                        : ""
+                        : `
+                        <span class="text-muted small">Resuelta</span>
+                    `
                     }
                 </td>
             </tr>
@@ -897,6 +983,165 @@ async function marcarAlertaLeida(id) {
   }
 }
 
+// =============================================
+// TIPOS DE MOVIMIENTO - SOLO LECTURA + CREACIÓN
+// =============================================
+
+function renderTiposMovimiento(tipos) {
+  const container = document.getElementById("tiposMovimientoContainer");
+  if (!container) return;
+
+  if (!tipos || tipos.length === 0) {
+    container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-tags fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No hay tipos de movimiento registrados</p>
+                <button class="btn btn-success btn-sm" onclick="showCreateTipoMovimientoModal()">
+                    <i class="fas fa-plus me-2"></i>Nuevo Tipo
+                </button>
+            </div>
+        `;
+    return;
+  }
+
+  let html = `
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Listado de Tipos de Movimiento</h6>
+            <button class="btn btn-success btn-sm" onclick="showCreateTipoMovimientoModal()">
+                <i class="fas fa-plus me-1"></i>Nuevo Tipo
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Descripción</th>
+                        <th>Signo</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+  tipos.forEach((t) => {
+    const esEntrada = t.signo === 0;
+    html += `
+            <tr>
+                <td>${t.id}</td>
+                <td><strong>${t.nombre || "--"}</strong></td>
+                <td>${t.descripcion || "--"}</td>
+                <td>
+                    <span class="badge ${esEntrada ? "bg-success" : "bg-danger"}">
+                        ${esEntrada ? "Entrada" : "Salida"}
+                    </span>
+                </td>
+            </tr>
+        `;
+  });
+
+  html += `
+                </tbody>
+            </table>
+        </div>
+        <div class="text-end">
+            <small class="text-muted">Total: ${tipos.length} tipos</small>
+            <p class="text-muted small mt-2">
+                <i class="fas fa-info-circle me-1"></i>
+                Los tipos de movimiento solo se pueden crear. No se pueden modificar ni eliminar.
+            </p>
+        </div>
+    `;
+
+  container.innerHTML = html;
+}
+
+function showCreateTipoMovimientoModal() {
+  const modal = document.getElementById("tipoMovimientoModal");
+  if (!modal) {
+    crearModalesInventario();
+    setTimeout(() => showCreateTipoMovimientoModal(), 100);
+    return;
+  }
+
+  document.getElementById("tipoMovimientoModalTitle").textContent =
+    "Nuevo Tipo de Movimiento";
+  document.getElementById("tipoMovimientoForm").reset();
+  document.getElementById("tipoMovimientoId").value = "";
+  limpiarErroresFormulario("tipoMovimientoForm");
+
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+}
+
+async function saveTipoMovimiento(event) {
+  event.preventDefault();
+
+  const nombre = document.getElementById("tipoMovimientoNombre").value.trim();
+
+  if (!nombre) {
+    mostrarErrorCampo("tipoMovimientoNombre", "El nombre es obligatorio");
+    return;
+  }
+  limpiarErrorCampo("tipoMovimientoNombre");
+
+  const signoVal = document.getElementById("tipoMovimientoSigno").value;
+  const signo = signoVal === "+" ? 0 : 1;
+
+  const data = {
+    nombre: nombre,
+    signo: signo,
+  };
+
+  const descripcion = document
+    .getElementById("tipoMovimientoDescripcion")
+    .value.trim();
+  if (descripcion) {
+    data.descripcion = descripcion;
+  }
+
+  try {
+    await api.request("/tipos-movimiento", "POST", data);
+    showToast("Tipo creado correctamente", "success");
+
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("tipoMovimientoModal"),
+    );
+    if (modal) modal.hide();
+
+    await loadInventarioModule();
+  } catch (error) {
+    let msg = "Error al crear tipo";
+    if (error.response && error.response.data) {
+      const errData = error.response.data;
+      if (errData.detail) {
+        if (Array.isArray(errData.detail)) {
+          msg = errData.detail.map((d) => d.msg).join(", ");
+        } else {
+          msg = errData.detail;
+        }
+      } else if (typeof errData === "object") {
+        msg = Object.values(errData).flat().join(", ");
+      }
+    } else if (error.message && error.message !== "[object Object]") {
+      msg = error.message;
+    }
+    showToast(msg, "error");
+  }
+}
+
+// Estas funciones ya no son necesarias, pero las dejamos vacías para evitar errores si se llaman desde algún lugar.
+function showEditTipoMovimientoModal(id) {
+  showToast(
+    "Los tipos de movimiento no se pueden editar. Solo se pueden crear nuevos.",
+    "warning",
+  );
+}
+
+async function deleteTipoMovimiento(id) {
+  showToast("Los tipos de movimiento no se pueden eliminar.", "warning");
+}
+
 // EXPONER FUNCIONES GLOBALES
 window.loadInventarioModule = loadInventarioModule;
 window.showMovimientoModal = showMovimientoModal;
@@ -907,3 +1152,7 @@ window.saveConteoFisico = saveConteoFisico;
 window.saveTraslado = saveTraslado;
 window.recibirTraslado = recibirTraslado;
 window.marcarAlertaLeida = marcarAlertaLeida;
+window.showCreateTipoMovimientoModal = showCreateTipoMovimientoModal;
+window.showEditTipoMovimientoModal = showEditTipoMovimientoModal;
+window.saveTipoMovimiento = saveTipoMovimiento;
+window.deleteTipoMovimiento = deleteTipoMovimiento;

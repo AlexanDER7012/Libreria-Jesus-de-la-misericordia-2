@@ -69,12 +69,27 @@ async function loadConfiguracionModule() {
     const [configuracion, metas, ubicaciones] = await Promise.all([
       api.getConfiguracion().catch(() => null),
       api.getMetasFinancieras().catch(() => []),
-      api.request("/ubicaciones").catch(() => []),
+      api.request("/ubicaciones").catch((err) => {
+        console.warn("Error al cargar ubicaciones:", err);
+        showToast(
+          "No se pudieron cargar ubicaciones. Puedes agregarlas manualmente.",
+          "warning",
+        );
+        return [];
+      }),
     ]);
 
     configuracionData = configuracion;
     metasData = metas || [];
     window.ubicacionesData = ubicaciones || [];
+
+    // Guardar backup en localStorage
+    try {
+      localStorage.setItem(
+        "ubicaciones_backup",
+        JSON.stringify(window.ubicacionesData),
+      );
+    } catch (e) {}
 
     renderConfiguracion(configuracionData);
     renderMetas(metasData);
@@ -500,9 +515,22 @@ async function cargarUbicaciones() {
   if (!container) return;
 
   try {
-    const ubicaciones = await api.request("/ubicaciones").catch(() => []);
+    const ubicaciones = await api.request("/ubicaciones").catch((err) => {
+      console.warn("Error al cargar ubicaciones:", err);
+      showToast(
+        "No se pudieron cargar ubicaciones. Usando datos locales.",
+        "warning",
+      );
+      return [];
+    });
     window.ubicacionesData = ubicaciones;
+    // Guardar backup
+    try {
+      localStorage.setItem("ubicaciones_backup", JSON.stringify(ubicaciones));
+    } catch (e) {}
     renderUbicaciones(ubicaciones);
+    // Refrescar todos los selects
+    actualizarSelectsUbicacion();
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">Error al cargar ubicaciones: ${error.message}</div>`;
   }
@@ -517,6 +545,10 @@ function renderUbicaciones(ubicaciones) {
       <div class="text-center py-4 text-muted">
         <i class="fas fa-map-marker-alt fa-3x mb-3"></i>
         <p>No hay ubicaciones registradas</p>
+        <p class="small text-warning">
+          <i class="fas fa-exclamation-triangle me-1"></i>
+          Si no puedes cargar ubicaciones, agrega una nueva manualmente.
+        </p>
         <button class="btn btn-primary btn-sm" onclick="showCreateUbicacionModal()">
           <i class="fas fa-plus me-1"></i>Nueva Ubicación
         </button>
@@ -668,21 +700,48 @@ async function saveUbicacion(event) {
   };
 
   try {
+    let response;
     if (id) {
-      await api.request(`/ubicaciones/${id}`, "PUT", data);
+      response = await api.request(`/ubicaciones/${id}`, "PUT", data);
       showToast("Ubicación actualizada correctamente", "success");
+      // Actualizar en array global
+      const idx = window.ubicacionesData.findIndex((u) => u.id == id);
+      if (idx !== -1) {
+        window.ubicacionesData[idx] = {
+          ...window.ubicacionesData[idx],
+          ...data,
+        };
+      }
     } else {
-      await api.request("/ubicaciones", "POST", data);
+      response = await api.request("/ubicaciones", "POST", data);
       showToast("Ubicación creada correctamente", "success");
+      // Si la API devuelve el objeto creado, lo agregamos
+      if (response && response.id) {
+        window.ubicacionesData.push(response);
+      } else {
+        // Si no devuelve el objeto, forzamos recarga
+        await cargarUbicaciones();
+      }
     }
+
+    // Guardar backup
+    try {
+      localStorage.setItem(
+        "ubicaciones_backup",
+        JSON.stringify(window.ubicacionesData),
+      );
+    } catch (e) {}
+
+    // Refrescar tabla
+    renderUbicaciones(window.ubicacionesData);
+
+    // Refrescar todos los selects
+    actualizarSelectsUbicacion();
 
     const modal = bootstrap.Modal.getInstance(
       document.getElementById("ubicacionModal"),
     );
     if (modal) modal.hide();
-
-    await cargarUbicaciones();
-    await actualizarUbicacionesGlobales();
   } catch (error) {
     showToast(error.message || "Error al guardar ubicación", "error");
   }
@@ -711,7 +770,7 @@ async function toggleUbicacionEstado(id) {
       "success",
     );
     await cargarUbicaciones();
-    await actualizarUbicacionesGlobales();
+    // actualizarSelectsUbicacion ya se llama dentro de cargarUbicaciones
   } catch (error) {
     showToast(error.message || "Error al cambiar estado", "error");
   }
@@ -722,8 +781,55 @@ async function actualizarUbicacionesGlobales() {
   try {
     const ubicaciones = await api.request("/ubicaciones").catch(() => []);
     window.ubicacionesData = ubicaciones;
+    // Guardar backup
+    try {
+      localStorage.setItem("ubicaciones_backup", JSON.stringify(ubicaciones));
+    } catch (e) {}
+    actualizarSelectsUbicacion();
   } catch (error) {
     console.error("Error actualizando ubicaciones globales:", error);
+  }
+}
+
+// ==================== FUNCIONES GLOBALES PARA SELECTS ====================
+function actualizarSelectsUbicacion() {
+  // Ventas
+  const selectVenta = document.getElementById("ventaUbicacion");
+  if (selectVenta) {
+    llenarSelectUbicacion(selectVenta, window.ubicacionesData || []);
+  }
+  // Compras
+  const selectCompra = document.getElementById("compraUbicacion");
+  if (selectCompra) {
+    llenarSelectUbicacion(selectCompra, window.ubicacionesData || []);
+  }
+  // Caja
+  const selectCaja = document.getElementById("cajaUbicacion");
+  if (selectCaja) {
+    llenarSelectUbicacion(selectCaja, window.ubicacionesData || []);
+  }
+  // Inventario
+  document.querySelectorAll(".inv-ubicacion-select").forEach((sel) => {
+    llenarSelectUbicacion(sel, window.ubicacionesData || []);
+  });
+}
+
+function llenarSelectUbicacion(selectElement, ubicaciones) {
+  if (!selectElement) return;
+  const currentValue = selectElement.value;
+  selectElement.innerHTML = '<option value="">Seleccionar ubicación</option>';
+  (ubicaciones || []).forEach((u) => {
+    const opt = document.createElement("option");
+    opt.value = u.id;
+    opt.textContent = u.nombre || u.id;
+    selectElement.appendChild(opt);
+  });
+  // Restaurar el valor seleccionado si existe
+  if (
+    currentValue &&
+    [...selectElement.options].some((o) => o.value == currentValue)
+  ) {
+    selectElement.value = currentValue;
   }
 }
 
@@ -793,3 +899,5 @@ window.showEditUbicacionModal = showEditUbicacionModal;
 window.saveUbicacion = saveUbicacion;
 window.toggleUbicacionEstado = toggleUbicacionEstado;
 window.actualizarUbicacionesGlobales = actualizarUbicacionesGlobales;
+window.actualizarSelectsUbicacion = actualizarSelectsUbicacion;
+window.llenarSelectUbicacion = llenarSelectUbicacion;

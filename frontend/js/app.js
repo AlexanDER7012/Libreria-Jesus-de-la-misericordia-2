@@ -101,6 +101,9 @@ class App {
         case "configuracion":
           await this.loadConfiguracion(mainContent);
           break;
+        case "proveedores":
+          await this.loadProveedores(mainContent);
+          break;
         default:
           mainContent.innerHTML = `<div class="alert alert-warning">Módulo no encontrado</div>`;
       }
@@ -111,6 +114,38 @@ class App {
                     Error: ${error.message}
                 </div>
             `;
+    }
+  }
+
+  async loadProveedores(container) {
+    container.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4><i class="fas fa-building me-2 text-primary"></i>Proveedores</h4>
+        <button class="btn btn-primary" onclick="showCreateProveedorModal()">
+            <i class="fas fa-plus me-2"></i>Nuevo Proveedor
+        </button>
+        </div>
+        <div id="proveedoresTableContainer">
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Cargando proveedores...</p>
+        </div>
+        </div>
+    `;
+    // Si tienes un archivo proveedores.js con una función loadProveedoresModule, llámala
+    if (typeof loadProveedoresModule === "function") {
+      await loadProveedoresModule();
+    } else {
+      // Fallback: carga simple desde api
+      try {
+        const proveedores = await api.getProveedores();
+        const containerTable = document.getElementById(
+          "proveedoresTableContainer",
+        );
+        // renderizar tabla...
+      } catch (error) {
+        container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+      }
     }
   }
 
