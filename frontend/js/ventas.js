@@ -554,10 +554,16 @@ function llenarSelectCajaTurno() {
 
 function llenarSelectUbicacion() {
   const select = document.getElementById("ventaUbicacion");
+  if (!select) return;
   select.innerHTML = '<option value="">Seleccionar ubicación</option>';
-  ubicacionesData.forEach((u) => {
+  (window.ubicacionesData || []).forEach((u) => {
     select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
   });
+  console.log(
+    "✅ Select ubicaciones ventas llenado con",
+    (window.ubicacionesData || []).length,
+    "opciones",
+  );
 }
 
 function llenarSelectProductoDetalle() {
