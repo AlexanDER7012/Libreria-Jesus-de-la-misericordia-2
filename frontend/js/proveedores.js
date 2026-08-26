@@ -336,6 +336,8 @@ async function deleteProveedor(id) {
 }
 
 // FUNCIONES GLOBALES
+window.proveedoresData = proveedoresData;
+window.tiposProveedorData = tiposProveedorData;
 window.loadProveedoresModule = loadProveedoresModule;
 window.showCreateProveedorModal = showCreateProveedorModal;
 window.showEditProveedorModal = showEditProveedorModal;
