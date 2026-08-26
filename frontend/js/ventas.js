@@ -1347,6 +1347,37 @@ async function cargarSubVendedores() {
   }
 }
 
+async function cargarSubCajaBasico() {
+  try {
+    // Cargar turnos de caja activos
+    const turnos = await api.getCajaTurnos().catch(() => []);
+
+    // Cargar tipos de pago
+    const tiposPago = await api.getTiposPago().catch(() => []);
+
+    // Cargar ubicaciones
+    const ubicaciones = await api.request("/ubicaciones").catch(() => []);
+
+    // Guardar en window para uso global
+    window.turnosActivos = turnos.filter((t) => t.estado === "abierto");
+    window.tiposPagoData = tiposPago;
+    window.ubicacionesData = ubicaciones;
+
+    return {
+      turnos: window.turnosActivos,
+      tiposPago: window.tiposPagoData,
+      ubicaciones: window.ubicacionesData,
+    };
+  } catch (error) {
+    console.error("Error cargando datos de caja:", error);
+    return {
+      turnos: [],
+      tiposPago: [],
+      ubicaciones: [],
+    };
+  }
+}
+
 // HELPER
 function getCurrentUser() {
   try {
@@ -1376,5 +1407,4 @@ window.deleteClienteSub = deleteClienteSub;
 window.saveClienteSub = saveClienteSub;
 window.cajaTurnosData = cajaTurnosData;
 window.tiposPagoData = tiposPagoData;
-// <-- CAMBIO: Ya no exponemos ubicacionesData local porque usamos window.ubicacionesData
-// window.ubicacionesData = ubicacionesData;  // eliminado
+window.cargarSubCajaBasico = cargarSubCajaBasico;
