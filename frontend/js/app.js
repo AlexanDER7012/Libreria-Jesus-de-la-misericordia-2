@@ -308,7 +308,7 @@ class App {
         case "usuarios":
           await this.loadUsuarios(mainContent);
           break;
-        case "reportes": // <--- NUEVO
+        case "reportes":
           await this.loadReportes(mainContent);
           break;
         case "configuracion":
