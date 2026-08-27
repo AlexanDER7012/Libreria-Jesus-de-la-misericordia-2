@@ -6,7 +6,7 @@ from app.routers import (
     router_cliente, router_ubicacion, router_usuario, router_producto,
     router_inventario, router_proveedor, router_compra, router_caja,
     router_venta, router_cotizacion, router_configuracion,
-    # router_reportes,  # <--- COMENTADO si no existe el archivo
+    router_reportes,  # <--- COMENTADO si no existe el archivo
 )
 
 app = FastAPI(
@@ -97,8 +97,8 @@ app.include_router(router_cotizacion.router, tags=["Cotizaciones"])
 app.include_router(router_configuracion.router, prefix="/configuracion", tags=["Configuración"])
 app.include_router(router_configuracion.router_meta, prefix="/metas-financieras", tags=["Metas Financieras"])
 
-# Reportes - DESCOMENTAR solo si el archivo existe
-# app.include_router(router_reportes.router, prefix="/reportes", tags=["Reportes"])
+# Reportes
+app.include_router(router_reportes.router, prefix="/reportes", tags=["Reportes"])
 
 
 @app.get("/")
