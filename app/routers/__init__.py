@@ -11,7 +11,7 @@ from . import (
     router_compra,
     router_caja,
     router_venta,
-    router_cotizacion,        # <--- ESTO DEBE ESTAR
+    router_cotizacion,      
     router_configuracion,
-    # router_reportes,        # <--- Solo si existe
+    router_reportes,       
 )
