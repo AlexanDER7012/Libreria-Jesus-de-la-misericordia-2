@@ -1,11 +1,13 @@
+from datetime import date
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+
 from app.database import get_db
 from app.pagination import PaginationParams
 from app.models.model_producto import Producto
-from app.models.model_cliente import Cliente
 from app.models.model_caja import CajaTurno
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario, Alerta
 from app.models.model_venta import Venta, DetalleVenta, MetodoPagoVenta, ServicioAdicional, DetalleServicio
@@ -40,68 +42,27 @@ def _generar_alerta_si_stock_bajo(db: Session, producto: Producto):
 
 @router.get("/", response_model=List[VentaResponse])
 def listar_ventas(
-    search: Optional[str] = Query(None, description="Buscar por ID, cliente, NIT o producto"),
     estado: Optional[str] = None,
     id_cliente: Optional[int] = None,
     id_caja_turno: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
-    """Listar ventas con búsqueda por ID, cliente, NIT o producto"""
+    """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Venta).order_by(Venta.fecha.desc())
-    
     if estado is not None:
         query = query.filter(Venta.estado == estado)
     if id_cliente is not None:
         query = query.filter(Venta.id_cliente == id_cliente)
     if id_caja_turno is not None:
         query = query.filter(Venta.id_caja_turno == id_caja_turno)
-    
-    # Búsqueda avanzada
-    if search:
-        if search.isdigit():
-            query = query.filter(Venta.id == int(search))
-        else:
-            query = query.join(Cliente, Venta.id_cliente == Cliente.id, isouter=True)
-            query = query.join(DetalleVenta, Venta.id == DetalleVenta.id_venta, isouter=True)
-            query = query.join(Producto, DetalleVenta.id_producto == Producto.id, isouter=True)
-            query = query.filter(
-                or_(
-                    Cliente.nombre.ilike(f"%{search}%"),
-                    Cliente.nit.ilike(f"%{search}%"),
-                    Producto.nombre.ilike(f"%{search}%"),
-                    Producto.codigo.ilike(f"%{search}%"),
-                )
-            )
-            query = query.distinct()
-    
+    if fecha_desde is not None:
+        query = query.filter(func.date(Venta.fecha) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(Venta.fecha) <= fecha_hasta)
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
-
-
-@router.get("/clientes/buscar", response_model=List[dict])
-def buscar_clientes(
-    q: str = Query(..., min_length=1, description="Texto de búsqueda (nombre o NIT)"),
-    db: Session = Depends(get_db)
-):
-    """Buscar clientes por nombre o NIT para autocompletar"""
-    clientes = db.query(Cliente).filter(
-        or_(
-            Cliente.nombre.ilike(f"%{q}%"),
-            Cliente.nit.ilike(f"%{q}%"),
-            Cliente.telefono.ilike(f"%{q}%")
-        )
-    ).limit(20).all()
-    
-    return [
-        {
-            "id": c.id,
-            "nombre": c.nombre,
-            "nit": c.nit,
-            "telefono": c.telefono,
-            "activo": c.activo
-        }
-        for c in clientes
-    ]
 
 
 @router.get("/{venta_id}", response_model=VentaResponse)
@@ -114,7 +75,11 @@ def obtener_venta(venta_id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=VentaResponse, status_code=201)
 def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
-
+    """
+    Registra la venta completa: valida turno abierto y stock disponible,
+    calcula precios desde producto.precio_venta (no se confía en el
+    cliente), baja el stock, y suma el total a la caja del turno.
+    """
     turno = db.query(CajaTurno).filter(CajaTurno.id == datos.id_caja_turno).first()
     if not turno:
         raise HTTPException(status_code=404, detail="Turno de caja no encontrado")

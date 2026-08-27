@@ -1,4 +1,4 @@
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -14,15 +14,24 @@ router = APIRouter()
 @router.get("/", response_model=List[ClienteResponse])
 def listar_clientes(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
+    buscar: Optional[str] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
-
+    
     query = db.query(Cliente)
     if estado == "activos":
         query = query.filter(Cliente.activo == 1)
     elif estado == "inactivos":
         query = query.filter(Cliente.activo == 0)
+    if buscar:
+        like = f"%{buscar}%"
+        query = query.filter(
+            (Cliente.nombre.ilike(like))
+            | (Cliente.telefono.ilike(like))
+            | (Cliente.email.ilike(like))
+            | (Cliente.nit.ilike(like))
+        )
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 

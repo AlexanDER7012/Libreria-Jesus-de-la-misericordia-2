@@ -1,5 +1,7 @@
+from datetime import date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.model_caja import (
@@ -28,13 +30,20 @@ router_tipo_pago = APIRouter()     # /tipos-pago
 def listar_turnos(
     estado: Optional[str] = None,
     id_ubicacion: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
     db: Session = Depends(get_db),
 ):
+    """Filtra por fecha_desde/fecha_hasta (sobre fecha_apertura)."""
     query = db.query(CajaTurno).order_by(CajaTurno.fecha_apertura.desc())
     if estado is not None:
         query = query.filter(CajaTurno.estado == estado)
     if id_ubicacion is not None:
         query = query.filter(CajaTurno.id_ubicacion == id_ubicacion)
+    if fecha_desde is not None:
+        query = query.filter(func.date(CajaTurno.fecha_apertura) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(CajaTurno.fecha_apertura) <= fecha_hasta)
     return query.all()
 
 
@@ -132,12 +141,26 @@ def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Sessio
 # ===================================================================
 
 @router_gasto.get("/", response_model=List[GastoResponse])
-def listar_gastos(id_ubicacion: Optional[int] = None, id_tipo_gasto: Optional[int] = None, db: Session = Depends(get_db)):
+def listar_gastos(
+    id_ubicacion: Optional[int] = None,
+    id_tipo_gasto: Optional[int] = None,
+    buscar: Optional[str] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    db: Session = Depends(get_db),
+):
+    """buscar: coincidencia en el concepto del gasto. Filtra por fecha_desde/fecha_hasta."""
     query = db.query(Gasto).order_by(Gasto.fecha.desc())
     if id_ubicacion is not None:
         query = query.filter(Gasto.id_ubicacion == id_ubicacion)
     if id_tipo_gasto is not None:
         query = query.filter(Gasto.id_tipo_gasto == id_tipo_gasto)
+    if buscar:
+        query = query.filter(Gasto.concepto.ilike(f"%{buscar}%"))
+    if fecha_desde is not None:
+        query = query.filter(func.date(Gasto.fecha) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(Gasto.fecha) <= fecha_hasta)
     return query.all()
 
 

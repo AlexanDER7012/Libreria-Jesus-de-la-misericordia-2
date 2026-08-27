@@ -1,6 +1,7 @@
+from datetime import date
 from typing import List, Optional
-
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -27,14 +28,24 @@ router_devolucion = APIRouter()  # /devoluciones-compra
 def listar_compras(
     estado: Optional[str] = None,
     id_proveedor: Optional[int] = None,
+    buscar: Optional[str] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
+    """buscar: coincidencia en número de factura. Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Compra).order_by(Compra.fecha.desc())
     if estado is not None:
         query = query.filter(Compra.estado == estado)
     if id_proveedor is not None:
         query = query.filter(Compra.id_proveedor == id_proveedor)
+    if buscar:
+        query = query.filter(Compra.numero_factura.ilike(f"%{buscar}%"))
+    if fecha_desde is not None:
+        query = query.filter(func.date(Compra.fecha) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(Compra.fecha) <= fecha_hasta)
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 

@@ -141,7 +141,7 @@ def actualizar_producto(producto_id: int, datos: ProductoUpdate, db: Session = D
     for campo, valor in datos_dict.items():
         setattr(producto, campo, valor)
 
-    # TODO: cuando exista el login, pasar aqui el id_usuario real (usuario autenticado)
+    # TODO: cuando exista el login, pasar aquí el id_usuario real (usuario autenticado)
     if producto.precio_venta != precio_anterior:
         _registrar_cambio_precio(db, producto, precio_anterior, producto.precio_venta, motivo="Actualización de producto")
 
@@ -174,12 +174,15 @@ def reactivar_producto(producto_id: int, db: Session = Depends(get_db)):
 
 
 # ===================================================================
-# CATEGORIA (catalogo simple)
+# CATEGORIA (catálogo simple)
 # ===================================================================
 
 @router_categoria.get("/", response_model=List[CategoriaResponse])
-def listar_categorias(db: Session = Depends(get_db)):
-    return db.query(Categoria).all()
+def listar_categorias(buscar: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(Categoria)
+    if buscar:
+        query = query.filter(Categoria.nombre.ilike(f"%{buscar}%"))
+    return query.all()
 
 
 @router_categoria.post("/", response_model=CategoriaResponse, status_code=201)
@@ -196,8 +199,11 @@ def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db)):
 # ===================================================================
 
 @router_marca.get("/", response_model=List[MarcaResponse])
-def listar_marcas(db: Session = Depends(get_db)):
-    return db.query(Marca).all()
+def listar_marcas(buscar: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(Marca)
+    if buscar:
+        query = query.filter(Marca.nombre.ilike(f"%{buscar}%"))
+    return query.all()
 
 
 @router_marca.post("/", response_model=MarcaResponse, status_code=201)
@@ -210,12 +216,15 @@ def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db)):
 
 
 # ===================================================================
-# UNIDAD_MEDIDA (catalogo simple)
+# UNIDAD_MEDIDA (catálogo simple)
 # ===================================================================
 
 @router_unidad.get("/", response_model=List[UnidadMedidaResponse])
-def listar_unidades_medida(db: Session = Depends(get_db)):
-    return db.query(UnidadMedida).all()
+def listar_unidades_medida(buscar: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(UnidadMedida)
+    if buscar:
+        query = query.filter(UnidadMedida.nombre.ilike(f"%{buscar}%"))
+    return query.all()
 
 
 @router_unidad.post("/", response_model=UnidadMedidaResponse, status_code=201)
