@@ -24,7 +24,7 @@ router_devolucion = APIRouter()  # /devoluciones-compra
 # COMPRA (+ detalle_compra)
 # ===================================================================
 
-@router.get("/", response_model=List[CompraResponse])
+@router.get("", response_model=List[CompraResponse])
 def listar_compras(
     estado: Optional[str] = None,
     id_proveedor: Optional[int] = None,
@@ -57,7 +57,7 @@ def obtener_compra(compra_id: int, db: Session = Depends(get_db)):
     return compra
 
 
-@router.post("/", response_model=CompraResponse, status_code=201)
+@router.post("", response_model=CompraResponse, status_code=201)
 def crear_compra(datos: CompraCreate, db: Session = Depends(get_db)):
     if not datos.detalles:
         raise HTTPException(status_code=400, detail="La compra debe incluir al menos un producto")
@@ -175,7 +175,7 @@ def registrar_pago_compra(compra_id: int, datos: CompraPagoCreate, db: Session =
 # DEVOLUCION_COMPRA
 # ===================================================================
 
-@router_devolucion.get("/", response_model=List[DevolucionCompraResponse])
+@router_devolucion.get("", response_model=List[DevolucionCompraResponse])
 def listar_devoluciones(id_proveedor: Optional[int] = None, db: Session = Depends(get_db)):
     query = db.query(DevolucionCompra).order_by(DevolucionCompra.fecha.desc())
     if id_proveedor is not None:
@@ -183,7 +183,7 @@ def listar_devoluciones(id_proveedor: Optional[int] = None, db: Session = Depend
     return query.all()
 
 
-@router_devolucion.post("/", response_model=DevolucionCompraResponse, status_code=201)
+@router_devolucion.post("", response_model=DevolucionCompraResponse, status_code=201)
 def registrar_devolucion(datos: DevolucionCompraCreate, db: Session = Depends(get_db)):
     nueva = DevolucionCompra(**datos.model_dump())
     db.add(nueva)

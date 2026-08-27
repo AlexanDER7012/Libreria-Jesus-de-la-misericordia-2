@@ -37,7 +37,7 @@ def _calcular_total_pedido(db: Session, pedido: Pedido) -> float:
 # PROVEEDOR
 # ===================================================================
 
-@router.get("/", response_model=List[ProveedorResponse])
+@router.get("", response_model=List[ProveedorResponse])
 def listar_proveedores(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
     buscar: Optional[str] = None,
@@ -66,7 +66,7 @@ def obtener_proveedor(proveedor_id: int, db: Session = Depends(get_db)):
     return proveedor
 
 
-@router.post("/", response_model=ProveedorResponse, status_code=201)
+@router.post("", response_model=ProveedorResponse, status_code=201)
 def crear_proveedor(datos: ProveedorCreate, db: Session = Depends(get_db)):
     nuevo = Proveedor(**datos.model_dump(), activo=1)
     db.add(nuevo)
@@ -114,12 +114,12 @@ def reactivar_proveedor(proveedor_id: int, db: Session = Depends(get_db)):
 # TIPO_PROVEEDOR (catálogo simple)
 # ===================================================================
 
-@router_tipo.get("/", response_model=List[TipoProveedorResponse])
+@router_tipo.get("", response_model=List[TipoProveedorResponse])
 def listar_tipos_proveedor(db: Session = Depends(get_db)):
     return db.query(TipoProveedor).all()
 
 
-@router_tipo.post("/", response_model=TipoProveedorResponse, status_code=201)
+@router_tipo.post("", response_model=TipoProveedorResponse, status_code=201)
 def crear_tipo_proveedor(datos: TipoProveedorCreate, db: Session = Depends(get_db)):
     nuevo = TipoProveedor(**datos.model_dump())
     db.add(nuevo)
@@ -132,7 +132,7 @@ def crear_tipo_proveedor(datos: TipoProveedorCreate, db: Session = Depends(get_d
 # PEDIDO (+ detalle_pedido)
 # ===================================================================
 
-@router_pedido.get("/", response_model=List[PedidoResponse])
+@router_pedido.get("", response_model=List[PedidoResponse])
 def listar_pedidos(
     estado: Optional[str] = None,
     id_proveedor: Optional[int] = None,
@@ -172,7 +172,7 @@ def calcular_total_pedido(pedido_id: int, db: Session = Depends(get_db)):
     return PedidoTotalResponse(id_pedido=pedido.id, total=total, alcanza_minimo=total >= MONTO_MINIMO_PEDIDO)
 
 
-@router_pedido.post("/", response_model=PedidoResponse, status_code=201)
+@router_pedido.post("", response_model=PedidoResponse, status_code=201)
 def crear_pedido(datos: PedidoCreate, db: Session = Depends(get_db)):
     nuevo = Pedido(**datos.model_dump(), estado="Pendiente")
     db.add(nuevo)
