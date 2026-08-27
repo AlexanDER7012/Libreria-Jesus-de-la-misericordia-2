@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
 from app.routers import (
     router_auth,
     router_cliente, router_ubicacion, router_usuario, router_producto,
@@ -20,6 +22,7 @@ origins = [
     "http://localhost:5500",
     "http://127.0.0.1:5500",
     "http://localhost:3000",
+    "https://libreria-jesus-de-la-misericordia-2.onrender.com",
 ]
 
 app.add_middleware(
@@ -85,6 +88,10 @@ app.include_router(router_reportes.router_inventario, prefix="/reportes/inventar
 app.include_router(router_reportes.router_usuarios, prefix="/reportes/usuarios", tags=["Reportes - Usuarios"])
 
 
-@app.get("/")
-def read_root():
+@app.get("/api/status", tags=["Estado"])
+def read_status():
+    """Antes vivia en '/', se movio aqui para que '/' pueda servir el frontend en su lugar."""
     return {"status": "Online", "docs": "/docs"}
+
+
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
