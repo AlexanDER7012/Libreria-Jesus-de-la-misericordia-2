@@ -27,10 +27,10 @@ def _obtener_o_crear_configuracion(db: Session) -> ConfiguracionGeneral:
 
 
 # ===================================================================
-# CONFIGURACION_GENERAL
+# CONFIGURACION_GENERAL (singleton)
 # ===================================================================
 
-@router.get("/", response_model=ConfiguracionGeneralResponse)
+@router.get("", response_model=ConfiguracionGeneralResponse)
 def obtener_configuracion(db: Session = Depends(get_db)):
     """Trae la configuración general. Si nunca se ha creado, la crea con valores por defecto."""
     return _obtener_o_crear_configuracion(db)
@@ -50,7 +50,7 @@ def actualizar_configuracion(datos: ConfiguracionGeneralUpdate, db: Session = De
 # META_FINANCIERA
 # ===================================================================
 
-@router_meta.get("/", response_model=List[MetaFinancieraResponse])
+@router_meta.get("", response_model=List[MetaFinancieraResponse])
 def listar_metas(anio: Optional[int] = None, db: Session = Depends(get_db)):
     query = db.query(MetaFinanciera).order_by(MetaFinanciera.anio.desc(), MetaFinanciera.mes.desc())
     if anio is not None:
@@ -58,7 +58,7 @@ def listar_metas(anio: Optional[int] = None, db: Session = Depends(get_db)):
     return query.all()
 
 
-@router_meta.post("/", response_model=MetaFinancieraResponse, status_code=201)
+@router_meta.post("", response_model=MetaFinancieraResponse, status_code=201)
 def crear_meta(datos: MetaFinancieraCreate, db: Session = Depends(get_db)):
     existente = db.query(MetaFinanciera).filter(
         MetaFinanciera.mes == datos.mes, MetaFinanciera.anio == datos.anio

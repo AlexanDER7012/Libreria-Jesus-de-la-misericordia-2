@@ -26,7 +26,7 @@ router_tipo_pago = APIRouter()     # /tipos-pago
 # CAJA_TURNO (+ caja_denominacion)
 # ===================================================================
 
-@router.get("/", response_model=List[CajaTurnoResponse])
+@router.get("", response_model=List[CajaTurnoResponse])
 def listar_turnos(
     estado: Optional[str] = None,
     id_ubicacion: Optional[int] = None,
@@ -107,17 +107,20 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
     db.refresh(turno)
     return turno
 
+
 # ===================================================================
 # CAJA_CHICA_MOVIMIENTO
 # ===================================================================
-@router_caja_chica.get("/", response_model=List[CajaChicaMovimientoResponse])
+
+@router_caja_chica.get("", response_model=List[CajaChicaMovimientoResponse])
 def listar_movimientos_caja_chica(id_ubicacion: Optional[int] = None, db: Session = Depends(get_db)):
     query = db.query(CajaChicaMovimiento).order_by(CajaChicaMovimiento.fecha.desc())
     if id_ubicacion is not None:
         query = query.filter(CajaChicaMovimiento.id_ubicacion == id_ubicacion)
     return query.all()
 
-@router_caja_chica.post("/", response_model=CajaChicaMovimientoResponse, status_code=201)
+
+@router_caja_chica.post("", response_model=CajaChicaMovimientoResponse, status_code=201)
 def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Session = Depends(get_db)):
     """Registra un movimiento y calcula el saldo corriente de esa sucursal."""
     ultimo = (
@@ -140,7 +143,7 @@ def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Sessio
 # GASTO
 # ===================================================================
 
-@router_gasto.get("/", response_model=List[GastoResponse])
+@router_gasto.get("", response_model=List[GastoResponse])
 def listar_gastos(
     id_ubicacion: Optional[int] = None,
     id_tipo_gasto: Optional[int] = None,
@@ -164,7 +167,7 @@ def listar_gastos(
     return query.all()
 
 
-@router_gasto.post("/", response_model=GastoResponse, status_code=201)
+@router_gasto.post("", response_model=GastoResponse, status_code=201)
 def registrar_gasto(datos: GastoCreate, db: Session = Depends(get_db)):
     nuevo = Gasto(**datos.model_dump())
     db.add(nuevo)
@@ -173,15 +176,15 @@ def registrar_gasto(datos: GastoCreate, db: Session = Depends(get_db)):
     return nuevo
 
 # ===================================================================
-# TIPO_GASTO (catalogo simple)
+# TIPO_GASTO (catálogo simple)
 # ===================================================================
 
-@router_tipo_gasto.get("/", response_model=List[TipoGastoResponse])
+@router_tipo_gasto.get("", response_model=List[TipoGastoResponse])
 def listar_tipos_gasto(db: Session = Depends(get_db)):
     return db.query(TipoGasto).all()
 
 
-@router_tipo_gasto.post("/", response_model=TipoGastoResponse, status_code=201)
+@router_tipo_gasto.post("", response_model=TipoGastoResponse, status_code=201)
 def crear_tipo_gasto(datos: TipoGastoCreate, db: Session = Depends(get_db)):
     nuevo = TipoGasto(**datos.model_dump())
     db.add(nuevo)
@@ -193,12 +196,12 @@ def crear_tipo_gasto(datos: TipoGastoCreate, db: Session = Depends(get_db)):
 # TIPO_PAGO (catalogo simple)
 # ===================================================================
 
-@router_tipo_pago.get("/", response_model=List[TipoPagoResponse])
+@router_tipo_pago.get("", response_model=List[TipoPagoResponse])
 def listar_tipos_pago(db: Session = Depends(get_db)):
     return db.query(TipoPago).all()
 
 
-@router_tipo_pago.post("/", response_model=TipoPagoResponse, status_code=201)
+@router_tipo_pago.post("", response_model=TipoPagoResponse, status_code=201)
 def crear_tipo_pago(datos: TipoPagoCreate, db: Session = Depends(get_db)):
     nuevo = TipoPago(**datos.model_dump())
     db.add(nuevo)

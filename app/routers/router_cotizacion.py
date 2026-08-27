@@ -24,7 +24,7 @@ def _generar_numero_expediente(db: Session) -> str:
     return f"{anio_actual}-{siguiente:03d}"
 
 
-@router.get("/", response_model=List[CotizacionResponse])
+@router.get("", response_model=List[CotizacionResponse])
 def listar_cotizaciones(
     estado: Optional[str] = None,
     id_cliente: Optional[int] = None,
@@ -66,7 +66,7 @@ def buscar_por_expediente(numero_expediente: str, db: Session = Depends(get_db))
     return cotizacion
 
 
-@router.post("/", response_model=CotizacionResponse, status_code=201)
+@router.post("", response_model=CotizacionResponse, status_code=201)
 def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db)):
     if not datos.detalles:
         raise HTTPException(status_code=400, detail="La cotización debe incluir al menos un producto")

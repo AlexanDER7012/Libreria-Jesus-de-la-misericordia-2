@@ -35,7 +35,7 @@ sub_router = APIRouter()   # /sububicaciones
 # UBICACION (sucursales)
 # ===================================================================
 
-@router.get("/", response_model=List[UbicacionResponse])
+@router.get("", response_model=List[UbicacionResponse])
 def listar_ubicaciones(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
     buscar: Optional[str] = None,
@@ -62,7 +62,7 @@ def obtener_ubicacion(ubicacion_id: int, db: Session = Depends(get_db)):
     return ubicacion
 
 
-@router.post("/", response_model=UbicacionResponse, status_code=201)
+@router.post("", response_model=UbicacionResponse, status_code=201)
 def crear_ubicacion(datos: UbicacionCreate, db: Session = Depends(get_db)):
     """Crea una nueva sucursal."""
     nueva = Ubicacion(**datos.model_dump(), activo=1)
@@ -113,7 +113,7 @@ def listar_sububicaciones_de_ubicacion(ubicacion_id: int, db: Session = Depends(
 # SUBUBICACION (estantes / bodega dentro de cada sucursal)
 # ===================================================================
 
-@sub_router.get("/", response_model=List[SububicacionResponse])
+@sub_router.get("", response_model=List[SububicacionResponse])
 def listar_sububicaciones(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
     buscar: Optional[str] = None,
@@ -139,7 +139,7 @@ def obtener_sububicacion(sububicacion_id: int, db: Session = Depends(get_db)):
     return sub
 
 
-@sub_router.post("/", response_model=SububicacionResponse, status_code=201)
+@sub_router.post("", response_model=SububicacionResponse, status_code=201)
 def crear_sububicacion(datos: SububicacionCreate, db: Session = Depends(get_db)):
     """Crea una nueva sububicación. Debe indicar a qué ubicacion (sucursal) pertenece."""
     ubicacion = db.query(Ubicacion).filter(Ubicacion.id == datos.id_ubicacion).first()

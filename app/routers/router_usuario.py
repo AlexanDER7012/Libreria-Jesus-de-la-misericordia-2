@@ -45,7 +45,7 @@ def _filtrar_por_estado(query, modelo, estado: str):
 # USUARIO
 # ===================================================================
 
-@router.get("/", response_model=List[UsuarioResponse])
+@router.get("", response_model=List[UsuarioResponse])
 def listar_usuarios(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
     buscar: Optional[str] = None,
@@ -66,7 +66,7 @@ def obtener_usuario(usuario_id: int, db: Session = Depends(get_db)):
     return usuario
 
 
-@router.post("/", response_model=UsuarioResponse, status_code=201)
+@router.post("", response_model=UsuarioResponse, status_code=201)
 def crear_usuario(datos: UsuarioCreate, db: Session = Depends(get_db)):
     existente = db.query(Usuario).filter(Usuario.nombre_usuario == datos.nombre_usuario).first()
     if existente:
@@ -133,7 +133,7 @@ def reactivar_usuario(usuario_id: int, db: Session = Depends(get_db)):
 # EMPLEADO
 # ===================================================================
 
-@router_empleado.get("/", response_model=List[EmpleadoResponse])
+@router_empleado.get("", response_model=List[EmpleadoResponse])
 def listar_empleados(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
     buscar: Optional[str] = None,
@@ -155,7 +155,7 @@ def obtener_empleado(empleado_id: int, db: Session = Depends(get_db)):
     return empleado
 
 
-@router_empleado.post("/", response_model=EmpleadoResponse, status_code=201)
+@router_empleado.post("", response_model=EmpleadoResponse, status_code=201)
 def crear_empleado(datos: EmpleadoCreate, db: Session = Depends(get_db)):
     existente = db.query(Empleado).filter(Empleado.dpi == datos.dpi).first()
     if existente:
@@ -209,12 +209,12 @@ def reactivar_empleado(empleado_id: int, db: Session = Depends(get_db)):
 # ROL (catálogo, sin 'activo' -> CRUD simple, sin baja lógica)
 # ===================================================================
 
-@router_rol.get("/", response_model=List[RolResponse])
+@router_rol.get("", response_model=List[RolResponse])
 def listar_roles(db: Session = Depends(get_db)):
     return db.query(Rol).all()
 
 
-@router_rol.post("/", response_model=RolResponse, status_code=201)
+@router_rol.post("", response_model=RolResponse, status_code=201)
 def crear_rol(datos: RolCreate, db: Session = Depends(get_db)):
     nuevo = Rol(**datos.model_dump())
     db.add(nuevo)
@@ -260,12 +260,12 @@ def quitar_permiso_de_rol(rol_permiso_id: int, db: Session = Depends(get_db)):
 # PUESTO (catálogo simple)
 # ===================================================================
 
-@router_puesto.get("/", response_model=List[PuestoResponse])
+@router_puesto.get("", response_model=List[PuestoResponse])
 def listar_puestos(db: Session = Depends(get_db)):
     return db.query(Puesto).all()
 
 
-@router_puesto.post("/", response_model=PuestoResponse, status_code=201)
+@router_puesto.post("", response_model=PuestoResponse, status_code=201)
 def crear_puesto(datos: PuestoCreate, db: Session = Depends(get_db)):
     nuevo = Puesto(**datos.model_dump())
     db.add(nuevo)
@@ -278,12 +278,12 @@ def crear_puesto(datos: PuestoCreate, db: Session = Depends(get_db)):
 # TURNO (catálogo simple)
 # ===================================================================
 
-@router_turno.get("/", response_model=List[TurnoResponse])
+@router_turno.get("", response_model=List[TurnoResponse])
 def listar_turnos(db: Session = Depends(get_db)):
     return db.query(Turno).all()
 
 
-@router_turno.post("/", response_model=TurnoResponse, status_code=201)
+@router_turno.post("", response_model=TurnoResponse, status_code=201)
 def crear_turno(datos: TurnoCreate, db: Session = Depends(get_db)):
     nuevo = Turno(**datos.model_dump())
     db.add(nuevo)
@@ -296,12 +296,12 @@ def crear_turno(datos: TurnoCreate, db: Session = Depends(get_db)):
 # MODULO (catálogo simple)
 # ===================================================================
 
-@router_modulo.get("/", response_model=List[ModuloResponse])
+@router_modulo.get("", response_model=List[ModuloResponse])
 def listar_modulos(db: Session = Depends(get_db)):
     return db.query(Modulo).order_by(Modulo.orden).all()
 
 
-@router_modulo.post("/", response_model=ModuloResponse, status_code=201)
+@router_modulo.post("", response_model=ModuloResponse, status_code=201)
 def crear_modulo(datos: ModuloCreate, db: Session = Depends(get_db)):
     nuevo = Modulo(**datos.model_dump())
     db.add(nuevo)
@@ -314,12 +314,12 @@ def crear_modulo(datos: ModuloCreate, db: Session = Depends(get_db)):
 # PERMISO (catálogo simple)
 # ===================================================================
 
-@router_permiso.get("/", response_model=List[PermisoResponse])
+@router_permiso.get("", response_model=List[PermisoResponse])
 def listar_permisos(db: Session = Depends(get_db)):
     return db.query(Permiso).all()
 
 
-@router_permiso.post("/", response_model=PermisoResponse, status_code=201)
+@router_permiso.post("", response_model=PermisoResponse, status_code=201)
 def crear_permiso(datos: PermisoCreate, db: Session = Depends(get_db)):
     nuevo = Permiso(**datos.model_dump())
     db.add(nuevo)
@@ -332,7 +332,7 @@ def crear_permiso(datos: PermisoCreate, db: Session = Depends(get_db)):
 # HISTORICO_PAGO_EMPLEADO (solo se crea y se lista; no tiene sentido editar/borrar un pago ya hecho)
 # ===================================================================
 
-@router_pago.get("/", response_model=List[HistoricoPagoEmpleadoResponse])
+@router_pago.get("", response_model=List[HistoricoPagoEmpleadoResponse])
 def listar_pagos(id_empleado: int | None = None, db: Session = Depends(get_db)):
     query = db.query(HistoricoPagoEmpleado)
     if id_empleado is not None:
@@ -340,7 +340,7 @@ def listar_pagos(id_empleado: int | None = None, db: Session = Depends(get_db)):
     return query.all()
 
 
-@router_pago.post("/", response_model=HistoricoPagoEmpleadoResponse, status_code=201)
+@router_pago.post("", response_model=HistoricoPagoEmpleadoResponse, status_code=201)
 def registrar_pago(datos: HistoricoPagoEmpleadoCreate, db: Session = Depends(get_db)):
     if not db.query(Empleado).filter(Empleado.id == datos.id_empleado).first():
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
@@ -356,7 +356,7 @@ def registrar_pago(datos: HistoricoPagoEmpleadoCreate, db: Session = Depends(get
 # LOG_ACTIVIDAD (solo lectura vía API; el sistema lo escribe internamente)
 # ===================================================================
 
-@router_log.get("/", response_model=List[LogActividadResponse])
+@router_log.get("", response_model=List[LogActividadResponse])
 def listar_logs(id_usuario: int | None = None, db: Session = Depends(get_db)):
     query = db.query(LogActividad).order_by(LogActividad.fecha.desc())
     if id_usuario is not None:

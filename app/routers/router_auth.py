@@ -16,7 +16,7 @@ MAX_INTENTOS_FALLIDOS = 5
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
-@router.post("/", response_model=TokenResponse)
+@router.post("", response_model=TokenResponse)
 def login(datos: LoginRequest, db: Session = Depends(get_db)):
     usuario = db.query(Usuario).filter(Usuario.nombre_usuario == datos.nombre_usuario).first()
 

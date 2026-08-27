@@ -1,3 +1,9 @@
+"""
+app/routers/router_cliente.py
+------------------------
+Endpoints CRUD del recurso Cliente.
+"""
+
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,19 +17,27 @@ from app.schemas.schema_cliente import ClienteCreate, ClienteUpdate, ClienteResp
 router = APIRouter()
 
 
-@router.get("/", response_model=List[ClienteResponse])
+@router.get("", response_model=List[ClienteResponse])
 def listar_clientes(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
     buscar: Optional[str] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
-    
+    """
+    Lista clientes según su estado:
+      - activos   (default): solo clientes con activo=1
+      - inactivos: solo clientes con activo=0 (dados de baja)
+      - todos:     sin filtrar por estado
+    buscar: coincidencia parcial en nombre, telefono, email o nit.
+    Paginado: ?skip=0&limit=50 (default), máximo 200 por página.
+    """
     query = db.query(Cliente)
     if estado == "activos":
         query = query.filter(Cliente.activo == 1)
     elif estado == "inactivos":
         query = query.filter(Cliente.activo == 0)
+    # estado == "todos" -> no se aplica ningún filtro
     if buscar:
         like = f"%{buscar}%"
         query = query.filter(
@@ -44,7 +58,7 @@ def obtener_cliente(cliente_id: int, db: Session = Depends(get_db)):
     return cliente
 
 
-@router.post("/", response_model=ClienteResponse, status_code=201)
+@router.post("", response_model=ClienteResponse, status_code=201)
 def crear_cliente(datos: ClienteCreate, db: Session = Depends(get_db)):
     """Crea un nuevo cliente (siempre queda activo=1)."""
     nuevo_cliente = Cliente(**datos.model_dump(), activo=1)

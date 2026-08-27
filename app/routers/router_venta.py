@@ -40,7 +40,7 @@ def _generar_alerta_si_stock_bajo(db: Session, producto: Producto):
 # VENTA (+ detalle_venta + metodo_pago_venta)
 # ===================================================================
 
-@router.get("/", response_model=List[VentaResponse])
+@router.get("", response_model=List[VentaResponse])
 def listar_ventas(
     estado: Optional[str] = None,
     id_cliente: Optional[int] = None,
@@ -73,7 +73,7 @@ def obtener_venta(venta_id: int, db: Session = Depends(get_db)):
     return venta
 
 
-@router.post("/", response_model=VentaResponse, status_code=201)
+@router.post("", response_model=VentaResponse, status_code=201)
 def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
     """
     Registra la venta completa: valida turno abierto y stock disponible,
@@ -211,7 +211,7 @@ def cancelar_venta(venta_id: int, db: Session = Depends(get_db)):
 # SERVICIO_ADICIONAL (+ detalle_servicio)
 # ===================================================================
 
-@router_servicio.get("/", response_model=List[ServicioAdicionalResponse])
+@router_servicio.get("", response_model=List[ServicioAdicionalResponse])
 def listar_servicios(id_cliente: Optional[int] = None, db: Session = Depends(get_db)):
     query = db.query(ServicioAdicional)
     if id_cliente is not None:
@@ -219,7 +219,7 @@ def listar_servicios(id_cliente: Optional[int] = None, db: Session = Depends(get
     return query.all()
 
 
-@router_servicio.post("/", response_model=ServicioAdicionalResponse, status_code=201)
+@router_servicio.post("", response_model=ServicioAdicionalResponse, status_code=201)
 def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get_db)):
     monto_material = round(sum(d.cantidad * d.costo_unitario for d in datos.detalles), 2)
     total = round(monto_material + (datos.monto_mano_obra or 0), 2)

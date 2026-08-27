@@ -43,7 +43,7 @@ def _registrar_cambio_precio(db: Session, producto: Producto, precio_anterior, p
 # PRODUCTO
 # ===================================================================
 
-@router.get("/", response_model=List[ProductoResponse])
+@router.get("", response_model=List[ProductoResponse])
 def listar_productos(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
     id_categoria: Optional[int] = None,
@@ -99,7 +99,7 @@ def historico_precios_de_producto(producto_id: int, db: Session = Depends(get_db
     )
 
 
-@router.post("/", response_model=ProductoResponse, status_code=201)
+@router.post("", response_model=ProductoResponse, status_code=201)
 def crear_producto(datos: ProductoCreate, db: Session = Depends(get_db)):
     if db.query(Producto).filter(Producto.codigo == datos.codigo).first():
         raise HTTPException(status_code=400, detail="Ya existe un producto con ese código")
@@ -177,7 +177,7 @@ def reactivar_producto(producto_id: int, db: Session = Depends(get_db)):
 # CATEGORIA (catálogo simple)
 # ===================================================================
 
-@router_categoria.get("/", response_model=List[CategoriaResponse])
+@router_categoria.get("", response_model=List[CategoriaResponse])
 def listar_categorias(buscar: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(Categoria)
     if buscar:
@@ -185,7 +185,7 @@ def listar_categorias(buscar: Optional[str] = None, db: Session = Depends(get_db
     return query.all()
 
 
-@router_categoria.post("/", response_model=CategoriaResponse, status_code=201)
+@router_categoria.post("", response_model=CategoriaResponse, status_code=201)
 def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db)):
     nueva = Categoria(**datos.model_dump())
     db.add(nueva)
@@ -198,7 +198,7 @@ def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db)):
 # MARCA (catálogo simple)
 # ===================================================================
 
-@router_marca.get("/", response_model=List[MarcaResponse])
+@router_marca.get("", response_model=List[MarcaResponse])
 def listar_marcas(buscar: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(Marca)
     if buscar:
@@ -206,7 +206,7 @@ def listar_marcas(buscar: Optional[str] = None, db: Session = Depends(get_db)):
     return query.all()
 
 
-@router_marca.post("/", response_model=MarcaResponse, status_code=201)
+@router_marca.post("", response_model=MarcaResponse, status_code=201)
 def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db)):
     nueva = Marca(**datos.model_dump())
     db.add(nueva)
@@ -219,7 +219,7 @@ def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db)):
 # UNIDAD_MEDIDA (catálogo simple)
 # ===================================================================
 
-@router_unidad.get("/", response_model=List[UnidadMedidaResponse])
+@router_unidad.get("", response_model=List[UnidadMedidaResponse])
 def listar_unidades_medida(buscar: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(UnidadMedida)
     if buscar:
@@ -227,7 +227,7 @@ def listar_unidades_medida(buscar: Optional[str] = None, db: Session = Depends(g
     return query.all()
 
 
-@router_unidad.post("/", response_model=UnidadMedidaResponse, status_code=201)
+@router_unidad.post("", response_model=UnidadMedidaResponse, status_code=201)
 def crear_unidad_medida(datos: UnidadMedidaCreate, db: Session = Depends(get_db)):
     nueva = UnidadMedida(**datos.model_dump())
     db.add(nueva)

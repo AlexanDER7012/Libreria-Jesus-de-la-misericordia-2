@@ -53,7 +53,7 @@ def _generar_alerta_si_stock_bajo(db: Session, producto: Producto):
 # MOVIMIENTO_INVENTARIO (+ detalle)
 # ===================================================================
 
-@router.get("/", response_model=List[MovimientoInventarioResponse])
+@router.get("", response_model=List[MovimientoInventarioResponse])
 def listar_movimientos(
     id_producto: Optional[int] = None,
     fecha_desde: Optional[date] = None,
@@ -82,7 +82,7 @@ def obtener_movimiento(movimiento_id: int, db: Session = Depends(get_db)):
     return movimiento
 
 
-@router.post("/", response_model=MovimientoInventarioResponse, status_code=201)
+@router.post("", response_model=MovimientoInventarioResponse, status_code=201)
 def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(get_db)):
     """
     Crea un movimiento con sus detalles, y ACTUALIZA el stock_actual de
@@ -144,12 +144,12 @@ def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(ge
 # TIPO_MOVIMIENTO_INVENTARIO (catálogo simple)
 # ===================================================================
 
-@router_tipo.get("/", response_model=List[TipoMovimientoInventarioResponse])
+@router_tipo.get("", response_model=List[TipoMovimientoInventarioResponse])
 def listar_tipos_movimiento(db: Session = Depends(get_db)):
     return db.query(TipoMovimientoInventario).all()
 
 
-@router_tipo.post("/", response_model=TipoMovimientoInventarioResponse, status_code=201)
+@router_tipo.post("", response_model=TipoMovimientoInventarioResponse, status_code=201)
 def crear_tipo_movimiento(datos: TipoMovimientoInventarioCreate, db: Session = Depends(get_db)):
     nuevo = TipoMovimientoInventario(**datos.model_dump())
     db.add(nuevo)
@@ -162,7 +162,7 @@ def crear_tipo_movimiento(datos: TipoMovimientoInventarioCreate, db: Session = D
 # INVENTARIO_FISICO (conteos)
 # ===================================================================
 
-@router_fisico.get("/", response_model=List[InventarioFisicoResponse])
+@router_fisico.get("", response_model=List[InventarioFisicoResponse])
 def listar_conteos(id_producto: Optional[int] = None, db: Session = Depends(get_db)):
     query = db.query(InventarioFisico).order_by(InventarioFisico.fecha.desc())
     if id_producto is not None:
@@ -170,7 +170,7 @@ def listar_conteos(id_producto: Optional[int] = None, db: Session = Depends(get_
     return query.all()
 
 
-@router_fisico.post("/", response_model=InventarioFisicoResponse, status_code=201)
+@router_fisico.post("", response_model=InventarioFisicoResponse, status_code=201)
 def registrar_conteo(datos: InventarioFisicoCreate, db: Session = Depends(get_db)):
     """
     Registra un conteo físico, comparando contra el stock_sistema actual.
@@ -220,7 +220,7 @@ def aplicar_ajuste(conteo_id: int, db: Session = Depends(get_db)):
 # TRASLADO_SUCURSAL
 # ===================================================================
 
-@router_traslado.get("/", response_model=List[TrasladoSucursalResponse])
+@router_traslado.get("", response_model=List[TrasladoSucursalResponse])
 def listar_traslados(
     estado: Optional[Literal["EnProceso", "Recibido", "Completado"]] = None,
     id_producto: Optional[int] = None,
@@ -241,7 +241,7 @@ def listar_traslados(
     return query.all()
 
 
-@router_traslado.post("/", response_model=TrasladoSucursalResponse, status_code=201)
+@router_traslado.post("", response_model=TrasladoSucursalResponse, status_code=201)
 def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db)):
     """
     Registra la salida de producto de una sucursal hacia otra, a precio de
@@ -280,7 +280,7 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: int, db: Session = 
 # ALERTA (solo lectura + marcar como leída; el sistema las crea sola)
 # ===================================================================
 
-@router_alerta.get("/", response_model=List[AlertaResponse])
+@router_alerta.get("", response_model=List[AlertaResponse])
 def listar_alertas(
     solo_no_leidas: bool = True,
     id_usuario_destino: Optional[int] = None,
