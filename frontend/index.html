@@ -324,7 +324,7 @@
 
     <!-- Modal de Ventas -->
     <div class="modal fade" id="ventaModal" tabindex="-1">
-      <div class="modal-dialog modal-lg">
+      <div class="modal-dialog modal-xl">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title" id="ventaModalTitle">Nueva Venta</h5>
@@ -335,42 +335,80 @@
             ></button>
           </div>
           <div class="modal-body">
-            <form id="ventaForm">
-              <input type="hidden" id="ventaId" />
+            <form id="ventaForm" onsubmit="saveVenta(event)">
+              <input type="hidden" id="ventaId" value="" />
+
               <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Cliente</label>
-                  <select class="form-select" id="ventaCliente"></select>
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label class="form-label">Cliente</label>
+                    <select class="form-select" id="ventaCliente">
+                      <option value="">Sin cliente</option>
+                    </select>
+                  </div>
                 </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Caja Turno</label>
-                  <select
-                    class="form-select"
-                    id="ventaCajaTurno"
-                    required
-                  ></select>
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label class="form-label">Número de Cotización</label>
+                    <div class="input-group">
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="ventaCotizacion"
+                        placeholder="Ingresa el ID de cotización aprobada"
+                        onchange="buscarCotizacionParaVenta()"
+                        onkeyup="
+                          if (event.key === 'Enter')
+                            buscarCotizacionParaVenta();
+                        "
+                      />
+                      <button
+                        class="btn btn-outline-info"
+                        type="button"
+                        onclick="buscarCotizacionParaVenta()"
+                      >
+                        <i class="fas fa-search"></i>
+                      </button>
+                    </div>
+                    <div id="ventaCotizacionInfo" class="mt-1"></div>
+                  </div>
                 </div>
               </div>
+
               <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Ubicación</label>
-                  <select
-                    class="form-select"
-                    id="ventaUbicacion"
-                    required
-                  ></select>
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <label class="form-label">Turno Caja *</label>
+                    <select class="form-select" id="ventaCajaTurno" required>
+                      <option value="">Seleccionar turno</option>
+                    </select>
+                  </div>
                 </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Descuento %</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    class="form-control"
-                    id="ventaDescuento"
-                    value="0"
-                  />
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <label class="form-label">Ubicación *</label>
+                    <select class="form-select" id="ventaUbicacion" required>
+                      <option value="">Seleccionar ubicación</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <label class="form-label">Descuento (%)</label>
+                    <input
+                      type="number"
+                      class="form-control"
+                      id="ventaDescuento"
+                      value="0"
+                      step="0.5"
+                      min="0"
+                      max="100"
+                      oninput="renderDetallesVenta()"
+                    />
+                  </div>
                 </div>
               </div>
+
               <div class="mb-3">
                 <label class="form-label">Observaciones</label>
                 <textarea
@@ -380,77 +418,107 @@
                 ></textarea>
               </div>
 
-              <hr />
-              <h6 class="fw-bold">Detalles de Venta</h6>
-              <div id="ventaDetallesContainer">
-                <div class="row g-2 align-items-end" id="ventaDetalleRow">
-                  <div class="col-md-6">
-                    <label class="form-label">Producto</label>
-                    <select class="form-select venta-detalle-producto"></select>
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label">Cantidad</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      class="form-control venta-detalle-cantidad"
-                      value="1"
-                    />
-                  </div>
-                  <div class="col-md-2">
-                    <button
-                      class="btn btn-success btn-sm mt-2"
-                      onclick="agregarDetalleVenta(event)"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div id="ventaDetallesList" class="mt-2"></div>
-
-              <hr />
-              <h6 class="fw-bold">Pagos</h6>
-              <div id="ventaPagosContainer">
-                <div class="row g-2 align-items-end" id="ventaPagoRow">
-                  <div class="col-md-4">
-                    <label class="form-label">Tipo Pago</label>
-                    <select class="form-select venta-pago-tipo"></select>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label">Monto</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      class="form-control venta-pago-monto"
-                    />
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label">Referencia</label>
-                    <input
-                      type="text"
-                      class="form-control venta-pago-referencia"
-                    />
-                  </div>
-                  <div class="col-md-1">
-                    <button
-                      class="btn btn-success btn-sm mt-2"
-                      onclick="agregarPagoVenta(event)"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div id="ventaPagosList" class="mt-2"></div>
-
-              <button
-                type="submit"
-                class="btn btn-warning w-100 mt-3"
-                onclick="saveVenta(event)"
+              <div
+                class="d-flex justify-content-between align-items-center mb-2"
               >
-                Guardar Venta
-              </button>
+                <h6 class="fw-bold">Productos</h6>
+              </div>
+
+              <div class="row mb-2" id="ventaDetalleRow">
+                <div class="col-md-5">
+                  <select
+                    class="form-select form-select-sm"
+                    id="ventaProductoSelect"
+                  >
+                    <option value="">Seleccionar producto</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <input
+                    type="number"
+                    class="form-control form-control-sm"
+                    id="ventaDetalleCantidad"
+                    value="1"
+                    step="1"
+                    min="1"
+                  />
+                </div>
+                <div class="col-md-3">
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    id="ventaDetallePrecio"
+                    readonly
+                  />
+                </div>
+                <div class="col-md-1">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-success"
+                    onclick="agregarDetalleVenta(event)"
+                  >
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div id="ventaDetallesList" class="mb-3"></div>
+
+              <div
+                class="d-flex justify-content-between align-items-center mb-2"
+              >
+                <h6 class="fw-bold">Pagos</h6>
+              </div>
+
+              <div class="row mb-2" id="ventaPagoRow">
+                <div class="col-md-4">
+                  <select class="form-select form-select-sm" id="ventaPagoTipo">
+                    <option value="">Seleccionar tipo</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <input
+                    type="number"
+                    class="form-control form-control-sm"
+                    id="ventaPagoMonto"
+                    placeholder="Monto"
+                    step="0.01"
+                    min="0.01"
+                  />
+                </div>
+                <div class="col-md-4">
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    id="ventaPagoReferencia"
+                    placeholder="Referencia (opcional)"
+                  />
+                </div>
+                <div class="col-md-1">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-success"
+                    onclick="agregarPagoVenta(event)"
+                  >
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div id="ventaPagosList" class="mb-3"></div>
+
+              <div class="text-end">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  data-bs-dismiss="modal"
+                >
+                  Cancelar
+                </button>
+                <button type="submit" class="btn btn-warning">
+                  Guardar Venta
+                </button>
+              </div>
             </form>
           </div>
         </div>
