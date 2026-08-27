@@ -15,7 +15,8 @@ from app.schemas.schema_reportes import (
     ProductoMasVendidoItem,
 )
 
-router = APIRouter()
+# AGREGAR EL PREFIX AQUÍ
+router = APIRouter(prefix="/reportes", tags=["Reportes"])
 
 
 @router.get("/ventas-diarias", response_model=VentasDiariasResponse)
