@@ -1,7 +1,6 @@
 // components.js
 
 // TOAST NOTIFICATIONS
-
 function showToast(message, type = "success", duration = 4000) {
   // Eliminar toasts anteriores
   const oldToasts = document.querySelectorAll(".custom-toast");

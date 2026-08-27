@@ -29,7 +29,7 @@ class ApiClient {
       if (response.status === 401) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
-        window.location.href = "login.html"; // ✅ CAMBIADO
+        window.location.href = "login.html";
         throw new Error("Sesión expirada");
       }
 
