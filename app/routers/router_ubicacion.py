@@ -1,4 +1,17 @@
-from typing import List, Literal
+"""
+app/routers/router_ubicacion.py
+-----------------------------------
+Endpoints de Ubicacion (sucursales) y Sububicacion (estantes/bodega dentro
+de cada sucursal). Son dos recursos relacionados, por eso van en el mismo
+archivo pero con dos APIRouter separados: 'router' y 'sub_router'.
+
+En main.py se registran así:
+    app.include_router(router_ubicacion.router, prefix="/ubicaciones", tags=["Ubicaciones"])
+    app.include_router(router_ubicacion.sub_router, prefix="/sububicaciones", tags=["Sububicaciones"])
+"""
+
+from typing import List, Literal, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -25,14 +38,18 @@ sub_router = APIRouter()   # /sububicaciones
 @router.get("/", response_model=List[UbicacionResponse])
 def listar_ubicaciones(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
+    buscar: Optional[str] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
+    """Lista sucursales. Por defecto solo las activas. buscar: coincidencia en nombre. Paginado: ?skip=0&limit=50."""
     query = db.query(Ubicacion)
     if estado == "activos":
         query = query.filter(Ubicacion.activo == 1)
     elif estado == "inactivos":
         query = query.filter(Ubicacion.activo == 0)
+    if buscar:
+        query = query.filter(Ubicacion.nombre.ilike(f"%{buscar}%"))
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
@@ -99,15 +116,19 @@ def listar_sububicaciones_de_ubicacion(ubicacion_id: int, db: Session = Depends(
 @sub_router.get("/", response_model=List[SububicacionResponse])
 def listar_sububicaciones(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
+    buscar: Optional[str] = None,
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
-    """Lista todas las sububicaciones (de cualquier sucursal). Por defecto solo activas."""
+    """Lista todas las sububicaciones (de cualquier sucursal). Por defecto solo activas. Paginado: ?skip=0&limit=50."""
     query = db.query(Sububicacion)
     if estado == "activos":
         query = query.filter(Sububicacion.activo == 1)
     elif estado == "inactivos":
         query = query.filter(Sububicacion.activo == 0)
-    return query.all()
+    if buscar:
+        query = query.filter(Sububicacion.nombre.ilike(f"%{buscar}%"))
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @sub_router.get("/{sububicacion_id}", response_model=SububicacionResponse)

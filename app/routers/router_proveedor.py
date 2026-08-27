@@ -1,5 +1,7 @@
+from datetime import date
 from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
@@ -13,7 +15,7 @@ from app.schemas.schema_proveedor import (
     PedidoTotalResponse,
 )
 
-MONTO_MINIMO_PEDIDO = 500.00  
+MONTO_MINIMO_PEDIDO = 500.00  # Q500, la regla de acumulación del Proceso A
 
 router = APIRouter()           # /proveedores
 router_tipo = APIRouter()      # /tipos-proveedor
@@ -38,14 +40,21 @@ def _calcular_total_pedido(db: Session, pedido: Pedido) -> float:
 @router.get("/", response_model=List[ProveedorResponse])
 def listar_proveedores(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
+    buscar: Optional[str] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
+    """buscar: coincidencia en nombre, nit o contacto. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Proveedor)
     if estado == "activos":
         query = query.filter(Proveedor.activo == 1)
     elif estado == "inactivos":
         query = query.filter(Proveedor.activo == 0)
+    if buscar:
+        like = f"%{buscar}%"
+        query = query.filter(
+            (Proveedor.nombre.ilike(like)) | (Proveedor.nit.ilike(like)) | (Proveedor.contacto.ilike(like))
+        )
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
@@ -102,7 +111,7 @@ def reactivar_proveedor(proveedor_id: int, db: Session = Depends(get_db)):
 
 
 # ===================================================================
-# TIPO_PROVEEDOR (catalogo simple)
+# TIPO_PROVEEDOR (catálogo simple)
 # ===================================================================
 
 @router_tipo.get("/", response_model=List[TipoProveedorResponse])
@@ -127,14 +136,21 @@ def crear_tipo_proveedor(datos: TipoProveedorCreate, db: Session = Depends(get_d
 def listar_pedidos(
     estado: Optional[str] = None,
     id_proveedor: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
+    """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Pedido).order_by(Pedido.fecha.desc())
     if estado is not None:
         query = query.filter(Pedido.estado == estado)
     if id_proveedor is not None:
         query = query.filter(Pedido.id_proveedor == id_proveedor)
+    if fecha_desde is not None:
+        query = query.filter(func.date(Pedido.fecha) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(Pedido.fecha) <= fecha_hasta)
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
@@ -148,7 +164,7 @@ def obtener_pedido(pedido_id: int, db: Session = Depends(get_db)):
 
 @router_pedido.get("/{pedido_id}/total", response_model=PedidoTotalResponse)
 def calcular_total_pedido(pedido_id: int, db: Session = Depends(get_db)):
-    """Suma cantidad_pedida * precio_compra de todos los detalles, y dice si ya alcanza el minimo de Q500."""
+    """Suma cantidad_pedida * precio_compra de todos los detalles, y dice si ya alcanza el mínimo de Q500."""
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")

@@ -68,8 +68,18 @@ from app.schemas.schema_configuracion import (
 )
 from app.schemas.schema_auth import LoginRequest, TokenResponse
 from app.schemas.schema_reportes import (
-    VentasDiariasResponse, ConciliacionPagosResponse,
-    ConciliacionPagoItem,
+    VentasDiariasResponse,
+    ConciliacionPagosResponse, ConciliacionPagoItem,
+    CuadreCajaResponse,
     UtilidadResponse, UtilidadItem,
     ProductoMasVendidoItem,
+    CompraResumenResponse,
+    CompraPorProveedorResponse, CompraPorProveedorItem,
+    CuentasPorPagarResponse, CuentaPorPagarItem,
+    StockBajoResponse, StockBajoItem,
+    MovimientoResumenResponse, MovimientoResumenItem,
+    InventarioValorizadoResponse, InventarioValorizadoItem,
+    LoginResumenResponse, LoginResumenItem,
+    UsuariosMasActivosResponse, UsuarioMasActivoItem,
+    BitacoraResponse, BitacoraItem,
 )

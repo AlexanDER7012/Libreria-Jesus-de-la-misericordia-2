@@ -1,4 +1,4 @@
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -33,6 +33,7 @@ router_log = APIRouter()         # /logs
 
 
 def _filtrar_por_estado(query, modelo, estado: str):
+    """Helper para no repetir el mismo if/elif de activos/inactivos/todos en cada router."""
     if estado == "activos":
         return query.filter(modelo.activo == 1)
     if estado == "inactivos":
@@ -47,9 +48,13 @@ def _filtrar_por_estado(query, modelo, estado: str):
 @router.get("/", response_model=List[UsuarioResponse])
 def listar_usuarios(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
+    buscar: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
+    """buscar: coincidencia en nombre_usuario."""
     query = _filtrar_por_estado(db.query(Usuario), Usuario, estado)
+    if buscar:
+        query = query.filter(Usuario.nombre_usuario.ilike(f"%{buscar}%"))
     return query.all()
 
 
@@ -131,9 +136,14 @@ def reactivar_usuario(usuario_id: int, db: Session = Depends(get_db)):
 @router_empleado.get("/", response_model=List[EmpleadoResponse])
 def listar_empleados(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
+    buscar: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
+    """buscar: coincidencia en nombre o DPI."""
     query = _filtrar_por_estado(db.query(Empleado), Empleado, estado)
+    if buscar:
+        like = f"%{buscar}%"
+        query = query.filter((Empleado.nombre.ilike(like)) | (Empleado.dpi.ilike(like)))
     return query.all()
 
 

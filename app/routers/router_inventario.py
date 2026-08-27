@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
@@ -55,15 +56,21 @@ def _generar_alerta_si_stock_bajo(db: Session, producto: Producto):
 @router.get("/", response_model=List[MovimientoInventarioResponse])
 def listar_movimientos(
     id_producto: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
-    """Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
+    """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(MovimientoInventario).order_by(MovimientoInventario.fecha.desc())
     if id_producto is not None:
         query = query.join(MovimientoInventarioDetalle).filter(
             MovimientoInventarioDetalle.id_producto == id_producto
         )
+    if fecha_desde is not None:
+        query = query.filter(func.date(MovimientoInventario.fecha) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(MovimientoInventario.fecha) <= fecha_hasta)
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
@@ -216,11 +223,21 @@ def aplicar_ajuste(conteo_id: int, db: Session = Depends(get_db)):
 @router_traslado.get("/", response_model=List[TrasladoSucursalResponse])
 def listar_traslados(
     estado: Optional[Literal["EnProceso", "Recibido", "Completado"]] = None,
+    id_producto: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
     db: Session = Depends(get_db),
 ):
+    """Filtra por fecha_desde/fecha_hasta."""
     query = db.query(TrasladoSucursal).order_by(TrasladoSucursal.fecha.desc())
     if estado is not None:
         query = query.filter(TrasladoSucursal.estado == estado)
+    if id_producto is not None:
+        query = query.filter(TrasladoSucursal.id_producto == id_producto)
+    if fecha_desde is not None:
+        query = query.filter(func.date(TrasladoSucursal.fecha) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(TrasladoSucursal.fecha) <= fecha_hasta)
     return query.all()
 
 
