@@ -98,7 +98,7 @@ app.include_router(router_configuracion.router, prefix="/configuracion", tags=["
 app.include_router(router_configuracion.router_meta, prefix="/metas-financieras", tags=["Metas Financieras"])
 
 # Reportes
-app.include_router(router_reportes.router, prefix="/reportes", tags=["Reportes"])
+app.include_router(router_reportes.router, tags=["Reportes"])
 
 
 @app.get("/")

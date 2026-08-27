@@ -1,4 +1,4 @@
-// APP - VERSIÓN MEJORADA CON SIDEBAR Y BOTÓN FLOTANTE
+// APP.js
 
 class App {
   constructor() {
@@ -17,6 +17,7 @@ class App {
       { id: "inventario", label: "Inventario", icon: "fa-warehouse" },
       { id: "proveedores", label: "Proveedores", icon: "fa-building" },
       { id: "usuarios", label: "Usuarios", icon: "fa-user-shield" },
+      { id: "reportes", label: "Reportes", icon: "fa-chart-bar" }, // <--- NUEVO
       { id: "configuracion", label: "Configuración", icon: "fa-cog" },
     ];
 
@@ -196,6 +197,12 @@ class App {
         color: "danger",
       },
       {
+        id: "reportes",
+        label: "Reportes",
+        icon: "fa-chart-bar",
+        color: "primary",
+      }, // <--- NUEVO
+      {
         id: "configuracion",
         label: "Configuración",
         icon: "fa-cog",
@@ -252,6 +259,7 @@ class App {
       usuarios: "Usuarios",
       configuracion: "Configuración",
       proveedores: "Proveedores",
+      reportes: "Reportes", // <--- NUEVO
       Inicio: "Inicio",
     };
     const titleEl = document.getElementById("pageTitle");
@@ -299,6 +307,9 @@ class App {
           break;
         case "usuarios":
           await this.loadUsuarios(mainContent);
+          break;
+        case "reportes": // <--- NUEVO
+          await this.loadReportes(mainContent);
           break;
         case "configuracion":
           await this.loadConfiguracion(mainContent);
@@ -606,6 +617,33 @@ class App {
     `;
     if (typeof loadUsuariosModule === "function") {
       await loadUsuariosModule();
+    }
+  }
+
+  // =============================================
+  // NUEVO: CARGA DEL MÓDULO DE REPORTES
+  // =============================================
+  async loadReportes(container) {
+    container.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4><i class="fas fa-chart-bar me-2 text-primary"></i>Reportes</h4>
+      </div>
+      <div id="reportesContainer">
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="mt-2 text-muted">Cargando módulo de reportes...</p>
+        </div>
+      </div>
+    `;
+    if (typeof loadReportesModule === "function") {
+      await loadReportesModule();
+    } else {
+      container.innerHTML = `
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          El módulo de reportes no está disponible. Verifica que el archivo reportes.js esté cargado.
+        </div>
+      `;
     }
   }
 
