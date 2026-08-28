@@ -35,3 +35,20 @@ class CotizacionResponse(BaseModel):
     observaciones: Optional[str] = None
     detalles: List[DetalleCotizacionResponse] = []
     model_config = ConfigDict(from_attributes=True)
+
+# ===================== Cotizacion -> Venta =====================
+# Usado por el frontend para prellenar el formulario de "Nueva Venta"
+# a partir de una cotizacion ya Aceptada.
+
+class CotizacionParaVentaDetalleItem(BaseModel):
+    id_producto: int
+    producto: str
+    cantidad: float
+    precio_unitario: float  # precio ACTUAL del producto, no el congelado en la cotizacion
+
+
+class CotizacionParaVentaResponse(BaseModel):
+    id_cotizacion: int
+    id_cliente: Optional[int] = None
+    numero_expediente: Optional[str] = None
+    detalles: List[CotizacionParaVentaDetalleItem]
