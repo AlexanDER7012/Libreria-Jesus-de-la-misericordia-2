@@ -1,7 +1,9 @@
 from datetime import date, datetime, time
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from app.schemas.validators import validar_telefono
 
 
 # ===================== Modulo =====================
@@ -115,6 +117,11 @@ class EmpleadoBase(BaseModel):
     id_puesto: Optional[int] = None
     id_turno: Optional[int] = None
 
+    @field_validator("telefono")
+    @classmethod
+    def _validar_telefono(cls, v):
+        return validar_telefono(v)
+
 
 class EmpleadoCreate(EmpleadoBase):
     nombre: str
@@ -150,11 +157,14 @@ class UsuarioCreate(UsuarioBase):
 class UsuarioUpdate(BaseModel):
     id_rol: Optional[int] = None
     activo: Optional[int] = None
-    password: Optional[str] = None 
+    password: Optional[str] = None  # si viene, se re-cifra
 
 
 class UsuarioResponse(UsuarioBase):
-    
+    """
+    OJO: a propósito NO incluye 'password' ni su hash.
+    Esto es justo la razón por la que schemas.py existe separado de models.py.
+    """
     id: int
     nombre_usuario: Optional[str] = None
     fecha_ultimo_acceso: Optional[datetime] = None
@@ -167,7 +177,7 @@ class UsuarioResponse(UsuarioBase):
 
 class HistoricoPagoEmpleadoCreate(BaseModel):
     id_empleado: int
-    concepto: str  
+    concepto: str  # Sueldo, Bonificacion, Comision
     monto: float
     periodo: Optional[str] = None
     referencia: Optional[str] = None
