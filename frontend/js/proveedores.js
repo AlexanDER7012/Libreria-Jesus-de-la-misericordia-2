@@ -1,6 +1,8 @@
 // PROVEEDORES
 
-let proveedoresData = [];
+if (typeof window.proveedoresData === "undefined") {
+  window.proveedoresData = [];
+}
 let tiposProveedorData = [];
 
 // CARGA DEL MÓDULO
