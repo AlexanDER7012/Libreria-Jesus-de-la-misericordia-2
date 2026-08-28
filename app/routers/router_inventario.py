@@ -99,8 +99,16 @@ def listar_movimientos(
         query = query.filter(func.date(MovimientoInventario.fecha) >= fecha_desde)
     if fecha_hasta is not None:
         query = query.filter(func.date(MovimientoInventario.fecha) <= fecha_hasta)
-    return query.offset(paginacion.skip).limit(paginacion.limit).all()
-
+    
+    # ✅ IMPORTANTE: Obtener los movimientos con sus detalles
+    movimientos = query.offset(paginacion.skip).limit(paginacion.limit).all()
+    
+    # ✅ Forzar la carga de detalles para cada movimiento
+    for m in movimientos:
+        # Esto asegura que los detalles se carguen antes de serializar
+        _ = m.detalles
+    
+    return movimientos
 
 @router.get("/{movimiento_id}", response_model=MovimientoInventarioResponse)
 def obtener_movimiento(movimiento_id: int, db: Session = Depends(get_db)):
