@@ -1,5 +1,7 @@
-// api.js
-const API_BASE_URL = window.location.origin;
+// api.js - VERSIÓN COMPLETA Y CORREGIDA
+
+// ✅ CORREGIDO: Apunta al backend en el puerto 8000
+const API_BASE_URL = "http://localhost:8000";
 
 class ApiClient {
   constructor() {
@@ -29,6 +31,7 @@ class ApiClient {
       if (response.status === 401) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
+        localStorage.removeItem("user_permisos");
         window.location.href = "login.html";
         throw new Error("Sesión expirada");
       }
@@ -37,7 +40,14 @@ class ApiClient {
         return null;
       }
 
-      const responseData = await response.json();
+      let responseData;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Error del servidor: ${text.substring(0, 100)}`);
+      }
 
       if (!response.ok) {
         throw new Error(responseData.detail || "Error en la petición");
@@ -50,7 +60,10 @@ class ApiClient {
     }
   }
 
+  // =============================================
   // AUTENTICACIÓN
+  // =============================================
+
   async login(nombre_usuario, password) {
     const response = await fetch(`${API_BASE_URL}/login`, {
       method: "POST",
@@ -66,6 +79,17 @@ class ApiClient {
     const data = await response.json();
     this.token = data.access_token;
     localStorage.setItem("token", data.access_token);
+    localStorage.setItem("user", JSON.stringify(data));
+
+    // ✅ Cargar permisos del usuario
+    try {
+      const permisos = await this.request("/usuarios/mis-permisos");
+      localStorage.setItem("user_permisos", JSON.stringify(permisos));
+      console.log("✅ Permisos cargados:", permisos);
+    } catch (e) {
+      console.warn("No se pudieron cargar permisos:", e);
+      localStorage.setItem("user_permisos", JSON.stringify([]));
+    }
 
     return data;
   }
@@ -74,7 +98,8 @@ class ApiClient {
     this.token = null;
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    window.location.href = "login.html"; // ✅ CAMBIADO
+    localStorage.removeItem("user_permisos");
+    window.location.href = "login.html";
   }
 
   isAuthenticated() {
@@ -86,7 +111,15 @@ class ApiClient {
     return userStr ? JSON.parse(userStr) : null;
   }
 
+  // ✅ Obtener permisos del usuario actual
+  async getMisPermisos() {
+    return this.request("/usuarios/mis-permisos");
+  }
+
+  // =============================================
   // CLIENTES
+  // =============================================
+
   async getClientes() {
     return this.request("/clientes");
   }
@@ -107,7 +140,10 @@ class ApiClient {
     return this.request(`/clientes/${id}`, "DELETE");
   }
 
+  // =============================================
   // PRODUCTOS
+  // =============================================
+
   async getProductos() {
     return this.request("/productos");
   }
@@ -128,7 +164,10 @@ class ApiClient {
     return this.request(`/productos/${id}`, "DELETE");
   }
 
-  // Categorías
+  // =============================================
+  // CATEGORÍAS
+  // =============================================
+
   async getCategorias() {
     return this.request("/categorias");
   }
@@ -137,7 +176,10 @@ class ApiClient {
     return this.request("/categorias", "POST", data);
   }
 
-  // Marcas
+  // =============================================
+  // MARCAS
+  // =============================================
+
   async getMarcas() {
     return this.request("/marcas");
   }
@@ -146,12 +188,18 @@ class ApiClient {
     return this.request("/marcas", "POST", data);
   }
 
-  // Unidades de medida
+  // =============================================
+  // UNIDADES DE MEDIDA
+  // =============================================
+
   async getUnidadesMedida() {
     return this.request("/unidades-medida");
   }
 
+  // =============================================
   // VENTAS
+  // =============================================
+
   async getVentas() {
     return this.request("/ventas");
   }
@@ -172,7 +220,10 @@ class ApiClient {
     return this.request("/servicios-adicionales", "POST", data);
   }
 
+  // =============================================
   // CAJA
+  // =============================================
+
   async getCajaTurnos() {
     return this.request("/caja-turno");
   }
@@ -197,7 +248,10 @@ class ApiClient {
     return this.request("/tipos-pago");
   }
 
+  // =============================================
   // COMPRAS
+  // =============================================
+
   async getCompras() {
     return this.request("/compras");
   }
@@ -210,7 +264,10 @@ class ApiClient {
     return this.request("/devoluciones-compra");
   }
 
-  // Proveedores
+  // =============================================
+  // PROVEEDORES
+  // =============================================
+
   async getProveedores() {
     return this.request("/proveedores");
   }
@@ -227,7 +284,10 @@ class ApiClient {
     return this.request("/pedidos");
   }
 
+  // =============================================
   // INVENTARIO
+  // =============================================
+
   async getMovimientosInventario() {
     return this.request("/movimientos-inventario");
   }
@@ -252,7 +312,10 @@ class ApiClient {
     return this.request("/alertas");
   }
 
+  // =============================================
   // USUARIOS
+  // =============================================
+
   async getUsuarios() {
     return this.request("/usuarios");
   }
@@ -281,7 +344,10 @@ class ApiClient {
     return this.request("/permisos");
   }
 
+  // =============================================
   // CONFIGURACIÓN
+  // =============================================
+
   async getConfiguracion() {
     return this.request("/configuracion");
   }
