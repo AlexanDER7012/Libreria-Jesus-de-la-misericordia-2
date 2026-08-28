@@ -1,10 +1,11 @@
-// inventario.js
+// inventario.js - VERSIÓN COMPLETA CON RESUMEN, HISTORIAL Y BÚSQUEDA
 
 let movimientosData = [];
 let tiposMovimientoData = [];
 let inventarioFisicoData = [];
 let trasladosData = [];
 let alertasData = [];
+let filtroBusqueda = "";
 
 // =============================================
 // FUNCIONES AUXILIARES
@@ -41,7 +42,6 @@ function limpiarErroresFormulario(formId) {
 }
 
 function showToast(mensaje, tipo = "success") {
-  // Crear contenedor de toasts en la parte superior derecha
   let toastContainer = document.getElementById("toastContainer");
   if (!toastContainer) {
     toastContainer = document.createElement("div");
@@ -113,24 +113,19 @@ function mostrarConfirmacion(titulo, mensaje) {
 // EXTENDER API
 // =============================================
 
-// Función para obtener productos desde el backend
 async function obtenerProductosParaInventario() {
   try {
     if (window.productosData && window.productosData.length > 0) {
       return window.productosData;
     }
-
     const productos = await api.getProductos();
     window.productosData = productos || [];
-
-    // Guardar en localStorage como backup
     try {
       localStorage.setItem(
         "productos_backup",
         JSON.stringify(window.productosData),
       );
     } catch (e) {}
-
     return window.productosData;
   } catch (error) {
     console.error("Error cargando productos:", error);
@@ -152,23 +147,18 @@ if (typeof api !== "undefined") {
   api.getMovimientosInventario = function () {
     return this.request("/movimientos-inventario", "GET");
   };
-
   api.createMovimientoInventario = function (data) {
     return this.request("/movimientos-inventario", "POST", data);
   };
-
   api.getTiposMovimiento = function () {
     return this.request("/tipos-movimiento", "GET");
   };
-
   api.getInventarioFisico = function () {
     return this.request("/inventario-fisico", "GET");
   };
-
   api.getTraslados = function () {
     return this.request("/traslados", "GET");
   };
-
   api.getAlertasStock = function () {
     return this.request("/alertas", "GET").catch(() => {
       return this.request("/alertas-stock", "GET").catch(() => {
@@ -180,6 +170,26 @@ if (typeof api !== "undefined") {
 }
 
 // =============================================
+// FUNCIÓN PARA FILTRAR PRODUCTOS
+// =============================================
+
+function filtrarProductos(productos, termino) {
+  if (!termino || termino.trim() === "") {
+    return productos;
+  }
+  const busqueda = termino.toLowerCase().trim();
+  return productos.filter((p) => {
+    return (
+      (p.id && String(p.id).includes(busqueda)) ||
+      (p.codigo && p.codigo.toLowerCase().includes(busqueda)) ||
+      (p.nombre && p.nombre.toLowerCase().includes(busqueda)) ||
+      (p.categoria_nombre &&
+        p.categoria_nombre.toLowerCase().includes(busqueda))
+    );
+  });
+}
+
+// =============================================
 // CARGA DEL MÓDULO PRINCIPAL
 // =============================================
 
@@ -187,10 +197,7 @@ async function loadInventarioModule() {
   const container = document.getElementById("mainContent");
   if (!container) return;
 
-  // Cargar productos primero
   await obtenerProductosParaInventario();
-
-  // Debug: mostrar productos cargados
   console.log("Productos cargados:", window.productosData);
 
   container.innerHTML = `
@@ -213,7 +220,7 @@ async function loadInventarioModule() {
             <li class="nav-item">
                 <button class="nav-link active" id="tab-movimientos" data-bs-toggle="tab"
                         data-bs-target="#panel-movimientos" type="button" role="tab">
-                    <i class="fas fa-exchange-alt me-1"></i>Movimientos
+                    <i class="fas fa-warehouse me-1"></i>Resumen Inventario
                 </button>
             </li>
             <li class="nav-item">
@@ -244,7 +251,12 @@ async function loadInventarioModule() {
 
         <div class="tab-content" id="inventarioTabContent">
             <div class="tab-pane fade show active" id="panel-movimientos" role="tabpanel">
-                <div id="movimientosContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando movimientos...</p></div></div>
+                <div id="movimientosContainer">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">Cargando inventario...</p>
+                    </div>
+                </div>
             </div>
             <div class="tab-pane fade" id="panel-conteo" role="tabpanel">
                 <div id="conteoContainer"><div class="text-center py-5"><div class="spinner-border text-warning" role="status"></div><p class="mt-2 text-muted">Cargando conteos físicos...</p></div></div>
@@ -263,7 +275,6 @@ async function loadInventarioModule() {
 
   crearModalesInventario();
 
-  // Asegurar que window.ubicacionesData tenga datos
   if (!window.ubicacionesData || window.ubicacionesData.length === 0) {
     try {
       const backup = localStorage.getItem("ubicaciones_backup");
@@ -277,7 +288,6 @@ async function loadInventarioModule() {
   }
 
   try {
-    // Cargar datos
     const [movimientos, tiposMov, conteo, traslados] = await Promise.all([
       api.getMovimientosInventario().catch(() => []),
       api.getTiposMovimiento().catch(() => []),
@@ -290,18 +300,6 @@ async function loadInventarioModule() {
     inventarioFisicoData = conteo || [];
     trasladosData = traslados || [];
 
-    // Debug: mostrar movimientos y sus IDs
-    console.log("Movimientos:", movimientosData);
-    console.log(
-      "IDs de productos en movimientos:",
-      movimientosData.map((m) => ({
-        id: m.id,
-        id_producto: m.id_producto,
-        tipo: typeof m.id_producto,
-      })),
-    );
-
-    // Cargar alertas por separado
     try {
       alertasData = (await api.getAlertasStock()) || [];
     } catch (error) {
@@ -309,7 +307,8 @@ async function loadInventarioModule() {
       alertasData = [];
     }
 
-    renderMovimientos(movimientosData);
+    // ✅ Mostrar resumen de inventario en lugar de movimientos
+    renderResumenInventario();
     renderConteoFisico(inventarioFisicoData);
     renderTraslados(trasladosData);
     renderAlertas(alertasData);
@@ -328,14 +327,332 @@ async function loadInventarioModule() {
 }
 
 // =============================================
+// FUNCIÓN PARA BUSCAR EN EL RESUMEN
+// =============================================
+
+function buscarEnInventario() {
+  const input = document.getElementById("buscarInventario");
+  if (input) {
+    filtroBusqueda = input.value;
+    renderResumenInventario();
+  }
+}
+
+// =============================================
+// RENDER: RESUMEN DE INVENTARIO (CON BÚSQUEDA)
+// =============================================
+
+function renderResumenInventario() {
+  const container = document.getElementById("movimientosContainer");
+  if (!container) return;
+
+  const productos = window.productosData || [];
+  const productosFiltrados = filtrarProductos(productos, filtroBusqueda);
+
+  let html = `
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Resumen de Inventario</h6>
+            <div class="d-flex gap-2 align-items-center">
+                <span class="badge bg-secondary">${productosFiltrados.length} productos</span>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6 col-lg-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control" id="buscarInventario" 
+                           placeholder="Buscar por ID, nombre, código..." 
+                           oninput="buscarEnInventario()">
+                    <button class="btn btn-outline-secondary" onclick="document.getElementById('buscarInventario').value='';buscarEnInventario();">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+  if (!productos || productos.length === 0) {
+    html += `
+            <div class="text-center py-5">
+                <i class="fas fa-box fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No hay productos registrados</p>
+            </div>
+        `;
+    container.innerHTML = html;
+    return;
+  }
+
+  if (productosFiltrados.length === 0) {
+    html += `
+            <div class="text-center py-5">
+                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No se encontraron productos con el término "<strong>${filtroBusqueda}</strong>"</p>
+            </div>
+        `;
+    container.innerHTML = html;
+    return;
+  }
+
+  html += `
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:80px;">ID</th>
+                        <th>Código</th>
+                        <th>Producto</th>
+                        <th>Categoría</th>
+                        <th style="width:120px;">Stock Actual</th>
+                        <th style="width:100px;">Stock Mínimo</th>
+                        <th style="width:100px;">Estado</th>
+                        <th style="width:200px;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+  productosFiltrados.forEach((p) => {
+    const stock = p.stock_actual || 0;
+    const minStock = p.stock_minimo || 0;
+    const estadoStock =
+      stock === 0 ? "danger" : stock <= minStock ? "warning" : "success";
+    const estadoTexto =
+      stock === 0 ? "Agotado" : stock <= minStock ? "Bajo" : "Normal";
+
+    html += `
+            <tr>
+                <td><code>${p.id}</code></td>
+                <td><code>${p.codigo || "--"}</code></td>
+                <td><strong>${p.nombre || "--"}</strong></td>
+                <td>${p.categoria_nombre || p.categoria || "--"}</td>
+                <td class="fw-bold text-${estadoStock}">${stock}</td>
+                <td>${minStock}</td>
+                <td>
+                    <span class="badge bg-${estadoStock}">${estadoTexto}</span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-info" onclick="verHistorialProducto(${p.id})" title="Ver historial de movimientos">
+                        <i class="fas fa-history"></i> Historial
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="showMovimientoModalConProducto(${p.id})" title="Registrar movimiento">
+                        <i class="fas fa-exchange-alt"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+  });
+
+  html += `
+                </tbody>
+            </table>
+        </div>
+        <div class="text-end">
+            <small class="text-muted">Total: ${productosFiltrados.length} productos</small>
+        </div>
+    `;
+
+  container.innerHTML = html;
+}
+
+// =============================================
+// FUNCIÓN PARA VER HISTORIAL DE UN PRODUCTO
+// =============================================
+
+async function verHistorialProducto(idProducto) {
+  try {
+    const producto = (window.productosData || []).find(
+      (p) => p.id === idProducto,
+    );
+    if (!producto) {
+      showToast("Producto no encontrado", "error");
+      return;
+    }
+
+    const movimientos = await api.request(
+      `/movimientos-inventario?id_producto=${idProducto}`,
+    );
+    const tipos = await api.getTiposMovimiento();
+
+    let saldoAcumulado = 0;
+    const movimientosConSaldo = (movimientos || []).map((m) => {
+      let cantidad = 0;
+      if (m.detalles && m.detalles.length > 0) {
+        cantidad = m.detalles[0].cantidad || 0;
+      }
+      const tipo = tipos.find((t) => t.id === m.id_tipo_movimiento);
+      const esEntrada = tipo ? tipo.signo === 1 : false;
+
+      if (esEntrada) {
+        saldoAcumulado += cantidad;
+      } else {
+        saldoAcumulado -= cantidad;
+      }
+
+      return {
+        ...m,
+        cantidad: cantidad,
+        esEntrada: esEntrada,
+        tipoNombre: tipo ? tipo.nombre : "Sin tipo",
+        saldo: saldoAcumulado,
+      };
+    });
+
+    mostrarHistorialModal(producto, movimientosConSaldo);
+  } catch (error) {
+    console.error("Error al obtener historial:", error);
+    showToast("Error al cargar el historial", "error");
+  }
+}
+
+// =============================================
+// MOSTRAR MODAL DE HISTORIAL
+// =============================================
+
+function mostrarHistorialModal(producto, movimientos) {
+  const modalExistente = document.getElementById("historialModal");
+  if (modalExistente) {
+    modalExistente.remove();
+  }
+
+  let html = `
+        <div class="modal fade" id="historialModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-history me-2"></i>
+                            Historial de Movimientos - ${producto.nombre}
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <strong>Código:</strong> ${producto.codigo || "--"}
+                            </div>
+                            <div class="col-md-3">
+                                <strong>Stock Actual:</strong> 
+                                <span class="fw-bold text-${producto.stock_actual === 0 ? "danger" : producto.stock_actual <= 10 ? "warning" : "success"}">
+                                    ${producto.stock_actual || 0}
+                                </span>
+                            </div>
+                            <div class="col-md-3">
+                                <strong>Stock Mínimo:</strong> ${producto.stock_minimo || 0}
+                            </div>
+                            <div class="col-md-3">
+                                <strong>Total Movimientos:</strong> ${movimientos.length}
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-hover table-striped table-sm">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Tipo</th>
+                                        <th>Entrada</th>
+                                        <th>Salida</th>
+                                        <th>Saldo</th>
+                                        <th>Observación</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+    `;
+
+  if (!movimientos || movimientos.length === 0) {
+    html += `
+            <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                    <i class="fas fa-inbox fa-2x d-block mb-2"></i>
+                    No hay movimientos registrados para este producto
+                </td>
+            </tr>
+        `;
+  } else {
+    const movimientosOrdenados = [...movimientos].reverse();
+
+    movimientosOrdenados.forEach((m) => {
+      const fecha = m.fecha ? new Date(m.fecha).toLocaleString() : "--";
+      const entrada = m.esEntrada ? m.cantidad : "-";
+      const salida = !m.esEntrada ? m.cantidad : "-";
+      const saldo = m.saldo || 0;
+      const claseSaldo =
+        saldo === 0
+          ? "text-danger"
+          : saldo <= 10
+            ? "text-warning"
+            : "text-success";
+      const observacion = m.observacion || m.observaciones || "--";
+
+      html += `
+                <tr>
+                    <td><small>${fecha}</small></td>
+                    <td>
+                        <span class="badge ${m.esEntrada ? "bg-success" : "bg-danger"}">
+                            ${m.tipoNombre}
+                        </span>
+                    </td>
+                    <td class="text-success fw-bold">${entrada !== "-" ? "+" + entrada : "-"}</td>
+                    <td class="text-danger fw-bold">${salida !== "-" ? "-" + salida : "-"}</td>
+                    <td class="fw-bold ${claseSaldo}">${saldo}</td>
+                    <td><small>${observacion}</small></td>
+                </tr>
+            `;
+    });
+  }
+
+  html += `
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-3 text-muted small">
+                            <i class="fas fa-info-circle me-1"></i>
+                            El saldo acumulado muestra el stock después de cada movimiento.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                        <button class="btn btn-primary" onclick="showMovimientoModalConProducto(${producto.id})">
+                            <i class="fas fa-plus me-1"></i>Nuevo Movimiento
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+  document.body.insertAdjacentHTML("beforeend", html);
+  const modal = new bootstrap.Modal(document.getElementById("historialModal"));
+  modal.show();
+
+  document
+    .getElementById("historialModal")
+    .addEventListener("hidden.bs.modal", function () {
+      this.remove();
+    });
+}
+
+// =============================================
+// FUNCIÓN PARA ABRIR MOVIMIENTO CON PRODUCTO PRESELECCIONADO
+// =============================================
+
+function showMovimientoModalConProducto(idProducto) {
+  showMovimientoModal();
+  setTimeout(() => {
+    const select = document.getElementById("movimientoProducto");
+    if (select) {
+      select.value = idProducto;
+      select.dispatchEvent(new Event("change"));
+    }
+  }, 300);
+}
+
+// =============================================
 // POBLAR SELECTS
 // =============================================
 
 function populateSelectsInventario() {
   const productos = window.productosData || [];
-
-  // Debug
-  console.log("Poblando selects con productos:", productos);
 
   const productSelects = document.querySelectorAll(".inv-producto-select");
   productSelects.forEach((select) => {
@@ -809,193 +1126,6 @@ async function saveTraslado(event) {
 }
 
 // =============================================
-// RENDER: MOVIMIENTOS
-// =============================================
-// inventario.js - Función renderMovimientos CORREGIDA (stock desde productos)
-
-function renderMovimientos(movimientos) {
-  const container = document.getElementById("movimientosContainer");
-  if (!container) return;
-
-  if (!movimientos || movimientos.length === 0) {
-    container.innerHTML = `
-            <div class="text-center py-5">
-                <i class="fas fa-exchange-alt fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No hay movimientos registrados</p>
-                <button class="btn btn-primary btn-sm" onclick="showMovimientoModal()">
-                    <i class="fas fa-plus me-2"></i>Registrar Movimiento
-                </button>
-            </div>
-        `;
-    return;
-  }
-
-  // ✅ Crear un mapa de productos para búsqueda rápida
-  const productosMap = {};
-  (window.productosData || []).forEach((p) => {
-    productosMap[String(p.id)] = p;
-    productosMap[Number(p.id)] = p;
-    // También buscar por nombre (en minúsculas)
-    if (p.nombre) {
-      productosMap[p.nombre.toLowerCase()] = p;
-    }
-  });
-
-  let html = `
-        <div class="table-responsive">
-            <table class="table table-hover table-striped">
-                <thead class="table-light">
-                    <tr>
-                        <th>ID</th>
-                        <th>Producto</th>
-                        <th>Tipo</th>
-                        <th>Cantidad</th>
-                        <th>Stock Actual</th>
-                        <th>Fecha</th>
-                        <th>Observación</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
-
-  movimientos.forEach((m) => {
-    // ✅ OBTENER DATOS DESDE LA OBSERVACIÓN
-    let observacion = m.observacion || m.observaciones || m.referencia || "--";
-    let nombreProducto = "Producto desconocido";
-    let idProducto = null;
-
-    // ✅ Extraer nombre del producto de la observación
-    if (observacion && observacion.includes("-")) {
-      const partes = observacion.split("-");
-      if (partes.length > 1) {
-        nombreProducto = partes[1].trim();
-      }
-    }
-
-    // ✅ Buscar producto por nombre
-    let producto = null;
-    if (nombreProducto && nombreProducto !== "Producto desconocido") {
-      producto = productosMap[nombreProducto.toLowerCase()];
-      if (!producto) {
-        producto = (window.productosData || []).find(
-          (p) =>
-            p.nombre &&
-            nombreProducto &&
-            p.nombre.toLowerCase().includes(nombreProducto.toLowerCase()),
-        );
-      }
-      if (producto) {
-        idProducto = producto.id;
-      }
-    }
-
-    // ✅ Si no se encontró por nombre, intentar por ID
-    if (!producto) {
-      idProducto = m.id_producto || m.idProducto || m.producto_id;
-      if (!idProducto && m.detalles && m.detalles.length > 0) {
-        idProducto = m.detalles[0].id_producto || m.detalles[0].idProducto;
-      }
-      if (idProducto) {
-        producto =
-          productosMap[String(idProducto)] || productosMap[Number(idProducto)];
-        if (producto) {
-          nombreProducto = producto.nombre;
-        }
-      }
-    }
-
-    // ✅ Buscar el tipo de movimiento
-    const tipo = tiposMovimientoData.find((t) => t.id === m.id_tipo_movimiento);
-    const esEntrada = tipo
-      ? tipo.signo === 1
-      : observacion.toLowerCase().includes("compra");
-
-    // ✅ Cantidad
-    let cantidad = m.cantidad || 0;
-    if (!cantidad && m.detalles && m.detalles.length > 0) {
-      cantidad = m.detalles[0].cantidad || 0;
-    }
-
-    // ✅ STOCK ACTUAL: tomarlo del producto, NO del movimiento
-    let stockActual = 0;
-    if (producto) {
-      stockActual = producto.stock_actual || 0;
-    } else if (idProducto) {
-      // Buscar el producto por ID en window.productosData
-      const prodEncontrado = (window.productosData || []).find(
-        (p) => p.id === idProducto,
-      );
-      if (prodEncontrado) {
-        stockActual = prodEncontrado.stock_actual || 0;
-      }
-    }
-
-    // ✅ Formato de cantidad
-    let cantidadMostrada = cantidad || 0;
-    let claseCantidad = "";
-    if (esEntrada) {
-      cantidadMostrada = `+ ${cantidad || 0}`;
-      claseCantidad = "text-success";
-    } else {
-      cantidadMostrada = `- ${cantidad || 0}`;
-      claseCantidad = "text-danger";
-    }
-
-    // ✅ Fecha
-    let fecha = m.fecha || m.fecha_registro || null;
-    if (fecha) {
-      try {
-        fecha = new Date(fecha).toLocaleString();
-      } catch (e) {
-        fecha = "--";
-      }
-    } else {
-      fecha = "--";
-    }
-
-    let tipoNombre = tipo ? tipo.nombre : "Sin tipo";
-    let tipoBadge = esEntrada ? "bg-success" : "bg-danger";
-    const badgeNoEncontrado = !producto
-      ? ' <span class="badge bg-warning ms-1">⚠️ No en catálogo</span>'
-      : "";
-
-    html += `
-            <tr>
-                <td>${m.id}</td>
-                <td>
-                    <strong>${nombreProducto}</strong>${badgeNoEncontrado}
-                    ${idProducto ? `<br><small class="text-muted">ID: ${idProducto}</small>` : ""}
-                </td>
-                <td>
-                    <span class="badge ${tipoBadge}">
-                        ${tipoNombre}
-                    </span>
-                </td>
-                <td class="${claseCantidad} fw-bold">
-                    ${cantidadMostrada}
-                </td>
-                <td class="fw-bold ${stockActual <= 0 ? "text-danger" : stockActual <= 10 ? "text-warning" : "text-success"}">
-                    ${stockActual}
-                </td>
-                <td>${fecha}</td>
-                <td><small>${observacion}</small></td>
-            </tr>
-        `;
-  });
-
-  html += `
-                </tbody>
-            </table>
-        </div>
-        <div class="text-end">
-            <small class="text-muted">Total: ${movimientos.length} movimientos</small>
-        </div>
-    `;
-
-  container.innerHTML = html;
-}
-
-// =============================================
 // RENDER: CONTEO FÍSICO
 // =============================================
 
@@ -1295,35 +1425,30 @@ function renderAlertas(alertas) {
 }
 
 // =============================================
-// MARCAR ALERTA LEÍDA (CORREGIDO)
+// MARCAR ALERTA LEÍDA
 // =============================================
 
 async function marcarAlertaLeida(id) {
   try {
-    // Intentar con PATCH a /alertas/{id}
     await api.request(`/alertas/${id}`, "PATCH", { leida: 1 });
     showToast("Alerta marcada como leída", "success");
     await loadInventarioModule();
   } catch (error1) {
     try {
-      // Intentar con PATCH a /alertas/{id}/leer
       await api.request(`/alertas/${id}/leer`, "PATCH");
       showToast("Alerta marcada como leída", "success");
       await loadInventarioModule();
     } catch (error2) {
       try {
-        // Intentar con PUT a /alertas/{id}
         await api.request(`/alertas/${id}`, "PUT", { leida: 1 });
         showToast("Alerta marcada como leída", "success");
         await loadInventarioModule();
       } catch (error3) {
-        // Mostrar mensaje de error con la opción de marcar localmente
         const confirmado = await mostrarConfirmacion(
           "Error al marcar alerta",
           "No se pudo conectar con el servidor. ¿Deseas marcar la alerta como leída localmente?",
         );
         if (confirmado) {
-          // Marcar localmente
           const alerta = alertasData.find((a) => a.id === id);
           if (alerta) {
             alerta.leida = 1;
@@ -1517,3 +1642,9 @@ window.limpiarErroresFormulario = limpiarErroresFormulario;
 window.showToast = showToast;
 window.mostrarConfirmacion = mostrarConfirmacion;
 window.obtenerProductosParaInventario = obtenerProductosParaInventario;
+window.renderResumenInventario = renderResumenInventario;
+window.verHistorialProducto = verHistorialProducto;
+window.mostrarHistorialModal = mostrarHistorialModal;
+window.showMovimientoModalConProducto = showMovimientoModalConProducto;
+window.buscarEnInventario = buscarEnInventario;
+window.filtrarProductos = filtrarProductos;
