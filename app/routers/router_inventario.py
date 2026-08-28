@@ -19,7 +19,7 @@ from app.schemas.schema_inventario import (
 )
 
 router = APIRouter()            # /movimientos-inventario
-router_tipo = APIRouter()       # /tipos-movimiento
+router_tipo = APIRouter()       # /tipo-movimiento
 router_fisico = APIRouter()     # /inventario-fisico
 router_traslado = APIRouter()   # /traslados
 router_alerta = APIRouter()     # /alertas
@@ -47,6 +47,34 @@ def _generar_alerta_si_stock_bajo(db: Session, producto: Producto):
         leida=0,
     )
     db.add(alerta)
+
+
+def _calcular_nuevo_stock(stock_actual: float, cantidad: float, signo: int) -> float:
+    """
+    Calcula el nuevo stock según el signo del tipo de movimiento.
+    
+    Reglas:
+    - signo = 1  → SUMA (entrada) - Ej: Compra, Devolución, Otros Ingresos
+    - signo = 0  → NO cambia stock (neutral)
+    - signo = 2  → RESTA (salida) - Ej: Venta, Otros Egresos
+    """
+    stock = float(stock_actual or 0)
+    cant = float(cantidad or 0)
+    
+    if signo == 1:
+        # Entrada: suma
+        return stock + cant
+    elif signo == 2:
+        # Salida: resta
+        if stock < cant:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Stock insuficiente. Disponible: {stock}, Requerido: {cant}"
+            )
+        return stock - cant
+    else:
+        # signo == 0 o cualquier otro: no cambia
+        return stock
 
 
 # ===================================================================
@@ -87,7 +115,13 @@ def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(ge
     """
     Crea un movimiento con sus detalles, y ACTUALIZA el stock_actual de
     cada producto involucrado según el signo del tipo de movimiento.
+    
+    Reglas de signo (campo 'signo' en tabla 'tipo'):
+    - signo = 1  → SUMA (entrada) - Ej: Compra, Devolución, Otros Ingresos
+    - signo = 0  → NO cambia stock (neutral)
+    - signo = 2  → RESTA (salida) - Ej: Venta, Otros Egresos
     """
+    # ✅ Usar el modelo correcto: TipoMovimientoInventario
     tipo = db.query(TipoMovimientoInventario).filter(
         TipoMovimientoInventario.id == datos.id_tipo_movimiento
     ).first()
@@ -105,6 +139,19 @@ def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(ge
             raise HTTPException(status_code=404, detail=f"Producto id={d.id_producto} no encontrado")
         productos[d.id_producto] = producto
 
+    # ✅ Verificar stock suficiente para SALIDAS (signo = 2)
+    for d in datos.detalles:
+        if tipo.signo == 2:  # Salida
+            producto = productos[d.id_producto]
+            stock_actual = float(producto.stock_actual or 0)
+            cantidad = float(d.cantidad or 0)
+            if stock_actual < cantidad:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Stock insuficiente para producto '{producto.nombre}'. "
+                           f"Disponible: {stock_actual}, Requerido: {cantidad}"
+                )
+
     nuevo_movimiento = MovimientoInventario(
         id_usuario=datos.id_usuario,
         id_tipo_movimiento=datos.id_tipo_movimiento,
@@ -118,7 +165,7 @@ def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(ge
         observaciones=datos.observaciones,
     )
     db.add(nuevo_movimiento)
-    db.flush()  # para que nuevo_movimiento.id ya exista, sin cerrar la transacción
+    db.flush()
 
     for d in datos.detalles:
         detalle = MovimientoInventarioDetalle(
@@ -130,9 +177,17 @@ def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(ge
         )
         db.add(detalle)
 
-        # Aquí es donde de verdad se mueve el stock
+        # ✅ Aquí se actualiza el stock
         producto = productos[d.id_producto]
-        producto.stock_actual = float(producto.stock_actual or 0) + float(d.cantidad) * tipo.signo
+        stock_anterior = float(producto.stock_actual or 0)
+        nuevo_stock = _calcular_nuevo_stock(stock_anterior, d.cantidad, tipo.signo)
+        
+        producto.stock_actual = nuevo_stock
+        
+        # Log para depuración
+        nombre_signo = "SUMA" if tipo.signo == 1 else "RESTA" if tipo.signo == 2 else "NEUTRO"
+        print(f"📦 {producto.nombre}: {stock_anterior} → {nuevo_stock} ({nombre_signo}, {d.cantidad} unidades)")
+
         _generar_alerta_si_stock_bajo(db, producto)
 
     db.commit()
