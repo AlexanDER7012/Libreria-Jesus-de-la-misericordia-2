@@ -1462,7 +1462,7 @@ async function marcarAlertaLeida(id) {
 }
 
 // =============================================
-// TIPOS DE MOVIMIENTO
+// TIPOS DE MOVIMIENTO (CORREGIDO)
 // =============================================
 
 function renderTiposMovimiento(tipos) {
@@ -1503,16 +1503,46 @@ function renderTiposMovimiento(tipos) {
     `;
 
   tipos.forEach((t) => {
-    const esEntrada = t.signo === 0 || t.signo === "+";
+    // ✅ CORREGIDO: Interpretar correctamente los signos
+    // signo = 1 → Entrada (suma stock)
+    // signo = 2 → Salida (resta stock)
+    // signo = 0 → Neutral (no afecta stock)
+    let esEntrada = false;
+    let signoTexto = "";
+    let badgeClass = "";
+    let badgeIcon = "";
+
+    if (t.signo === 1) {
+      esEntrada = true;
+      signoTexto = "Entrada";
+      badgeClass = "bg-success";
+      badgeIcon = "➕";
+    } else if (t.signo === 2) {
+      esEntrada = false;
+      signoTexto = "Salida";
+      badgeClass = "bg-danger";
+      badgeIcon = "➖";
+    } else if (t.signo === 0) {
+      esEntrada = false;
+      signoTexto = "Neutral";
+      badgeClass = "bg-secondary";
+      badgeIcon = "⏸️";
+    } else {
+      signoTexto = "Desconocido";
+      badgeClass = "bg-secondary";
+      badgeIcon = "❓";
+    }
+
     html += `
             <tr>
-                <td>${t.id}</td>
+                <td><code>${t.id}</code></td>
                 <td><strong>${t.nombre || "--"}</strong></td>
                 <td>${t.descripcion || "--"}</td>
                 <td>
-                    <span class="badge ${esEntrada ? "bg-success" : "bg-danger"}">
-                        ${esEntrada ? "Entrada" : "Salida"}
+                    <span class="badge ${badgeClass}">
+                        ${badgeIcon} ${signoTexto}
                     </span>
+                    <small class="text-muted ms-1">(signo: ${t.signo})</small>
                 </td>
             </tr>
         `;
@@ -1524,6 +1554,15 @@ function renderTiposMovimiento(tipos) {
         </div>
         <div class="text-end">
             <small class="text-muted">Total: ${tipos.length} tipos</small>
+            <div class="mt-3 p-2 bg-light rounded">
+                <small class="text-muted">
+                    <i class="fas fa-info-circle me-1"></i>
+                    <strong>Leyenda:</strong>
+                    <span class="badge bg-success ms-2">➕ Entrada</span> signo = 1 (suma stock)
+                    <span class="badge bg-danger ms-2">➖ Salida</span> signo = 2 (resta stock)
+                    <span class="badge bg-secondary ms-2">⏸️ Neutral</span> signo = 0 (no afecta stock)
+                </small>
+            </div>
             <p class="text-muted small mt-2">
                 <i class="fas fa-info-circle me-1"></i>
                 Los tipos de movimiento solo se pueden crear. No se pueden modificar ni eliminar.
@@ -1552,6 +1591,10 @@ function showCreateTipoMovimientoModal() {
   modalInstance.show();
 }
 
+// =============================================
+// GUARDAR TIPO DE MOVIMIENTO (CORREGIDO)
+// =============================================
+
 async function saveTipoMovimiento(event) {
   event.preventDefault();
 
@@ -1564,7 +1607,8 @@ async function saveTipoMovimiento(event) {
   limpiarErrorCampo("tipoMovimientoNombre");
 
   const signoVal = document.getElementById("tipoMovimientoSigno").value;
-  const signo = signoVal === "+" ? 0 : 1;
+  // ✅ CORREGIDO: + = 1 (entrada), - = 2 (salida)
+  const signo = signoVal === "+" ? 1 : 2;
 
   const data = {
     nombre: nombre,
