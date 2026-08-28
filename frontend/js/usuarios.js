@@ -713,6 +713,10 @@ async function showEditUsuarioModal(id) {
   }
 }
 
+// ============================================================
+// USUARIOS - CRUD (CORREGIDO)
+// ============================================================
+
 async function saveUsuario(event) {
   event.preventDefault();
 
@@ -731,6 +735,7 @@ async function saveUsuario(event) {
 
   try {
     if (id) {
+      // Editar usuario
       const data = { id_rol, activo };
       if (password) {
         data.password = password;
@@ -738,6 +743,7 @@ async function saveUsuario(event) {
       await api.request(`/usuarios/${id}`, "PUT", data);
       showToast("Usuario actualizado correctamente", "success");
     } else {
+      // Crear usuario
       if (!password) {
         showToast("La contraseña es obligatoria", "error");
         return;
@@ -751,11 +757,18 @@ async function saveUsuario(event) {
       showToast("Usuario creado correctamente", "success");
     }
 
+    // ✅ Cerrar modal
     const modal = bootstrap.Modal.getInstance(
       document.getElementById("usuarioModal"),
     );
     if (modal) modal.hide();
-    await loadUsuariosModule();
+
+    // ✅ Solo recargar datos, NO todo el módulo
+    await cargarDatos();
+
+    // ✅ Actualizar selects sin recargar todo
+    llenarSelectEmpleado();
+    llenarSelectRol();
   } catch (error) {
     showToast(error.message || "Error al guardar usuario", "error");
   }
