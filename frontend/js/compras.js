@@ -18,21 +18,22 @@ let tiposGastoData = [];
 // =============================================
 // FUNCIÓN PARA REGISTRAR MOVIMIENTO DE INVENTARIO
 // =============================================
-
 async function registrarMovimientoInventario(
   id_producto,
   cantidad,
   id_tipo_movimiento = null,
   observacion = null,
+  costo_unitario = 0,
 ) {
   try {
     let idTipo = id_tipo_movimiento;
 
     if (!idTipo) {
-      // Buscar un tipo de movimiento llamado "Compra" o "Entrada por Compra"
+      // Buscar un tipo de movimiento llamado "Compra"
       let tiposMov = [];
       try {
         tiposMov = await api.getTiposMovimiento().catch(() => []);
+        console.log("Tipos de movimiento disponibles:", tiposMov);
       } catch (e) {
         console.warn("No se pudieron obtener tipos de movimiento");
       }
@@ -48,6 +49,7 @@ async function registrarMovimientoInventario(
 
       if (tipoCompra) {
         idTipo = tipoCompra.id;
+        console.log('Tipo de movimiento "Compra" encontrado:', idTipo);
       } else {
         // Si no existe, intentar crear uno
         try {
@@ -61,29 +63,56 @@ async function registrarMovimientoInventario(
         } catch (e) {
           console.warn('No se pudo crear tipo de movimiento "Compra"');
           // Usar el primer tipo disponible que sea de entrada
-          const tipoEntrada = tiposMov.find(
-            (t) => t.signo === 0 || t.signo === "+",
-          );
+          const tipoEntrada = tiposMov.find((t) => t.signo === 0);
           if (tipoEntrada) {
             idTipo = tipoEntrada.id;
           } else if (tiposMov.length > 0) {
             idTipo = tiposMov[0].id;
           } else {
-            console.error("No hay tipos de movimiento disponibles");
-            return null;
+            throw new Error(
+              "No hay tipos de movimiento disponibles. Crea uno primero en el módulo de Inventario > Tipos de Movimiento.",
+            );
           }
         }
       }
     }
 
-    // Registrar el movimiento
+    // Validar que tenemos un ID válido
+    if (!idTipo) {
+      throw new Error("No se pudo determinar el tipo de movimiento");
+    }
+
+    // Obtener el usuario actual
+    const currentUser = getCurrentUser();
+    const id_usuario = currentUser?.id || 1;
+
+    // FORMATO CORRECTO PARA EL BACKEND - con detalles como array
     const data = {
-      id_producto: id_producto,
-      id_tipo_movimiento: idTipo,
-      cantidad: cantidad,
-      observacion:
+      id_usuario: parseInt(id_usuario),
+      id_tipo_movimiento: parseInt(idTipo),
+      id_ubicacion_origen: null,
+      id_sububicacion_origen: null,
+      id_ubicacion_destino: null,
+      id_sububicacion_destino: null,
+      tabla_referencia: "compra",
+      id_referencia: null,
+      referencia: observacion || `Compra de productos`,
+      observaciones:
         observacion || `Entrada por compra (${new Date().toLocaleString()})`,
+      detalles: [
+        {
+          id_producto: parseInt(id_producto),
+          cantidad: parseFloat(cantidad),
+          costo_unitario: parseFloat(costo_unitario) || 0,
+          precio_unitario: 0,
+        },
+      ],
     };
+
+    console.log(
+      "Enviando movimiento de inventario:",
+      JSON.stringify(data, null, 2),
+    );
 
     const result = await api.request("/movimientos-inventario", "POST", data);
     console.log(
@@ -92,6 +121,12 @@ async function registrarMovimientoInventario(
     return result;
   } catch (error) {
     console.error("❌ Error registrando movimiento de inventario:", error);
+    if (error.response && error.response.data) {
+      console.error(
+        "Detalles del error:",
+        JSON.stringify(error.response.data, null, 2),
+      );
+    }
     throw error;
   }
 }
