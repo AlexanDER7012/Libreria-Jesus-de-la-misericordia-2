@@ -837,7 +837,6 @@ function renderMovimientos(movimientos) {
 
   console.log("📦 Productos disponibles:", window.productosData);
   console.log("📋 Movimientos:", movimientos);
-  console.log("🗺️ Mapa de productos:", Object.keys(productosMap));
 
   let html = `
         <div class="table-responsive">
@@ -857,54 +856,105 @@ function renderMovimientos(movimientos) {
     `;
 
   movimientos.forEach((m) => {
-    // ✅ Buscar producto por ID (como string y como número)
-    let producto = productosMap[String(m.id_producto)];
-    if (!producto) {
-      producto = productosMap[Number(m.id_producto)];
+    // ✅ OBTENER ID_PRODUCTO DESDE DETALLES
+    let idProducto = null;
+    let cantidad = 0;
+    let stockActual = m.stock_actual || m.stockActual || 0;
+    let observacion = m.observacion || m.observaciones || m.nota || "--";
+
+    // ✅ Si tiene detalles, tomar el primer detalle
+    if (m.detalles && m.detalles.length > 0) {
+      const detalle = m.detalles[0];
+      idProducto = detalle.id_producto;
+      cantidad = detalle.cantidad || 0;
+    } else if (m.id_producto) {
+      // Fallback: si tiene id_producto directamente
+      idProducto = m.id_producto;
+      cantidad = m.cantidad || 0;
+    } else if (m.idProducto) {
+      idProducto = m.idProducto;
+      cantidad = m.cantidad || 0;
+    }
+
+    // ✅ Buscar producto por ID
+    let producto = null;
+    if (idProducto) {
+      producto =
+        productosMap[String(idProducto)] || productosMap[Number(idProducto)];
     }
 
     // ✅ Buscar el tipo de movimiento
     const tipo = tiposMovimientoData.find((t) => t.id === m.id_tipo_movimiento);
-    const esEntrada = tipo && (tipo.signo === 1 || tipo.signo === 0);
 
-    // ✅ Si no encuentra el producto, mostrar el ID
+    // ✅ Determinar si es entrada o salida (usando signo)
+    let esEntrada = false;
+    if (tipo) {
+      esEntrada = tipo.signo === 1; // 1 = entrada, 2 = salida
+    } else {
+      // Si no hay tipo, intentar adivinar por observación
+      esEntrada =
+        observacion.toLowerCase().includes("compra") ||
+        observacion.toLowerCase().includes("entrada");
+    }
+
+    // ✅ Nombre del producto
     const nombreProducto = producto
       ? producto.nombre
-      : `Producto ID: ${m.id_producto}`;
-    const badgeNoEncontrado = !producto
-      ? ' <span class="badge bg-warning ms-1">No encontrado en catálogo</span>'
+      : `Producto ID: ${idProducto || "desconocido"}`;
+    const badgeNoEncontrado =
+      !producto && idProducto
+        ? ' <span class="badge bg-warning ms-1">⚠️ No encontrado</span>'
+        : "";
+    const badgeSinProducto = !idProducto
+      ? ' <span class="badge bg-danger ms-1">❌ Sin producto</span>'
       : "";
 
-    // ✅ Determinar el signo de la cantidad
-    let cantidadMostrada = m.cantidad || 0;
+    // ✅ Formato de cantidad
+    let cantidadMostrada = cantidad || 0;
     let claseCantidad = "";
 
     if (esEntrada) {
-      cantidadMostrada = `+ ${m.cantidad || 0}`;
+      cantidadMostrada = `+ ${cantidad || 0}`;
       claseCantidad = "text-success";
     } else {
-      cantidadMostrada = `- ${m.cantidad || 0}`;
+      cantidadMostrada = `- ${cantidad || 0}`;
       claseCantidad = "text-danger";
     }
+
+    // ✅ Formatear fecha
+    let fecha = m.fecha || m.fecha_registro || null;
+    if (fecha) {
+      try {
+        fecha = new Date(fecha).toLocaleString();
+      } catch (e) {
+        fecha = "--";
+      }
+    } else {
+      fecha = "--";
+    }
+
+    // ✅ TIPO: obtener nombre del tipo
+    let tipoNombre = tipo ? tipo.nombre : "Sin tipo";
+    let tipoBadge = esEntrada ? "bg-success" : "bg-danger";
 
     html += `
             <tr>
                 <td>${m.id}</td>
                 <td>
-                    <strong>${nombreProducto}</strong>${badgeNoEncontrado}
-                    ${!producto ? `<br><small class="text-muted">ID en movimiento: ${m.id_producto}</small>` : ""}
+                    <strong>${nombreProducto}</strong>${badgeNoEncontrado}${badgeSinProducto}
+                    ${!producto && idProducto ? `<br><small class="text-muted">ID: ${idProducto}</small>` : ""}
                 </td>
                 <td>
-                    <span class="badge ${esEntrada ? "bg-success" : "bg-danger"}">
-                        ${tipo ? tipo.nombre : "Sin tipo"}
+                    <span class="badge ${tipoBadge}">
+                        ${tipoNombre}
                     </span>
                 </td>
                 <td class="${claseCantidad} fw-bold">
                     ${cantidadMostrada}
                 </td>
-                <td>${m.stock_actual || 0}</td>
-                <td>${m.fecha ? new Date(m.fecha).toLocaleString() : "--"}</td>
-                <td>${m.observacion || m.observaciones || "--"}</td>
+                <td>${stockActual}</td>
+                <td>${fecha}</td>
+                <td><small>${observacion}</small></td>
             </tr>
         `;
   });
