@@ -132,7 +132,6 @@ async function cargarDatos() {
     pagosEmpleadoData = pagos || [];
     logsData = logs || [];
 
-    // ✅ Log para depuración
     console.log("✅ Datos cargados:");
     console.log("  - Usuarios:", usuariosData.length);
     console.log("  - Empleados:", empleadosData.length);
@@ -659,23 +658,50 @@ function renderLogs(logs) {
 // USUARIOS - CRUD
 // ============================================================
 function showCreateUsuarioModal() {
-  const modal = document.getElementById("usuarioModal");
+  let modal = document.getElementById("usuarioModal");
   if (!modal) {
     crearModalUsuario();
-    setTimeout(() => showCreateUsuarioModal(), 100);
+    setTimeout(() => showCreateUsuarioModal(), 150);
     return;
   }
-  document.getElementById("usuarioModalTitle").textContent = "Nuevo Usuario";
-  document.getElementById("usuarioForm").reset();
-  document.getElementById("usuarioId").value = "";
-  document.getElementById("usuarioPassword").required = true;
-  document.getElementById("usuarioPassword").placeholder = "Nueva contraseña";
-  document.getElementById("passwordHelp").textContent =
-    "La contraseña es obligatoria para nuevos usuarios";
+
+  const title = document.getElementById("usuarioModalTitle");
+  if (title) title.textContent = "Nuevo Usuario";
+
+  const form = document.getElementById("usuarioForm");
+  if (form) form.reset();
+
+  const idInput = document.getElementById("usuarioId");
+  if (idInput) idInput.value = "";
+
+  const passwordInput = document.getElementById("usuarioPassword");
+  if (passwordInput) {
+    passwordInput.required = true;
+    passwordInput.placeholder = "Nueva contraseña";
+    passwordInput.value = "";
+  }
+
+  const helpText = document.getElementById("passwordHelp");
+  if (helpText) {
+    helpText.textContent = "La contraseña es obligatoria para nuevos usuarios";
+  }
+
+  const activoSelect = document.getElementById("usuarioActivo");
+  if (activoSelect) {
+    activoSelect.value = "1";
+  }
+
   llenarSelectEmpleado();
   llenarSelectRol();
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+
+  try {
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al mostrar modal:", error);
+    modal.remove();
+    setTimeout(() => showCreateUsuarioModal(), 200);
+  }
 }
 
 async function showEditUsuarioModal(id) {
@@ -686,25 +712,38 @@ async function showEditUsuarioModal(id) {
       return;
     }
 
-    const modal = document.getElementById("usuarioModal");
+    let modal = document.getElementById("usuarioModal");
     if (!modal) {
       crearModalUsuario();
-      setTimeout(() => showEditUsuarioModal(id), 100);
+      setTimeout(() => showEditUsuarioModal(id), 150);
       return;
     }
 
-    document.getElementById("usuarioModalTitle").textContent = "Editar Usuario";
-    document.getElementById("usuarioId").value = usuario.id;
-    document.getElementById("usuarioNombre").value =
-      usuario.nombre_usuario || "";
-    document.getElementById("usuarioPassword").value = "";
-    document.getElementById("usuarioPassword").required = false;
-    document.getElementById("usuarioPassword").placeholder =
-      "Dejar en blanco para no cambiar";
-    document.getElementById("passwordHelp").textContent =
-      "Dejar en blanco para no cambiar la contraseña";
-    document.getElementById("usuarioActivo").value =
-      usuario.activo !== 0 ? "1" : "0";
+    const title = document.getElementById("usuarioModalTitle");
+    if (title) title.textContent = "Editar Usuario";
+
+    const idInput = document.getElementById("usuarioId");
+    if (idInput) idInput.value = usuario.id;
+
+    const nombreInput = document.getElementById("usuarioNombre");
+    if (nombreInput) nombreInput.value = usuario.nombre_usuario || "";
+
+    const passwordInput = document.getElementById("usuarioPassword");
+    if (passwordInput) {
+      passwordInput.value = "";
+      passwordInput.required = false;
+      passwordInput.placeholder = "Dejar en blanco para no cambiar";
+    }
+
+    const helpText = document.getElementById("passwordHelp");
+    if (helpText) {
+      helpText.textContent = "Dejar en blanco para no cambiar la contraseña";
+    }
+
+    const activoSelect = document.getElementById("usuarioActivo");
+    if (activoSelect) {
+      activoSelect.value = usuario.activo !== 0 ? "1" : "0";
+    }
 
     llenarSelectEmpleado(usuario.id_empleado);
     llenarSelectRol(usuario.id_rol);
@@ -719,13 +758,15 @@ async function showEditUsuarioModal(id) {
 async function saveUsuario(event) {
   event.preventDefault();
 
-  const id = document.getElementById("usuarioId").value;
-  const nombre_usuario = document.getElementById("usuarioNombre").value.trim();
-  const password = document.getElementById("usuarioPassword").value.trim();
+  const id = document.getElementById("usuarioId")?.value || "";
+  const nombre_usuario =
+    document.getElementById("usuarioNombre")?.value?.trim() || "";
+  const password =
+    document.getElementById("usuarioPassword")?.value?.trim() || "";
   const id_empleado =
-    parseInt(document.getElementById("usuarioEmpleado").value) || null;
-  const id_rol = parseInt(document.getElementById("usuarioRol").value) || null;
-  const activo = parseInt(document.getElementById("usuarioActivo").value);
+    parseInt(document.getElementById("usuarioEmpleado")?.value) || null;
+  const id_rol = parseInt(document.getElementById("usuarioRol")?.value) || null;
+  const activo = parseInt(document.getElementById("usuarioActivo")?.value) || 1;
 
   if (!nombre_usuario) {
     showToast("El nombre de usuario es obligatorio", "error");
@@ -754,18 +795,17 @@ async function saveUsuario(event) {
       showToast("Usuario creado correctamente", "success");
     }
 
-    const modal = bootstrap.Modal.getInstance(
-      document.getElementById("usuarioModal"),
-    );
-    if (modal) modal.hide();
+    const modal = document.getElementById("usuarioModal");
+    if (modal) {
+      const modalInstance = bootstrap.Modal.getInstance(modal);
+      if (modalInstance) modalInstance.hide();
+    }
 
-    // ✅ Solo recargar datos, NO todo el módulo
     await cargarDatos();
-
-    // ✅ Actualizar selects sin recargar todo
     llenarSelectEmpleado();
     llenarSelectRol();
   } catch (error) {
+    console.error("Error en saveUsuario:", error);
     showToast(error.message || "Error al guardar usuario", "error");
   }
 }
@@ -796,19 +836,33 @@ async function reactivarUsuario(id) {
 // EMPLEADOS - CRUD
 // ============================================================
 function showCreateEmpleadoModal() {
-  const modal = document.getElementById("empleadoModal");
+  let modal = document.getElementById("empleadoModal");
   if (!modal) {
     crearModalEmpleado();
-    setTimeout(() => showCreateEmpleadoModal(), 100);
+    setTimeout(() => showCreateEmpleadoModal(), 150);
     return;
   }
-  document.getElementById("empleadoModalTitle").textContent = "Nuevo Empleado";
-  document.getElementById("empleadoForm").reset();
-  document.getElementById("empleadoId").value = "";
+
+  const title = document.getElementById("empleadoModalTitle");
+  if (title) title.textContent = "Nuevo Empleado";
+
+  const form = document.getElementById("empleadoForm");
+  if (form) form.reset();
+
+  const idInput = document.getElementById("empleadoId");
+  if (idInput) idInput.value = "";
+
   llenarSelectPuesto();
   llenarSelectTurno();
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+
+  try {
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al mostrar modal:", error);
+    modal.remove();
+    setTimeout(() => showCreateEmpleadoModal(), 200);
+  }
 }
 
 async function showEditEmpleadoModal(id) {
@@ -819,26 +873,41 @@ async function showEditEmpleadoModal(id) {
       return;
     }
 
-    const modal = document.getElementById("empleadoModal");
+    let modal = document.getElementById("empleadoModal");
     if (!modal) {
       crearModalEmpleado();
-      setTimeout(() => showEditEmpleadoModal(id), 100);
+      setTimeout(() => showEditEmpleadoModal(id), 150);
       return;
     }
 
-    document.getElementById("empleadoModalTitle").textContent =
-      "Editar Empleado";
-    document.getElementById("empleadoId").value = empleado.id;
-    document.getElementById("empleadoNombre").value = empleado.nombre || "";
-    document.getElementById("empleadoDpi").value = empleado.dpi || "";
-    document.getElementById("empleadoTelefono").value = empleado.telefono || "";
-    document.getElementById("empleadoEmail").value = empleado.email || "";
-    document.getElementById("empleadoDireccion").value =
-      empleado.direccion || "";
-    document.getElementById("empleadoSalario").value =
-      empleado.salario_base || "";
-    document.getElementById("empleadoActivo").value =
-      empleado.activo !== 0 ? "1" : "0";
+    const title = document.getElementById("empleadoModalTitle");
+    if (title) title.textContent = "Editar Empleado";
+
+    const idInput = document.getElementById("empleadoId");
+    if (idInput) idInput.value = empleado.id;
+
+    const nombreInput = document.getElementById("empleadoNombre");
+    if (nombreInput) nombreInput.value = empleado.nombre || "";
+
+    const dpiInput = document.getElementById("empleadoDpi");
+    if (dpiInput) dpiInput.value = empleado.dpi || "";
+
+    const telefonoInput = document.getElementById("empleadoTelefono");
+    if (telefonoInput) telefonoInput.value = empleado.telefono || "";
+
+    const emailInput = document.getElementById("empleadoEmail");
+    if (emailInput) emailInput.value = empleado.email || "";
+
+    const direccionInput = document.getElementById("empleadoDireccion");
+    if (direccionInput) direccionInput.value = empleado.direccion || "";
+
+    const salarioInput = document.getElementById("empleadoSalario");
+    if (salarioInput) salarioInput.value = empleado.salario_base || "";
+
+    const activoSelect = document.getElementById("empleadoActivo");
+    if (activoSelect) {
+      activoSelect.value = empleado.activo !== 0 ? "1" : "0";
+    }
 
     llenarSelectPuesto(empleado.id_puesto);
     llenarSelectTurno(empleado.id_turno);
@@ -853,20 +922,21 @@ async function showEditEmpleadoModal(id) {
 async function saveEmpleado(event) {
   event.preventDefault();
 
-  const id = document.getElementById("empleadoId").value;
+  const id = document.getElementById("empleadoId")?.value || "";
   const data = {
-    nombre: document.getElementById("empleadoNombre").value.trim(),
-    dpi: document.getElementById("empleadoDpi").value.trim(),
-    telefono: document.getElementById("empleadoTelefono").value.trim() || null,
-    email: document.getElementById("empleadoEmail").value.trim() || null,
+    nombre: document.getElementById("empleadoNombre")?.value?.trim() || "",
+    dpi: document.getElementById("empleadoDpi")?.value?.trim() || "",
+    telefono:
+      document.getElementById("empleadoTelefono")?.value?.trim() || null,
+    email: document.getElementById("empleadoEmail")?.value?.trim() || null,
     direccion:
-      document.getElementById("empleadoDireccion").value.trim() || null,
+      document.getElementById("empleadoDireccion")?.value?.trim() || null,
     salario_base:
-      parseFloat(document.getElementById("empleadoSalario").value) || null,
+      parseFloat(document.getElementById("empleadoSalario")?.value) || null,
     id_puesto:
-      parseInt(document.getElementById("empleadoPuesto").value) || null,
-    id_turno: parseInt(document.getElementById("empleadoTurno").value) || null,
-    activo: parseInt(document.getElementById("empleadoActivo").value),
+      parseInt(document.getElementById("empleadoPuesto")?.value) || null,
+    id_turno: parseInt(document.getElementById("empleadoTurno")?.value) || null,
+    activo: parseInt(document.getElementById("empleadoActivo")?.value) || 1,
   };
 
   if (!data.nombre || !data.dpi) {
@@ -883,15 +953,17 @@ async function saveEmpleado(event) {
       showToast("Empleado creado correctamente", "success");
     }
 
-    const modal = bootstrap.Modal.getInstance(
-      document.getElementById("empleadoModal"),
-    );
-    if (modal) modal.hide();
+    const modal = document.getElementById("empleadoModal");
+    if (modal) {
+      const modalInstance = bootstrap.Modal.getInstance(modal);
+      if (modalInstance) modalInstance.hide();
+    }
 
     await cargarDatos();
     llenarSelectEmpleado();
     llenarSelectEmpleadoPago();
   } catch (error) {
+    console.error("Error en saveEmpleado:", error);
     showToast(error.message || "Error al guardar empleado", "error");
   }
 }
@@ -911,26 +983,39 @@ async function deleteEmpleado(id) {
 // ROLES - CRUD
 // ============================================================
 function showCreateRolModal() {
-  const modal = document.getElementById("rolModal");
+  let modal = document.getElementById("rolModal");
   if (!modal) {
     crearModalRol();
-    setTimeout(() => showCreateRolModal(), 100);
+    setTimeout(() => showCreateRolModal(), 150);
     return;
   }
-  document.getElementById("rolModalTitle").textContent = "Nuevo Rol";
-  document.getElementById("rolForm").reset();
-  document.getElementById("rolId").value = "";
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+
+  const title = document.getElementById("rolModalTitle");
+  if (title) title.textContent = "Nuevo Rol";
+
+  const form = document.getElementById("rolForm");
+  if (form) form.reset();
+
+  const idInput = document.getElementById("rolId");
+  if (idInput) idInput.value = "";
+
+  try {
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al mostrar modal:", error);
+    modal.remove();
+    setTimeout(() => showCreateRolModal(), 200);
+  }
 }
 
 async function saveRol(event) {
   event.preventDefault();
 
-  const nombre = document.getElementById("rolNombre").value.trim();
+  const nombre = document.getElementById("rolNombre")?.value?.trim() || "";
   const descripcion =
-    document.getElementById("rolDescripcion").value.trim() || null;
-  const nivel = parseInt(document.getElementById("rolNivel").value) || 0;
+    document.getElementById("rolDescripcion")?.value?.trim() || null;
+  const nivel = parseInt(document.getElementById("rolNivel")?.value) || 0;
 
   if (!nombre) {
     showToast("El nombre del rol es obligatorio", "error");
@@ -941,14 +1026,16 @@ async function saveRol(event) {
     await api.request("/roles", "POST", { nombre, descripcion, nivel });
     showToast("Rol creado correctamente", "success");
 
-    const modal = bootstrap.Modal.getInstance(
-      document.getElementById("rolModal"),
-    );
-    if (modal) modal.hide();
+    const modal = document.getElementById("rolModal");
+    if (modal) {
+      const modalInstance = bootstrap.Modal.getInstance(modal);
+      if (modalInstance) modalInstance.hide();
+    }
 
     await cargarDatos();
     llenarSelectRol();
   } catch (error) {
+    console.error("Error en saveRol:", error);
     showToast(error.message || "Error al crear rol", "error");
   }
 }
@@ -957,25 +1044,38 @@ async function saveRol(event) {
 // PUESTOS - CRUD
 // ============================================================
 function showCreatePuestoModal() {
-  const modal = document.getElementById("puestoModal");
+  let modal = document.getElementById("puestoModal");
   if (!modal) {
     crearModalPuesto();
-    setTimeout(() => showCreatePuestoModal(), 100);
+    setTimeout(() => showCreatePuestoModal(), 150);
     return;
   }
-  document.getElementById("puestoModalTitle").textContent = "Nuevo Puesto";
-  document.getElementById("puestoForm").reset();
-  document.getElementById("puestoId").value = "";
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+
+  const title = document.getElementById("puestoModalTitle");
+  if (title) title.textContent = "Nuevo Puesto";
+
+  const form = document.getElementById("puestoForm");
+  if (form) form.reset();
+
+  const idInput = document.getElementById("puestoId");
+  if (idInput) idInput.value = "";
+
+  try {
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al mostrar modal:", error);
+    modal.remove();
+    setTimeout(() => showCreatePuestoModal(), 200);
+  }
 }
 
 async function savePuesto(event) {
   event.preventDefault();
 
-  const nombre = document.getElementById("puestoNombre").value.trim();
+  const nombre = document.getElementById("puestoNombre")?.value?.trim() || "";
   const descripcion =
-    document.getElementById("puestoDescripcion").value.trim() || null;
+    document.getElementById("puestoDescripcion")?.value?.trim() || null;
 
   if (!nombre) {
     showToast("El nombre del puesto es obligatorio", "error");
@@ -986,14 +1086,16 @@ async function savePuesto(event) {
     await api.request("/puestos", "POST", { nombre, descripcion });
     showToast("Puesto creado correctamente", "success");
 
-    const modal = bootstrap.Modal.getInstance(
-      document.getElementById("puestoModal"),
-    );
-    if (modal) modal.hide();
+    const modal = document.getElementById("puestoModal");
+    if (modal) {
+      const modalInstance = bootstrap.Modal.getInstance(modal);
+      if (modalInstance) modalInstance.hide();
+    }
 
     await cargarDatos();
     llenarSelectPuesto();
   } catch (error) {
+    console.error("Error en savePuesto:", error);
     showToast(error.message || "Error al crear puesto", "error");
   }
 }
@@ -1002,25 +1104,38 @@ async function savePuesto(event) {
 // TURNOS - CRUD
 // ============================================================
 function showCreateTurnoModal() {
-  const modal = document.getElementById("turnoModal");
+  let modal = document.getElementById("turnoModal");
   if (!modal) {
     crearModalTurno();
-    setTimeout(() => showCreateTurnoModal(), 100);
+    setTimeout(() => showCreateTurnoModal(), 150);
     return;
   }
-  document.getElementById("turnoModalTitle").textContent = "Nuevo Turno";
-  document.getElementById("turnoForm").reset();
-  document.getElementById("turnoId").value = "";
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+
+  const title = document.getElementById("turnoModalTitle");
+  if (title) title.textContent = "Nuevo Turno";
+
+  const form = document.getElementById("turnoForm");
+  if (form) form.reset();
+
+  const idInput = document.getElementById("turnoId");
+  if (idInput) idInput.value = "";
+
+  try {
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al mostrar modal:", error);
+    modal.remove();
+    setTimeout(() => showCreateTurnoModal(), 200);
+  }
 }
 
 async function saveTurno(event) {
   event.preventDefault();
 
-  const nombre = document.getElementById("turnoNombre").value.trim();
-  const hora_inicio = document.getElementById("turnoHoraInicio").value;
-  const hora_fin = document.getElementById("turnoHoraFin").value;
+  const nombre = document.getElementById("turnoNombre")?.value?.trim() || "";
+  const hora_inicio = document.getElementById("turnoHoraInicio")?.value || "";
+  const hora_fin = document.getElementById("turnoHoraFin")?.value || "";
 
   if (!nombre) {
     showToast("El nombre del turno es obligatorio", "error");
@@ -1035,14 +1150,16 @@ async function saveTurno(event) {
     await api.request("/turnos", "POST", { nombre, hora_inicio, hora_fin });
     showToast("Turno creado correctamente", "success");
 
-    const modal = bootstrap.Modal.getInstance(
-      document.getElementById("turnoModal"),
-    );
-    if (modal) modal.hide();
+    const modal = document.getElementById("turnoModal");
+    if (modal) {
+      const modalInstance = bootstrap.Modal.getInstance(modal);
+      if (modalInstance) modalInstance.hide();
+    }
 
     await cargarDatos();
     llenarSelectTurno();
   } catch (error) {
+    console.error("Error en saveTurno:", error);
     showToast(error.message || "Error al crear turno", "error");
   }
 }
@@ -1051,28 +1168,41 @@ async function saveTurno(event) {
 // MÓDULOS - CRUD
 // ============================================================
 function showCreateModuloModal() {
-  const modal = document.getElementById("moduloModal");
+  let modal = document.getElementById("moduloModal");
   if (!modal) {
     crearModalModulo();
-    setTimeout(() => showCreateModuloModal(), 100);
+    setTimeout(() => showCreateModuloModal(), 150);
     return;
   }
-  document.getElementById("moduloModalTitle").textContent = "Nuevo Módulo";
-  document.getElementById("moduloForm").reset();
-  document.getElementById("moduloId").value = "";
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+
+  const title = document.getElementById("moduloModalTitle");
+  if (title) title.textContent = "Nuevo Módulo";
+
+  const form = document.getElementById("moduloForm");
+  if (form) form.reset();
+
+  const idInput = document.getElementById("moduloId");
+  if (idInput) idInput.value = "";
+
+  try {
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al mostrar modal:", error);
+    modal.remove();
+    setTimeout(() => showCreateModuloModal(), 200);
+  }
 }
 
 async function saveModulo(event) {
   event.preventDefault();
 
-  const nombre = document.getElementById("moduloNombre").value.trim();
+  const nombre = document.getElementById("moduloNombre")?.value?.trim() || "";
   const descripcion =
-    document.getElementById("moduloDescripcion").value.trim() || null;
+    document.getElementById("moduloDescripcion")?.value?.trim() || null;
   const icono =
-    document.getElementById("moduloIcono").value.trim() || "fa-cube";
-  const orden = parseInt(document.getElementById("moduloOrden").value) || 0;
+    document.getElementById("moduloIcono")?.value?.trim() || "fa-cube";
+  const orden = parseInt(document.getElementById("moduloOrden")?.value) || 0;
 
   if (!nombre) {
     showToast("El nombre del módulo es obligatorio", "error");
@@ -1088,13 +1218,15 @@ async function saveModulo(event) {
     });
     showToast("Módulo creado correctamente", "success");
 
-    const modal = bootstrap.Modal.getInstance(
-      document.getElementById("moduloModal"),
-    );
-    if (modal) modal.hide();
+    const modal = document.getElementById("moduloModal");
+    if (modal) {
+      const modalInstance = bootstrap.Modal.getInstance(modal);
+      if (modalInstance) modalInstance.hide();
+    }
 
     await cargarDatos();
   } catch (error) {
+    console.error("Error en saveModulo:", error);
     showToast(error.message || "Error al crear módulo", "error");
   }
 }
@@ -1103,35 +1235,50 @@ async function saveModulo(event) {
 // PAGOS DE EMPLEADOS - CRUD
 // ============================================================
 function showCreatePagoEmpleadoModal() {
-  const modal = document.getElementById("pagoEmpleadoModal");
+  let modal = document.getElementById("pagoEmpleadoModal");
   if (!modal) {
     crearModalPagoEmpleado();
-    setTimeout(() => showCreatePagoEmpleadoModal(), 100);
+    setTimeout(() => showCreatePagoEmpleadoModal(), 150);
     return;
   }
-  document.getElementById("pagoEmpleadoModalTitle").textContent =
-    "Registrar Pago";
-  document.getElementById("pagoEmpleadoForm").reset();
-  document.getElementById("pagoEmpleadoId").value = "";
+
+  const title = document.getElementById("pagoEmpleadoModalTitle");
+  if (title) title.textContent = "Registrar Pago";
+
+  const form = document.getElementById("pagoEmpleadoForm");
+  if (form) form.reset();
+
+  const idInput = document.getElementById("pagoEmpleadoId");
+  if (idInput) idInput.value = "";
+
   llenarSelectEmpleadoPago();
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+
+  try {
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al mostrar modal:", error);
+    modal.remove();
+    setTimeout(() => showCreatePagoEmpleadoModal(), 200);
+  }
 }
 
 async function savePagoEmpleado(event) {
   event.preventDefault();
 
   const data = {
-    id_empleado: parseInt(
-      document.getElementById("pagoEmpleadoEmpleado").value,
-    ),
-    concepto: document.getElementById("pagoEmpleadoConcepto").value.trim(),
-    monto: parseFloat(document.getElementById("pagoEmpleadoMonto").value),
-    periodo: document.getElementById("pagoEmpleadoPeriodo").value.trim(),
+    id_empleado:
+      parseInt(document.getElementById("pagoEmpleadoEmpleado")?.value) || null,
+    concepto:
+      document.getElementById("pagoEmpleadoConcepto")?.value?.trim() || "",
+    monto: parseFloat(document.getElementById("pagoEmpleadoMonto")?.value) || 0,
+    periodo:
+      document.getElementById("pagoEmpleadoPeriodo")?.value?.trim() || "",
     referencia:
-      document.getElementById("pagoEmpleadoReferencia").value.trim() || null,
+      document.getElementById("pagoEmpleadoReferencia")?.value?.trim() || null,
     observaciones:
-      document.getElementById("pagoEmpleadoObservaciones").value.trim() || null,
+      document.getElementById("pagoEmpleadoObservaciones")?.value?.trim() ||
+      null,
   };
 
   if (!data.id_empleado) {
@@ -1142,7 +1289,7 @@ async function savePagoEmpleado(event) {
     showToast("El concepto es obligatorio", "error");
     return;
   }
-  if (!data.monto || data.monto <= 0) {
+  if (data.monto <= 0) {
     showToast("El monto debe ser mayor a 0", "error");
     return;
   }
@@ -1151,19 +1298,21 @@ async function savePagoEmpleado(event) {
     await api.request("/pagos-empleado", "POST", data);
     showToast("Pago registrado correctamente", "success");
 
-    const modal = bootstrap.Modal.getInstance(
-      document.getElementById("pagoEmpleadoModal"),
-    );
-    if (modal) modal.hide();
+    const modal = document.getElementById("pagoEmpleadoModal");
+    if (modal) {
+      const modalInstance = bootstrap.Modal.getInstance(modal);
+      if (modalInstance) modalInstance.hide();
+    }
 
     await cargarDatos();
   } catch (error) {
+    console.error("Error en savePagoEmpleado:", error);
     showToast(error.message || "Error al registrar pago", "error");
   }
 }
 
 // ============================================================
-// GESTIÓN DE PERMISOS POR ROL (CORREGIDO)
+// GESTIÓN DE PERMISOS POR ROL
 // ============================================================
 async function verPermisosRol(idRol) {
   try {
@@ -1173,11 +1322,9 @@ async function verPermisosRol(idRol) {
       return;
     }
 
-    // Obtener permisos actuales del rol
     const permisosRol = await api.request(`/roles/${idRol}/permisos`);
     const permisosIds = permisosRol.map((p) => p.id_permiso);
 
-    // ✅ Si no hay permisos definidos en el sistema
     if (!permisosData || permisosData.length === 0) {
       let html = `
                 <div class="modal-header">
@@ -1217,7 +1364,6 @@ async function verPermisosRol(idRol) {
     // Agrupar permisos por módulo
     const permisosPorModulo = {};
 
-    // Primero, asegurar que todos los módulos tengan una entrada
     modulosData.forEach((modulo) => {
       const moduloNombre = modulo.nombre || "Sin módulo";
       if (!permisosPorModulo[moduloNombre]) {
@@ -1229,7 +1375,6 @@ async function verPermisosRol(idRol) {
       }
     });
 
-    // Luego, agregar los permisos a sus módulos correspondientes
     permisosData.forEach((p) => {
       let moduloNombre = "Sin módulo";
       if (p.id_modulo) {
@@ -1264,13 +1409,11 @@ async function verPermisosRol(idRol) {
                 <div id="permisosContainer">
         `;
 
-    // Si hay módulos, mostrar agrupado
     const tieneModulos = Object.keys(permisosPorModulo).some(
       (key) => permisosPorModulo[key].permisos.length > 0,
     );
 
     if (!tieneModulos) {
-      // Mostrar todos los permisos en una lista simple
       html += `
                 <div class="card">
                     <div class="card-header bg-light">
@@ -1301,7 +1444,6 @@ async function verPermisosRol(idRol) {
                 </div>
             `;
     } else {
-      // Mostrar permisos agrupados por módulo
       Object.keys(permisosPorModulo).forEach((moduloNombre) => {
         const moduloData = permisosPorModulo[moduloNombre];
         const permisos = moduloData.permisos;
@@ -1450,6 +1592,7 @@ function llenarSelectEmpleadoPago(selectedId) {
 // ============================================================
 function crearModalUsuario() {
   if (document.getElementById("usuarioModal")) return;
+
   document.body.insertAdjacentHTML(
     "beforeend",
     `
@@ -1499,6 +1642,7 @@ function crearModalUsuario() {
 
 function crearModalEmpleado() {
   if (document.getElementById("empleadoModal")) return;
+
   document.body.insertAdjacentHTML(
     "beforeend",
     `
@@ -1569,6 +1713,7 @@ function crearModalEmpleado() {
 
 function crearModalRol() {
   if (document.getElementById("rolModal")) return;
+
   document.body.insertAdjacentHTML(
     "beforeend",
     `
@@ -1593,7 +1738,6 @@ function crearModalRol() {
                             <div class="mb-3">
                                 <label class="form-label">Nivel</label>
                                 <input type="number" class="form-control" id="rolNivel" value="0" />
-                                <small class="text-muted">Nivel de jerarquía (mayor = más permisos)</small>
                             </div>
                             <button type="submit" class="btn btn-primary w-100">Guardar</button>
                         </form>
@@ -1607,6 +1751,7 @@ function crearModalRol() {
 
 function crearModalPuesto() {
   if (document.getElementById("puestoModal")) return;
+
   document.body.insertAdjacentHTML(
     "beforeend",
     `
@@ -1640,6 +1785,7 @@ function crearModalPuesto() {
 
 function crearModalTurno() {
   if (document.getElementById("turnoModal")) return;
+
   document.body.insertAdjacentHTML(
     "beforeend",
     `
@@ -1679,6 +1825,7 @@ function crearModalTurno() {
 
 function crearModalModulo() {
   if (document.getElementById("moduloModal")) return;
+
   document.body.insertAdjacentHTML(
     "beforeend",
     `
@@ -1702,9 +1849,8 @@ function crearModalModulo() {
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">Icono (FontAwesome)</label>
+                                    <label class="form-label">Icono</label>
                                     <input type="text" class="form-control" id="moduloIcono" value="fa-cube" />
-                                    <small class="text-muted">Ej: fa-cog, fa-user, fa-box</small>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Orden</label>
@@ -1723,6 +1869,7 @@ function crearModalModulo() {
 
 function crearModalPagoEmpleado() {
   if (document.getElementById("pagoEmpleadoModal")) return;
+
   document.body.insertAdjacentHTML(
     "beforeend",
     `
