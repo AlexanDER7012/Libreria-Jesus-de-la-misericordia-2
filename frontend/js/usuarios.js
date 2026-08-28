@@ -1,4 +1,4 @@
-// usuarios.js - VERSIÓN COMPLETA CON TODAS LAS FUNCIONALIDADES
+// usuarios.js - VERSIÓN COMPLETA Y FUNCIONAL
 
 let usuariosData = [];
 let empleadosData = [];
@@ -37,7 +37,6 @@ async function loadUsuariosModule() {
             </div>
         </div>
 
-        <!-- PESTAÑAS PRINCIPALES -->
         <ul class="nav nav-tabs mb-3" id="usuariosTabs">
             <li class="nav-item">
                 <a class="nav-link active" data-bs-toggle="tab" href="#usuariosTab">
@@ -72,27 +71,21 @@ async function loadUsuariosModule() {
         </ul>
 
         <div class="tab-content">
-            <!-- USUARIOS -->
             <div class="tab-pane fade show active" id="usuariosTab">
                 <div id="usuariosContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando usuarios...</p></div></div>
             </div>
-            <!-- EMPLEADOS -->
             <div class="tab-pane fade" id="empleadosTab">
                 <div id="empleadosContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando empleados...</p></div></div>
             </div>
-            <!-- ROLES Y PERMISOS -->
             <div class="tab-pane fade" id="rolesTab">
                 <div id="rolesContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando roles...</p></div></div>
             </div>
-            <!-- PAGOS -->
             <div class="tab-pane fade" id="pagosTab">
                 <div id="pagosContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando pagos...</p></div></div>
             </div>
-            <!-- CATÁLOGOS -->
             <div class="tab-pane fade" id="catalogosTab">
                 <div id="catalogosContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando catálogos...</p></div></div>
             </div>
-            <!-- BITÁCORA -->
             <div class="tab-pane fade" id="logsTab">
                 <div id="logsContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando bitácora...</p></div></div>
             </div>
@@ -138,6 +131,16 @@ async function cargarDatos() {
     permisosData = permisos || [];
     pagosEmpleadoData = pagos || [];
     logsData = logs || [];
+
+    // ✅ Log para depuración
+    console.log("✅ Datos cargados:");
+    console.log("  - Usuarios:", usuariosData.length);
+    console.log("  - Empleados:", empleadosData.length);
+    console.log("  - Roles:", rolesData.length);
+    console.log("  - Puestos:", puestosData.length);
+    console.log("  - Turnos:", turnosData.length);
+    console.log("  - Módulos:", modulosData.length);
+    console.log("  - Permisos:", permisosData.length);
 
     renderUsuarios(usuariosData);
     renderEmpleados(empleadosData);
@@ -483,7 +486,7 @@ function renderPagos(pagos) {
 }
 
 // ============================================================
-// RENDER: CATÁLOGOS (Puestos, Turnos, Módulos)
+// RENDER: CATÁLOGOS
 // ============================================================
 function renderCatalogos() {
   const container = document.getElementById("catalogosContainer");
@@ -491,7 +494,6 @@ function renderCatalogos() {
 
   let html = `
         <div class="row">
-            <!-- Puestos -->
             <div class="col-md-4">
                 <div class="card">
                     <div class="card-header bg-primary text-white">
@@ -520,7 +522,6 @@ function renderCatalogos() {
                 </div>
             </div>
 
-            <!-- Turnos -->
             <div class="col-md-4">
                 <div class="card">
                     <div class="card-header bg-success text-white">
@@ -549,7 +550,6 @@ function renderCatalogos() {
                 </div>
             </div>
 
-            <!-- Módulos -->
             <div class="col-md-4">
                 <div class="card">
                     <div class="card-header bg-info text-white">
@@ -584,7 +584,7 @@ function renderCatalogos() {
 }
 
 // ============================================================
-// RENDER: BITÁCORA (LOGS)
+// RENDER: BITÁCORA
 // ============================================================
 function renderLogs(logs) {
   const container = document.getElementById("logsContainer");
@@ -658,7 +658,6 @@ function renderLogs(logs) {
 // ============================================================
 // USUARIOS - CRUD
 // ============================================================
-
 function showCreateUsuarioModal() {
   const modal = document.getElementById("usuarioModal");
   if (!modal) {
@@ -671,6 +670,8 @@ function showCreateUsuarioModal() {
   document.getElementById("usuarioId").value = "";
   document.getElementById("usuarioPassword").required = true;
   document.getElementById("usuarioPassword").placeholder = "Nueva contraseña";
+  document.getElementById("passwordHelp").textContent =
+    "La contraseña es obligatoria para nuevos usuarios";
   llenarSelectEmpleado();
   llenarSelectRol();
   const modalInstance = new bootstrap.Modal(modal);
@@ -700,6 +701,8 @@ async function showEditUsuarioModal(id) {
     document.getElementById("usuarioPassword").required = false;
     document.getElementById("usuarioPassword").placeholder =
       "Dejar en blanco para no cambiar";
+    document.getElementById("passwordHelp").textContent =
+      "Dejar en blanco para no cambiar la contraseña";
     document.getElementById("usuarioActivo").value =
       usuario.activo !== 0 ? "1" : "0";
 
@@ -712,10 +715,6 @@ async function showEditUsuarioModal(id) {
     showToast(error.message || "Error al cargar usuario", "error");
   }
 }
-
-// ============================================================
-// USUARIOS - CRUD (CORREGIDO)
-// ============================================================
 
 async function saveUsuario(event) {
   event.preventDefault();
@@ -735,7 +734,6 @@ async function saveUsuario(event) {
 
   try {
     if (id) {
-      // Editar usuario
       const data = { id_rol, activo };
       if (password) {
         data.password = password;
@@ -743,7 +741,6 @@ async function saveUsuario(event) {
       await api.request(`/usuarios/${id}`, "PUT", data);
       showToast("Usuario actualizado correctamente", "success");
     } else {
-      // Crear usuario
       if (!password) {
         showToast("La contraseña es obligatoria", "error");
         return;
@@ -757,7 +754,6 @@ async function saveUsuario(event) {
       showToast("Usuario creado correctamente", "success");
     }
 
-    // ✅ Cerrar modal
     const modal = bootstrap.Modal.getInstance(
       document.getElementById("usuarioModal"),
     );
@@ -779,7 +775,7 @@ async function deleteUsuario(id) {
   try {
     await api.request(`/usuarios/${id}`, "DELETE");
     showToast("Usuario desactivado correctamente", "success");
-    await loadUsuariosModule();
+    await cargarDatos();
   } catch (error) {
     showToast(error.message || "Error al desactivar usuario", "error");
   }
@@ -790,7 +786,7 @@ async function reactivarUsuario(id) {
   try {
     await api.request(`/usuarios/${id}/reactivar`, "PATCH");
     showToast("Usuario reactivado correctamente", "success");
-    await loadUsuariosModule();
+    await cargarDatos();
   } catch (error) {
     showToast(error.message || "Error al reactivar usuario", "error");
   }
@@ -799,7 +795,6 @@ async function reactivarUsuario(id) {
 // ============================================================
 // EMPLEADOS - CRUD
 // ============================================================
-
 function showCreateEmpleadoModal() {
   const modal = document.getElementById("empleadoModal");
   if (!modal) {
@@ -892,7 +887,10 @@ async function saveEmpleado(event) {
       document.getElementById("empleadoModal"),
     );
     if (modal) modal.hide();
-    await loadUsuariosModule();
+
+    await cargarDatos();
+    llenarSelectEmpleado();
+    llenarSelectEmpleadoPago();
   } catch (error) {
     showToast(error.message || "Error al guardar empleado", "error");
   }
@@ -903,7 +901,7 @@ async function deleteEmpleado(id) {
   try {
     await api.request(`/empleados/${id}`, "DELETE");
     showToast("Empleado eliminado correctamente", "success");
-    await loadUsuariosModule();
+    await cargarDatos();
   } catch (error) {
     showToast(error.message || "Error al eliminar empleado", "error");
   }
@@ -912,7 +910,6 @@ async function deleteEmpleado(id) {
 // ============================================================
 // ROLES - CRUD
 // ============================================================
-
 function showCreateRolModal() {
   const modal = document.getElementById("rolModal");
   if (!modal) {
@@ -943,11 +940,14 @@ async function saveRol(event) {
   try {
     await api.request("/roles", "POST", { nombre, descripcion, nivel });
     showToast("Rol creado correctamente", "success");
+
     const modal = bootstrap.Modal.getInstance(
       document.getElementById("rolModal"),
     );
     if (modal) modal.hide();
-    await loadUsuariosModule();
+
+    await cargarDatos();
+    llenarSelectRol();
   } catch (error) {
     showToast(error.message || "Error al crear rol", "error");
   }
@@ -956,7 +956,6 @@ async function saveRol(event) {
 // ============================================================
 // PUESTOS - CRUD
 // ============================================================
-
 function showCreatePuestoModal() {
   const modal = document.getElementById("puestoModal");
   if (!modal) {
@@ -986,11 +985,14 @@ async function savePuesto(event) {
   try {
     await api.request("/puestos", "POST", { nombre, descripcion });
     showToast("Puesto creado correctamente", "success");
+
     const modal = bootstrap.Modal.getInstance(
       document.getElementById("puestoModal"),
     );
     if (modal) modal.hide();
-    await loadUsuariosModule();
+
+    await cargarDatos();
+    llenarSelectPuesto();
   } catch (error) {
     showToast(error.message || "Error al crear puesto", "error");
   }
@@ -999,7 +1001,6 @@ async function savePuesto(event) {
 // ============================================================
 // TURNOS - CRUD
 // ============================================================
-
 function showCreateTurnoModal() {
   const modal = document.getElementById("turnoModal");
   if (!modal) {
@@ -1033,11 +1034,14 @@ async function saveTurno(event) {
   try {
     await api.request("/turnos", "POST", { nombre, hora_inicio, hora_fin });
     showToast("Turno creado correctamente", "success");
+
     const modal = bootstrap.Modal.getInstance(
       document.getElementById("turnoModal"),
     );
     if (modal) modal.hide();
-    await loadUsuariosModule();
+
+    await cargarDatos();
+    llenarSelectTurno();
   } catch (error) {
     showToast(error.message || "Error al crear turno", "error");
   }
@@ -1046,7 +1050,6 @@ async function saveTurno(event) {
 // ============================================================
 // MÓDULOS - CRUD
 // ============================================================
-
 function showCreateModuloModal() {
   const modal = document.getElementById("moduloModal");
   if (!modal) {
@@ -1084,11 +1087,13 @@ async function saveModulo(event) {
       orden,
     });
     showToast("Módulo creado correctamente", "success");
+
     const modal = bootstrap.Modal.getInstance(
       document.getElementById("moduloModal"),
     );
     if (modal) modal.hide();
-    await loadUsuariosModule();
+
+    await cargarDatos();
   } catch (error) {
     showToast(error.message || "Error al crear módulo", "error");
   }
@@ -1097,7 +1102,6 @@ async function saveModulo(event) {
 // ============================================================
 // PAGOS DE EMPLEADOS - CRUD
 // ============================================================
-
 function showCreatePagoEmpleadoModal() {
   const modal = document.getElementById("pagoEmpleadoModal");
   if (!modal) {
@@ -1146,20 +1150,21 @@ async function savePagoEmpleado(event) {
   try {
     await api.request("/pagos-empleado", "POST", data);
     showToast("Pago registrado correctamente", "success");
+
     const modal = bootstrap.Modal.getInstance(
       document.getElementById("pagoEmpleadoModal"),
     );
     if (modal) modal.hide();
-    await loadUsuariosModule();
+
+    await cargarDatos();
   } catch (error) {
     showToast(error.message || "Error al registrar pago", "error");
   }
 }
 
 // ============================================================
-// GESTIÓN DE PERMISOS POR ROL
+// GESTIÓN DE PERMISOS POR ROL (CORREGIDO)
 // ============================================================
-
 async function verPermisosRol(idRol) {
   try {
     const rol = rolesData.find((r) => r.id === idRol);
@@ -1168,17 +1173,81 @@ async function verPermisosRol(idRol) {
       return;
     }
 
+    // Obtener permisos actuales del rol
     const permisosRol = await api.request(`/roles/${idRol}/permisos`);
     const permisosIds = permisosRol.map((p) => p.id_permiso);
 
-    const permisosPorModulo = {};
-    permisosData.forEach((p) => {
-      const modulo = modulosData.find((m) => m.id === p.id_modulo);
-      const moduloNombre = modulo ? modulo.nombre : "Sin módulo";
-      if (!permisosPorModulo[moduloNombre]) {
-        permisosPorModulo[moduloNombre] = [];
+    // ✅ Si no hay permisos definidos en el sistema
+    if (!permisosData || permisosData.length === 0) {
+      let html = `
+                <div class="modal-header">
+                    <h5 class="modal-title">Gestionar Permisos - ${rol.nombre}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        No hay permisos definidos en el sistema.
+                        <br>Contacta al administrador para crear permisos.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            `;
+
+      let modalDiv = document.getElementById("permisosModal");
+      if (!modalDiv) {
+        modalDiv = document.createElement("div");
+        modalDiv.className = "modal fade";
+        modalDiv.id = "permisosModal";
+        document.body.appendChild(modalDiv);
       }
-      permisosPorModulo[moduloNombre].push({
+      modalDiv.innerHTML = `<div class="modal-dialog modal-lg"><div class="modal-content">${html}</div></div>`;
+
+      const modalInstance = new bootstrap.Modal(modalDiv);
+      modalInstance.show();
+
+      modalDiv.addEventListener("hidden.bs.modal", function () {
+        cargarDatos();
+      });
+      return;
+    }
+
+    // Agrupar permisos por módulo
+    const permisosPorModulo = {};
+
+    // Primero, asegurar que todos los módulos tengan una entrada
+    modulosData.forEach((modulo) => {
+      const moduloNombre = modulo.nombre || "Sin módulo";
+      if (!permisosPorModulo[moduloNombre]) {
+        permisosPorModulo[moduloNombre] = {
+          id: modulo.id,
+          icono: modulo.icono || "fa-cube",
+          permisos: [],
+        };
+      }
+    });
+
+    // Luego, agregar los permisos a sus módulos correspondientes
+    permisosData.forEach((p) => {
+      let moduloNombre = "Sin módulo";
+      if (p.id_modulo) {
+        const modulo = modulosData.find((m) => m.id === p.id_modulo);
+        if (modulo) {
+          moduloNombre = modulo.nombre || "Sin módulo";
+        }
+      }
+
+      if (!permisosPorModulo[moduloNombre]) {
+        permisosPorModulo[moduloNombre] = {
+          id: null,
+          icono: "fa-cube",
+          permisos: [],
+        };
+      }
+
+      permisosPorModulo[moduloNombre].permisos.push({
         ...p,
         tienePermiso: permisosIds.includes(p.id),
         rolPermisoId: permisosRol.find((rp) => rp.id_permiso === p.id)?.id,
@@ -1195,24 +1264,29 @@ async function verPermisosRol(idRol) {
                 <div id="permisosContainer">
         `;
 
-    Object.keys(permisosPorModulo).forEach((moduloNombre) => {
-      const permisos = permisosPorModulo[moduloNombre];
+    // Si hay módulos, mostrar agrupado
+    const tieneModulos = Object.keys(permisosPorModulo).some(
+      (key) => permisosPorModulo[key].permisos.length > 0,
+    );
+
+    if (!tieneModulos) {
+      // Mostrar todos los permisos en una lista simple
       html += `
-                <div class="card mb-2">
+                <div class="card">
                     <div class="card-header bg-light">
-                        <strong>${moduloNombre}</strong>
+                        <strong>Todos los Permisos</strong>
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            ${permisos
+                            ${permisosData
                               .map(
                                 (p) => `
                                 <div class="col-md-6 col-lg-4">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" 
-                                               id="permiso_${p.id}" 
-                                               ${p.tienePermiso ? "checked" : ""}
-                                               onchange="togglePermiso(${idRol}, ${p.id}, ${p.rolPermisoId || "null"})">
+                                        <input class="form-check-input" type="checkbox"
+                                               id="permiso_${p.id}"
+                                               ${permisosIds.includes(p.id) ? "checked" : ""}
+                                               onchange="togglePermiso(${idRol}, ${p.id}, ${permisosRol.find((rp) => rp.id_permiso === p.id)?.id || "null"})">
                                         <label class="form-check-label" for="permiso_${p.id}">
                                             ${p.nombre}
                                             ${p.descripcion ? `<br><small class="text-muted">${p.descripcion}</small>` : ""}
@@ -1226,13 +1300,56 @@ async function verPermisosRol(idRol) {
                     </div>
                 </div>
             `;
-    });
+    } else {
+      // Mostrar permisos agrupados por módulo
+      Object.keys(permisosPorModulo).forEach((moduloNombre) => {
+        const moduloData = permisosPorModulo[moduloNombre];
+        const permisos = moduloData.permisos;
+
+        if (permisos.length === 0) return;
+
+        html += `
+                    <div class="card mb-2">
+                        <div class="card-header bg-light">
+                            <i class="fas ${moduloData.icono || "fa-cube"} me-2"></i>
+                            <strong>${moduloNombre}</strong>
+                            <span class="badge bg-secondary ms-2">${permisos.length} permisos</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                ${permisos
+                                  .map(
+                                    (p) => `
+                                    <div class="col-md-6 col-lg-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="permiso_${p.id}"
+                                                   ${p.tienePermiso ? "checked" : ""}
+                                                   onchange="togglePermiso(${idRol}, ${p.id}, ${p.rolPermisoId || "null"})">
+                                            <label class="form-check-label" for="permiso_${p.id}">
+                                                ${p.nombre}
+                                                ${p.descripcion ? `<br><small class="text-muted">${p.descripcion}</small>` : ""}
+                                            </label>
+                                        </div>
+                                    </div>
+                                `,
+                                  )
+                                  .join("")}
+                            </div>
+                        </div>
+                    </div>
+                `;
+      });
+    }
 
     html += `
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button class="btn btn-primary" onclick="cargarDatos(); showToast('Datos recargados', 'info');">
+                    <i class="fas fa-sync me-1"></i>Recargar
+                </button>
             </div>
         `;
 
@@ -1252,6 +1369,7 @@ async function verPermisosRol(idRol) {
       cargarDatos();
     });
   } catch (error) {
+    console.error("Error en verPermisosRol:", error);
     showToast(error.message || "Error al cargar permisos", "error");
   }
 }
@@ -1277,7 +1395,6 @@ async function togglePermiso(idRol, idPermiso, rolPermisoId) {
 // ============================================================
 // SELECTS
 // ============================================================
-
 function llenarSelectEmpleado(selectedId) {
   const select = document.getElementById("usuarioEmpleado");
   if (!select) return;
@@ -1331,7 +1448,6 @@ function llenarSelectEmpleadoPago(selectedId) {
 // ============================================================
 // CREAR MODALES
 // ============================================================
-
 function crearModalUsuario() {
   if (document.getElementById("usuarioModal")) return;
   document.body.insertAdjacentHTML(
@@ -1657,7 +1773,6 @@ function crearModalPagoEmpleado() {
 // ============================================================
 // FUNCIONES GLOBALES
 // ============================================================
-
 window.loadUsuariosModule = loadUsuariosModule;
 window.showCreateUsuarioModal = showCreateUsuarioModal;
 window.showEditUsuarioModal = showEditUsuarioModal;
