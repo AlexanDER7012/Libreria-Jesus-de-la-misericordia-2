@@ -1,13 +1,15 @@
 from datetime import time
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from app.schemas.validators import validar_telefono
 
 
 # ===================== Sububicacion =====================
 
 class SububicacionBase(BaseModel):
-    tipo: Optional[str] = None  
+    tipo: Optional[str] = None  # "Exhibicion" o "Almacenamiento"
     encargado: Optional[str] = None
 
 
@@ -38,6 +40,11 @@ class UbicacionBase(BaseModel):
     encargado: Optional[str] = None
     hora_apertura: Optional[time] = None
     hora_cierre: Optional[time] = None
+
+    @field_validator("telefono")
+    @classmethod
+    def _validar_telefono(cls, v):
+        return validar_telefono(v)
 
 
 class UbicacionCreate(UbicacionBase):

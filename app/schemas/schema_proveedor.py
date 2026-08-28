@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from app.schemas.validators import validar_telefono
 
 
 # ===================== TipoProveedor =====================
@@ -31,6 +33,10 @@ class ProveedorBase(BaseModel):
     codigo_proveedor: Optional[str] = None
     dias_credito: Optional[int] = None
 
+    @field_validator("telefono")
+    @classmethod
+    def _validar_telefono(cls, v):
+        return validar_telefono(v)
 
 class ProveedorCreate(ProveedorBase):
     nombre: str
