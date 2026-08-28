@@ -1,5 +1,6 @@
 from typing import List, Literal, Optional
 
+from app.security import get_current_user 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -45,6 +46,24 @@ def _filtrar_por_estado(query, modelo, estado: str):
 # USUARIO
 # ===================================================================
 
+
+@router.get("/mis-permisos", response_model=List[PermisoResponse])
+def obtener_mis_permisos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Obtiene todos los permisos del usuario actual (a través de su rol)."""
+    if not current_user.id_rol:
+        return []
+    
+    permisos = (
+        db.query(Permiso)
+        .join(RolPermiso, RolPermiso.id_permiso == Permiso.id)
+        .filter(RolPermiso.id_rol == current_user.id_rol)
+        .all()
+    )
+    return permisos
+
 @router.get("", response_model=List[UsuarioResponse])
 def listar_usuarios(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
@@ -64,6 +83,7 @@ def obtener_usuario(usuario_id: int, db: Session = Depends(get_db)):
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return usuario
+
 
 
 @router.post("", response_model=UsuarioResponse, status_code=201)

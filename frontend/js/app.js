@@ -4,10 +4,11 @@ class App {
   constructor() {
     if (!checkAuth()) return;
     this.currentModule = null;
+    // ✅ Usar getCurrentUser() para obtener el usuario actual
     this.user = getCurrentUser();
+    console.log("👤 Usuario actual:", this.user);
     this.sidebarVisible = false;
 
-    // ✅ Lista de módulos del sistema (SIN Clientes y SIN Proveedores)
     this.modules = [
       { id: "dashboard", label: "Dashboard", icon: "fa-chart-bar" },
       { id: "productos", label: "Productos", icon: "fa-box" },
@@ -30,6 +31,89 @@ class App {
     this.buildSidebar();
     this.setupFloatingButton();
     this.showHome();
+  }
+
+  // =============================================
+  // OBTENER PERMISOS DEL USUARIO
+  // =============================================
+
+  getPermisosUsuario() {
+    try {
+      const permisos = localStorage.getItem("user_permisos");
+      return permisos ? JSON.parse(permisos) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  tienePermiso(moduleId) {
+    // ✅ Obtener usuario actual desde localStorage (más confiable)
+    const user = getCurrentUser();
+    const rol = user?.rol || user?.id_rol || this.user?.rol;
+
+    // ✅ Si es administrador (id_rol = 1 o nombre "admin"), tiene acceso a todo
+    if (
+      rol === 1 ||
+      rol === "admin" ||
+      rol === "Administrador" ||
+      user?.id === 1
+    ) {
+      console.log(`✅ Admin: acceso a ${moduleId}`);
+      return true;
+    }
+
+    // ✅ Obtener permisos
+    const permisos = this.getPermisosUsuario();
+    console.log(`🔍 Verificando permiso para ${moduleId}, permisos:`, permisos);
+
+    // ✅ Si no hay permisos, SOLO acceso a Dashboard
+    if (!permisos || permisos.length === 0) {
+      console.warn(`⚠️ Sin permisos, solo Dashboard para ${moduleId}`);
+      return moduleId === "dashboard";
+    }
+
+    // ✅ Verificar si el módulo está en la lista de permisos
+    const tieneAcceso = permisos.some((p) => {
+      // Buscar el nombre del módulo en diferentes campos
+      const nombreModulo =
+        p.modulo_nombre || p.modulo || p.nombre_modulo || p.modulo_name;
+      // Normalizar
+      const moduloLower = nombreModulo ? nombreModulo.toLowerCase() : "";
+      const moduleLower = moduleId.toLowerCase();
+
+      // También verificar por id_modulo
+      const idModulo = p.id_modulo || p.modulo_id;
+      const coincide =
+        moduloLower === moduleLower || idModulo === this.getModuloId(moduleId);
+
+      if (coincide) {
+        console.log(
+          `✅ Permiso encontrado: ${moduloLower} para ${moduleLower}`,
+        );
+      }
+      return coincide;
+    });
+
+    if (!tieneAcceso) {
+      console.warn(`❌ Sin permiso para: ${moduleId}`);
+    }
+
+    return tieneAcceso;
+  }
+
+  // ✅ Función auxiliar para mapear nombres de módulo a IDs
+  getModuloId(nombre) {
+    const mapa = {
+      dashboard: 1,
+      productos: 2,
+      ventas: 3,
+      compras: 4,
+      inventario: 5,
+      usuarios: 6,
+      reportes: 7,
+      configuracion: 8,
+    };
+    return mapa[nombre];
   }
 
   // =============================================
@@ -74,25 +158,45 @@ class App {
   }
 
   // =============================================
-  // SIDEBAR
+  // SIDEBAR (CON FILTRO DE PERMISOS)
   // =============================================
 
   buildSidebar() {
     const nav = document.getElementById("sidebarNav");
     if (!nav) return;
     nav.innerHTML = "";
+
+    // ✅ Obtener permisos
+    const permisos = this.getPermisosUsuario();
+    console.log("📋 Permisos del usuario:", permisos);
+
     this.modules.forEach((mod) => {
-      const a = document.createElement("a");
-      a.href = "#";
-      a.className = "sidebar-link";
-      a.dataset.module = mod.id;
-      a.innerHTML = `<i class="fas ${mod.icon} me-2"></i> ${mod.label}`;
-      a.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.loadModule(mod.id);
-      });
-      nav.appendChild(a);
+      // ✅ Verificar si el usuario tiene permiso para ver este módulo
+      const tienePermiso = this.tienePermiso(mod.id);
+
+      if (tienePermiso) {
+        const a = document.createElement("a");
+        a.href = "#";
+        a.className = "sidebar-link";
+        a.dataset.module = mod.id;
+        a.innerHTML = `<i class="fas ${mod.icon} me-2"></i> ${mod.label}`;
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          this.loadModule(mod.id);
+        });
+        nav.appendChild(a);
+      }
     });
+
+    // ✅ Si no hay módulos permitidos, mostrar mensaje
+    if (nav.children.length === 0) {
+      nav.innerHTML = `
+        <div class="text-center text-white-50 p-3">
+          <i class="fas fa-lock fa-2x mb-2"></i>
+          <p class="small">No tienes permisos para ver módulos</p>
+        </div>
+      `;
+    }
   }
 
   showSidebar() {
@@ -155,7 +259,7 @@ class App {
   }
 
   // =============================================
-  // PANTALLA DE INICIO (MATRIZ) - SIN Clientes y Proveedores
+  // PANTALLA DE INICIO (MATRIZ) - CON FILTRO DE PERMISOS
   // =============================================
 
   showHome() {
@@ -163,7 +267,7 @@ class App {
     const mainContent = document.getElementById("mainContent");
     if (!mainContent) return;
 
-    const mainModules = [
+    const allModules = [
       {
         id: "dashboard",
         label: "Dashboard",
@@ -203,6 +307,27 @@ class App {
         color: "dark",
       },
     ];
+
+    // ✅ Filtrar módulos según permisos
+    const mainModules = allModules.filter((mod) => {
+      return this.tienePermiso(mod.id);
+    });
+
+    // ✅ Si no hay módulos permitidos, mostrar mensaje
+    if (mainModules.length === 0) {
+      mainContent.innerHTML = `
+        <div class="text-center py-5">
+          <i class="fas fa-lock fa-4x text-muted mb-3"></i>
+          <h5 class="text-muted">No tienes acceso a ningún módulo</h5>
+          <p class="text-muted small">Contacta al administrador para solicitar permisos.</p>
+        </div>
+      `;
+      this.hideSidebar();
+      document.getElementById("sidebarToggleBtn")?.classList.add("d-none");
+      this.updateFloatingButton();
+      this.updateTitle("Inicio");
+      return;
+    }
 
     let cards = mainModules
       .map(
@@ -264,6 +389,13 @@ class App {
 
   async loadModule(moduleName) {
     if (!moduleName || moduleName === this.currentModule) return;
+
+    // ✅ Verificar permiso antes de cargar
+    if (!this.tienePermiso(moduleName)) {
+      showToast("No tienes permiso para acceder a este módulo", "error");
+      return;
+    }
+
     this.currentModule = moduleName;
 
     this.showSidebar();

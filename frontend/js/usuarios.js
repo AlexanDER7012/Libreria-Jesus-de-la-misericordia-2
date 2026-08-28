@@ -1,4 +1,4 @@
-// usuarios.js - VERSIÓN COMPLETA Y FUNCIONAL
+// usuarios.js - VERSIÓN DEFINITIVA Y FUNCIONAL
 
 let usuariosData = [];
 let empleadosData = [];
@@ -752,15 +752,17 @@ async function showEditUsuarioModal(id) {
 }
 
 // ============================================================
-// USUARIOS - GUARDAR (CORREGIDO)
+// USUARIOS - GUARDAR (DEFINITIVO - FUNCIONAL)
 // ============================================================
 async function saveUsuario(event) {
+  // ✅ Prevenir que el formulario recargue la página
   if (event) {
     event.preventDefault();
     event.stopPropagation();
   }
 
-  // Obtener valores
+  console.log("🔄 saveUsuario ejecutado");
+
   const id = document.getElementById("usuarioId")?.value || "";
   const nombre_usuario =
     document.getElementById("usuarioNombre")?.value?.trim() || "";
@@ -771,36 +773,29 @@ async function saveUsuario(event) {
   const id_rol = parseInt(document.getElementById("usuarioRol")?.value) || null;
   const activo = parseInt(document.getElementById("usuarioActivo")?.value) || 1;
 
-  // Validar
   if (!nombre_usuario) {
     showToast("El nombre de usuario es obligatorio", "error");
     return;
   }
 
-  // Deshabilitar botón
-  const submitBtn = document.querySelector(
-    '#usuarioForm button[type="submit"]',
-  );
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.innerHTML =
-      '<i class="fas fa-spinner fa-spin me-1"></i>Guardando...';
+  const btn = document.querySelector('#usuarioForm button[type="submit"]');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Guardando...';
   }
 
   try {
     if (id) {
       const data = { id_rol, activo };
-      if (password) {
-        data.password = password;
-      }
+      if (password) data.password = password;
       await api.request(`/usuarios/${id}`, "PUT", data);
       showToast("Usuario actualizado correctamente", "success");
     } else {
       if (!password) {
         showToast("La contraseña es obligatoria", "error");
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = "Guardar";
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = "Guardar";
         }
         return;
       }
@@ -825,18 +820,19 @@ async function saveUsuario(event) {
     // ✅ Recargar datos
     await cargarDatos();
 
-    // ✅ Restaurar botón
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = "Guardar";
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = "Guardar";
     }
-  } catch (error) {
-    console.error("Error en saveUsuario:", error);
-    showToast(error.message || "Error al guardar usuario", "error");
 
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = "Guardar";
+    llenarSelectEmpleado();
+    llenarSelectRol();
+  } catch (error) {
+    console.error("❌ Error en saveUsuario:", error);
+    showToast(error.message || "Error al guardar usuario", "error");
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = "Guardar";
     }
   }
 }
@@ -951,7 +947,10 @@ async function showEditEmpleadoModal(id) {
 }
 
 async function saveEmpleado(event) {
-  event.preventDefault();
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
 
   const id = document.getElementById("empleadoId")?.value || "";
   const data = {
@@ -975,6 +974,12 @@ async function saveEmpleado(event) {
     return;
   }
 
+  const btn = document.querySelector('#empleadoForm button[type="submit"]');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Guardando...';
+  }
+
   try {
     if (id) {
       await api.request(`/empleados/${id}`, "PUT", data);
@@ -993,9 +998,18 @@ async function saveEmpleado(event) {
     await cargarDatos();
     llenarSelectEmpleado();
     llenarSelectEmpleadoPago();
+
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = "Guardar";
+    }
   } catch (error) {
     console.error("Error en saveEmpleado:", error);
     showToast(error.message || "Error al guardar empleado", "error");
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = "Guardar";
+    }
   }
 }
 
@@ -1041,7 +1055,10 @@ function showCreateRolModal() {
 }
 
 async function saveRol(event) {
-  event.preventDefault();
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
 
   const nombre = document.getElementById("rolNombre")?.value?.trim() || "";
   const descripcion =
@@ -1051,6 +1068,12 @@ async function saveRol(event) {
   if (!nombre) {
     showToast("El nombre del rol es obligatorio", "error");
     return;
+  }
+
+  const btn = document.querySelector('#rolForm button[type="submit"]');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Guardando...';
   }
 
   try {
@@ -1065,9 +1088,18 @@ async function saveRol(event) {
 
     await cargarDatos();
     llenarSelectRol();
+
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = "Guardar";
+    }
   } catch (error) {
     console.error("Error en saveRol:", error);
     showToast(error.message || "Error al crear rol", "error");
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = "Guardar";
+    }
   }
 }
 
@@ -1102,7 +1134,10 @@ function showCreatePuestoModal() {
 }
 
 async function savePuesto(event) {
-  event.preventDefault();
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
 
   const nombre = document.getElementById("puestoNombre")?.value?.trim() || "";
   const descripcion =
@@ -1162,7 +1197,10 @@ function showCreateTurnoModal() {
 }
 
 async function saveTurno(event) {
-  event.preventDefault();
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
 
   const nombre = document.getElementById("turnoNombre")?.value?.trim() || "";
   const hora_inicio = document.getElementById("turnoHoraInicio")?.value || "";
@@ -1226,7 +1264,10 @@ function showCreateModuloModal() {
 }
 
 async function saveModulo(event) {
-  event.preventDefault();
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
 
   const nombre = document.getElementById("moduloNombre")?.value?.trim() || "";
   const descripcion =
@@ -1295,7 +1336,10 @@ function showCreatePagoEmpleadoModal() {
 }
 
 async function savePagoEmpleado(event) {
-  event.preventDefault();
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
 
   const data = {
     id_empleado:
@@ -1565,6 +1609,59 @@ async function togglePermiso(idRol, idPermiso, rolPermisoId) {
 }
 
 // ============================================================
+// CREAR MODALES
+// ============================================================
+function crearModalUsuario() {
+  if (document.getElementById("usuarioModal")) return;
+
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `
+        <div class="modal fade" id="usuarioModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="usuarioModalTitle">Usuario</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="usuarioForm" onsubmit="saveUsuario(event)">
+                            <input type="hidden" id="usuarioId" />
+                            <div class="mb-3">
+                                <label class="form-label">Nombre Usuario *</label>
+                                <input type="text" class="form-control" id="usuarioNombre" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Contraseña</label>
+                                <input type="password" class="form-control" id="usuarioPassword" />
+                                <small class="text-muted" id="passwordHelp">Dejar en blanco para no cambiar</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Empleado</label>
+                                <select class="form-select" id="usuarioEmpleado"></select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Rol</label>
+                                <select class="form-select" id="usuarioRol"></select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Estado</label>
+                                <select class="form-select" id="usuarioActivo">
+                                    <option value="1">Activo</option>
+                                    <option value="0">Inactivo</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-danger w-100">Guardar</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+  );
+}
+
+// ============================================================
 // SELECTS
 // ============================================================
 function llenarSelectEmpleado(selectedId) {
@@ -1618,66 +1715,10 @@ function llenarSelectEmpleadoPago(selectedId) {
 }
 
 // ============================================================
-// CREAR MODALES
+// RESTAURAR MODALES
 // ============================================================
-function crearModalUsuario() {
-  if (document.getElementById("usuarioModal")) return;
-
-  document.body.insertAdjacentHTML(
-    "beforeend",
-    `
-        <div class="modal fade" id="usuarioModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="usuarioModalTitle">Usuario</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="usuarioForm">
-                            <input type="hidden" id="usuarioId" />
-                            <div class="mb-3">
-                                <label class="form-label">Nombre Usuario *</label>
-                                <input type="text" class="form-control" id="usuarioNombre" required />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Contraseña</label>
-                                <input type="password" class="form-control" id="usuarioPassword" />
-                                <small class="text-muted" id="passwordHelp">Dejar en blanco para no cambiar</small>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Empleado</label>
-                                <select class="form-select" id="usuarioEmpleado"></select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Rol</label>
-                                <select class="form-select" id="usuarioRol"></select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Estado</label>
-                                <select class="form-select" id="usuarioActivo">
-                                    <option value="1">Activo</option>
-                                    <option value="0">Inactivo</option>
-                                </select>
-                            </div>
-                            <button type="button" class="btn btn-danger w-100" id="btnGuardarUsuario">Guardar</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `,
-  );
-
-  const btn = document.getElementById("btnGuardarUsuario");
-  if (btn) {
-    btn.addEventListener("click", saveUsuario);
-  }
-}
-
 function crearModalEmpleado() {
   if (document.getElementById("empleadoModal")) return;
-
   document.body.insertAdjacentHTML(
     "beforeend",
     `
@@ -1689,7 +1730,7 @@ function crearModalEmpleado() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="empleadoForm">
+                        <form id="empleadoForm" onsubmit="saveEmpleado(event)">
                             <input type="hidden" id="empleadoId" />
                             <div class="row">
                                 <div class="col-md-6 mb-3">
@@ -1736,7 +1777,7 @@ function crearModalEmpleado() {
                                     <option value="0">Inactivo</option>
                                 </select>
                             </div>
-                            <button type="button" class="btn btn-danger w-100" id="btnGuardarEmpleado">Guardar</button>
+                            <button type="submit" class="btn btn-danger w-100">Guardar</button>
                         </form>
                     </div>
                 </div>
@@ -1744,16 +1785,7 @@ function crearModalEmpleado() {
         </div>
     `,
   );
-
-  const btn = document.getElementById("btnGuardarEmpleado");
-  if (btn) {
-    btn.addEventListener("click", saveEmpleado);
-  }
 }
-
-// ============================================================
-// LAS DEMÁS FUNCIONES crearModal* (se mantienen igual)
-// ============================================================
 
 function crearModalRol() {
   if (document.getElementById("rolModal")) return;
@@ -1768,7 +1800,7 @@ function crearModalRol() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="rolForm">
+                        <form id="rolForm" onsubmit="saveRol(event)">
                             <input type="hidden" id="rolId" />
                             <div class="mb-3">
                                 <label class="form-label">Nombre *</label>
@@ -1782,7 +1814,7 @@ function crearModalRol() {
                                 <label class="form-label">Nivel</label>
                                 <input type="number" class="form-control" id="rolNivel" value="0" />
                             </div>
-                            <button type="button" class="btn btn-primary w-100" id="btnGuardarRol">Guardar</button>
+                            <button type="submit" class="btn btn-primary w-100">Guardar</button>
                         </form>
                     </div>
                 </div>
@@ -1790,10 +1822,6 @@ function crearModalRol() {
         </div>
     `,
   );
-  const btn = document.getElementById("btnGuardarRol");
-  if (btn) {
-    btn.addEventListener("click", saveRol);
-  }
 }
 
 function crearModalPuesto() {
@@ -1809,7 +1837,7 @@ function crearModalPuesto() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="puestoForm">
+                        <form id="puestoForm" onsubmit="savePuesto(event)">
                             <input type="hidden" id="puestoId" />
                             <div class="mb-3">
                                 <label class="form-label">Nombre *</label>
@@ -1819,7 +1847,7 @@ function crearModalPuesto() {
                                 <label class="form-label">Descripción</label>
                                 <textarea class="form-control" id="puestoDescripcion" rows="2"></textarea>
                             </div>
-                            <button type="button" class="btn btn-primary w-100" id="btnGuardarPuesto">Guardar</button>
+                            <button type="submit" class="btn btn-primary w-100">Guardar</button>
                         </form>
                     </div>
                 </div>
@@ -1827,10 +1855,6 @@ function crearModalPuesto() {
         </div>
     `,
   );
-  const btn = document.getElementById("btnGuardarPuesto");
-  if (btn) {
-    btn.addEventListener("click", savePuesto);
-  }
 }
 
 function crearModalTurno() {
@@ -1846,7 +1870,7 @@ function crearModalTurno() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="turnoForm">
+                        <form id="turnoForm" onsubmit="saveTurno(event)">
                             <input type="hidden" id="turnoId" />
                             <div class="mb-3">
                                 <label class="form-label">Nombre *</label>
@@ -1862,7 +1886,7 @@ function crearModalTurno() {
                                     <input type="time" class="form-control" id="turnoHoraFin" required />
                                 </div>
                             </div>
-                            <button type="button" class="btn btn-success w-100" id="btnGuardarTurno">Guardar</button>
+                            <button type="submit" class="btn btn-success w-100">Guardar</button>
                         </form>
                     </div>
                 </div>
@@ -1870,10 +1894,6 @@ function crearModalTurno() {
         </div>
     `,
   );
-  const btn = document.getElementById("btnGuardarTurno");
-  if (btn) {
-    btn.addEventListener("click", saveTurno);
-  }
 }
 
 function crearModalModulo() {
@@ -1889,7 +1909,7 @@ function crearModalModulo() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="moduloForm">
+                        <form id="moduloForm" onsubmit="saveModulo(event)">
                             <input type="hidden" id="moduloId" />
                             <div class="mb-3">
                                 <label class="form-label">Nombre *</label>
@@ -1909,7 +1929,7 @@ function crearModalModulo() {
                                     <input type="number" class="form-control" id="moduloOrden" value="0" />
                                 </div>
                             </div>
-                            <button type="button" class="btn btn-info w-100" id="btnGuardarModulo">Guardar</button>
+                            <button type="submit" class="btn btn-info w-100">Guardar</button>
                         </form>
                     </div>
                 </div>
@@ -1917,10 +1937,6 @@ function crearModalModulo() {
         </div>
     `,
   );
-  const btn = document.getElementById("btnGuardarModulo");
-  if (btn) {
-    btn.addEventListener("click", saveModulo);
-  }
 }
 
 function crearModalPagoEmpleado() {
@@ -1936,7 +1952,7 @@ function crearModalPagoEmpleado() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="pagoEmpleadoForm">
+                        <form id="pagoEmpleadoForm" onsubmit="savePagoEmpleado(event)">
                             <input type="hidden" id="pagoEmpleadoId" />
                             <div class="mb-3">
                                 <label class="form-label">Empleado *</label>
@@ -1962,7 +1978,7 @@ function crearModalPagoEmpleado() {
                                 <label class="form-label">Observaciones</label>
                                 <textarea class="form-control" id="pagoEmpleadoObservaciones" rows="2"></textarea>
                             </div>
-                            <button type="button" class="btn btn-success w-100" id="btnGuardarPagoEmpleado">Registrar Pago</button>
+                            <button type="submit" class="btn btn-success w-100">Registrar Pago</button>
                         </form>
                     </div>
                 </div>
@@ -1970,10 +1986,6 @@ function crearModalPagoEmpleado() {
         </div>
     `,
   );
-  const btn = document.getElementById("btnGuardarPagoEmpleado");
-  if (btn) {
-    btn.addEventListener("click", savePagoEmpleado);
-  }
 }
 
 // ============================================================
