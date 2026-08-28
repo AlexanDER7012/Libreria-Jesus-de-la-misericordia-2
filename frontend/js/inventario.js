@@ -811,6 +811,8 @@ async function saveTraslado(event) {
 // =============================================
 // RENDER: MOVIMIENTOS
 // =============================================
+// inventario.js - Función renderMovimientos CORREGIDA (stock desde productos)
+
 function renderMovimientos(movimientos) {
   const container = document.getElementById("movimientosContainer");
   if (!container) return;
@@ -863,7 +865,6 @@ function renderMovimientos(movimientos) {
     let idProducto = null;
 
     // ✅ Extraer nombre del producto de la observación
-    // Formato: "Compra #6 - Cuaderno Líneas 100" o "Compra #6 - Cuaderno Líneas 100"
     if (observacion && observacion.includes("-")) {
       const partes = observacion.split("-");
       if (partes.length > 1) {
@@ -874,10 +875,7 @@ function renderMovimientos(movimientos) {
     // ✅ Buscar producto por nombre
     let producto = null;
     if (nombreProducto && nombreProducto !== "Producto desconocido") {
-      // Buscar por nombre exacto (ignorando mayúsculas)
       producto = productosMap[nombreProducto.toLowerCase()];
-
-      // Si no se encuentra, buscar que contenga el nombre
       if (!producto) {
         producto = (window.productosData || []).find(
           (p) =>
@@ -886,23 +884,17 @@ function renderMovimientos(movimientos) {
             p.nombre.toLowerCase().includes(nombreProducto.toLowerCase()),
         );
       }
-
-      // Si se encuentra, obtener su ID
       if (producto) {
         idProducto = producto.id;
       }
     }
 
-    // ✅ Si no se encontró por nombre, intentar por ID directo
+    // ✅ Si no se encontró por nombre, intentar por ID
     if (!producto) {
-      // Intentar obtener ID desde diferentes campos
       idProducto = m.id_producto || m.idProducto || m.producto_id;
-
-      // Si no hay ID directo, intentar desde detalles
       if (!idProducto && m.detalles && m.detalles.length > 0) {
         idProducto = m.detalles[0].id_producto || m.detalles[0].idProducto;
       }
-
       if (idProducto) {
         producto =
           productosMap[String(idProducto)] || productosMap[Number(idProducto)];
@@ -924,8 +916,19 @@ function renderMovimientos(movimientos) {
       cantidad = m.detalles[0].cantidad || 0;
     }
 
-    // ✅ Stock actual
-    let stockActual = m.stock_actual || m.stockActual || 0;
+    // ✅ STOCK ACTUAL: tomarlo del producto, NO del movimiento
+    let stockActual = 0;
+    if (producto) {
+      stockActual = producto.stock_actual || 0;
+    } else if (idProducto) {
+      // Buscar el producto por ID en window.productosData
+      const prodEncontrado = (window.productosData || []).find(
+        (p) => p.id === idProducto,
+      );
+      if (prodEncontrado) {
+        stockActual = prodEncontrado.stock_actual || 0;
+      }
+    }
 
     // ✅ Formato de cantidad
     let cantidadMostrada = cantidad || 0;
@@ -971,7 +974,9 @@ function renderMovimientos(movimientos) {
                 <td class="${claseCantidad} fw-bold">
                     ${cantidadMostrada}
                 </td>
-                <td>${stockActual}</td>
+                <td class="fw-bold ${stockActual <= 0 ? "text-danger" : stockActual <= 10 ? "text-warning" : "text-success"}">
+                    ${stockActual}
+                </td>
                 <td>${fecha}</td>
                 <td><small>${observacion}</small></td>
             </tr>
