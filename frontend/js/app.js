@@ -4,7 +4,9 @@ class App {
   constructor() {
     if (!checkAuth()) return;
     this.currentModule = null;
+    // ✅ Usar getCurrentUser() para obtener el usuario actual
     this.user = getCurrentUser();
+    console.log("👤 Usuario actual:", this.user);
     this.sidebarVisible = false;
 
     this.modules = [
@@ -45,26 +47,73 @@ class App {
   }
 
   tienePermiso(moduleId) {
-    // ✅ Si es administrador, tiene acceso a todo
-    if (this.user?.rol === "Administrador" || this.user?.rol === "admin") {
+    // ✅ Obtener usuario actual desde localStorage (más confiable)
+    const user = getCurrentUser();
+    const rol = user?.rol || user?.id_rol || this.user?.rol;
+
+    // ✅ Si es administrador (id_rol = 1 o nombre "admin"), tiene acceso a todo
+    if (
+      rol === 1 ||
+      rol === "admin" ||
+      rol === "Administrador" ||
+      user?.id === 1
+    ) {
+      console.log(`✅ Admin: acceso a ${moduleId}`);
       return true;
     }
 
+    // ✅ Obtener permisos
     const permisos = this.getPermisosUsuario();
+    console.log(`🔍 Verificando permiso para ${moduleId}, permisos:`, permisos);
 
-    // ✅ Si no tiene permisos, solo acceso a Dashboard
+    // ✅ Si no hay permisos, SOLO acceso a Dashboard
     if (!permisos || permisos.length === 0) {
+      console.warn(`⚠️ Sin permisos, solo Dashboard para ${moduleId}`);
       return moduleId === "dashboard";
     }
 
     // ✅ Verificar si el módulo está en la lista de permisos
-    // Los permisos vienen con modulo_nombre o modulo
-    return permisos.some((p) => {
-      const nombreModulo = p.modulo_nombre || p.modulo || p.nombre_modulo;
-      return (
-        nombreModulo && nombreModulo.toLowerCase() === moduleId.toLowerCase()
-      );
+    const tieneAcceso = permisos.some((p) => {
+      // Buscar el nombre del módulo en diferentes campos
+      const nombreModulo =
+        p.modulo_nombre || p.modulo || p.nombre_modulo || p.modulo_name;
+      // Normalizar
+      const moduloLower = nombreModulo ? nombreModulo.toLowerCase() : "";
+      const moduleLower = moduleId.toLowerCase();
+
+      // También verificar por id_modulo
+      const idModulo = p.id_modulo || p.modulo_id;
+      const coincide =
+        moduloLower === moduleLower || idModulo === this.getModuloId(moduleId);
+
+      if (coincide) {
+        console.log(
+          `✅ Permiso encontrado: ${moduloLower} para ${moduleLower}`,
+        );
+      }
+      return coincide;
     });
+
+    if (!tieneAcceso) {
+      console.warn(`❌ Sin permiso para: ${moduleId}`);
+    }
+
+    return tieneAcceso;
+  }
+
+  // ✅ Función auxiliar para mapear nombres de módulo a IDs
+  getModuloId(nombre) {
+    const mapa = {
+      dashboard: 1,
+      productos: 2,
+      ventas: 3,
+      compras: 4,
+      inventario: 5,
+      usuarios: 6,
+      reportes: 7,
+      configuracion: 8,
+    };
+    return mapa[nombre];
   }
 
   // =============================================
