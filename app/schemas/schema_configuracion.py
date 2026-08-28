@@ -1,13 +1,20 @@
+"""
+app/schemas/schema_configuracion.py
+--------------------------------------
+Formas del JSON que entra y sale de la API para el módulo configuracion.
+"""
+
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
-from app.schemas.validators import validar_telefono
+from app.schemas.validators import TelefonoValidatorMixin
 
 
 # ===================== ConfiguracionGeneral =====================
-class ConfiguracionGeneralUpdate(BaseModel):
+
+class ConfiguracionGeneralBase(BaseModel):
     nombre_negocio: Optional[str] = None
     direccion: Optional[str] = None
     telefono: Optional[str] = None
@@ -20,13 +27,15 @@ class ConfiguracionGeneralUpdate(BaseModel):
     logo_ruta: Optional[str] = None
     moneda: Optional[str] = None
 
-    @field_validator("telefono")
-    @classmethod
-    def _validar_telefono(cls, v):
-        return validar_telefono(v)
+
+class ConfiguracionGeneralUpdate(ConfiguracionGeneralBase, TelefonoValidatorMixin):
+    pass
 
 
-class ConfiguracionGeneralResponse(ConfiguracionGeneralUpdate):
+class ConfiguracionGeneralResponse(ConfiguracionGeneralBase):
+    # NO hereda TelefonoValidatorMixin (ver nota en schema_cliente.py) --
+    # antes heredaba de ConfiguracionGeneralUpdate por error, lo cual
+    # arrastraba la validación también a la lectura.
     id: int
     fecha_actualizacion: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)

@@ -1,9 +1,15 @@
+"""
+app/schemas/schema_ubicacion.py
+----------------------------------
+Formas del JSON que entra y sale de la API para Ubicacion y Sububicacion.
+"""
+
 from datetime import time
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
-from app.schemas.validators import validar_telefono
+from app.schemas.validators import TelefonoValidatorMixin
 
 
 # ===================== Sububicacion =====================
@@ -41,22 +47,18 @@ class UbicacionBase(BaseModel):
     hora_apertura: Optional[time] = None
     hora_cierre: Optional[time] = None
 
-    @field_validator("telefono")
-    @classmethod
-    def _validar_telefono(cls, v):
-        return validar_telefono(v)
 
-
-class UbicacionCreate(UbicacionBase):
+class UbicacionCreate(UbicacionBase, TelefonoValidatorMixin):
     nombre: str
 
 
-class UbicacionUpdate(UbicacionBase):
+class UbicacionUpdate(UbicacionBase, TelefonoValidatorMixin):
     nombre: Optional[str] = None
     activo: Optional[int] = None
 
 
 class UbicacionResponse(UbicacionBase):
+    # NO hereda TelefonoValidatorMixin (ver nota en schema_cliente.py)
     id: int
     nombre: Optional[str] = None
     activo: Optional[int] = None
@@ -65,4 +67,5 @@ class UbicacionResponse(UbicacionBase):
 
 
 class UbicacionConSububicaciones(UbicacionResponse):
+    """Igual que UbicacionResponse, pero incluye la lista de sus sububicaciones."""
     sububicaciones: List[SububicacionResponse] = []
