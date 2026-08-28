@@ -45,6 +45,41 @@ function getToken() {
   return localStorage.getItem("token");
 }
 
+// auth.js - Agregar al final
+
+// ✅ Función para recargar permisos manualmente
+async function recargarPermisos() {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return false;
+
+    const response = await fetch(
+      "http://localhost:8000/usuarios/mis-permisos",
+      {
+        headers: {
+          Authorization: "Bearer " + token,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      console.warn("No se pudieron recargar permisos");
+      return false;
+    }
+
+    const permisos = await response.json();
+    localStorage.setItem("user_permisos", JSON.stringify(permisos));
+    console.log("✅ Permisos recargados:", permisos);
+    return true;
+  } catch (error) {
+    console.error("Error recargando permisos:", error);
+    return false;
+  }
+}
+
+// Exponer globalmente
+window.recargarPermisos = recargarPermisos;
+
 // Funciones globales
 window.checkAuth = checkAuth;
 window.requireAuth = requireAuth;
