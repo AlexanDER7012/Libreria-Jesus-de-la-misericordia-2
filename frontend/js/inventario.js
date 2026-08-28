@@ -811,7 +811,6 @@ async function saveTraslado(event) {
 // =============================================
 // RENDER: MOVIMIENTOS (CORREGIDO)
 // =============================================
-
 function renderMovimientos(movimientos) {
   const container = document.getElementById("movimientosContainer");
   if (!container) return;
@@ -829,14 +828,16 @@ function renderMovimientos(movimientos) {
     return;
   }
 
-  // Crear un mapa de productos para búsqueda rápida
+  // ✅ Crear un mapa de productos para búsqueda rápida
   const productosMap = {};
   (window.productosData || []).forEach((p) => {
     productosMap[String(p.id)] = p;
     productosMap[Number(p.id)] = p;
   });
 
-  console.log("Mapa de productos:", Object.keys(productosMap));
+  console.log("📦 Productos disponibles:", window.productosData);
+  console.log("📋 Movimientos:", movimientos);
+  console.log("🗺️ Mapa de productos:", Object.keys(productosMap));
 
   let html = `
         <div class="table-responsive">
@@ -856,45 +857,54 @@ function renderMovimientos(movimientos) {
     `;
 
   movimientos.forEach((m) => {
-    // Buscar producto por ID (como string y como número)
+    // ✅ Buscar producto por ID (como string y como número)
     let producto = productosMap[String(m.id_producto)];
     if (!producto) {
       producto = productosMap[Number(m.id_producto)];
     }
 
+    // ✅ Buscar el tipo de movimiento
     const tipo = tiposMovimientoData.find((t) => t.id === m.id_tipo_movimiento);
-    const esEntrada = tipo && (tipo.signo === "+" || tipo.signo === 0);
+    const esEntrada = tipo && (tipo.signo === 1 || tipo.signo === 0);
 
-    // Debug
-    if (!producto) {
-      console.warn(`Producto no encontrado para ID: ${m.id_producto}`, m);
-      console.log("IDs disponibles:", Object.keys(productosMap));
-    }
-
+    // ✅ Si no encuentra el producto, mostrar el ID
     const nombreProducto = producto
       ? producto.nombre
       : `Producto ID: ${m.id_producto}`;
     const badgeNoEncontrado = !producto
-      ? ' <span class="badge bg-warning ms-1">No encontrado</span>'
+      ? ' <span class="badge bg-warning ms-1">No encontrado en catálogo</span>'
       : "";
+
+    // ✅ Determinar el signo de la cantidad
+    let cantidadMostrada = m.cantidad || 0;
+    let claseCantidad = "";
+
+    if (esEntrada) {
+      cantidadMostrada = `+ ${m.cantidad || 0}`;
+      claseCantidad = "text-success";
+    } else {
+      cantidadMostrada = `- ${m.cantidad || 0}`;
+      claseCantidad = "text-danger";
+    }
 
     html += `
             <tr>
                 <td>${m.id}</td>
                 <td>
                     <strong>${nombreProducto}</strong>${badgeNoEncontrado}
+                    ${!producto ? `<br><small class="text-muted">ID en movimiento: ${m.id_producto}</small>` : ""}
                 </td>
                 <td>
                     <span class="badge ${esEntrada ? "bg-success" : "bg-danger"}">
-                        ${tipo ? tipo.nombre : "--"}
+                        ${tipo ? tipo.nombre : "Sin tipo"}
                     </span>
                 </td>
-                <td class="${esEntrada ? "text-success" : "text-danger"} fw-bold">
-                    ${esEntrada ? "+" : "-"} ${m.cantidad || 0}
+                <td class="${claseCantidad} fw-bold">
+                    ${cantidadMostrada}
                 </td>
                 <td>${m.stock_actual || 0}</td>
                 <td>${m.fecha ? new Date(m.fecha).toLocaleString() : "--"}</td>
-                <td>${m.observacion || "--"}</td>
+                <td>${m.observacion || m.observaciones || "--"}</td>
             </tr>
         `;
   });
