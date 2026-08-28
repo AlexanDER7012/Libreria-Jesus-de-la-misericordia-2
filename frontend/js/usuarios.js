@@ -136,10 +136,6 @@ async function cargarDatos() {
     console.log("  - Usuarios:", usuariosData.length);
     console.log("  - Empleados:", empleadosData.length);
     console.log("  - Roles:", rolesData.length);
-    console.log("  - Puestos:", puestosData.length);
-    console.log("  - Turnos:", turnosData.length);
-    console.log("  - Módulos:", modulosData.length);
-    console.log("  - Permisos:", permisosData.length);
 
     renderUsuarios(usuariosData);
     renderEmpleados(empleadosData);
@@ -756,16 +752,15 @@ async function showEditUsuarioModal(id) {
 }
 
 // ============================================================
-// USUARIOS - CRUD (CORREGIDO)
+// USUARIOS - GUARDAR (CORREGIDO)
 // ============================================================
 async function saveUsuario(event) {
-  // ✅ Prevenir comportamiento por defecto
   if (event) {
     event.preventDefault();
     event.stopPropagation();
   }
 
-  // ✅ Obtener valores con validación
+  // Obtener valores
   const id = document.getElementById("usuarioId")?.value || "";
   const nombre_usuario =
     document.getElementById("usuarioNombre")?.value?.trim() || "";
@@ -776,13 +771,13 @@ async function saveUsuario(event) {
   const id_rol = parseInt(document.getElementById("usuarioRol")?.value) || null;
   const activo = parseInt(document.getElementById("usuarioActivo")?.value) || 1;
 
-  // ✅ Validar
+  // Validar
   if (!nombre_usuario) {
     showToast("El nombre de usuario es obligatorio", "error");
     return;
   }
 
-  // ✅ Deshabilitar el botón para evitar doble clic
+  // Deshabilitar botón
   const submitBtn = document.querySelector(
     '#usuarioForm button[type="submit"]',
   );
@@ -794,7 +789,6 @@ async function saveUsuario(event) {
 
   try {
     if (id) {
-      // ✅ Editar usuario
       const data = { id_rol, activo };
       if (password) {
         data.password = password;
@@ -802,7 +796,6 @@ async function saveUsuario(event) {
       await api.request(`/usuarios/${id}`, "PUT", data);
       showToast("Usuario actualizado correctamente", "success");
     } else {
-      // ✅ Crear usuario
       if (!password) {
         showToast("La contraseña es obligatoria", "error");
         if (submitBtn) {
@@ -820,7 +813,7 @@ async function saveUsuario(event) {
       showToast("Usuario creado correctamente", "success");
     }
 
-    // ✅ Cerrar modal correctamente
+    // ✅ Cerrar modal
     const modal = document.getElementById("usuarioModal");
     if (modal) {
       const modalInstance = bootstrap.Modal.getInstance(modal);
@@ -832,20 +825,15 @@ async function saveUsuario(event) {
     // ✅ Recargar datos
     await cargarDatos();
 
-    // ✅ Actualizar selects
-    llenarSelectEmpleado();
-    llenarSelectRol();
-
     // ✅ Restaurar botón
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.innerHTML = "Guardar";
     }
   } catch (error) {
-    console.error("❌ Error en saveUsuario:", error);
+    console.error("Error en saveUsuario:", error);
     showToast(error.message || "Error al guardar usuario", "error");
 
-    // ✅ Restaurar botón en caso de error
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.innerHTML = "Guardar";
@@ -1404,7 +1392,6 @@ async function verPermisosRol(idRol) {
       return;
     }
 
-    // Agrupar permisos por módulo
     const permisosPorModulo = {};
 
     modulosData.forEach((modulo) => {
@@ -1673,7 +1660,7 @@ function crearModalUsuario() {
                                     <option value="0">Inactivo</option>
                                 </select>
                             </div>
-                            <button type="submit" class="btn btn-danger w-100">Guardar</button>
+                            <button type="button" class="btn btn-danger w-100" id="btnGuardarUsuario">Guardar</button>
                         </form>
                     </div>
                 </div>
@@ -1682,10 +1669,9 @@ function crearModalUsuario() {
     `,
   );
 
-  // ✅ Agregar event listener correctamente
-  const form = document.getElementById("usuarioForm");
-  if (form) {
-    form.addEventListener("submit", saveUsuario);
+  const btn = document.getElementById("btnGuardarUsuario");
+  if (btn) {
+    btn.addEventListener("click", saveUsuario);
   }
 }
 
@@ -1750,7 +1736,7 @@ function crearModalEmpleado() {
                                     <option value="0">Inactivo</option>
                                 </select>
                             </div>
-                            <button type="submit" class="btn btn-danger w-100">Guardar</button>
+                            <button type="button" class="btn btn-danger w-100" id="btnGuardarEmpleado">Guardar</button>
                         </form>
                     </div>
                 </div>
@@ -1759,16 +1745,18 @@ function crearModalEmpleado() {
     `,
   );
 
-  // ✅ Agregar event listener
-  const form = document.getElementById("empleadoForm");
-  if (form) {
-    form.addEventListener("submit", saveEmpleado);
+  const btn = document.getElementById("btnGuardarEmpleado");
+  if (btn) {
+    btn.addEventListener("click", saveEmpleado);
   }
 }
 
+// ============================================================
+// LAS DEMÁS FUNCIONES crearModal* (se mantienen igual)
+// ============================================================
+
 function crearModalRol() {
   if (document.getElementById("rolModal")) return;
-
   document.body.insertAdjacentHTML(
     "beforeend",
     `
@@ -1780,7 +1768,7 @@ function crearModalRol() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="rolForm" onsubmit="saveRol(event)">
+                        <form id="rolForm">
                             <input type="hidden" id="rolId" />
                             <div class="mb-3">
                                 <label class="form-label">Nombre *</label>
@@ -1794,7 +1782,7 @@ function crearModalRol() {
                                 <label class="form-label">Nivel</label>
                                 <input type="number" class="form-control" id="rolNivel" value="0" />
                             </div>
-                            <button type="submit" class="btn btn-primary w-100">Guardar</button>
+                            <button type="button" class="btn btn-primary w-100" id="btnGuardarRol">Guardar</button>
                         </form>
                     </div>
                 </div>
@@ -1802,11 +1790,14 @@ function crearModalRol() {
         </div>
     `,
   );
+  const btn = document.getElementById("btnGuardarRol");
+  if (btn) {
+    btn.addEventListener("click", saveRol);
+  }
 }
 
 function crearModalPuesto() {
   if (document.getElementById("puestoModal")) return;
-
   document.body.insertAdjacentHTML(
     "beforeend",
     `
@@ -1818,7 +1809,7 @@ function crearModalPuesto() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="puestoForm" onsubmit="savePuesto(event)">
+                        <form id="puestoForm">
                             <input type="hidden" id="puestoId" />
                             <div class="mb-3">
                                 <label class="form-label">Nombre *</label>
@@ -1828,7 +1819,7 @@ function crearModalPuesto() {
                                 <label class="form-label">Descripción</label>
                                 <textarea class="form-control" id="puestoDescripcion" rows="2"></textarea>
                             </div>
-                            <button type="submit" class="btn btn-primary w-100">Guardar</button>
+                            <button type="button" class="btn btn-primary w-100" id="btnGuardarPuesto">Guardar</button>
                         </form>
                     </div>
                 </div>
@@ -1836,11 +1827,14 @@ function crearModalPuesto() {
         </div>
     `,
   );
+  const btn = document.getElementById("btnGuardarPuesto");
+  if (btn) {
+    btn.addEventListener("click", savePuesto);
+  }
 }
 
 function crearModalTurno() {
   if (document.getElementById("turnoModal")) return;
-
   document.body.insertAdjacentHTML(
     "beforeend",
     `
@@ -1852,7 +1846,7 @@ function crearModalTurno() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="turnoForm" onsubmit="saveTurno(event)">
+                        <form id="turnoForm">
                             <input type="hidden" id="turnoId" />
                             <div class="mb-3">
                                 <label class="form-label">Nombre *</label>
@@ -1868,7 +1862,7 @@ function crearModalTurno() {
                                     <input type="time" class="form-control" id="turnoHoraFin" required />
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-success w-100">Guardar</button>
+                            <button type="button" class="btn btn-success w-100" id="btnGuardarTurno">Guardar</button>
                         </form>
                     </div>
                 </div>
@@ -1876,11 +1870,14 @@ function crearModalTurno() {
         </div>
     `,
   );
+  const btn = document.getElementById("btnGuardarTurno");
+  if (btn) {
+    btn.addEventListener("click", saveTurno);
+  }
 }
 
 function crearModalModulo() {
   if (document.getElementById("moduloModal")) return;
-
   document.body.insertAdjacentHTML(
     "beforeend",
     `
@@ -1892,7 +1889,7 @@ function crearModalModulo() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="moduloForm" onsubmit="saveModulo(event)">
+                        <form id="moduloForm">
                             <input type="hidden" id="moduloId" />
                             <div class="mb-3">
                                 <label class="form-label">Nombre *</label>
@@ -1912,7 +1909,7 @@ function crearModalModulo() {
                                     <input type="number" class="form-control" id="moduloOrden" value="0" />
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-info w-100">Guardar</button>
+                            <button type="button" class="btn btn-info w-100" id="btnGuardarModulo">Guardar</button>
                         </form>
                     </div>
                 </div>
@@ -1920,11 +1917,14 @@ function crearModalModulo() {
         </div>
     `,
   );
+  const btn = document.getElementById("btnGuardarModulo");
+  if (btn) {
+    btn.addEventListener("click", saveModulo);
+  }
 }
 
 function crearModalPagoEmpleado() {
   if (document.getElementById("pagoEmpleadoModal")) return;
-
   document.body.insertAdjacentHTML(
     "beforeend",
     `
@@ -1936,7 +1936,7 @@ function crearModalPagoEmpleado() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="pagoEmpleadoForm" onsubmit="savePagoEmpleado(event)">
+                        <form id="pagoEmpleadoForm">
                             <input type="hidden" id="pagoEmpleadoId" />
                             <div class="mb-3">
                                 <label class="form-label">Empleado *</label>
@@ -1962,7 +1962,7 @@ function crearModalPagoEmpleado() {
                                 <label class="form-label">Observaciones</label>
                                 <textarea class="form-control" id="pagoEmpleadoObservaciones" rows="2"></textarea>
                             </div>
-                            <button type="submit" class="btn btn-success w-100">Registrar Pago</button>
+                            <button type="button" class="btn btn-success w-100" id="btnGuardarPagoEmpleado">Registrar Pago</button>
                         </form>
                     </div>
                 </div>
@@ -1970,6 +1970,10 @@ function crearModalPagoEmpleado() {
         </div>
     `,
   );
+  const btn = document.getElementById("btnGuardarPagoEmpleado");
+  if (btn) {
+    btn.addEventListener("click", savePagoEmpleado);
+  }
 }
 
 // ============================================================
