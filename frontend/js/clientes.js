@@ -175,11 +175,22 @@ async function saveCliente(event) {
     }
 
     // Cerrar modal y recargar
+    //const modal = bootstrap.Modal.getInstance(
+    //  document.getElementById("clienteModal"),
+    //);
+    //modal.hide();
+    //await loadClientesModule();
+        // Cerrar modal y recargar (funciona tanto si se abrió desde su propio
+    // módulo, como si se abrió desde la pestaña de Clientes dentro de Ventas)
     const modal = bootstrap.Modal.getInstance(
       document.getElementById("clienteModal"),
     );
     modal.hide();
-    await loadClientesModule();
+    if (document.getElementById("clientesSubContainer")) {
+      await cargarSubClientes();
+    } else {
+      await loadClientesModule();
+    }
   } catch (error) {
     console.error("Error guardando cliente:", error);
     showToast(error.message || "Error al guardar el cliente", "error");

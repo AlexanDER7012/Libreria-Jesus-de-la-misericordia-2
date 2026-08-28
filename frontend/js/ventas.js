@@ -2584,16 +2584,34 @@ async function verFichaProducto(idProducto) {
 // ============================================================
 // FUNCIONES CLIENTES SUBMODAL (placeholder)
 // ============================================================
+//function showCreateClienteSubModal() {
+//  showToast("Función en desarrollo", "info");
+//}
+
+//function showEditClienteSubModal(id) {
+//  showToast("Función en desarrollo", "info");
+//}
+
+//function deleteClienteSub(id) {
+//  showToast("Función en desarrollo", "info");
+//}
 function showCreateClienteSubModal() {
-  showToast("Función en desarrollo", "info");
+  showCreateClienteModal();
 }
 
-function showEditClienteSubModal(id) {
-  showToast("Función en desarrollo", "info");
+async function showEditClienteSubModal(id) {
+  await showEditClienteModal(id);
 }
 
-function deleteClienteSub(id) {
-  showToast("Función en desarrollo", "info");
+async function deleteClienteSub(id) {
+  if (!confirm("¿Estás seguro de eliminar este cliente?")) return;
+  try {
+    await api.deleteCliente(id);
+    showToast("Cliente eliminado correctamente", "success");
+    await cargarSubClientes();
+  } catch (error) {
+    showToast(error.message || "Error al eliminar cliente", "error");
+  }
 }
 
 // ============================================================
