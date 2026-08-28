@@ -752,15 +752,11 @@ async function showEditUsuarioModal(id) {
 }
 
 // ============================================================
-// USUARIOS - GUARDAR (CORREGIDO)
+// USUARIOS - GUARDAR (DEFINITIVO)
 // ============================================================
-async function saveUsuario(event) {
-  if (event) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
+async function saveUsuario() {
+  console.log("🔄 saveUsuario ejecutado");
 
-  // Obtener valores
   const id = document.getElementById("usuarioId")?.value || "";
   const nombre_usuario =
     document.getElementById("usuarioNombre")?.value?.trim() || "";
@@ -771,40 +767,34 @@ async function saveUsuario(event) {
   const id_rol = parseInt(document.getElementById("usuarioRol")?.value) || null;
   const activo = parseInt(document.getElementById("usuarioActivo")?.value) || 1;
 
-  // Validar
   if (!nombre_usuario) {
     showToast("El nombre de usuario es obligatorio", "error");
     return;
   }
 
-  // Deshabilitar botón
-  const submitBtn = document.querySelector(
-    '#usuarioForm button[type="submit"]',
-  );
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.innerHTML =
-      '<i class="fas fa-spinner fa-spin me-1"></i>Guardando...';
+  const btn = document.getElementById("btnGuardarUsuario");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Guardando...';
   }
 
   try {
+    let nuevoUsuario = null;
     if (id) {
       const data = { id_rol, activo };
-      if (password) {
-        data.password = password;
-      }
+      if (password) data.password = password;
       await api.request(`/usuarios/${id}`, "PUT", data);
       showToast("Usuario actualizado correctamente", "success");
     } else {
       if (!password) {
         showToast("La contraseña es obligatoria", "error");
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = "Guardar";
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = "Guardar";
         }
         return;
       }
-      await api.request("/usuarios", "POST", {
+      nuevoUsuario = await api.request("/usuarios", "POST", {
         nombre_usuario,
         password,
         id_empleado,
@@ -817,26 +807,41 @@ async function saveUsuario(event) {
     const modal = document.getElementById("usuarioModal");
     if (modal) {
       const modalInstance = bootstrap.Modal.getInstance(modal);
-      if (modalInstance) {
-        modalInstance.hide();
+      if (modalInstance) modalInstance.hide();
+    }
+
+    // ✅ EN VEZ DE RECARGAR TODO, actualizar la tabla directamente
+    if (nuevoUsuario) {
+      // Si es nuevo, agregarlo a la lista
+      usuariosData.push(nuevoUsuario);
+    } else {
+      // Si es edición, actualizar en la lista
+      const index = usuariosData.findIndex((u) => u.id === parseInt(id));
+      if (index !== -1) {
+        // Recargar el usuario actualizado desde el backend
+        const usuarioActualizado = await api.request(`/usuarios/${id}`);
+        usuariosData[index] = usuarioActualizado;
       }
     }
 
-    // ✅ Recargar datos
-    await cargarDatos();
+    // ✅ Solo renderizar la tabla de usuarios, no todo el módulo
+    renderUsuarios(usuariosData);
 
     // ✅ Restaurar botón
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = "Guardar";
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = "Guardar";
     }
-  } catch (error) {
-    console.error("Error en saveUsuario:", error);
-    showToast(error.message || "Error al guardar usuario", "error");
 
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = "Guardar";
+    // ✅ Actualizar selects
+    llenarSelectEmpleado();
+    llenarSelectRol();
+  } catch (error) {
+    console.error("❌ Error en saveUsuario:", error);
+    showToast(error.message || "Error al guardar usuario", "error");
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = "Guardar";
     }
   }
 }
