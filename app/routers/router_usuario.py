@@ -231,6 +231,25 @@ def listar_permisos_de_rol(rol_id: int, db: Session = Depends(get_db)):
     return db.query(RolPermiso).filter(RolPermiso.id_rol == rol_id).all()
 
 
+@router_rol.get("/{rol_id}/permisos-detalle", response_model=List[PermisoResponse])
+def listar_permisos_detalle_de_rol(rol_id: int, db: Session = Depends(get_db)):
+    """
+    Igual que /permisos, pero devuelve el permiso COMPLETO (nombre,
+    descripcion, id_modulo) en vez de solo los ids crudos de la tabla de
+    asignacion. Pensado para pantallas que necesitan mostrar el nombre del
+    permiso directamente, sin tener que cruzarlo a mano con /permisos.
+    """
+    rol = db.query(Rol).filter(Rol.id == rol_id).first()
+    if not rol:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+    return (
+        db.query(Permiso)
+        .join(RolPermiso, RolPermiso.id_permiso == Permiso.id)
+        .filter(RolPermiso.id_rol == rol_id)
+        .all()
+    )
+
+
 @router_rol.post("/permisos", response_model=RolPermisoResponse, status_code=201)
 def asignar_permiso_a_rol(datos: RolPermisoCreate, db: Session = Depends(get_db)):
     """Asigna un permiso existente a un rol existente."""
