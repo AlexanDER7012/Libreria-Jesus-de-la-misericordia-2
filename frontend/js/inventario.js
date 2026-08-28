@@ -809,7 +809,7 @@ async function saveTraslado(event) {
 }
 
 // =============================================
-// RENDER: MOVIMIENTOS (CORREGIDO)
+// RENDER: MOVIMIENTOS
 // =============================================
 function renderMovimientos(movimientos) {
   const container = document.getElementById("movimientosContainer");
@@ -833,10 +833,11 @@ function renderMovimientos(movimientos) {
   (window.productosData || []).forEach((p) => {
     productosMap[String(p.id)] = p;
     productosMap[Number(p.id)] = p;
+    // También buscar por nombre (en minúsculas)
+    if (p.nombre) {
+      productosMap[p.nombre.toLowerCase()] = p;
+    }
   });
-
-  console.log("📦 Productos disponibles:", window.productosData);
-  console.log("📋 Movimientos:", movimientos);
 
   let html = `
         <div class="table-responsive">
@@ -856,63 +857,79 @@ function renderMovimientos(movimientos) {
     `;
 
   movimientos.forEach((m) => {
-    // ✅ OBTENER ID_PRODUCTO DESDE DETALLES
+    // ✅ OBTENER DATOS DESDE LA OBSERVACIÓN
+    let observacion = m.observacion || m.observaciones || m.referencia || "--";
+    let nombreProducto = "Producto desconocido";
     let idProducto = null;
-    let cantidad = 0;
-    let stockActual = m.stock_actual || m.stockActual || 0;
-    let observacion = m.observacion || m.observaciones || m.nota || "--";
 
-    // ✅ Si tiene detalles, tomar el primer detalle
-    if (m.detalles && m.detalles.length > 0) {
-      const detalle = m.detalles[0];
-      idProducto = detalle.id_producto;
-      cantidad = detalle.cantidad || 0;
-    } else if (m.id_producto) {
-      // Fallback: si tiene id_producto directamente
-      idProducto = m.id_producto;
-      cantidad = m.cantidad || 0;
-    } else if (m.idProducto) {
-      idProducto = m.idProducto;
-      cantidad = m.cantidad || 0;
+    // ✅ Extraer nombre del producto de la observación
+    // Formato: "Compra #6 - Cuaderno Líneas 100" o "Compra #6 - Cuaderno Líneas 100"
+    if (observacion && observacion.includes("-")) {
+      const partes = observacion.split("-");
+      if (partes.length > 1) {
+        nombreProducto = partes[1].trim();
+      }
     }
 
-    // ✅ Buscar producto por ID
+    // ✅ Buscar producto por nombre
     let producto = null;
-    if (idProducto) {
-      producto =
-        productosMap[String(idProducto)] || productosMap[Number(idProducto)];
+    if (nombreProducto && nombreProducto !== "Producto desconocido") {
+      // Buscar por nombre exacto (ignorando mayúsculas)
+      producto = productosMap[nombreProducto.toLowerCase()];
+
+      // Si no se encuentra, buscar que contenga el nombre
+      if (!producto) {
+        producto = (window.productosData || []).find(
+          (p) =>
+            p.nombre &&
+            nombreProducto &&
+            p.nombre.toLowerCase().includes(nombreProducto.toLowerCase()),
+        );
+      }
+
+      // Si se encuentra, obtener su ID
+      if (producto) {
+        idProducto = producto.id;
+      }
+    }
+
+    // ✅ Si no se encontró por nombre, intentar por ID directo
+    if (!producto) {
+      // Intentar obtener ID desde diferentes campos
+      idProducto = m.id_producto || m.idProducto || m.producto_id;
+
+      // Si no hay ID directo, intentar desde detalles
+      if (!idProducto && m.detalles && m.detalles.length > 0) {
+        idProducto = m.detalles[0].id_producto || m.detalles[0].idProducto;
+      }
+
+      if (idProducto) {
+        producto =
+          productosMap[String(idProducto)] || productosMap[Number(idProducto)];
+        if (producto) {
+          nombreProducto = producto.nombre;
+        }
+      }
     }
 
     // ✅ Buscar el tipo de movimiento
     const tipo = tiposMovimientoData.find((t) => t.id === m.id_tipo_movimiento);
+    const esEntrada = tipo
+      ? tipo.signo === 1
+      : observacion.toLowerCase().includes("compra");
 
-    // ✅ Determinar si es entrada o salida (usando signo)
-    let esEntrada = false;
-    if (tipo) {
-      esEntrada = tipo.signo === 1; // 1 = entrada, 2 = salida
-    } else {
-      // Si no hay tipo, intentar adivinar por observación
-      esEntrada =
-        observacion.toLowerCase().includes("compra") ||
-        observacion.toLowerCase().includes("entrada");
+    // ✅ Cantidad
+    let cantidad = m.cantidad || 0;
+    if (!cantidad && m.detalles && m.detalles.length > 0) {
+      cantidad = m.detalles[0].cantidad || 0;
     }
 
-    // ✅ Nombre del producto
-    const nombreProducto = producto
-      ? producto.nombre
-      : `Producto ID: ${idProducto || "desconocido"}`;
-    const badgeNoEncontrado =
-      !producto && idProducto
-        ? ' <span class="badge bg-warning ms-1">⚠️ No encontrado</span>'
-        : "";
-    const badgeSinProducto = !idProducto
-      ? ' <span class="badge bg-danger ms-1">❌ Sin producto</span>'
-      : "";
+    // ✅ Stock actual
+    let stockActual = m.stock_actual || m.stockActual || 0;
 
     // ✅ Formato de cantidad
     let cantidadMostrada = cantidad || 0;
     let claseCantidad = "";
-
     if (esEntrada) {
       cantidadMostrada = `+ ${cantidad || 0}`;
       claseCantidad = "text-success";
@@ -921,7 +938,7 @@ function renderMovimientos(movimientos) {
       claseCantidad = "text-danger";
     }
 
-    // ✅ Formatear fecha
+    // ✅ Fecha
     let fecha = m.fecha || m.fecha_registro || null;
     if (fecha) {
       try {
@@ -933,16 +950,18 @@ function renderMovimientos(movimientos) {
       fecha = "--";
     }
 
-    // ✅ TIPO: obtener nombre del tipo
     let tipoNombre = tipo ? tipo.nombre : "Sin tipo";
     let tipoBadge = esEntrada ? "bg-success" : "bg-danger";
+    const badgeNoEncontrado = !producto
+      ? ' <span class="badge bg-warning ms-1">⚠️ No en catálogo</span>'
+      : "";
 
     html += `
             <tr>
                 <td>${m.id}</td>
                 <td>
-                    <strong>${nombreProducto}</strong>${badgeNoEncontrado}${badgeSinProducto}
-                    ${!producto && idProducto ? `<br><small class="text-muted">ID: ${idProducto}</small>` : ""}
+                    <strong>${nombreProducto}</strong>${badgeNoEncontrado}
+                    ${idProducto ? `<br><small class="text-muted">ID: ${idProducto}</small>` : ""}
                 </td>
                 <td>
                     <span class="badge ${tipoBadge}">
