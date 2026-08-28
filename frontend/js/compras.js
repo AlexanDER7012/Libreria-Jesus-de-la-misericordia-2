@@ -1,4 +1,5 @@
 // COMPRAS - CON TODAS LAS PESTAÑAS (Compras, Proveedores, Caja Chica, Gastos, Tipos de Pago)
+// VERSIÓN CORREGIDA - Actualiza inventario automáticamente al crear compra
 
 // =============================================
 // VARIABLES GLOBALES
@@ -13,6 +14,87 @@ let pedidosData = [];
 let cajaChicaData = [];
 let gastosData = [];
 let tiposGastoData = [];
+
+// =============================================
+// FUNCIÓN PARA REGISTRAR MOVIMIENTO DE INVENTARIO
+// =============================================
+
+async function registrarMovimientoInventario(
+  id_producto,
+  cantidad,
+  id_tipo_movimiento = null,
+  observacion = null,
+) {
+  try {
+    let idTipo = id_tipo_movimiento;
+
+    if (!idTipo) {
+      // Buscar un tipo de movimiento llamado "Compra" o "Entrada por Compra"
+      let tiposMov = [];
+      try {
+        tiposMov = await api.getTiposMovimiento().catch(() => []);
+      } catch (e) {
+        console.warn("No se pudieron obtener tipos de movimiento");
+      }
+
+      // Buscar tipo de movimiento para compras
+      const tipoCompra = tiposMov.find(
+        (t) =>
+          t.nombre &&
+          (t.nombre.toLowerCase().includes("compra") ||
+            t.nombre.toLowerCase().includes("entrada") ||
+            t.nombre === "Compra"),
+      );
+
+      if (tipoCompra) {
+        idTipo = tipoCompra.id;
+      } else {
+        // Si no existe, intentar crear uno
+        try {
+          const nuevoTipo = await api.request("/tipos-movimiento", "POST", {
+            nombre: "Compra",
+            signo: 0, // 0 = entrada (+)
+            descripcion: "Entrada de mercancía por compra",
+          });
+          idTipo = nuevoTipo.id;
+          console.log('Tipo de movimiento "Compra" creado:', idTipo);
+        } catch (e) {
+          console.warn('No se pudo crear tipo de movimiento "Compra"');
+          // Usar el primer tipo disponible que sea de entrada
+          const tipoEntrada = tiposMov.find(
+            (t) => t.signo === 0 || t.signo === "+",
+          );
+          if (tipoEntrada) {
+            idTipo = tipoEntrada.id;
+          } else if (tiposMov.length > 0) {
+            idTipo = tiposMov[0].id;
+          } else {
+            console.error("No hay tipos de movimiento disponibles");
+            return null;
+          }
+        }
+      }
+    }
+
+    // Registrar el movimiento
+    const data = {
+      id_producto: id_producto,
+      id_tipo_movimiento: idTipo,
+      cantidad: cantidad,
+      observacion:
+        observacion || `Entrada por compra (${new Date().toLocaleString()})`,
+    };
+
+    const result = await api.request("/movimientos-inventario", "POST", data);
+    console.log(
+      `✅ Movimiento de inventario registrado: ${result.id} para producto ${id_producto}`,
+    );
+    return result;
+  } catch (error) {
+    console.error("❌ Error registrando movimiento de inventario:", error);
+    throw error;
+  }
+}
 
 // =============================================
 // CARGA DEL MÓDULO PRINCIPAL
@@ -75,7 +157,7 @@ async function loadComprasModule() {
                 </div>
             </div>
 
-            <!-- PANEL: PROVEEDORES (con sub-pestañas) -->
+            <!-- PANEL: PROVEEDORES -->
             <div class="tab-pane fade" id="panel-proveedores" role="tabpanel">
                 <ul class="nav nav-tabs mb-3" id="proveedoresSubTabs" role="tablist">
                     <li class="nav-item">
@@ -136,7 +218,7 @@ async function loadComprasModule() {
                 </div>
             </div>
 
-            <!-- PANEL: GASTOS (con sub-pestañas) -->
+            <!-- PANEL: GASTOS -->
             <div class="tab-pane fade" id="panel-gastos" role="tabpanel">
                 <ul class="nav nav-tabs mb-3" id="gastosSubTabs" role="tablist">
                     <li class="nav-item">
@@ -336,7 +418,7 @@ function renderComprasTable(compras) {
 }
 
 // =============================================
-// PANEL: PROVEEDORES (sub-pestañas)
+// PANEL: PROVEEDORES
 // =============================================
 
 function renderProveedoresTab(proveedores) {
@@ -678,7 +760,7 @@ function renderCajaChicaTab(movimientos) {
 }
 
 // =============================================
-// PANEL: GASTOS (sub-pestañas)
+// PANEL: GASTOS
 // =============================================
 
 function renderGastosTab(gastos) {
@@ -908,14 +990,13 @@ function renderTiposPagoCompras(tipos) {
 // =============================================
 // FUNCIONES CRUD: PROVEEDORES
 // =============================================
+
 function showCreateProveedorModal() {
-  // Eliminar modal existente si hay uno viejo
   const existingModal = document.getElementById("proveedorModal");
   if (existingModal) {
     existingModal.remove();
   }
 
-  // Crear el modal con el evento correcto
   const html = `
         <div class="modal fade" id="proveedorModal" tabindex="-1">
             <div class="modal-dialog">
@@ -983,15 +1064,12 @@ function showCreateProveedorModal() {
 
   document.body.insertAdjacentHTML("beforeend", html);
 
-  // Asignar evento submit - USANDO addEventListener
   const form = document.getElementById("proveedorForm");
   form.addEventListener("submit", function (e) {
     e.preventDefault();
-    console.log("Formulario de proveedor enviado"); // Para debug
     saveProveedor(e);
   });
 
-  // Mostrar modal
   const modalInstance = new bootstrap.Modal(
     document.getElementById("proveedorModal"),
   );
@@ -1005,7 +1083,6 @@ async function showEditProveedorModal(id) {
     return;
   }
 
-  // Eliminar modal existente si hay uno viejo
   const existingModal = document.getElementById("proveedorModal");
   if (existingModal) {
     existingModal.remove();
@@ -1083,11 +1160,9 @@ async function showEditProveedorModal(id) {
 
   document.body.insertAdjacentHTML("beforeend", html);
 
-  // Asignar evento submit
   const form = document.getElementById("proveedorForm");
   form.addEventListener("submit", function (e) {
     e.preventDefault();
-    console.log("Formulario de proveedor enviado (editar)"); // Para debug
     saveProveedor(e);
   });
 
@@ -1099,7 +1174,6 @@ async function showEditProveedorModal(id) {
 
 async function saveProveedor(event) {
   event.preventDefault();
-  console.log("saveProveedor ejecutado"); // Para debug
 
   const id = document.getElementById("proveedorId").value;
   const data = {
@@ -1124,29 +1198,23 @@ async function saveProveedor(event) {
   }
 
   try {
-    let result;
     if (id) {
       data.activo = parseInt(document.getElementById("proveedorActivo").value);
-      result = await api.request(`/proveedores/${id}`, "PUT", data);
+      await api.request(`/proveedores/${id}`, "PUT", data);
       showToast("Proveedor actualizado correctamente", "success");
     } else {
-      result = await api.request("/proveedores", "POST", data);
+      await api.request("/proveedores", "POST", data);
       showToast("Proveedor creado correctamente", "success");
     }
 
-    console.log("Resultado:", result); // Para debug
-
-    // Cerrar modal
     const modal = document.getElementById("proveedorModal");
     const modalInstance = bootstrap.Modal.getInstance(modal);
     if (modalInstance) {
       modalInstance.hide();
     }
 
-    // Recargar datos
     await loadComprasModule();
   } catch (error) {
-    console.error("Error en saveProveedor:", error);
     showToast(error.message || "Error al guardar proveedor", "error");
   }
 }
@@ -1176,76 +1244,6 @@ async function toggleProveedorEstado(id) {
   } catch (error) {
     showToast(error.message || "Error al cambiar estado", "error");
   }
-}
-
-function crearModalProveedor() {
-  if (document.getElementById("proveedorModal")) return;
-
-  const html = `
-        <div class="modal fade" id="proveedorModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="proveedorModalTitle">Proveedor</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="proveedorForm">
-                            <input type="hidden" id="proveedorId" />
-                            <div class="mb-3">
-                                <label class="form-label">Nombre *</label>
-                                <input type="text" class="form-control" id="proveedorNombre" required />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Contacto</label>
-                                <input type="text" class="form-control" id="proveedorContacto" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Teléfono</label>
-                                <input type="text" class="form-control" id="proveedorTelefono" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Email</label>
-                                <input type="email" class="form-control" id="proveedorEmail" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Dirección</label>
-                                <input type="text" class="form-control" id="proveedorDireccion" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">NIT</label>
-                                <input type="text" class="form-control" id="proveedorNit" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Código Proveedor</label>
-                                <input type="text" class="form-control" id="proveedorCodigo" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Días de Crédito</label>
-                                <input type="number" class="form-control" id="proveedorDiasCredito" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Tipo de Proveedor</label>
-                                <select class="form-select" id="proveedorTipo"></select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Estado</label>
-                                <select class="form-select" id="proveedorActivo">
-                                    <option value="1">Activo</option>
-                                    <option value="0">Inactivo</option>
-                                </select>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">Guardar</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-  document.body.insertAdjacentHTML("beforeend", html);
-
-  // Asignar el evento submit correctamente
-  document.getElementById("proveedorForm").onsubmit = saveProveedor;
 }
 
 function llenarSelectTipoProveedor(selectedId) {
@@ -1514,13 +1512,13 @@ async function verPedido(id) {
           (p) => p.id === d.id_producto,
         );
         return `
-                <tr>
-                    <td>${producto ? producto.nombre : "--"}</td>
-                    <td>${d.cantidad_pedida || 0}</td>
-                    <td>${d.cantidad_sugerida || 0}</td>
-                    <td>${d.observaciones || "--"}</td>
-                </tr>
-            `;
+                    <tr>
+                        <td>${producto ? producto.nombre : "--"}</td>
+                        <td>${d.cantidad_pedida || 0}</td>
+                        <td>${d.cantidad_sugerida || 0}</td>
+                        <td>${d.observaciones || "--"}</td>
+                    </tr>
+                `;
       })
       .join("");
 
@@ -1627,7 +1625,7 @@ async function cambiarEstadoPedido(id) {
 
   try {
     const url = `/pedidos/${id}/estado?nuevo_estado=${encodeURIComponent(estadoActual)}&forzar=${forzar}`;
-    const result = await api.request(url, "PATCH");
+    await api.request(url, "PATCH");
     showToast(`Pedido #${id} actualizado a "${estadoActual}"`, "success");
     await loadComprasModule();
   } catch (error) {
@@ -2263,7 +2261,7 @@ function crearModalTipoPago() {
 }
 
 // =============================================
-// FUNCIONES CRUD: COMPRAS (crear, ver, etc.)
+// FUNCIONES CRUD: COMPRAS
 // =============================================
 
 function showCreateCompraModal() {
@@ -2419,6 +2417,10 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 });
 
+// =============================================
+// SAVE COMPRA - ACTUALIZA INVENTARIO
+// =============================================
+
 async function saveCompra(event) {
   event.preventDefault();
 
@@ -2458,14 +2460,67 @@ async function saveCompra(event) {
   };
 
   try {
+    // 1. Crear la compra
     const result = await api.request("/compras", "POST", data);
     showToast(`Compra #${result.id} creada correctamente`, "success");
-    bootstrap.Modal.getInstance(document.getElementById("compraModal")).hide();
+
+    // 2. Registrar movimientos de inventario para cada producto
+    let movimientosRegistrados = 0;
+    let erroresMovimientos = [];
+
+    for (const detalle of compraDetallesTemp) {
+      try {
+        await registrarMovimientoInventario(
+          detalle.id_producto,
+          detalle.cantidad_comprada,
+          null,
+          `Compra #${result.id} - ${detalle.producto.nombre}`,
+        );
+        movimientosRegistrados++;
+      } catch (error) {
+        erroresMovimientos.push({
+          producto: detalle.producto.nombre,
+          error: error.message,
+        });
+        console.error(
+          `Error al registrar inventario para ${detalle.producto.nombre}:`,
+          error,
+        );
+      }
+    }
+
+    // Mostrar resumen de movimientos
+    if (movimientosRegistrados > 0) {
+      showToast(
+        `✅ Inventario actualizado: ${movimientosRegistrados} productos registrados`,
+        "success",
+      );
+    }
+
+    if (erroresMovimientos.length > 0) {
+      const mensaje = erroresMovimientos
+        .map((e) => `• ${e.producto}: ${e.error}`)
+        .join("\n");
+      showToast(
+        `⚠️ Algunos productos no actualizaron inventario:\n${mensaje}`,
+        "warning",
+      );
+    }
+
+    // 3. Cerrar modal y recargar
+    const modalElement = document.getElementById("compraModal");
+    const modalInstance = bootstrap.Modal.getInstance(modalElement);
+    if (modalInstance) modalInstance.hide();
+
     await loadComprasModule();
   } catch (error) {
     showToast(error.message || "Error al crear compra", "error");
   }
 }
+
+// =============================================
+// VER COMPRA
+// =============================================
 
 async function verCompra(id) {
   try {
@@ -2486,13 +2541,13 @@ async function verCompra(id) {
           (p) => p.id === d.id_producto,
         );
         return `
-                <tr>
-                    <td>${producto ? producto.nombre : "--"}</td>
-                    <td>${d.cantidad_comprada || 0}</td>
-                    <td>Q${d.costo_unitario || 0}</td>
-                    <td>Q${d.subtotal || 0}</td>
-                </tr>
-            `;
+                    <tr>
+                        <td>${producto ? producto.nombre : "--"}</td>
+                        <td>${d.cantidad_comprada || 0}</td>
+                        <td>Q${d.costo_unitario || 0}</td>
+                        <td>Q${d.subtotal || 0}</td>
+                    </tr>
+                `;
       })
       .join("");
 
@@ -2638,6 +2693,7 @@ window.saveCompra = saveCompra;
 window.verCompra = verCompra;
 window.registrarNotaEntrega = registrarNotaEntrega;
 window.registrarPagoCompra = registrarPagoCompra;
+window.registrarMovimientoInventario = registrarMovimientoInventario;
 
 // Proveedores
 window.renderProveedoresTab = renderProveedoresTab;
