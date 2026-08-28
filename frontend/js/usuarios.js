@@ -755,9 +755,17 @@ async function showEditUsuarioModal(id) {
   }
 }
 
+// ============================================================
+// USUARIOS - CRUD (CORREGIDO)
+// ============================================================
 async function saveUsuario(event) {
-  event.preventDefault();
+  // ✅ Prevenir comportamiento por defecto
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
 
+  // ✅ Obtener valores con validación
   const id = document.getElementById("usuarioId")?.value || "";
   const nombre_usuario =
     document.getElementById("usuarioNombre")?.value?.trim() || "";
@@ -768,13 +776,25 @@ async function saveUsuario(event) {
   const id_rol = parseInt(document.getElementById("usuarioRol")?.value) || null;
   const activo = parseInt(document.getElementById("usuarioActivo")?.value) || 1;
 
+  // ✅ Validar
   if (!nombre_usuario) {
     showToast("El nombre de usuario es obligatorio", "error");
     return;
   }
 
+  // ✅ Deshabilitar el botón para evitar doble clic
+  const submitBtn = document.querySelector(
+    '#usuarioForm button[type="submit"]',
+  );
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML =
+      '<i class="fas fa-spinner fa-spin me-1"></i>Guardando...';
+  }
+
   try {
     if (id) {
+      // ✅ Editar usuario
       const data = { id_rol, activo };
       if (password) {
         data.password = password;
@@ -782,8 +802,13 @@ async function saveUsuario(event) {
       await api.request(`/usuarios/${id}`, "PUT", data);
       showToast("Usuario actualizado correctamente", "success");
     } else {
+      // ✅ Crear usuario
       if (!password) {
         showToast("La contraseña es obligatoria", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = "Guardar";
+        }
         return;
       }
       await api.request("/usuarios", "POST", {
@@ -795,18 +820,36 @@ async function saveUsuario(event) {
       showToast("Usuario creado correctamente", "success");
     }
 
+    // ✅ Cerrar modal correctamente
     const modal = document.getElementById("usuarioModal");
     if (modal) {
       const modalInstance = bootstrap.Modal.getInstance(modal);
-      if (modalInstance) modalInstance.hide();
+      if (modalInstance) {
+        modalInstance.hide();
+      }
     }
 
+    // ✅ Recargar datos
     await cargarDatos();
+
+    // ✅ Actualizar selects
     llenarSelectEmpleado();
     llenarSelectRol();
+
+    // ✅ Restaurar botón
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = "Guardar";
+    }
   } catch (error) {
-    console.error("Error en saveUsuario:", error);
+    console.error("❌ Error en saveUsuario:", error);
     showToast(error.message || "Error al guardar usuario", "error");
+
+    // ✅ Restaurar botón en caso de error
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = "Guardar";
+    }
   }
 }
 
@@ -1604,7 +1647,7 @@ function crearModalUsuario() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="usuarioForm" onsubmit="saveUsuario(event)">
+                        <form id="usuarioForm">
                             <input type="hidden" id="usuarioId" />
                             <div class="mb-3">
                                 <label class="form-label">Nombre Usuario *</label>
@@ -1638,6 +1681,12 @@ function crearModalUsuario() {
         </div>
     `,
   );
+
+  // ✅ Agregar event listener correctamente
+  const form = document.getElementById("usuarioForm");
+  if (form) {
+    form.addEventListener("submit", saveUsuario);
+  }
 }
 
 function crearModalEmpleado() {
@@ -1654,7 +1703,7 @@ function crearModalEmpleado() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="empleadoForm" onsubmit="saveEmpleado(event)">
+                        <form id="empleadoForm">
                             <input type="hidden" id="empleadoId" />
                             <div class="row">
                                 <div class="col-md-6 mb-3">
@@ -1709,6 +1758,12 @@ function crearModalEmpleado() {
         </div>
     `,
   );
+
+  // ✅ Agregar event listener
+  const form = document.getElementById("empleadoForm");
+  if (form) {
+    form.addEventListener("submit", saveEmpleado);
+  }
 }
 
 function crearModalRol() {
