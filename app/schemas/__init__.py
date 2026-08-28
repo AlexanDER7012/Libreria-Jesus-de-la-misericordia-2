@@ -60,6 +60,7 @@ from app.schemas.schema_venta import (
 )
 from app.schemas.schema_cotizacion import (
     CotizacionCreate, CotizacionResponse,
+    CotizacionParaVentaResponse, CotizacionParaVentaDetalleItem,
     DetalleCotizacionCreate, DetalleCotizacionResponse,
 )
 from app.schemas.schema_configuracion import (

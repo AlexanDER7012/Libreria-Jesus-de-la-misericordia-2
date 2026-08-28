@@ -241,3 +241,12 @@ def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get
     db.commit()
     db.refresh(nuevo)
     return nuevo
+
+
+@router_servicio.delete("/{servicio_id}", status_code=204)
+def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db)):
+    servicio = db.query(ServicioAdicional).filter(ServicioAdicional.id == servicio_id).first()
+    if not servicio:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    db.delete(servicio)
+    db.commit()

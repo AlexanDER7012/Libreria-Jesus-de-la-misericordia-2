@@ -127,8 +127,8 @@ async function loadVentasModule() {
       api.getProductos().catch(() => []),
       api.getTiposPago().catch(() => []),
       api.getCajaTurnos().catch(() => []),
-      api.request("/servicios-adicionales/").catch(() => []),
-      api.request("/cotizaciones/").catch(() => []),
+      api.request("/servicios-adicionales").catch(() => []),
+      api.request("/cotizaciones").catch(() => []),
     ]);
 
     ventasData = ventas || [];
@@ -1468,7 +1468,7 @@ async function cargarSubCotizaciones() {
   if (!container) return;
 
   try {
-    const cotizaciones = await api.request("/cotizaciones/").catch(() => []);
+    const cotizaciones = await api.request("/cotizaciones").catch(() => []);
     cotizacionesData = cotizaciones || [];
 
     let searchHtml = `
@@ -1883,7 +1883,7 @@ async function saveCotizacion(event) {
   };
 
   try {
-    const result = await api.request("/cotizaciones/", "POST", data);
+    const result = await api.request("/cotizaciones", "POST", data);
     showToast(`Cotización #${result.id} creada correctamente`, "success");
     bootstrap.Modal.getInstance(
       document.getElementById("cotizacionModal"),
@@ -2023,9 +2023,7 @@ async function aprobarCotizacion(id) {
   );
   if (!confirmado) return;
   try {
-    await api.request(`/cotizaciones/${id}/estado`, "PATCH", {
-      estado: "Aprobada",
-    });
+    await api.request(`/cotizaciones/${id}/estado?nuevo_estado=Aceptada`, "PATCH");
     showToast("Cotización aprobada correctamente", "success");
     await loadVentasModule();
   } catch (error) {
@@ -2041,9 +2039,7 @@ async function rechazarCotizacion(id) {
   );
   if (!confirmado) return;
   try {
-    await api.request(`/cotizaciones/${id}/estado`, "PATCH", {
-      estado: "Rechazada",
-    });
+    await api.request(`/cotizaciones/${id}/estado?nuevo_estado=Rechazada`, "PATCH");
     showToast("Cotización rechazada correctamente", "success");
     await loadVentasModule();
   } catch (error) {
@@ -2072,7 +2068,7 @@ async function cargarSubServicios() {
 
   try {
     const servicios = await api
-      .request("/servicios-adicionales/")
+      .request("/servicios-adicionales")
       .catch(() => []);
     serviciosAdicionalesData = servicios || [];
 
@@ -2354,7 +2350,7 @@ async function saveServicio(event) {
   };
 
   try {
-    await api.request("/servicios-adicionales/", "POST", data);
+    await api.request("/servicios-adicionales", "POST", data);
     showToast("Servicio creado correctamente", "success");
     bootstrap.Modal.getInstance(
       document.getElementById("servicioModal"),

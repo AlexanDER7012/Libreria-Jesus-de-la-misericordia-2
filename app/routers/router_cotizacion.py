@@ -7,7 +7,10 @@ from app.database import get_db
 from app.pagination import PaginationParams
 from app.models.model_producto import Producto
 from app.models.model_cotizacion import Cotizacion, DetalleCotizacion
-from app.schemas.schema_cotizacion import CotizacionCreate, CotizacionResponse
+from app.schemas.schema_cotizacion import (
+    CotizacionCreate, CotizacionResponse,
+    CotizacionParaVentaResponse, CotizacionParaVentaDetalleItem,
+)
 
 router = APIRouter()  # /cotizaciones
 
@@ -117,3 +120,32 @@ def cambiar_estado_cotizacion(cotizacion_id: int, nuevo_estado: str, db: Session
     db.commit()
     db.refresh(cotizacion)
     return cotizacion
+
+
+@router.get("/{cotizacion_id}/para-venta", response_model=CotizacionParaVentaResponse)
+def cotizacion_para_venta(cotizacion_id: int, db: Session = Depends(get_db)):
+    cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
+    if not cotizacion:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    if cotizacion.estado != "Aceptada":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Solo se puede convertir en venta una cotización Aceptada (esta está en '{cotizacion.estado}')",
+        )
+
+    detalles = []
+    for d in cotizacion.detalles:
+        producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
+        detalles.append(CotizacionParaVentaDetalleItem(
+            id_producto=d.id_producto,
+            producto=producto.nombre if producto else "(producto no encontrado)",
+            cantidad=float(d.cantidad or 0),
+            precio_unitario=float(producto.precio_venta) if producto and producto.precio_venta else 0.0,
+        ))
+
+    return CotizacionParaVentaResponse(
+        id_cotizacion=cotizacion.id,
+        id_cliente=cotizacion.id_cliente,
+        numero_expediente=cotizacion.numero_expediente,
+        detalles=detalles,
+    )
