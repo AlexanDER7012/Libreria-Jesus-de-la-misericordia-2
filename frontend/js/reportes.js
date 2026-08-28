@@ -875,6 +875,809 @@ async function actualizarBitacora() {
   }
 }
 
+async function cargarReporteVentasDiarias() {
+  const container = document.getElementById("reporteVentasDiariasContainer");
+  if (!container) return;
+
+  try {
+    const hoy = new Date();
+    const fecha = hoy.toISOString().split("T")[0];
+
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha</label>
+                    <input type="date" class="form-control form-control-sm" id="ventasDiariasFecha" value="${fecha}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary btn-sm" onclick="actualizarVentasDiarias()">
+                        <i class="fas fa-search me-1"></i>Consultar
+                    </button>
+                </div>
+                <div class="col-md-4 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarVentasDiariasPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarVentasDiariasExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="ventasDiariasResultado">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        `;
+
+    await actualizarVentasDiarias();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteConciliacion() {
+  const container = document.getElementById("reporteConciliacionContainer");
+  if (!container) return;
+
+  try {
+    const hoy = new Date();
+    const fecha = hoy.toISOString().split("T")[0];
+
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha</label>
+                    <input type="date" class="form-control form-control-sm" id="conciliacionFecha" value="${fecha}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary btn-sm" onclick="actualizarConciliacion()">
+                        <i class="fas fa-search me-1"></i>Consultar
+                    </button>
+                </div>
+                <div class="col-md-4 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarConciliacionPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarConciliacionExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="conciliacionResultado">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        `;
+
+    await actualizarConciliacion();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteCuadreCaja() {
+  const container = document.getElementById("reporteCuadreCajaContainer");
+  if (!container) return;
+
+  try {
+    const turnos = await api.getCajaTurnos().catch(() => []);
+
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Seleccionar Turno</label>
+                    <select class="form-select form-select-sm" id="cuadreTurnoSelect" onchange="actualizarCuadreCaja()">
+                        <option value="">Seleccionar turno</option>
+                        ${turnos
+                          .map(
+                            (t) => `
+                            <option value="${t.id}">Turno #${t.id} - ${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : ""} (${t.estado})</option>
+                        `,
+                          )
+                          .join("")}
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary btn-sm" onclick="actualizarCuadreCaja()">
+                        <i class="fas fa-sync me-1"></i>Actualizar
+                    </button>
+                </div>
+                <div class="col-md-4 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarCuadreCajaPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarCuadreCajaExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="cuadreCajaResultado">
+                <div class="text-center py-5">
+                    <p class="text-muted">Selecciona un turno para ver el cuadre</p>
+                </div>
+            </div>
+        `;
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteUtilidad() {
+  const container = document.getElementById("reporteUtilidadContainer");
+  if (!container) return;
+
+  try {
+    const hoy = new Date();
+    const hace30Dias = new Date();
+    hace30Dias.setDate(hace30Dias.getDate() - 30);
+
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Desde</label>
+                    <input type="date" class="form-control form-control-sm" id="utilidadFechaInicio" value="${hace30Dias.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Hasta</label>
+                    <input type="date" class="form-control form-control-sm" id="utilidadFechaFin" value="${hoy.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary btn-sm" onclick="actualizarUtilidad()">
+                        <i class="fas fa-search me-1"></i>Consultar
+                    </button>
+                </div>
+                <div class="col-md-4 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarUtilidadPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarUtilidadExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="utilidadResultado">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        `;
+
+    await actualizarUtilidad();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteTopProductos() {
+  const container = document.getElementById("reporteTopProductosContainer");
+  if (!container) return;
+
+  try {
+    const hoy = new Date();
+    const hace30Dias = new Date();
+    hace30Dias.setDate(hace30Dias.getDate() - 30);
+
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Desde</label>
+                    <input type="date" class="form-control form-control-sm" id="topFechaInicio" value="${hace30Dias.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Hasta</label>
+                    <input type="date" class="form-control form-control-sm" id="topFechaFin" value="${hoy.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Límite</label>
+                    <input type="number" class="form-control form-control-sm" id="topLimite" value="10" min="1" max="50">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary btn-sm" onclick="actualizarTopProductos()">
+                        <i class="fas fa-search me-1"></i>Consultar
+                    </button>
+                </div>
+                <div class="col-md-2 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarTopProductosPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarTopProductosExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="topProductosResultado">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        `;
+
+    await actualizarTopProductos();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteComprasResumen() {
+  const container = document.getElementById("reporteComprasResumenContainer");
+  if (!container) return;
+
+  try {
+    const hoy = new Date();
+    const hace30Dias = new Date();
+    hace30Dias.setDate(hace30Dias.getDate() - 30);
+
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Desde</label>
+                    <input type="date" class="form-control form-control-sm" id="comprasResumenDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Hasta</label>
+                    <input type="date" class="form-control form-control-sm" id="comprasResumenHasta" value="${hoy.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary btn-sm" onclick="actualizarComprasResumen()">
+                        <i class="fas fa-search me-1"></i>Consultar
+                    </button>
+                </div>
+                <div class="col-md-4 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarComprasResumenPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarComprasResumenExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="comprasResumenResultado">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        `;
+
+    await actualizarComprasResumen();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteComprasProveedor() {
+  const container = document.getElementById("reporteComprasProveedorContainer");
+  if (!container) return;
+
+  try {
+    const hoy = new Date();
+    const hace30Dias = new Date();
+    hace30Dias.setDate(hace30Dias.getDate() - 30);
+
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Desde</label>
+                    <input type="date" class="form-control form-control-sm" id="comprasProvDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Hasta</label>
+                    <input type="date" class="form-control form-control-sm" id="comprasProvHasta" value="${hoy.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary btn-sm" onclick="actualizarComprasProveedor()">
+                        <i class="fas fa-search me-1"></i>Consultar
+                    </button>
+                </div>
+                <div class="col-md-4 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarComprasProveedorPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarComprasProveedorExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="comprasProvResultado">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        `;
+
+    await actualizarComprasProveedor();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteCuentasPagar() {
+  const container = document.getElementById("reporteCuentasPagarContainer");
+  if (!container) return;
+
+  try {
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-6 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarCuentasPagarPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarCuentasPagarExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="cuentasPagarResultado">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        `;
+
+    await actualizarCuentasPagar();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteStockBajo() {
+  const container = document.getElementById("reporteStockBajoContainer");
+  if (!container) return;
+
+  try {
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-6 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarStockBajoPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarStockBajoExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="stockBajoResultado">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        `;
+
+    await actualizarStockBajo();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteMovimientosResumen() {
+  const container = document.getElementById(
+    "reporteMovimientosResumenContainer",
+  );
+  if (!container) return;
+
+  try {
+    const hoy = new Date();
+    const hace30Dias = new Date();
+    hace30Dias.setDate(hace30Dias.getDate() - 30);
+
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Desde</label>
+                    <input type="date" class="form-control form-control-sm" id="movResumenDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Hasta</label>
+                    <input type="date" class="form-control form-control-sm" id="movResumenHasta" value="${hoy.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary btn-sm" onclick="actualizarMovimientosResumen()">
+                        <i class="fas fa-search me-1"></i>Consultar
+                    </button>
+                </div>
+                <div class="col-md-4 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarMovimientosResumenPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarMovimientosResumenExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="movResumenResultado">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        `;
+
+    await actualizarMovimientosResumen();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteInventarioValorizado() {
+  const container = document.getElementById(
+    "reporteInventarioValorizadoContainer",
+  );
+  if (!container) return;
+
+  try {
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-6 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarInventarioValorizadoPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarInventarioValorizadoExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="invValorizadoResultado">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        `;
+
+    await actualizarInventarioValorizado();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteLoginResumen() {
+  const container = document.getElementById("reporteLoginResumenContainer");
+  if (!container) return;
+
+  try {
+    const hoy = new Date();
+    const hace30Dias = new Date();
+    hace30Dias.setDate(hace30Dias.getDate() - 30);
+
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Desde</label>
+                    <input type="date" class="form-control form-control-sm" id="loginDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Hasta</label>
+                    <input type="date" class="form-control form-control-sm" id="loginHasta" value="${hoy.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary btn-sm" onclick="actualizarLoginResumen()">
+                        <i class="fas fa-search me-1"></i>Consultar
+                    </button>
+                </div>
+                <div class="col-md-4 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarLoginResumenPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarLoginResumenExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="loginResumenResultado">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        `;
+
+    await actualizarLoginResumen();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteUsuariosActivos() {
+  const container = document.getElementById("reporteUsuariosActivosContainer");
+  if (!container) return;
+
+  try {
+    const hoy = new Date();
+    const hace30Dias = new Date();
+    hace30Dias.setDate(hace30Dias.getDate() - 30);
+
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Desde</label>
+                    <input type="date" class="form-control form-control-sm" id="activosDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Hasta</label>
+                    <input type="date" class="form-control form-control-sm" id="activosHasta" value="${hoy.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Límite</label>
+                    <input type="number" class="form-control form-control-sm" id="activosLimite" value="10" min="1" max="50">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary btn-sm" onclick="actualizarUsuariosActivos()">
+                        <i class="fas fa-search me-1"></i>Consultar
+                    </button>
+                </div>
+                <div class="col-md-2 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarUsuariosActivosPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarUsuariosActivosExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="activosResultado">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        `;
+
+    await actualizarUsuariosActivos();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteBitacora() {
+  const container = document.getElementById("reporteBitacoraContainer");
+  if (!container) return;
+
+  try {
+    const hoy = new Date();
+    const hace30Dias = new Date();
+    hace30Dias.setDate(hace30Dias.getDate() - 30);
+
+    container.innerHTML = `
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Desde</label>
+                    <input type="date" class="form-control form-control-sm" id="bitacoraDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Fecha Hasta</label>
+                    <input type="date" class="form-control form-control-sm" id="bitacoraHasta" value="${hoy.toISOString().split("T")[0]}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary btn-sm" onclick="actualizarBitacora()">
+                        <i class="fas fa-search me-1"></i>Consultar
+                    </button>
+                </div>
+                <div class="col-md-4 d-flex align-items-end gap-1">
+                    <button class="btn btn-success btn-sm" onclick="exportarBitacoraPDF()" title="Exportar a PDF">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="exportarBitacoraExcel()" title="Exportar a Excel">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                </div>
+            </div>
+            <div id="bitacoraResultado">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        `;
+
+    await actualizarBitacora();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+// ============================================================
+// EXPORTAR REPORTES A PDF Y EXCEL
+// ============================================================
+
+/**
+ * Exporta el contenido de un contenedor a PDF
+ * @param {string} containerId - ID del contenedor con los datos
+ * @param {string} titulo - Título del reporte
+ */
+async function exportarPDF(containerId, titulo = "Reporte") {
+  const container = document.getElementById(containerId);
+  if (!container) {
+    showToast("No hay datos para exportar", "warning");
+    return;
+  }
+
+  // Buscar la tabla dentro del contenedor
+  const tabla = container.querySelector("table");
+  if (!tabla) {
+    showToast("No se encontró una tabla para exportar", "warning");
+    return;
+  }
+
+  try {
+    // Crear un contenedor temporal con el contenido formateado
+    const contenido = document.createElement("div");
+    contenido.style.padding = "20px";
+    contenido.style.fontFamily = "Arial, sans-serif";
+    contenido.style.background = "white";
+
+    // Obtener el nombre del módulo actual
+    const moduloActual =
+      document.querySelector(".nav-link.active")?.textContent?.trim() ||
+      "Reporte";
+
+    contenido.innerHTML = `
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h1 style="color: #1a237e; font-size: 18px; margin: 0;">Librería y Papelería Jesús de la Misericordia</h1>
+                <h2 style="color: #333; font-size: 14px; margin: 5px 0;">${titulo} - ${moduloActual}</h2>
+                <p style="color: #666; font-size: 11px; margin: 5px 0;">
+                    Fecha: ${new Date().toLocaleString()}
+                </p>
+                <hr style="border: 1px solid #ddd;">
+            </div>
+            <div style="font-size: 12px;">
+                ${tabla.outerHTML}
+            </div>
+            <div style="text-align: center; margin-top: 20px; color: #999; font-size: 10px; border-top: 1px solid #ddd; padding-top: 10px;">
+                Reporte generado por: ${window.app?.user?.nombre_usuario || "Usuario"} | 
+                Fecha: ${new Date().toLocaleString()}
+            </div>
+        `;
+
+    // Estilizar la tabla para el PDF
+    const estilo = contenido.querySelector("style");
+    if (!estilo) {
+      const styleTag = document.createElement("style");
+      styleTag.textContent = `
+                table { width: 100%; border-collapse: collapse; font-size: 11px; }
+                th { background-color: #1a237e; color: white; padding: 6px 8px; text-align: left; }
+                td { padding: 4px 8px; border-bottom: 1px solid #ddd; }
+                tr:nth-child(even) { background-color: #f5f5f5; }
+                .text-end { text-align: right; }
+                .text-center { text-align: center; }
+            `;
+      contenido.prepend(styleTag);
+    }
+
+    // Agregar temporalmente al DOM
+    document.body.appendChild(contenido);
+    contenido.style.display = "block";
+
+    // Generar PDF
+    const opt = {
+      margin: [8, 8, 8, 8],
+      filename: `${titulo}_${new Date().toISOString().split("T")[0]}.pdf`,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        letterRendering: true,
+        logging: false,
+      },
+      jsPDF: {
+        unit: "mm",
+        format: "a4",
+        orientation: "landscape",
+      },
+      pagebreak: { mode: ["avoid-all", "css", "legacy"] },
+    };
+
+    await html2pdf().set(opt).from(contenido).save();
+
+    // Limpiar
+    contenido.remove();
+    showToast("✅ PDF exportado correctamente", "success");
+  } catch (error) {
+    console.error("Error exportando PDF:", error);
+    showToast("❌ Error al exportar PDF: " + error.message, "error");
+  }
+}
+
+/**
+ * Exporta el contenido de un contenedor a Excel
+ * @param {string} containerId - ID del contenedor con los datos
+ * @param {string} titulo - Título del reporte
+ */
+function exportarExcel(containerId, titulo = "Reporte") {
+  const container = document.getElementById(containerId);
+  if (!container) {
+    showToast("No hay datos para exportar", "warning");
+    return;
+  }
+
+  // Buscar la tabla dentro del contenedor
+  const tabla = container.querySelector("table");
+  if (!tabla) {
+    showToast("No se encontró una tabla para exportar", "warning");
+    return;
+  }
+
+  try {
+    // Convertir tabla a libro de Excel
+    const wb = XLSX.utils.table_to_book(tabla, {
+      sheet: titulo.substring(0, 31), // Excel limita a 31 caracteres
+      raw: true,
+    });
+
+    // Generar archivo
+    const nombre = `${titulo}_${new Date().toISOString().split("T")[0]}.xlsx`;
+    XLSX.writeFile(wb, nombre);
+
+    showToast("✅ Excel exportado correctamente", "success");
+  } catch (error) {
+    console.error("Error exportando Excel:", error);
+    showToast("❌ Error al exportar Excel: " + error.message, "error");
+  }
+}
+
+// Funciones específicas para cada reporte (para usar desde los botones)
+function exportarVentasDiariasPDF() {
+  exportarPDF("ventasDiariasResultado", "Ventas_Diarias");
+}
+
+function exportarVentasDiariasExcel() {
+  exportarExcel("ventasDiariasResultado", "Ventas_Diarias");
+}
+
+function exportarConciliacionPDF() {
+  exportarPDF("conciliacionResultado", "Conciliacion_Pagos");
+}
+
+function exportarConciliacionExcel() {
+  exportarExcel("conciliacionResultado", "Conciliacion_Pagos");
+}
+
+function exportarCuadreCajaPDF() {
+  exportarPDF("cuadreCajaResultado", "Cuadre_Caja");
+}
+
+function exportarCuadreCajaExcel() {
+  exportarExcel("cuadreCajaResultado", "Cuadre_Caja");
+}
+
+function exportarUtilidadPDF() {
+  exportarPDF("utilidadResultado", "Utilidad_Productos");
+}
+
+function exportarUtilidadExcel() {
+  exportarExcel("utilidadResultado", "Utilidad_Productos");
+}
+
+function exportarTopProductosPDF() {
+  exportarPDF("topProductosResultado", "Top_Productos");
+}
+
+function exportarTopProductosExcel() {
+  exportarExcel("topProductosResultado", "Top_Productos");
+}
+
+// Exportar funciones globales
+window.exportarPDF = exportarPDF;
+window.exportarExcel = exportarExcel;
+window.exportarVentasDiariasPDF = exportarVentasDiariasPDF;
+window.exportarVentasDiariasExcel = exportarVentasDiariasExcel;
+window.exportarConciliacionPDF = exportarConciliacionPDF;
+window.exportarConciliacionExcel = exportarConciliacionExcel;
+window.exportarCuadreCajaPDF = exportarCuadreCajaPDF;
+window.exportarCuadreCajaExcel = exportarCuadreCajaExcel;
+window.exportarUtilidadPDF = exportarUtilidadPDF;
+window.exportarUtilidadExcel = exportarUtilidadExcel;
+window.exportarTopProductosPDF = exportarTopProductosPDF;
+window.exportarTopProductosExcel = exportarTopProductosExcel;
+
 // ============================================================
 // FUNCIONES GLOBALES PARA ACTUALIZAR
 // ============================================================
@@ -901,3 +1704,99 @@ window.actualizarInventarioValorizado = actualizarInventarioValorizado;
 window.actualizarLoginResumen = actualizarLoginResumen;
 window.actualizarUsuariosActivos = actualizarUsuariosActivos;
 window.actualizarBitacora = actualizarBitacora;
+
+// ============================================================
+// FUNCIONES DE EXPORTACIÓN PARA CADA REPORTE
+// ============================================================
+
+// Ventas
+function exportarVentasDiariasPDF() {
+  exportarPDF("ventasDiariasResultado", "Ventas_Diarias");
+}
+function exportarVentasDiariasExcel() {
+  exportarExcel("ventasDiariasResultado", "Ventas_Diarias");
+}
+function exportarConciliacionPDF() {
+  exportarPDF("conciliacionResultado", "Conciliacion_Pagos");
+}
+function exportarConciliacionExcel() {
+  exportarExcel("conciliacionResultado", "Conciliacion_Pagos");
+}
+function exportarCuadreCajaPDF() {
+  exportarPDF("cuadreCajaResultado", "Cuadre_Caja");
+}
+function exportarCuadreCajaExcel() {
+  exportarExcel("cuadreCajaResultado", "Cuadre_Caja");
+}
+function exportarUtilidadPDF() {
+  exportarPDF("utilidadResultado", "Utilidad_Productos");
+}
+function exportarUtilidadExcel() {
+  exportarExcel("utilidadResultado", "Utilidad_Productos");
+}
+function exportarTopProductosPDF() {
+  exportarPDF("topProductosResultado", "Top_Productos");
+}
+function exportarTopProductosExcel() {
+  exportarExcel("topProductosResultado", "Top_Productos");
+}
+
+// Compras
+function exportarComprasResumenPDF() {
+  exportarPDF("comprasResumenResultado", "Compras_Resumen");
+}
+function exportarComprasResumenExcel() {
+  exportarExcel("comprasResumenResultado", "Compras_Resumen");
+}
+function exportarComprasProveedorPDF() {
+  exportarPDF("comprasProvResultado", "Compras_Proveedor");
+}
+function exportarComprasProveedorExcel() {
+  exportarExcel("comprasProvResultado", "Compras_Proveedor");
+}
+function exportarCuentasPagarPDF() {
+  exportarPDF("cuentasPagarResultado", "Cuentas_Pagar");
+}
+function exportarCuentasPagarExcel() {
+  exportarExcel("cuentasPagarResultado", "Cuentas_Pagar");
+}
+
+// Inventario
+function exportarStockBajoPDF() {
+  exportarPDF("stockBajoResultado", "Stock_Bajo");
+}
+function exportarStockBajoExcel() {
+  exportarExcel("stockBajoResultado", "Stock_Bajo");
+}
+function exportarMovimientosResumenPDF() {
+  exportarPDF("movResumenResultado", "Movimientos_Resumen");
+}
+function exportarMovimientosResumenExcel() {
+  exportarExcel("movResumenResultado", "Movimientos_Resumen");
+}
+function exportarInventarioValorizadoPDF() {
+  exportarPDF("invValorizadoResultado", "Inventario_Valorizado");
+}
+function exportarInventarioValorizadoExcel() {
+  exportarExcel("invValorizadoResultado", "Inventario_Valorizado");
+}
+
+// Usuarios
+function exportarLoginResumenPDF() {
+  exportarPDF("loginResumenResultado", "Login_Resumen");
+}
+function exportarLoginResumenExcel() {
+  exportarExcel("loginResumenResultado", "Login_Resumen");
+}
+function exportarUsuariosActivosPDF() {
+  exportarPDF("activosResultado", "Usuarios_Activos");
+}
+function exportarUsuariosActivosExcel() {
+  exportarExcel("activosResultado", "Usuarios_Activos");
+}
+function exportarBitacoraPDF() {
+  exportarPDF("bitacoraResultado", "Bitacora_Actividades");
+}
+function exportarBitacoraExcel() {
+  exportarExcel("bitacoraResultado", "Bitacora_Actividades");
+}
