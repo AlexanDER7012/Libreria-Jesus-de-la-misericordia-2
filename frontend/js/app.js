@@ -7,17 +7,15 @@ class App {
     this.user = getCurrentUser();
     this.sidebarVisible = false;
 
-    // Lista de todos los módulos del sistema (para el sidebar)
+    // ✅ Lista de módulos del sistema (SIN Clientes y SIN Proveedores)
     this.modules = [
       { id: "dashboard", label: "Dashboard", icon: "fa-chart-bar" },
-      { id: "clientes", label: "Clientes", icon: "fa-users" },
       { id: "productos", label: "Productos", icon: "fa-box" },
       { id: "ventas", label: "Ventas", icon: "fa-shopping-cart" },
       { id: "compras", label: "Compras", icon: "fa-truck" },
       { id: "inventario", label: "Inventario", icon: "fa-warehouse" },
-      { id: "proveedores", label: "Proveedores", icon: "fa-building" },
       { id: "usuarios", label: "Usuarios", icon: "fa-user-shield" },
-      { id: "reportes", label: "Reportes", icon: "fa-chart-bar" }, // <--- NUEVO
+      { id: "reportes", label: "Reportes", icon: "fa-chart-bar" },
       { id: "configuracion", label: "Configuración", icon: "fa-cog" },
     ];
 
@@ -64,7 +62,6 @@ class App {
         logout();
       });
     }
-    // También el botón de logout de la barra superior
     const logoutTopBtn = document.querySelector(
       ".navbar .btn-outline-light:last-child",
     );
@@ -139,7 +136,6 @@ class App {
   setupFloatingButton() {
     const btn = document.getElementById("showSidebarBtn");
     if (!btn) return;
-    // Inicialmente oculto
     btn.style.display = "none";
   }
 
@@ -147,11 +143,9 @@ class App {
     const btn = document.getElementById("showSidebarBtn");
     if (!btn) return;
 
-    // Si el sidebar está visible, ocultar el botón flotante
     if (this.sidebarVisible) {
       btn.style.display = "none";
     } else {
-      // Si estamos en un módulo (no en home), mostrar el botón
       if (this.currentModule !== null) {
         btn.style.display = "flex";
       } else {
@@ -161,7 +155,7 @@ class App {
   }
 
   // =============================================
-  // PANTALLA DE INICIO (MATRIZ)
+  // PANTALLA DE INICIO (MATRIZ) - SIN Clientes y Proveedores
   // =============================================
 
   showHome() {
@@ -201,7 +195,7 @@ class App {
         label: "Reportes",
         icon: "fa-chart-bar",
         color: "primary",
-      }, // <--- NUEVO
+      },
       {
         id: "configuracion",
         label: "Configuración",
@@ -251,15 +245,13 @@ class App {
   updateTitle(moduleName) {
     const titles = {
       dashboard: "Dashboard",
-      clientes: "Clientes",
       productos: "Productos",
       ventas: "Ventas",
       compras: "Compras",
       inventario: "Inventario",
       usuarios: "Usuarios",
+      reportes: "Reportes",
       configuracion: "Configuración",
-      proveedores: "Proveedores",
-      reportes: "Reportes", // <--- NUEVO
       Inicio: "Inicio",
     };
     const titleEl = document.getElementById("pageTitle");
@@ -287,9 +279,6 @@ class App {
         case "dashboard":
           await this.loadDashboard(mainContent);
           break;
-        case "clientes":
-          await this.loadClientes(mainContent);
-          break;
         case "productos":
           await this.loadProductos(mainContent);
           break;
@@ -301,9 +290,6 @@ class App {
           break;
         case "inventario":
           await this.loadInventario(mainContent);
-          break;
-        case "proveedores":
-          await this.loadProveedores(mainContent);
           break;
         case "usuarios":
           await this.loadUsuarios(mainContent);
@@ -341,32 +327,6 @@ class App {
   // =============================================
   // MÉTODOS DE CARGA DE MÓDULOS
   // =============================================
-
-  async loadProveedores(container) {
-    container.innerHTML = `
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4><i class="fas fa-building me-2 text-primary"></i>Proveedores</h4>
-        <button class="btn btn-primary" onclick="showCreateProveedorModal()">
-          <i class="fas fa-plus me-2"></i>Nuevo Proveedor
-        </button>
-      </div>
-      <div id="proveedoresTableContainer">
-        <div class="text-center py-5">
-          <div class="spinner-border text-primary" role="status"></div>
-          <p class="mt-2 text-muted">Cargando proveedores...</p>
-        </div>
-      </div>
-    `;
-    if (typeof loadProveedoresModule === "function") {
-      await loadProveedoresModule();
-    } else {
-      try {
-        const proveedores = await api.getProveedores();
-      } catch (error) {
-        container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
-      }
-    }
-  }
 
   async loadDashboard(container) {
     try {
@@ -500,26 +460,6 @@ class App {
     }
   }
 
-  async loadClientes(container) {
-    container.innerHTML = `
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4><i class="fas fa-users me-2 text-primary"></i>Clientes</h4>
-        <button class="btn btn-primary" onclick="showCreateClienteModal()">
-          <i class="fas fa-plus me-2"></i>Nuevo Cliente
-        </button>
-      </div>
-      <div id="clientesTableContainer">
-        <div class="text-center py-5">
-          <div class="spinner-border text-primary" role="status"></div>
-          <p class="mt-2 text-muted">Cargando clientes...</p>
-        </div>
-      </div>
-    `;
-    if (typeof loadClientesModule === "function") {
-      await loadClientesModule();
-    }
-  }
-
   async loadProductos(container) {
     container.innerHTML = `
       <div class="d-flex justify-content-between align-items-center mb-4">
@@ -621,7 +561,7 @@ class App {
   }
 
   // =============================================
-  // NUEVO: CARGA DEL MÓDULO DE REPORTES
+  // CARGA DEL MÓDULO DE REPORTES
   // =============================================
   async loadReportes(container) {
     container.innerHTML = `
