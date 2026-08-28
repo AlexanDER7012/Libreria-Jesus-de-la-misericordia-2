@@ -37,7 +37,15 @@ class ApiClient {
         return null;
       }
 
-      const responseData = await response.json();
+      // ✅ Manejar respuestas que no son JSON
+      let responseData;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Error del servidor: ${text.substring(0, 100)}`);
+      }
 
       if (!response.ok) {
         throw new Error(responseData.detail || "Error en la petición");
@@ -67,6 +75,17 @@ class ApiClient {
     this.token = data.access_token;
     localStorage.setItem("token", data.access_token);
 
+    // ✅ Guardar usuario
+    localStorage.setItem("user", JSON.stringify(data));
+
+    // ✅ Cargar permisos del usuario
+    try {
+      const permisos = await this.request("/usuarios/mis-permisos");
+      localStorage.setItem("user_permisos", JSON.stringify(permisos));
+    } catch (e) {
+      console.warn("No se pudieron cargar permisos:", e);
+    }
+
     return data;
   }
 
@@ -74,7 +93,8 @@ class ApiClient {
     this.token = null;
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    window.location.href = "login.html"; // ✅ CAMBIADO
+    localStorage.removeItem("user_permisos");
+    window.location.href = "login.html";
   }
 
   isAuthenticated() {
@@ -84,6 +104,11 @@ class ApiClient {
   getUser() {
     const userStr = localStorage.getItem("user");
     return userStr ? JSON.parse(userStr) : null;
+  }
+
+  // ✅ NUEVO: Obtener permisos del usuario actual
+  async getMisPermisos() {
+    return this.request("/usuarios/mis-permisos");
   }
 
   // CLIENTES
