@@ -1,9 +1,15 @@
+"""
+app/schemas/schema_proveedor.py
+----------------------------------
+Formas del JSON que entra y sale de la API para el módulo proveedor.
+"""
+
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
-from app.schemas.validators import validar_telefono
+from app.schemas.validators import TelefonoValidatorMixin
 
 
 # ===================== TipoProveedor =====================
@@ -21,6 +27,7 @@ class TipoProveedorResponse(TipoProveedorBase):
     nombre: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
+
 # ===================== Proveedor =====================
 
 class ProveedorBase(BaseModel):
@@ -33,20 +40,18 @@ class ProveedorBase(BaseModel):
     codigo_proveedor: Optional[str] = None
     dias_credito: Optional[int] = None
 
-    @field_validator("telefono")
-    @classmethod
-    def _validar_telefono(cls, v):
-        return validar_telefono(v)
 
-class ProveedorCreate(ProveedorBase):
+class ProveedorCreate(ProveedorBase, TelefonoValidatorMixin):
     nombre: str
 
-class ProveedorUpdate(ProveedorBase):
+
+class ProveedorUpdate(ProveedorBase, TelefonoValidatorMixin):
     nombre: Optional[str] = None
     activo: Optional[int] = None
 
 
 class ProveedorResponse(ProveedorBase):
+    # NO hereda TelefonoValidatorMixin (ver nota en schema_cliente.py)
     id: int
     nombre: Optional[str] = None
     activo: Optional[int] = None
@@ -85,6 +90,7 @@ class PedidoResponse(BaseModel):
     observaciones: Optional[str] = None
     detalles: List[DetallePedidoResponse] = []
     model_config = ConfigDict(from_attributes=True)
+
 
 class PedidoTotalResponse(BaseModel):
     id_pedido: int

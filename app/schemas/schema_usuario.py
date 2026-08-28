@@ -1,9 +1,15 @@
+"""
+app/schemas/schema_usuario.py
+--------------------------------
+Formas del JSON que entra y sale de la API para el módulo usuario.
+"""
+
 from datetime import date, datetime, time
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
-from app.schemas.validators import validar_telefono
+from app.schemas.validators import TelefonoValidatorMixin
 
 
 # ===================== Modulo =====================
@@ -117,24 +123,20 @@ class EmpleadoBase(BaseModel):
     id_puesto: Optional[int] = None
     id_turno: Optional[int] = None
 
-    @field_validator("telefono")
-    @classmethod
-    def _validar_telefono(cls, v):
-        return validar_telefono(v)
 
-
-class EmpleadoCreate(EmpleadoBase):
+class EmpleadoCreate(EmpleadoBase, TelefonoValidatorMixin):
     nombre: str
     dpi: str
 
 
-class EmpleadoUpdate(EmpleadoBase):
+class EmpleadoUpdate(EmpleadoBase, TelefonoValidatorMixin):
     nombre: Optional[str] = None
     dpi: Optional[str] = None
     activo: Optional[int] = None
 
 
 class EmpleadoResponse(EmpleadoBase):
+    # NO hereda TelefonoValidatorMixin (ver nota en schema_cliente.py)
     id: int
     nombre: Optional[str] = None
     dpi: Optional[str] = None
