@@ -6,10 +6,192 @@ let inventarioFisicoData = [];
 let trasladosData = [];
 let alertasData = [];
 
+// =============================================
+// FUNCIONES AUXILIARES
+// =============================================
+
+function mostrarErrorCampo(id, mensaje) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.add("is-invalid");
+    const errorEl = document.getElementById(id + "Error");
+    if (errorEl) errorEl.textContent = mensaje;
+  }
+}
+
+function limpiarErrorCampo(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.remove("is-invalid");
+    const errorEl = document.getElementById(id + "Error");
+    if (errorEl) errorEl.textContent = "";
+  }
+}
+
+function limpiarErroresFormulario(formId) {
+  const form = document.getElementById(formId);
+  if (form) {
+    form
+      .querySelectorAll(".is-invalid")
+      .forEach((el) => el.classList.remove("is-invalid"));
+    form
+      .querySelectorAll(".invalid-feedback")
+      .forEach((el) => (el.textContent = ""));
+  }
+}
+
+function showToast(mensaje, tipo = "success") {
+  // Crear contenedor de toasts en la parte superior derecha
+  let toastContainer = document.getElementById("toastContainer");
+  if (!toastContainer) {
+    toastContainer = document.createElement("div");
+    toastContainer.id = "toastContainer";
+    toastContainer.className = "position-fixed top-0 end-0 p-3";
+    toastContainer.style.zIndex = "9999";
+    document.body.appendChild(toastContainer);
+  }
+
+  const colors = {
+    success: "bg-success",
+    error: "bg-danger",
+    warning: "bg-warning",
+    info: "bg-info",
+  };
+
+  const toast = document.createElement("div");
+  toast.className = `toast align-items-center text-white ${colors[tipo] || colors.success} border-0`;
+  toast.role = "alert";
+  toast.setAttribute("data-bs-delay", "3000");
+  toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${mensaje}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+  toastContainer.appendChild(toast);
+  const bsToast = new bootstrap.Toast(toast);
+  bsToast.show();
+  toast.addEventListener("hidden.bs.toast", () => toast.remove());
+}
+
+function mostrarConfirmacion(titulo, mensaje) {
+  return new Promise((resolve) => {
+    const modal = document.createElement("div");
+    modal.className = "modal fade";
+    modal.id = "confirmModal";
+    modal.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">${titulo}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">${mensaje}</div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" id="confirmYes">Confirmar</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    document.body.appendChild(modal);
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+    document.getElementById("confirmYes").addEventListener("click", () => {
+      modalInstance.hide();
+      setTimeout(() => modal.remove(), 300);
+      resolve(true);
+    });
+    modal.addEventListener("hidden.bs.modal", () => {
+      setTimeout(() => modal.remove(), 300);
+      resolve(false);
+    });
+  });
+}
+
+// =============================================
+// EXTENDER API
+// =============================================
+
+// Función para obtener productos desde el backend
+async function obtenerProductosParaInventario() {
+  try {
+    if (window.productosData && window.productosData.length > 0) {
+      return window.productosData;
+    }
+
+    const productos = await api.getProductos();
+    window.productosData = productos || [];
+
+    // Guardar en localStorage como backup
+    try {
+      localStorage.setItem(
+        "productos_backup",
+        JSON.stringify(window.productosData),
+      );
+    } catch (e) {}
+
+    return window.productosData;
+  } catch (error) {
+    console.error("Error cargando productos:", error);
+    try {
+      const backup = localStorage.getItem("productos_backup");
+      if (backup) {
+        const parsed = JSON.parse(backup);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          window.productosData = parsed;
+          return window.productosData;
+        }
+      }
+    } catch (e) {}
+    return [];
+  }
+}
+
+if (typeof api !== "undefined") {
+  api.getMovimientosInventario = function () {
+    return this.request("/movimientos-inventario", "GET");
+  };
+
+  api.createMovimientoInventario = function (data) {
+    return this.request("/movimientos-inventario", "POST", data);
+  };
+
+  api.getTiposMovimiento = function () {
+    return this.request("/tipos-movimiento", "GET");
+  };
+
+  api.getInventarioFisico = function () {
+    return this.request("/inventario-fisico", "GET");
+  };
+
+  api.getTraslados = function () {
+    return this.request("/traslados", "GET");
+  };
+
+  api.getAlertasStock = function () {
+    return this.request("/alertas", "GET").catch(() => {
+      return this.request("/alertas-stock", "GET").catch(() => {
+        console.warn("No se pudieron cargar las alertas");
+        return [];
+      });
+    });
+  };
+}
+
+// =============================================
 // CARGA DEL MÓDULO PRINCIPAL
+// =============================================
+
 async function loadInventarioModule() {
   const container = document.getElementById("mainContent");
   if (!container) return;
+
+  // Cargar productos primero
+  await obtenerProductosParaInventario();
+
+  // Debug: mostrar productos cargados
+  console.log("Productos cargados:", window.productosData);
 
   container.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -61,59 +243,24 @@ async function loadInventarioModule() {
         </ul>
 
         <div class="tab-content" id="inventarioTabContent">
-            <!-- PANEL: MOVIMIENTOS -->
             <div class="tab-pane fade show active" id="panel-movimientos" role="tabpanel">
-                <div id="movimientosContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando movimientos...</p>
-                    </div>
-                </div>
+                <div id="movimientosContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando movimientos...</p></div></div>
             </div>
-
-            <!-- PANEL: CONTEO FÍSICO -->
             <div class="tab-pane fade" id="panel-conteo" role="tabpanel">
-                <div id="conteoContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-warning" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando conteos físicos...</p>
-                    </div>
-                </div>
+                <div id="conteoContainer"><div class="text-center py-5"><div class="spinner-border text-warning" role="status"></div><p class="mt-2 text-muted">Cargando conteos físicos...</p></div></div>
             </div>
-
-            <!-- PANEL: TRASLADOS -->
             <div class="tab-pane fade" id="panel-traslados" role="tabpanel">
-                <div id="trasladosContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-info" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando traslados...</p>
-                    </div>
-                </div>
+                <div id="trasladosContainer"><div class="text-center py-5"><div class="spinner-border text-info" role="status"></div><p class="mt-2 text-muted">Cargando traslados...</p></div></div>
             </div>
-
-            <!-- PANEL: ALERTAS -->
             <div class="tab-pane fade" id="panel-alertas" role="tabpanel">
-                <div id="alertasContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-danger" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando alertas...</p>
-                    </div>
-                </div>
+                <div id="alertasContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando alertas...</p></div></div>
             </div>
-
-            <!-- PANEL: TIPOS DE MOVIMIENTO -->
             <div class="tab-pane fade" id="panel-tipos-movimiento" role="tabpanel">
-                <div id="tiposMovimientoContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-success" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando tipos de movimiento...</p>
-                    </div>
-                </div>
+                <div id="tiposMovimientoContainer"><div class="text-center py-5"><div class="spinner-border text-success" role="status"></div><p class="mt-2 text-muted">Cargando tipos de movimiento...</p></div></div>
             </div>
         </div>
     `;
 
-  // Crear modales si no existen
   crearModalesInventario();
 
   // Asegurar que window.ubicacionesData tenga datos
@@ -130,24 +277,37 @@ async function loadInventarioModule() {
   }
 
   try {
-    const [movimientos, tiposMov, conteo, traslados, alertas] =
-      await Promise.all([
-        api.getMovimientosInventario().catch(() => []),
-        api.getTiposMovimiento().catch(() => []),
-        api.getInventarioFisico().catch(() => []),
-        api.getTraslados().catch(() => []),
-        api.getAlertasStock().catch(() => []),
-      ]);
+    // Cargar datos
+    const [movimientos, tiposMov, conteo, traslados] = await Promise.all([
+      api.getMovimientosInventario().catch(() => []),
+      api.getTiposMovimiento().catch(() => []),
+      api.getInventarioFisico().catch(() => []),
+      api.getTraslados().catch(() => []),
+    ]);
 
     movimientosData = movimientos || [];
     tiposMovimientoData = tiposMov || [];
     inventarioFisicoData = conteo || [];
     trasladosData = traslados || [];
-    alertasData = alertas || [];
 
-    // Ya no creamos alertas automáticamente (el backend debería hacerlo)
-    // Solo recargamos alertas si es necesario
-    // await verificarAlertasStock();  // COMENTADO
+    // Debug: mostrar movimientos y sus IDs
+    console.log("Movimientos:", movimientosData);
+    console.log(
+      "IDs de productos en movimientos:",
+      movimientosData.map((m) => ({
+        id: m.id,
+        id_producto: m.id_producto,
+        tipo: typeof m.id_producto,
+      })),
+    );
+
+    // Cargar alertas por separado
+    try {
+      alertasData = (await api.getAlertasStock()) || [];
+    } catch (error) {
+      console.warn("Error cargando alertas:", error);
+      alertasData = [];
+    }
 
     renderMovimientos(movimientosData);
     renderConteoFisico(inventarioFisicoData);
@@ -155,7 +315,6 @@ async function loadInventarioModule() {
     renderAlertas(alertasData);
     renderTiposMovimiento(tiposMovimientoData);
 
-    // Poblar selects
     populateSelectsInventario();
   } catch (error) {
     console.error("Error cargando inventario:", error);
@@ -168,20 +327,24 @@ async function loadInventarioModule() {
   }
 }
 
-// (Función verificarAlertasStock eliminada o comentada)
-
+// =============================================
 // POBLAR SELECTS
+// =============================================
+
 function populateSelectsInventario() {
-  // Productos
+  const productos = window.productosData || [];
+
+  // Debug
+  console.log("Poblando selects con productos:", productos);
+
   const productSelects = document.querySelectorAll(".inv-producto-select");
   productSelects.forEach((select) => {
     select.innerHTML = '<option value="">Seleccionar producto</option>';
-    (window.productosData || []).forEach((p) => {
-      select.innerHTML += `<option value="${p.id}">${p.codigo} - ${p.nombre} (Stock: ${p.stock_actual || 0})</option>`;
+    productos.forEach((p) => {
+      select.innerHTML += `<option value="${p.id}">${p.codigo || ""} - ${p.nombre} (Stock: ${p.stock_actual || 0})</option>`;
     });
   });
 
-  // Tipos de movimiento
   const tipoSelects = document.querySelectorAll(".inv-tipo-movimiento");
   tipoSelects.forEach((select) => {
     select.innerHTML = '<option value="">Seleccionar tipo</option>';
@@ -190,21 +353,19 @@ function populateSelectsInventario() {
     });
   });
 
-  // Ubicaciones - usar window.ubicacionesData
   const ubicacionSelects = document.querySelectorAll(".inv-ubicacion-select");
   ubicacionSelects.forEach((select) => {
-    if (typeof window.llenarSelectUbicacion === "function") {
-      window.llenarSelectUbicacion(select, window.ubicacionesData || []);
-    } else {
-      select.innerHTML = '<option value="">Seleccionar ubicación</option>';
-      (window.ubicacionesData || []).forEach((u) => {
-        select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
-      });
-    }
+    select.innerHTML = '<option value="">Seleccionar ubicación</option>';
+    (window.ubicacionesData || []).forEach((u) => {
+      select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
+    });
   });
 }
 
+// =============================================
 // CREAR MODALES
+// =============================================
+
 function crearModalesInventario() {
   // Modal Movimiento
   if (!document.getElementById("movimientoModal")) {
@@ -299,7 +460,7 @@ function crearModalesInventario() {
       .getElementById("conteoProducto")
       .addEventListener("change", function () {
         const producto = (window.productosData || []).find(
-          (p) => p.id === parseInt(this.value),
+          (p) => String(p.id) === String(this.value),
         );
         document.getElementById("conteoStockSistema").value = producto
           ? producto.stock_actual || 0
@@ -355,7 +516,7 @@ function crearModalesInventario() {
     document.getElementById("trasladoForm").onsubmit = saveTraslado;
   }
 
-  // Modal Tipo de Movimiento (corregido)
+  // Modal Tipo de Movimiento
   if (!document.getElementById("tipoMovimientoModal")) {
     const html = `
             <div class="modal fade" id="tipoMovimientoModal" tabindex="-1">
@@ -396,7 +557,10 @@ function crearModalesInventario() {
   }
 }
 
+// =============================================
 // FUNCIONES PARA ABRIR MODALES
+// =============================================
+
 function showMovimientoModal() {
   const modal = document.getElementById("movimientoModal");
   if (!modal) {
@@ -404,12 +568,10 @@ function showMovimientoModal() {
     setTimeout(() => showMovimientoModal(), 100);
     return;
   }
-
   document.getElementById("movimientoForm").reset();
   document.getElementById("movimientoId").value = "";
   limpiarErroresFormulario("movimientoForm");
   populateSelectsInventario();
-
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
 }
@@ -421,13 +583,11 @@ function showConteoFisicoModal() {
     setTimeout(() => showConteoFisicoModal(), 100);
     return;
   }
-
   document.getElementById("conteoForm").reset();
   document.getElementById("conteoId").value = "";
   document.getElementById("conteoStockSistema").value = 0;
   limpiarErroresFormulario("conteoForm");
   populateSelectsInventario();
-
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
 }
@@ -439,17 +599,18 @@ function showTrasladoModal() {
     setTimeout(() => showTrasladoModal(), 100);
     return;
   }
-
   document.getElementById("trasladoForm").reset();
   document.getElementById("trasladoId").value = "";
   limpiarErroresFormulario("trasladoForm");
   populateSelectsInventario();
-
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
 }
 
+// =============================================
 // GUARDAR MOVIMIENTO
+// =============================================
+
 async function saveMovimiento(event) {
   event.preventDefault();
 
@@ -494,7 +655,7 @@ async function saveMovimiento(event) {
   };
 
   try {
-    const result = await api.createMovimientoInventario(data);
+    const result = await api.request("/movimientos-inventario", "POST", data);
     showToast(`Movimiento #${result.id} registrado correctamente`, "success");
 
     const modal = bootstrap.Modal.getInstance(
@@ -508,7 +669,10 @@ async function saveMovimiento(event) {
   }
 }
 
+// =============================================
 // GUARDAR CONTEO FÍSICO
+// =============================================
+
 async function saveConteoFisico(event) {
   event.preventDefault();
 
@@ -565,7 +729,10 @@ async function saveConteoFisico(event) {
   }
 }
 
+// =============================================
 // GUARDAR TRASLADO
+// =============================================
+
 async function saveTraslado(event) {
   event.preventDefault();
 
@@ -641,7 +808,10 @@ async function saveTraslado(event) {
   }
 }
 
-// RENDER: MOVIMIENTOS
+// =============================================
+// RENDER: MOVIMIENTOS (CORREGIDO)
+// =============================================
+
 function renderMovimientos(movimientos) {
   const container = document.getElementById("movimientosContainer");
   if (!container) return;
@@ -658,6 +828,15 @@ function renderMovimientos(movimientos) {
         `;
     return;
   }
+
+  // Crear un mapa de productos para búsqueda rápida
+  const productosMap = {};
+  (window.productosData || []).forEach((p) => {
+    productosMap[String(p.id)] = p;
+    productosMap[Number(p.id)] = p;
+  });
+
+  console.log("Mapa de productos:", Object.keys(productosMap));
 
   let html = `
         <div class="table-responsive">
@@ -677,16 +856,34 @@ function renderMovimientos(movimientos) {
     `;
 
   movimientos.forEach((m) => {
-    const producto = (window.productosData || []).find(
-      (p) => p.id === m.id_producto,
-    );
+    // Buscar producto por ID (como string y como número)
+    let producto = productosMap[String(m.id_producto)];
+    if (!producto) {
+      producto = productosMap[Number(m.id_producto)];
+    }
+
     const tipo = tiposMovimientoData.find((t) => t.id === m.id_tipo_movimiento);
-    const esEntrada = tipo && tipo.signo === "+";
+    const esEntrada = tipo && (tipo.signo === "+" || tipo.signo === 0);
+
+    // Debug
+    if (!producto) {
+      console.warn(`Producto no encontrado para ID: ${m.id_producto}`, m);
+      console.log("IDs disponibles:", Object.keys(productosMap));
+    }
+
+    const nombreProducto = producto
+      ? producto.nombre
+      : `Producto ID: ${m.id_producto}`;
+    const badgeNoEncontrado = !producto
+      ? ' <span class="badge bg-warning ms-1">No encontrado</span>'
+      : "";
 
     html += `
             <tr>
                 <td>${m.id}</td>
-                <td>${producto ? producto.nombre : "--"}</td>
+                <td>
+                    <strong>${nombreProducto}</strong>${badgeNoEncontrado}
+                </td>
                 <td>
                     <span class="badge ${esEntrada ? "bg-success" : "bg-danger"}">
                         ${tipo ? tipo.nombre : "--"}
@@ -714,7 +911,10 @@ function renderMovimientos(movimientos) {
   container.innerHTML = html;
 }
 
+// =============================================
 // RENDER: CONTEO FÍSICO
+// =============================================
+
 function renderConteoFisico(conteos) {
   const container = document.getElementById("conteoContainer");
   if (!container) return;
@@ -731,6 +931,18 @@ function renderConteoFisico(conteos) {
         `;
     return;
   }
+
+  const productosMap = {};
+  (window.productosData || []).forEach((p) => {
+    productosMap[String(p.id)] = p;
+    productosMap[Number(p.id)] = p;
+  });
+
+  const ubicacionesMap = {};
+  (window.ubicacionesData || []).forEach((u) => {
+    ubicacionesMap[String(u.id)] = u;
+    ubicacionesMap[Number(u.id)] = u;
+  });
 
   let html = `
         <div class="table-responsive">
@@ -750,12 +962,12 @@ function renderConteoFisico(conteos) {
     `;
 
   conteos.forEach((c) => {
-    const producto = (window.productosData || []).find(
-      (p) => p.id === c.id_producto,
-    );
-    const ubicacion = (window.ubicacionesData || []).find(
-      (u) => u.id === c.id_ubicacion,
-    );
+    const producto =
+      productosMap[String(c.id_producto)] ||
+      productosMap[Number(c.id_producto)];
+    const ubicacion =
+      ubicacionesMap[String(c.id_ubicacion)] ||
+      ubicacionesMap[Number(c.id_ubicacion)];
     const diferencia = (c.cantidad_contada || 0) - (c.stock_sistema || 0);
     const esDiferencia = diferencia !== 0;
 
@@ -786,7 +998,10 @@ function renderConteoFisico(conteos) {
   container.innerHTML = html;
 }
 
+// =============================================
 // RENDER: TRASLADOS
+// =============================================
+
 function renderTraslados(traslados) {
   const container = document.getElementById("trasladosContainer");
   if (!container) return;
@@ -803,6 +1018,18 @@ function renderTraslados(traslados) {
         `;
     return;
   }
+
+  const productosMap = {};
+  (window.productosData || []).forEach((p) => {
+    productosMap[String(p.id)] = p;
+    productosMap[Number(p.id)] = p;
+  });
+
+  const ubicacionesMap = {};
+  (window.ubicacionesData || []).forEach((u) => {
+    ubicacionesMap[String(u.id)] = u;
+    ubicacionesMap[Number(u.id)] = u;
+  });
 
   let html = `
         <div class="table-responsive">
@@ -822,15 +1049,15 @@ function renderTraslados(traslados) {
     `;
 
   traslados.forEach((t) => {
-    const producto = (window.productosData || []).find(
-      (p) => p.id === t.id_producto,
-    );
-    const origen = (window.ubicacionesData || []).find(
-      (u) => u.id === t.id_ubicacion_origen,
-    );
-    const destino = (window.ubicacionesData || []).find(
-      (u) => u.id === t.id_ubicacion_destino,
-    );
+    const producto =
+      productosMap[String(t.id_producto)] ||
+      productosMap[Number(t.id_producto)];
+    const origen =
+      ubicacionesMap[String(t.id_ubicacion_origen)] ||
+      ubicacionesMap[Number(t.id_ubicacion_origen)];
+    const destino =
+      ubicacionesMap[String(t.id_ubicacion_destino)] ||
+      ubicacionesMap[Number(t.id_ubicacion_destino)];
     const estado = t.estado || "Pendiente";
 
     html += `
@@ -871,7 +1098,10 @@ function renderTraslados(traslados) {
   container.innerHTML = html;
 }
 
+// =============================================
 // RECIBIR TRASLADO
+// =============================================
+
 async function recibirTraslado(id) {
   const confirmado = await mostrarConfirmacion(
     "Recibir Traslado",
@@ -889,7 +1119,10 @@ async function recibirTraslado(id) {
   }
 }
 
+// =============================================
 // RENDER: ALERTAS
+// =============================================
+
 function renderAlertas(alertas) {
   const container = document.getElementById("alertasContainer");
   if (!container) return;
@@ -903,6 +1136,12 @@ function renderAlertas(alertas) {
         `;
     return;
   }
+
+  const productosMap = {};
+  (window.productosData || []).forEach((p) => {
+    productosMap[String(p.id)] = p;
+    productosMap[Number(p.id)] = p;
+  });
 
   let html = `
         <div class="table-responsive">
@@ -921,11 +1160,10 @@ function renderAlertas(alertas) {
     `;
 
   alertas.forEach((a) => {
-    const producto = (window.productosData || []).find(
-      (p) => p.id === a.id_producto,
-    );
+    const producto =
+      productosMap[String(a.id_producto)] ||
+      productosMap[Number(a.id_producto)];
     const leida = a.leida !== 0;
-    // Verificar si el stock actual ya superó el mínimo (para auto-marcar como leída)
     const stockActual = producto ? producto.stock_actual || 0 : 0;
     const stockMinimo = producto ? producto.stock_minimo || 0 : 0;
     const yaResuelta = stockActual > stockMinimo;
@@ -972,19 +1210,50 @@ function renderAlertas(alertas) {
   container.innerHTML = html;
 }
 
-// MARCAR ALERTA LEÍDA
+// =============================================
+// MARCAR ALERTA LEÍDA (CORREGIDO)
+// =============================================
+
 async function marcarAlertaLeida(id) {
   try {
-    await api.request(`/alertas/${id}/leer`, "PATCH");
+    // Intentar con PATCH a /alertas/{id}
+    await api.request(`/alertas/${id}`, "PATCH", { leida: 1 });
     showToast("Alerta marcada como leída", "success");
     await loadInventarioModule();
-  } catch (error) {
-    showToast(error.message || "Error al marcar alerta", "error");
+  } catch (error1) {
+    try {
+      // Intentar con PATCH a /alertas/{id}/leer
+      await api.request(`/alertas/${id}/leer`, "PATCH");
+      showToast("Alerta marcada como leída", "success");
+      await loadInventarioModule();
+    } catch (error2) {
+      try {
+        // Intentar con PUT a /alertas/{id}
+        await api.request(`/alertas/${id}`, "PUT", { leida: 1 });
+        showToast("Alerta marcada como leída", "success");
+        await loadInventarioModule();
+      } catch (error3) {
+        // Mostrar mensaje de error con la opción de marcar localmente
+        const confirmado = await mostrarConfirmacion(
+          "Error al marcar alerta",
+          "No se pudo conectar con el servidor. ¿Deseas marcar la alerta como leída localmente?",
+        );
+        if (confirmado) {
+          // Marcar localmente
+          const alerta = alertasData.find((a) => a.id === id);
+          if (alerta) {
+            alerta.leida = 1;
+            renderAlertas(alertasData);
+            showToast("Alerta marcada como leída (solo local)", "warning");
+          }
+        }
+      }
+    }
   }
 }
 
 // =============================================
-// TIPOS DE MOVIMIENTO - SOLO LECTURA + CREACIÓN
+// TIPOS DE MOVIMIENTO
 // =============================================
 
 function renderTiposMovimiento(tipos) {
@@ -1025,7 +1294,7 @@ function renderTiposMovimiento(tipos) {
     `;
 
   tipos.forEach((t) => {
-    const esEntrada = t.signo === 0;
+    const esEntrada = t.signo === 0 || t.signo === "+";
     html += `
             <tr>
                 <td>${t.id}</td>
@@ -1130,7 +1399,6 @@ async function saveTipoMovimiento(event) {
   }
 }
 
-// Estas funciones ya no son necesarias, pero las dejamos vacías para evitar errores si se llaman desde algún lugar.
 function showEditTipoMovimientoModal(id) {
   showToast(
     "Los tipos de movimiento no se pueden editar. Solo se pueden crear nuevos.",
@@ -1142,7 +1410,10 @@ async function deleteTipoMovimiento(id) {
   showToast("Los tipos de movimiento no se pueden eliminar.", "warning");
 }
 
+// =============================================
 // EXPONER FUNCIONES GLOBALES
+// =============================================
+
 window.loadInventarioModule = loadInventarioModule;
 window.showMovimientoModal = showMovimientoModal;
 window.showConteoFisicoModal = showConteoFisicoModal;
@@ -1156,3 +1427,9 @@ window.showCreateTipoMovimientoModal = showCreateTipoMovimientoModal;
 window.showEditTipoMovimientoModal = showEditTipoMovimientoModal;
 window.saveTipoMovimiento = saveTipoMovimiento;
 window.deleteTipoMovimiento = deleteTipoMovimiento;
+window.mostrarErrorCampo = mostrarErrorCampo;
+window.limpiarErrorCampo = limpiarErrorCampo;
+window.limpiarErroresFormulario = limpiarErroresFormulario;
+window.showToast = showToast;
+window.mostrarConfirmacion = mostrarConfirmacion;
+window.obtenerProductosParaInventario = obtenerProductosParaInventario;
