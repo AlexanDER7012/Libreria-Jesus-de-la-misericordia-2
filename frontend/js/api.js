@@ -30,7 +30,6 @@ class ApiClient {
       if (response.status === 401) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
-        localStorage.removeItem("user_permisos");
         window.location.href = "login.html";
         throw new Error("Sesión expirada");
       }
@@ -39,17 +38,20 @@ class ApiClient {
         return null;
       }
 
-      let responseData;
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        responseData = await response.json();
-      } else {
-        const text = await response.text();
-        throw new Error(`Error del servidor: ${text.substring(0, 100)}`);
-      }
+      const responseData = await response.json();
 
       if (!response.ok) {
-        throw new Error(responseData.detail || "Error en la petición");
+        let mensaje = "Error en la petición";
+        if (responseData.detail) {
+          if (typeof responseData.detail === "string") {
+            mensaje = responseData.detail;
+          } else if (Array.isArray(responseData.detail)) {
+            mensaje = responseData.detail
+              .map((e) => (e.msg || "").replace(/^Value error,\s*/, ""))
+              .join(" | ");
+          }
+        }
+        throw new Error(mensaje);
       }
 
       return responseData;
