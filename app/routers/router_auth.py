@@ -1,11 +1,10 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.security import verify_password, create_access_token, decode_access_token
+from app.security import verify_password, create_access_token, get_current_user  # noqa: F401 - re-exportado, por si algo lo sigue importando desde aqui
 from app.models.model_usuario import Usuario, LogActividad
 from app.schemas.schema_auth import LoginRequest, TokenResponse
 
@@ -13,12 +12,11 @@ router = APIRouter()
 
 MAX_INTENTOS_FALLIDOS = 5
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
 
 @router.post("", response_model=TokenResponse)
 def login(datos: LoginRequest, db: Session = Depends(get_db)):
     usuario = db.query(Usuario).filter(Usuario.nombre_usuario == datos.nombre_usuario).first()
+
 
     credenciales_invalidas = HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
 
@@ -54,15 +52,3 @@ def login(datos: LoginRequest, db: Session = Depends(get_db)):
         nombre_usuario=usuario.nombre_usuario,
         rol=usuario.rol.nombre if usuario.rol else None,
     )
-
-
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Usuario:
-    payload = decode_access_token(token)
-    usuario_id = payload.get("sub")
-    if usuario_id is None:
-        raise HTTPException(status_code=401, detail="Token inválido")
-
-    usuario = db.query(Usuario).filter(Usuario.id == int(usuario_id)).first()
-    if not usuario or usuario.activo == 0:
-        raise HTTPException(status_code=401, detail="Usuario no válido o inactivo")
-    return usuario
