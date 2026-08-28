@@ -1,7 +1,6 @@
 // api.js - VERSIÓN COMPLETA Y CORREGIDA
 
-// ✅ CORREGIDO: Apunta al backend en el puerto 8000
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = window.location.origin;
 
 class ApiClient {
   constructor() {
