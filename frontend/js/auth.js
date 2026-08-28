@@ -9,6 +9,18 @@ function checkAuth() {
   return true;
 }
 
+function getPermisosUsuario() {
+  try {
+    const permisos = localStorage.getItem("user_permisos");
+    return permisos ? JSON.parse(permisos) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// Exponer globalmente
+window.getPermisosUsuario = getPermisosUsuario;
+
 function requireAuth() {
   return checkAuth();
 }
