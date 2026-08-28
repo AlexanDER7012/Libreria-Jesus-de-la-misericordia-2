@@ -18,6 +18,8 @@ let tiposGastoData = [];
 // =============================================
 // FUNCIÓN PARA REGISTRAR MOVIMIENTO DE INVENTARIO
 // =============================================
+// compras.js - Función registrarMovimientoInventario CORREGIDA
+
 async function registrarMovimientoInventario(
   id_producto,
   cantidad,
@@ -38,7 +40,6 @@ async function registrarMovimientoInventario(
         console.warn("No se pudieron obtener tipos de movimiento");
       }
 
-      // Buscar tipo de movimiento para compras
       const tipoCompra = tiposMov.find(
         (t) =>
           t.nombre &&
@@ -49,20 +50,18 @@ async function registrarMovimientoInventario(
 
       if (tipoCompra) {
         idTipo = tipoCompra.id;
-        console.log('Tipo de movimiento "Compra" encontrado:', idTipo);
       } else {
         // Si no existe, intentar crear uno
         try {
           const nuevoTipo = await api.request("/tipos-movimiento", "POST", {
             nombre: "Compra",
-            signo: 0, // 0 = entrada (+)
+            signo: 0,
             descripcion: "Entrada de mercancía por compra",
           });
           idTipo = nuevoTipo.id;
-          console.log('Tipo de movimiento "Compra" creado:', idTipo);
+          console.log('✅ Tipo de movimiento "Compra" creado:', idTipo);
         } catch (e) {
           console.warn('No se pudo crear tipo de movimiento "Compra"');
-          // Usar el primer tipo disponible que sea de entrada
           const tipoEntrada = tiposMov.find((t) => t.signo === 0);
           if (tipoEntrada) {
             idTipo = tipoEntrada.id;
@@ -77,7 +76,6 @@ async function registrarMovimientoInventario(
       }
     }
 
-    // Validar que tenemos un ID válido
     if (!idTipo) {
       throw new Error("No se pudo determinar el tipo de movimiento");
     }
@@ -86,7 +84,7 @@ async function registrarMovimientoInventario(
     const currentUser = getCurrentUser();
     const id_usuario = currentUser?.id || 1;
 
-    // FORMATO CORRECTO PARA EL BACKEND - con detalles como array
+    // 📌 FORMATO CORRECTO PARA EL BACKEND
     const data = {
       id_usuario: parseInt(id_usuario),
       id_tipo_movimiento: parseInt(idTipo),
@@ -96,7 +94,7 @@ async function registrarMovimientoInventario(
       id_sububicacion_destino: null,
       tabla_referencia: "compra",
       id_referencia: null,
-      referencia: observacion || `Compra de productos`,
+      referencia: `Compra de producto ID ${id_producto}`,
       observaciones:
         observacion || `Entrada por compra (${new Date().toLocaleString()})`,
       detalles: [
@@ -110,14 +108,12 @@ async function registrarMovimientoInventario(
     };
 
     console.log(
-      "Enviando movimiento de inventario:",
+      "📤 Enviando movimiento de inventario:",
       JSON.stringify(data, null, 2),
     );
 
     const result = await api.request("/movimientos-inventario", "POST", data);
-    console.log(
-      `✅ Movimiento de inventario registrado: ${result.id} para producto ${id_producto}`,
-    );
+    console.log(`✅ Movimiento de inventario registrado: ${result.id}`);
     return result;
   } catch (error) {
     console.error("❌ Error registrando movimiento de inventario:", error);
@@ -2455,7 +2451,6 @@ document.addEventListener("DOMContentLoaded", function () {
 // =============================================
 // SAVE COMPRA - ACTUALIZA INVENTARIO
 // =============================================
-
 async function saveCompra(event) {
   event.preventDefault();
 
@@ -2508,8 +2503,9 @@ async function saveCompra(event) {
         await registrarMovimientoInventario(
           detalle.id_producto,
           detalle.cantidad_comprada,
-          null,
+          null, // Se buscará automáticamente
           `Compra #${result.id} - ${detalle.producto.nombre}`,
+          detalle.costo_unitario, // ✅ Ahora se pasa el costo
         );
         movimientosRegistrados++;
       } catch (error) {
@@ -2524,7 +2520,6 @@ async function saveCompra(event) {
       }
     }
 
-    // Mostrar resumen de movimientos
     if (movimientosRegistrados > 0) {
       showToast(
         `✅ Inventario actualizado: ${movimientosRegistrados} productos registrados`,
@@ -2542,7 +2537,6 @@ async function saveCompra(event) {
       );
     }
 
-    // 3. Cerrar modal y recargar
     const modalElement = document.getElementById("compraModal");
     const modalInstance = bootstrap.Modal.getInstance(modalElement);
     if (modalInstance) modalInstance.hide();
