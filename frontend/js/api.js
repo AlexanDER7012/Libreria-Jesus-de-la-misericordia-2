@@ -1,4 +1,4 @@
-// api.js - VERSIÓN COMPLETA Y CORREGIDA
+// api.js
 
 const API_BASE_URL = window.location.origin;
 
