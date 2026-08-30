@@ -4,7 +4,6 @@ class App {
   constructor() {
     if (!checkAuth()) return;
     this.currentModule = null;
-    // ✅ Usar getCurrentUser() para obtener el usuario actual
     this.user = getCurrentUser();
     console.log("👤 Usuario actual:", this.user);
     this.sidebarVisible = false;
