@@ -10,7 +10,7 @@ from app.schemas.schema_auth import LoginRequest, TokenResponse
 
 router = APIRouter()
 
-MAX_INTENTOS_FALLIDOS = 100
+MAX_INTENTOS_FALLIDOS = 5
 
 
 @router.post("", response_model=TokenResponse)
