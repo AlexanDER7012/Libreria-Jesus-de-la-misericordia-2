@@ -455,6 +455,17 @@ function renderResumenInventario() {
 }
 
 // =============================================
+// FUNCIÓN PARA OBTENER EL USUARIO ACTUAL
+// =============================================
+function getCurrentUser() {
+  try {
+    return JSON.parse(localStorage.getItem("user"));
+  } catch {
+    return { id: 1 };
+  }
+}
+
+// =============================================
 // FUNCIÓN PARA VER HISTORIAL DE UN PRODUCTO
 // =============================================
 
@@ -1049,7 +1060,6 @@ async function saveConteoFisico(event) {
 // =============================================
 // GUARDAR TRASLADO
 // =============================================
-
 async function saveTraslado(event) {
   event.preventDefault();
 
@@ -1101,18 +1111,22 @@ async function saveTraslado(event) {
 
   if (!valid) return;
 
+  // Enviar exactamente los campos que espera el backend
   const data = {
     id_producto: idProducto,
+    cantidad: cantidad,
     id_ubicacion_origen: idOrigen,
     id_ubicacion_destino: idDestino,
-    cantidad: cantidad,
     observaciones:
       document.getElementById("trasladoObservacion").value.trim() || null,
+    id_usuario_envia: getCurrentUser()?.id || 1,
   };
 
+  console.log("📦 Enviando traslado:", data);
+
   try {
-    await api.request("/traslados", "POST", data);
-    showToast("Traslado registrado correctamente", "success");
+    const result = await api.request("/traslados", "POST", data);
+    showToast(`Traslado #${result.id} registrado correctamente`, "success");
 
     const modal = bootstrap.Modal.getInstance(
       document.getElementById("trasladoModal"),
@@ -1121,7 +1135,23 @@ async function saveTraslado(event) {
 
     await loadInventarioModule();
   } catch (error) {
-    showToast(error.message || "Error al registrar traslado", "error");
+    console.error("❌ Error en traslado:", error);
+    let msg = "Error al registrar traslado";
+    if (error.response && error.response.data) {
+      const errData = error.response.data;
+      if (errData.detail) {
+        if (Array.isArray(errData.detail)) {
+          msg = errData.detail.map((d) => d.msg).join(", ");
+        } else {
+          msg = errData.detail;
+        }
+      } else if (typeof errData === "object") {
+        msg = Object.values(errData).flat().join(", ");
+      }
+    } else if (error.message) {
+      msg = error.message;
+    }
+    showToast(msg, "error");
   }
 }
 
@@ -1315,7 +1345,6 @@ function renderTraslados(traslados) {
 // =============================================
 // RECIBIR TRASLADO
 // =============================================
-
 async function recibirTraslado(id) {
   const confirmado = await mostrarConfirmacion(
     "Recibir Traslado",
@@ -1325,10 +1354,15 @@ async function recibirTraslado(id) {
   if (!confirmado) return;
 
   try {
-    await api.request(`/traslados/${id}/recibir`, "PATCH");
+    const idUsuarioRecibe = getCurrentUser()?.id || 1;
+    await api.request(
+      `/traslados/${id}/confirmar-recepcion?id_usuario_recibe=${idUsuarioRecibe}`,
+      "PATCH",
+    );
     showToast("Traslado recibido correctamente", "success");
     await loadInventarioModule();
   } catch (error) {
+    console.error("❌ Error al recibir traslado:", error);
     showToast(error.message || "Error al recibir traslado", "error");
   }
 }
