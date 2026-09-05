@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import List, Optional
-
 from pydantic import BaseModel, ConfigDict
 
 
@@ -43,6 +42,7 @@ class VentaCreate(BaseModel):
     id_caja_turno: int
     descuento_porcentaje: Optional[float] = 0
     observaciones: Optional[str] = None
+    nit_cliente: Optional[str] = None
     detalles: List[DetalleVentaCreate]
     pagos: List[MetodoPagoVentaCreate]  
 
@@ -61,6 +61,7 @@ class VentaResponse(BaseModel):
     referencia_pago: Optional[str] = None
     estado: Optional[str] = None
     observaciones: Optional[str] = None
+    nit_cliente: Optional[str] = None
     detalles: List[DetalleVentaResponse] = []
     pagos: List[MetodoPagoVentaResponse] = []
     model_config = ConfigDict(from_attributes=True)
@@ -82,10 +83,10 @@ class DetalleServicioResponse(DetalleServicioCreate):
 class ServicioAdicionalCreate(BaseModel):
     id_venta: Optional[int] = None
     id_cliente: Optional[int] = None
-    tipo_servicio: str  # Impresion, Emplasticado, PagoCirculacion
+    tipo_servicio: str
     descripcion: Optional[str] = None
     monto_mano_obra: Optional[float] = 0
-    detalles: List[DetalleServicioCreate] = []  # materiales usados (vacío si no aplica, ej. pago de circulación)
+    detalles: List[DetalleServicioCreate] = []
 
 
 class ServicioAdicionalResponse(BaseModel):

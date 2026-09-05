@@ -4,7 +4,6 @@ from sqlalchemy.sql import func
 
 from app.database import Base
 
-
 class Venta(Base):
     __tablename__ = "venta"
 
@@ -22,10 +21,10 @@ class Venta(Base):
     referencia_pago = Column(String(100)) 
     estado = Column(String(20), default="Completada")
     observaciones = Column(Text)
+    nit_cliente = Column(String(20), nullable=True)  # ✅ NUEVO
 
     detalles = relationship("DetalleVenta", back_populates="venta", cascade="all, delete-orphan")
     pagos = relationship("MetodoPagoVenta", back_populates="venta", cascade="all, delete-orphan")
-
 
 class DetalleVenta(Base):
     __tablename__ = "detalle_venta"
