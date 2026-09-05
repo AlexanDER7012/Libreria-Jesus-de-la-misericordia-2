@@ -6,7 +6,6 @@ let cajaTurnosData = [];
 let serviciosAdicionalesData = [];
 let cotizacionesData = [];
 let ventaDetallesTemp = [];
-let ventaPagosTemp = [];
 let vendedoresData = [];
 let cotizacionItemsTemp = [];
 
@@ -173,7 +172,7 @@ async function loadVentasModule() {
 }
 
 // ============================================================
-// PESTAÑA: VENTAS CON BÚSQUEDA
+// PESTAÑA: VENTAS CON BÚSQUEDA Y BOTÓN DE PAGO
 // ============================================================
 function renderVentasTable(ventas) {
   const container = document.getElementById("ventasTableContainer");
@@ -195,6 +194,12 @@ function renderVentasTable(ventas) {
         </div>
       </div>
       <div class="col-md-6 text-end">
+        <button class="btn btn-success btn-sm" onclick="exportarVentasExcel()">
+          <i class="fas fa-file-excel me-1"></i>Exportar
+        </button>
+        <button class="btn btn-danger btn-sm" onclick="exportarVentasPDF()">
+          <i class="fas fa-file-pdf me-1"></i>PDF
+        </button>
         <button class="btn btn-warning btn-sm" onclick="showCreateVentaModal()">
           <i class="fas fa-plus me-2"></i>Nueva Venta
         </button>
@@ -214,25 +219,75 @@ function renderVentasTable(ventas) {
     return;
   }
 
+  // Calcular totales
+  let totalVentas = 0;
+  let totalPendiente = 0;
+  ventas.forEach((v) => {
+    const totalPagos = (v.pagos || []).reduce(
+      (sum, p) => sum + (p.monto || 0),
+      0,
+    );
+    const saldo = (v.total || 0) - totalPagos;
+    totalVentas += v.total || 0;
+    if (saldo > 0) totalPendiente += saldo;
+  });
+
   let html =
     searchHtml +
     `
-        <div class="table-responsive">
-            <table class="table table-hover table-striped" id="ventasTable">
-                <thead class="table-light">
-                    <tr>
-                        <th>ID</th>
-                        <th>Cliente</th>
-                        <th>Fecha</th>
-                        <th>Subtotal</th>
-                        <th>Descuento</th>
-                        <th>Total</th>
-                        <th>Saldo</th>
-                        <th>Estado Pago</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="ventasTableBody">
+    <div class="row mb-3">
+      <div class="col-md-3">
+        <div class="card bg-success bg-opacity-10">
+          <div class="card-body text-center py-2">
+            <h6 class="text-success mb-0">Total Ventas</h6>
+            <h5 class="mb-0">Q${totalVentas.toFixed(2)}</h5>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card bg-warning bg-opacity-10">
+          <div class="card-body text-center py-2">
+            <h6 class="text-warning mb-0">Pendiente por Cobrar</h6>
+            <h5 class="mb-0">Q${totalPendiente.toFixed(2)}</h5>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card bg-info bg-opacity-10">
+          <div class="card-body text-center py-2">
+            <h6 class="text-info mb-0">Cantidad de Ventas</h6>
+            <h5 class="mb-0">${ventas.length}</h5>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card bg-primary bg-opacity-10">
+          <div class="card-body text-center py-2">
+            <h6 class="text-primary mb-0">Promedio por Venta</h6>
+            <h5 class="mb-0">Q${(totalVentas / ventas.length).toFixed(2)}</h5>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover table-striped" id="ventasTable">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Cliente</th>
+            <th>NIT</th>
+            <th>Vendedor</th>
+            <th>Fecha</th>
+            <th>Subtotal</th>
+            <th>Descuento</th>
+            <th>Total</th>
+            <th>Saldo</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="ventasTableBody">
     `;
 
   ventas.forEach((v) => {
@@ -240,12 +295,22 @@ function renderVentasTable(ventas) {
       (c) => c.id === v.id_cliente,
     );
     const nombreCliente = cliente ? cliente.nombre : "--";
+    const nitCliente = cliente ? cliente.nit || "--" : "--";
     const totalPagos = (v.pagos || []).reduce(
       (sum, p) => sum + (p.monto || 0),
       0,
     );
     const saldo = (v.total || 0) - totalPagos;
     const pagada = saldo <= 0;
+
+    // Obtener vendedor
+    let nombreVendedor = "--";
+    if (v.id_usuario) {
+      const vendedor = vendedoresData.find(
+        (e) => e.id_usuario === v.id_usuario,
+      );
+      if (vendedor) nombreVendedor = vendedor.nombre || "--";
+    }
 
     html += `
             <tr>
@@ -259,6 +324,8 @@ function renderVentasTable(ventas) {
                         ${nombreCliente}
                     </button>
                 </td>
+                <td>${nitCliente}</td>
+                <td>${nombreVendedor}</td>
                 <td>${v.fecha ? new Date(v.fecha).toLocaleString() : "--"}</td>
                 <td>Q${(v.subtotal || 0).toFixed(2)}</td>
                 <td>Q${(v.descuento || 0).toFixed(2)}</td>
@@ -273,6 +340,10 @@ function renderVentasTable(ventas) {
                     <button class="btn btn-sm btn-outline-info" onclick="verVenta(${v.id})">
                         <i class="fas fa-eye"></i>
                     </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="imprimirVenta(${v.id})" title="Imprimir venta">
+                        <i class="fas fa-print"></i>
+                    </button>
+                    ${!pagada ? `<button class="btn btn-sm btn-outline-success" onclick="mostrarModalPago(${v.id})" title="Registrar pago"><i class="fas fa-money-bill-wave"></i></button>` : ""}
                     <button class="btn btn-sm btn-outline-danger" onclick="anularVenta(${v.id})">
                         <i class="fas fa-times"></i>
                     </button>
@@ -329,13 +400,218 @@ function limpiarFiltroVentas() {
 }
 
 // ============================================================
-// CREAR MODAL DE VENTA DINÁMICAMENTE
+// EXPORTAR VENTAS A EXCEL Y PDF
+// ============================================================
+function exportarVentasExcel() {
+  const ventas = window.ventasDataOriginal || ventasData;
+  if (!ventas || ventas.length === 0) {
+    showToast("No hay ventas para exportar", "warning");
+    return;
+  }
+
+  const data = ventas.map((v) => {
+    const cliente = (window.clientesData || []).find(
+      (c) => c.id === v.id_cliente,
+    );
+    return {
+      ID: v.id,
+      Cliente: cliente ? cliente.nombre : "--",
+      NIT: cliente ? cliente.nit || "--" : "--",
+      Fecha: v.fecha ? new Date(v.fecha).toLocaleString() : "--",
+      Subtotal: v.subtotal || 0,
+      Descuento: v.descuento || 0,
+      Total: v.total || 0,
+      Estado: v.estado || "Completada",
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Ventas");
+  XLSX.writeFile(wb, `Ventas_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  showToast("Ventas exportadas a Excel", "success");
+}
+
+function exportarVentasPDF() {
+  const ventas = window.ventasDataOriginal || ventasData;
+  if (!ventas || ventas.length === 0) {
+    showToast("No hay ventas para exportar", "warning");
+    return;
+  }
+
+  const totalVentas = ventas.reduce((sum, v) => sum + (v.total || 0), 0);
+
+  let htmlContent = `
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        h1 { color: #0d6efd; text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background: #0d6efd; color: white; padding: 10px; text-align: left; }
+        td { padding: 8px; border-bottom: 1px solid #ddd; }
+        .total { font-weight: bold; font-size: 18px; text-align: right; margin-top: 20px; }
+        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <h1>Reporte de Ventas</h1>
+      <p><strong>Fecha:</strong> ${new Date().toLocaleString()}</p>
+      <p><strong>Total de Ventas:</strong> ${ventas.length}</p>
+      <p><strong>Monto Total:</strong> Q${totalVentas.toFixed(2)}</p>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Cliente</th>
+            <th>NIT</th>
+            <th>Fecha</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  ventas.forEach((v) => {
+    const cliente = (window.clientesData || []).find(
+      (c) => c.id === v.id_cliente,
+    );
+    htmlContent += `
+      <tr>
+        <td>#${v.id}</td>
+        <td>${cliente ? cliente.nombre : "--"}</td>
+        <td>${cliente ? cliente.nit || "--" : "--"}</td>
+        <td>${v.fecha ? new Date(v.fecha).toLocaleString() : "--"}</td>
+        <td>Q${(v.total || 0).toFixed(2)}</td>
+      </tr>
+    `;
+  });
+
+  htmlContent += `
+        </tbody>
+      </table>
+      <div class="total">Total General: Q${totalVentas.toFixed(2)}</div>
+      <div class="footer">Reporte generado desde Librería Jesús de la Misericordia</div>
+    </body>
+    </html>
+  `;
+
+  const win = window.open("", "_blank");
+  win.document.write(htmlContent);
+  win.document.close();
+  win.print();
+}
+
+// ============================================================
+// IMPRIMIR VENTA INDIVIDUAL
+// ============================================================
+async function imprimirVenta(id) {
+  try {
+    const venta = await api.getVenta(id);
+    if (!venta) {
+      showToast("Venta no encontrada", "error");
+      return;
+    }
+
+    const cliente = (window.clientesData || []).find(
+      (c) => c.id === venta.id_cliente,
+    );
+    const nombreCliente = cliente ? cliente.nombre : "Sin cliente";
+    const nitCliente = cliente ? cliente.nit || "N/A" : "N/A";
+
+    let detallesHtml = (venta.detalles || [])
+      .map((d) => {
+        const producto = (window.productosData || []).find(
+          (p) => p.id === d.id_producto,
+        );
+        return `
+        <tr>
+          <td>${producto ? producto.nombre : "--"}</td>
+          <td>${d.cantidad || 0}</td>
+          <td>Q${(d.precio_unitario || 0).toFixed(2)}</td>
+          <td>Q${(d.subtotal || 0).toFixed(2)}</td>
+        </tr>
+      `;
+      })
+      .join("");
+
+    const htmlContent = `
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 30px; }
+          h1 { text-align: center; color: #0d6efd; }
+          .info { margin: 20px 0; }
+          .info p { margin: 5px 0; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th { background: #0d6efd; color: white; padding: 8px; text-align: left; }
+          td { padding: 8px; border-bottom: 1px solid #ddd; }
+          .total-row { font-weight: bold; background: #f8f9fa; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; border-top: 1px solid #ddd; padding-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <h1>Comprobante de Venta</h1>
+        <div class="info">
+          <p><strong>Venta #:</strong> ${venta.id}</p>
+          <p><strong>Cliente:</strong> ${nombreCliente}</p>
+          <p><strong>NIT:</strong> ${nitCliente}</p>
+          <p><strong>Fecha:</strong> ${venta.fecha ? new Date(venta.fecha).toLocaleString() : "--"}</p>
+          <p><strong>Estado:</strong> ${venta.estado || "Completada"}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Cantidad</th>
+              <th>Precio</th>
+              <th>Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${detallesHtml || '<tr><td colspan="4" class="text-center">Sin detalles</td></tr>'}
+            <tr class="total-row">
+              <td colspan="3" style="text-align:right;">Subtotal:</td>
+              <td>Q${(venta.subtotal || 0).toFixed(2)}</td>
+            </tr>
+            <tr class="total-row">
+              <td colspan="3" style="text-align:right;">Descuento:</td>
+              <td>Q${(venta.descuento || 0).toFixed(2)}</td>
+            </tr>
+            <tr class="total-row">
+              <td colspan="3" style="text-align:right;"><strong>TOTAL:</strong></td>
+              <td><strong>Q${(venta.total || 0).toFixed(2)}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="footer">
+          <p>¡Gracias por su compra!</p>
+          <p>Librería y Papelería Jesús de la Misericordia</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const win = window.open("", "_blank");
+    win.document.write(htmlContent);
+    win.document.close();
+    win.print();
+  } catch (error) {
+    showToast(error.message || "Error al imprimir", "error");
+  }
+}
+
+// ============================================================
+// CREAR MODAL DE VENTA (SIN PAGOS)
 // ============================================================
 function crearModalVenta() {
-  let modal = document.getElementById("ventaModal");
-  if (modal) return modal;
+  // ✅ Eliminar modal existente si hay
+  let modalExistente = document.getElementById("ventaModal");
+  if (modalExistente) {
+    modalExistente.remove();
+  }
 
-  modal = document.createElement("div");
+  let modal = document.createElement("div");
   modal.className = "modal fade";
   modal.id = "ventaModal";
   modal.setAttribute("tabindex", "-1");
@@ -354,7 +630,24 @@ function crearModalVenta() {
             <input type="hidden" id="ventaId" value="">
             
             <div class="row">
-              <div class="col-md-6">
+              <div class="col-md-4">
+                <div class="mb-3">
+                  <label class="form-label">Buscar Cliente por NIT</label>
+                  <div class="input-group">
+                    <input type="text" class="form-control" id="ventaBuscarNit" 
+                           placeholder="Ingresa NIT del cliente" 
+                           onkeyup="if(event.key === 'Enter') buscarClientePorNit()">
+                    <button class="btn btn-outline-primary" type="button" onclick="buscarClientePorNit()">
+                      <i class="fas fa-search"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" onclick="limpiarBusquedaCliente()">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                  <div id="ventaClienteInfo" class="mt-1"></div>
+                </div>
+              </div>
+              <div class="col-md-4">
                 <div class="mb-3">
                   <label class="form-label">Cliente</label>
                   <select class="form-select" id="ventaCliente">
@@ -362,12 +655,12 @@ function crearModalVenta() {
                   </select>
                 </div>
               </div>
-              <div class="col-md-6">
+              <div class="col-md-4">
                 <div class="mb-3">
                   <label class="form-label">Número de Cotización</label>
                   <div class="input-group">
                     <input type="text" class="form-control" id="ventaCotizacion" 
-                           placeholder="Ingresa el ID de cotización aprobada" 
+                           placeholder="ID de cotización aprobada" 
                            onchange="buscarCotizacionParaVenta()" 
                            onkeyup="if(event.key === 'Enter') buscarCotizacionParaVenta()">
                     <button class="btn btn-outline-info" type="button" onclick="buscarCotizacionParaVenta()">
@@ -434,34 +727,11 @@ function crearModalVenta() {
 
             <div id="ventaDetallesList" class="mb-3"></div>
 
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h6 class="fw-bold">Pagos</h6>
-            </div>
-
-            <div class="row mb-2" id="ventaPagoRow">
-              <div class="col-md-4">
-                <select class="form-select form-select-sm" id="ventaPagoTipo">
-                  <option value="">Seleccionar tipo</option>
-                </select>
-              </div>
-              <div class="col-md-3">
-                <input type="number" class="form-control form-control-sm" id="ventaPagoMonto" placeholder="Monto" step="0.01" min="0.01">
-              </div>
-              <div class="col-md-4">
-                <input type="text" class="form-control form-control-sm" id="ventaPagoReferencia" placeholder="Referencia (opcional)">
-              </div>
-              <div class="col-md-1">
-                <button type="button" class="btn btn-sm btn-success" onclick="agregarPagoVenta(event)">
-                  <i class="fas fa-plus"></i>
-                </button>
-              </div>
-            </div>
-
-            <div id="ventaPagosList" class="mb-3"></div>
-
             <div class="text-end">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-              <button type="submit" class="btn btn-warning">Guardar Venta</button>
+              <button type="submit" class="btn btn-warning">
+                <i class="fas fa-save me-2"></i>Guardar Venta
+              </button>
             </div>
           </form>
         </div>
@@ -478,13 +748,10 @@ function crearModalVenta() {
 // ============================================================
 function showCreateVentaModal() {
   ventaDetallesTemp = [];
-  ventaPagosTemp = [];
 
-  // PRIMERO: Crear el modal si no existe
   const modal = crearModalVenta();
   if (!modal) return;
 
-  // SEGUNDO: Ahora que el modal existe, obtener los elementos
   const form = document.getElementById("ventaForm");
   const title = document.getElementById("ventaModalTitle");
 
@@ -497,24 +764,25 @@ function showCreateVentaModal() {
   const ventaCotizacion = document.getElementById("ventaCotizacion");
   const ventaCotizacionInfo = document.getElementById("ventaCotizacionInfo");
   const ventaDetallesList = document.getElementById("ventaDetallesList");
-  const ventaPagosList = document.getElementById("ventaPagosList");
+  const ventaBuscarNit = document.getElementById("ventaBuscarNit");
+  const ventaClienteInfo = document.getElementById("ventaClienteInfo");
 
   if (ventaId) ventaId.value = "";
   if (ventaDescuento) ventaDescuento.value = 0;
   if (ventaObservaciones) ventaObservaciones.value = "";
   if (ventaCotizacion) ventaCotizacion.value = "";
   if (ventaCotizacionInfo) ventaCotizacionInfo.innerHTML = "";
+  if (ventaBuscarNit) ventaBuscarNit.value = "";
+  if (ventaClienteInfo) ventaClienteInfo.innerHTML = "";
 
   limpiarErroresFormulario("ventaForm");
 
   llenarSelectCliente();
   llenarSelectCajaTurno();
-  poblarSelectUbicacionVenta(); // <-- antes: llenarSelectUbicacion()
+  poblarSelectUbicacionVenta();
   llenarSelectProductoDetalle();
-  llenarSelectTipoPago();
 
   if (ventaDetallesList) ventaDetallesList.innerHTML = "";
-  if (ventaPagosList) ventaPagosList.innerHTML = "";
 
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
@@ -778,14 +1046,6 @@ function llenarSelectCajaTurno() {
   });
 }
 
-// ============================================================
-// LLENAR SELECT DE UBICACIÓN (USANDO FUNCIÓN GLOBAL DE configuracion.js)
-// ============================================================
-// IMPORTANTE: este nombre YA NO puede llamarse "llenarSelectUbicacion",
-// porque ese nombre pertenece a la función global real definida en
-// configuracion.js (window.llenarSelectUbicacion(selectElement, ubicaciones)).
-// Si se repite el nombre aquí, según el orden de carga de los <script>
-// esta función puede terminar llamándose a sí misma en bucle infinito.
 function poblarSelectUbicacionVenta() {
   const select = document.getElementById("ventaUbicacion");
   if (!select) {
@@ -795,39 +1055,21 @@ function poblarSelectUbicacionVenta() {
 
   if (typeof window.llenarSelectUbicacion === "function") {
     window.llenarSelectUbicacion(select, window.ubicacionesData || []);
-    console.log("✅ Select de ubicación actualizado con función global");
   } else {
-    // Fallback local, solo por si configuracion.js aún no cargó
     select.innerHTML = '<option value="">Seleccionar ubicación</option>';
     (window.ubicacionesData || []).forEach((u) => {
       const nombre = u.nombre || u.id || "Sin nombre";
       select.innerHTML += `<option value="${u.id}">${nombre}</option>`;
     });
-    console.log("✅ Select de ubicación actualizado con fallback local");
   }
 }
 
-// ============================================================
-// REFRESCAR SELECT DE UBICACIÓN (cuando se actualizan datos)
-// ============================================================
 function refrescarSelectUbicacion() {
   if (typeof window.actualizarSelectsUbicacion === "function") {
     window.actualizarSelectsUbicacion();
   } else {
     poblarSelectUbicacionVenta();
   }
-}
-
-function llenarSelectTipoPago() {
-  const select = document.getElementById("ventaPagoTipo");
-  if (!select) return;
-
-  select.innerHTML = '<option value="">Seleccionar tipo</option>';
-  tiposPagoData
-    .filter((t) => t.para_ventas === 1)
-    .forEach((t) => {
-      select.innerHTML += `<option value="${t.id}">${t.nombre}</option>`;
-    });
 }
 
 function llenarSelectProductoDetalle() {
@@ -841,7 +1083,6 @@ function llenarSelectProductoDetalle() {
     </option>`;
   });
 
-  // Usar onchange en vez de addEventListener para evitar duplicados
   select.onchange = function () {
     const selected = this.options[this.selectedIndex];
     const precio = selected.dataset.precio || 0;
@@ -947,84 +1188,8 @@ function renderDetallesVenta() {
   container.innerHTML = html;
 }
 
-function agregarPagoVenta(event) {
-  if (event) event.preventDefault();
-
-  const tipoSelect = document.getElementById("ventaPagoTipo");
-  const montoInput = document.getElementById("ventaPagoMonto");
-  const referenciaInput = document.getElementById("ventaPagoReferencia");
-
-  const id_tipo_pago = parseInt(tipoSelect.value);
-  const monto = parseFloat(montoInput.value);
-
-  if (!id_tipo_pago) {
-    showToast("Selecciona un tipo de pago", "error");
-    return;
-  }
-  if (!monto || monto <= 0) {
-    showToast("Ingresa un monto válido", "error");
-    return;
-  }
-
-  const tipoPago = tiposPagoData.find((t) => t.id === id_tipo_pago);
-
-  ventaPagosTemp.push({
-    id_tipo_pago: id_tipo_pago,
-    monto: monto,
-    referencia: referenciaInput.value || null,
-    tipoPago: tipoPago,
-  });
-
-  renderPagosVenta();
-  montoInput.value = "";
-  referenciaInput.value = "";
-  tipoSelect.value = "";
-}
-
-function eliminarPagoVenta(index) {
-  ventaPagosTemp.splice(index, 1);
-  renderPagosVenta();
-}
-
-function renderPagosVenta() {
-  const container = document.getElementById("ventaPagosList");
-  if (!container) return;
-
-  if (ventaPagosTemp.length === 0) {
-    container.innerHTML =
-      '<p class="text-muted small">No hay pagos registrados</p>';
-    return;
-  }
-
-  let html = '<ul class="list-group">';
-  let total = 0;
-  ventaPagosTemp.forEach((p, index) => {
-    total += p.monto;
-    html += `
-      <li class="list-group-item d-flex justify-content-between align-items-center">
-        <div>
-          <strong>${p.tipoPago ? p.tipoPago.nombre : "--"}</strong>
-          <span class="text-muted small"> ${p.referencia ? "Ref: " + p.referencia : ""}</span>
-        </div>
-        <div>
-          <span class="fw-bold">Q${p.monto.toFixed(2)}</span>
-          <button class="btn btn-sm btn-outline-danger ms-2" onclick="eliminarPagoVenta(${index})">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-      </li>
-    `;
-  });
-  html += `
-    <li class="list-group-item fw-bold bg-light">
-      Total Pagos: Q${total.toFixed(2)}
-    </li>
-  </ul>`;
-  container.innerHTML = html;
-}
-
 // ============================================================
-// GUARDAR VENTA
+// GUARDAR VENTA (SIN PAGOS)
 // ============================================================
 async function saveVenta(event) {
   if (event) event.preventDefault();
@@ -1050,11 +1215,6 @@ async function saveVenta(event) {
     return;
   }
 
-  if (ventaPagosTemp.length === 0) {
-    showToast("Agrega al menos un pago", "error");
-    return;
-  }
-
   const id_usuario = getCurrentUser()?.id || 1;
   const id_cliente =
     parseInt(document.getElementById("ventaCliente").value) || null;
@@ -1070,19 +1230,16 @@ async function saveVenta(event) {
     subtotal += d.cantidad * (d.producto.precio_venta || 0);
   });
 
-  let totalPagos = 0;
-  ventaPagosTemp.forEach((p) => {
-    totalPagos += p.monto;
-  });
-
   const totalFinal = subtotal - (subtotal * descuento_porcentaje) / 100;
 
-  if (totalPagos < totalFinal) {
-    showToast(
-      `El total de pagos (Q${totalPagos.toFixed(2)}) no cubre el total de la venta (Q${totalFinal.toFixed(2)})`,
-      "error",
+  let nit_cliente = null;
+  if (id_cliente) {
+    const cliente = (window.clientesData || []).find(
+      (c) => c.id === id_cliente,
     );
-    return;
+    if (cliente && cliente.nit) {
+      nit_cliente = cliente.nit;
+    }
   }
 
   const data = {
@@ -1093,15 +1250,12 @@ async function saveVenta(event) {
     id_cotizacion: id_cotizacion,
     descuento_porcentaje: descuento_porcentaje,
     observaciones: observaciones,
+    nit_cliente: nit_cliente,
     detalles: ventaDetallesTemp.map((d) => ({
       id_producto: d.id_producto,
       cantidad: d.cantidad,
     })),
-    pagos: ventaPagosTemp.map((p) => ({
-      id_tipo_pago: p.id_tipo_pago,
-      monto: p.monto,
-      referencia: p.referencia,
-    })),
+    pagos: [],
   };
 
   try {
@@ -1299,6 +1453,160 @@ async function anularVenta(id) {
 }
 
 // ============================================================
+// MODAL DE PAGO PARA VENTA
+// ============================================================
+function mostrarModalPago(idVenta) {
+  const modalId = "pagoVentaModal";
+  let modal = document.getElementById(modalId);
+
+  if (modal) {
+    modal.remove();
+  }
+
+  modal = document.createElement("div");
+  modal.className = "modal fade";
+  modal.id = modalId;
+  modal.setAttribute("tabindex", "-1");
+  modal.setAttribute("aria-hidden", "true");
+
+  modal.innerHTML = `
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Registrar Pago - Venta #${idVenta}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="pagoVentaForm" onsubmit="registrarPagoVenta(event, ${idVenta})">
+            <div class="mb-3">
+              <label class="form-label">Tipo de Pago *</label>
+              <select class="form-select" id="pagoVentaTipo" required>
+                <option value="">Seleccionar tipo</option>
+                ${tiposPagoData
+                  .filter((t) => t.para_ventas === 1)
+                  .map((t) => `<option value="${t.id}">${t.nombre}</option>`)
+                  .join("")}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Monto *</label>
+              <input type="number" class="form-control" id="pagoVentaMonto" 
+                     step="0.01" min="0.01" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Referencia (opcional)</label>
+              <input type="text" class="form-control" id="pagoVentaReferencia" 
+                     placeholder="Número de referencia, cheque, etc.">
+            </div>
+            <div class="text-end">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" class="btn btn-success">
+                <i class="fas fa-save me-2"></i>Registrar Pago
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  const modalInstance = new bootstrap.Modal(modal);
+  modalInstance.show();
+
+  modal.addEventListener("hidden.bs.modal", function () {
+    this.remove();
+  });
+}
+
+// ============================================================
+// REGISTRAR PAGO DE VENTA
+// ============================================================
+async function registrarPagoVenta(event, idVenta) {
+  event.preventDefault();
+
+  const id_tipo_pago = parseInt(document.getElementById("pagoVentaTipo").value);
+  const monto = parseFloat(document.getElementById("pagoVentaMonto").value);
+  const referencia =
+    document.getElementById("pagoVentaReferencia").value || null;
+
+  if (!id_tipo_pago) {
+    showToast("Selecciona un tipo de pago", "error");
+    return;
+  }
+
+  if (!monto || monto <= 0) {
+    showToast("Ingresa un monto válido", "error");
+    return;
+  }
+
+  try {
+    const result = await api.request(`/ventas/${idVenta}/pagos`, "POST", {
+      id_tipo_pago,
+      monto,
+      referencia,
+    });
+
+    showToast("Pago registrado correctamente", "success");
+
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("pagoVentaModal"),
+    );
+    if (modal) modal.hide();
+
+    await loadVentasModule();
+  } catch (error) {
+    showToast(error.message || "Error al registrar pago", "error");
+  }
+}
+
+// ============================================================
+// BUSCAR CLIENTE POR NIT
+// ============================================================
+function buscarClientePorNit(event) {
+  if (event && event.key !== "Enter") return;
+
+  const input = document.getElementById("ventaBuscarNit");
+  const nit = input.value.trim();
+  const infoDiv = document.getElementById("ventaClienteInfo");
+  const selectCliente = document.getElementById("ventaCliente");
+
+  if (!nit) {
+    infoDiv.innerHTML = "";
+    return;
+  }
+
+  const cliente = (window.clientesData || []).find((c) => c.nit === nit);
+
+  if (cliente) {
+    infoDiv.innerHTML = `
+      <div class="alert alert-success small py-1 px-2 mb-0">
+        <i class="fas fa-check-circle me-1"></i>
+        <strong>${cliente.nombre}</strong>
+        ${cliente.telefono ? ` - ${cliente.telefono}` : ""}
+        ${cliente.email ? ` - ${cliente.email}` : ""}
+      </div>
+    `;
+    selectCliente.value = cliente.id;
+    showToast(`Cliente encontrado: ${cliente.nombre}`, "success");
+  } else {
+    infoDiv.innerHTML = `
+      <div class="alert alert-warning small py-1 px-2 mb-0">
+        <i class="fas fa-exclamation-triangle me-1"></i>
+        No se encontró cliente con NIT: ${nit}
+      </div>
+    `;
+    selectCliente.value = "";
+  }
+}
+
+function limpiarBusquedaCliente() {
+  document.getElementById("ventaBuscarNit").value = "";
+  document.getElementById("ventaClienteInfo").innerHTML = "";
+  document.getElementById("ventaCliente").value = "";
+}
+
+// ============================================================
 // PESTAÑA: CLIENTES CON REACTIVAR
 // ============================================================
 async function cargarSubClientes() {
@@ -1457,6 +1765,25 @@ async function reactivarCliente(id) {
     await loadVentasModule();
   } catch (error) {
     showToast(error.message || "Error al reactivar cliente", "error");
+  }
+}
+
+function showCreateClienteSubModal() {
+  showCreateClienteModal();
+}
+
+async function showEditClienteSubModal(id) {
+  await showEditClienteModal(id);
+}
+
+async function deleteClienteSub(id) {
+  if (!confirm("¿Estás seguro de eliminar este cliente?")) return;
+  try {
+    await api.deleteCliente(id);
+    showToast("Cliente eliminado correctamente", "success");
+    await cargarSubClientes();
+  } catch (error) {
+    showToast(error.message || "Error al eliminar cliente", "error");
   }
 }
 
@@ -1723,7 +2050,6 @@ function showCreateCotizacionModal() {
   const modal = crearModalCotizacion();
   if (!modal) return;
 
-  // Llenar selects
   const clienteSelect = document.getElementById("cotizacionCliente");
   clienteSelect.innerHTML = '<option value="">Seleccionar cliente</option>';
   (window.clientesData || []).forEach((c) => {
@@ -1740,8 +2066,6 @@ function showCreateCotizacionModal() {
     `;
   });
 
-  // Evento para precio: onchange en vez de addEventListener, para no
-  // acumular listeners duplicados cada vez que se abre el modal.
   productoSelect.onchange = function () {
     const selected = this.options[this.selectedIndex];
     const precio = selected.dataset.precio || 0;
@@ -2023,7 +2347,10 @@ async function aprobarCotizacion(id) {
   );
   if (!confirmado) return;
   try {
-    await api.request(`/cotizaciones/${id}/estado?nuevo_estado=Aceptada`, "PATCH");
+    await api.request(
+      `/cotizaciones/${id}/estado?nuevo_estado=Aceptada`,
+      "PATCH",
+    );
     showToast("Cotización aprobada correctamente", "success");
     await loadVentasModule();
   } catch (error) {
@@ -2039,7 +2366,10 @@ async function rechazarCotizacion(id) {
   );
   if (!confirmado) return;
   try {
-    await api.request(`/cotizaciones/${id}/estado?nuevo_estado=Rechazada`, "PATCH");
+    await api.request(
+      `/cotizaciones/${id}/estado?nuevo_estado=Rechazada`,
+      "PATCH",
+    );
     showToast("Cotización rechazada correctamente", "success");
     await loadVentasModule();
   } catch (error) {
@@ -2492,9 +2822,6 @@ async function cargarSubCajaBasico() {
   }
 }
 
-// ============================================================
-// VER FICHA PRODUCTO
-// ============================================================
 async function verFichaProducto(idProducto) {
   if (!idProducto) {
     showToast("Producto no especificado", "warning");
@@ -2582,39 +2909,6 @@ async function verFichaProducto(idProducto) {
 }
 
 // ============================================================
-// FUNCIONES CLIENTES SUBMODAL (placeholder)
-// ============================================================
-//function showCreateClienteSubModal() {
-//  showToast("Función en desarrollo", "info");
-//}
-
-//function showEditClienteSubModal(id) {
-//  showToast("Función en desarrollo", "info");
-//}
-
-//function deleteClienteSub(id) {
-//  showToast("Función en desarrollo", "info");
-//}
-function showCreateClienteSubModal() {
-  showCreateClienteModal();
-}
-
-async function showEditClienteSubModal(id) {
-  await showEditClienteModal(id);
-}
-
-async function deleteClienteSub(id) {
-  if (!confirm("¿Estás seguro de eliminar este cliente?")) return;
-  try {
-    await api.deleteCliente(id);
-    showToast("Cliente eliminado correctamente", "success");
-    await cargarSubClientes();
-  } catch (error) {
-    showToast(error.message || "Error al eliminar cliente", "error");
-  }
-}
-
-// ============================================================
 // EXPONER FUNCIONES GLOBALES
 // ============================================================
 window.loadVentasModule = loadVentasModule;
@@ -2623,8 +2917,6 @@ window.buscarCotizacionParaVenta = buscarCotizacionParaVenta;
 window.crearVentaDesdeCotizacion = crearVentaDesdeCotizacion;
 window.agregarDetalleVenta = agregarDetalleVenta;
 window.eliminarDetalleVenta = eliminarDetalleVenta;
-window.agregarPagoVenta = agregarPagoVenta;
-window.eliminarPagoVenta = eliminarPagoVenta;
 window.saveVenta = saveVenta;
 window.verVenta = verVenta;
 window.anularVenta = anularVenta;
@@ -2660,3 +2952,10 @@ window.cargarSubCajaBasico = cargarSubCajaBasico;
 window.serviciosAdicionalesData = serviciosAdicionalesData;
 window.cotizacionesData = cotizacionesData;
 window.refrescarSelectUbicacion = refrescarSelectUbicacion;
+window.mostrarModalPago = mostrarModalPago;
+window.registrarPagoVenta = registrarPagoVenta;
+window.buscarClientePorNit = buscarClientePorNit;
+window.limpiarBusquedaCliente = limpiarBusquedaCliente;
+window.imprimirVenta = imprimirVenta;
+window.exportarVentasExcel = exportarVentasExcel;
+window.exportarVentasPDF = exportarVentasPDF;
