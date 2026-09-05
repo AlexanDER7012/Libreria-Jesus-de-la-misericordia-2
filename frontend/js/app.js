@@ -46,9 +46,11 @@ class App {
   }
 
   tienePermiso(moduleId) {
+    // ✅ Obtener usuario actual desde localStorage (más confiable)
     const user = getCurrentUser();
     const rol = user?.rol || user?.id_rol || this.user?.rol;
 
+    // ✅ Si es administrador (id_rol = 1 o nombre "admin"), tiene acceso a todo
     if (
       rol === 1 ||
       rol === "admin" ||
@@ -59,20 +61,26 @@ class App {
       return true;
     }
 
+    // ✅ Obtener permisos
     const permisos = this.getPermisosUsuario();
     console.log(`🔍 Verificando permiso para ${moduleId}, permisos:`, permisos);
 
+    // ✅ Si no hay permisos, SOLO acceso a Dashboard
     if (!permisos || permisos.length === 0) {
       console.warn(`⚠️ Sin permisos, solo Dashboard para ${moduleId}`);
       return moduleId === "dashboard";
     }
 
+    // ✅ Verificar si el módulo está en la lista de permisos
     const tieneAcceso = permisos.some((p) => {
+      // Buscar el nombre del módulo en diferentes campos
       const nombreModulo =
         p.modulo_nombre || p.modulo || p.nombre_modulo || p.modulo_name;
+      // Normalizar
       const moduloLower = nombreModulo ? nombreModulo.toLowerCase() : "";
       const moduleLower = moduleId.toLowerCase();
 
+      // También verificar por id_modulo
       const idModulo = p.id_modulo || p.modulo_id;
       const coincide =
         moduloLower === moduleLower || idModulo === this.getModuloId(moduleId);
@@ -92,6 +100,7 @@ class App {
     return tieneAcceso;
   }
 
+  // ✅ Función auxiliar para mapear nombres de módulo a IDs
   getModuloId(nombre) {
     const mapa = {
       dashboard: 1,
@@ -148,7 +157,7 @@ class App {
   }
 
   // =============================================
-  // SIDEBAR (CON ICONOS SIEMPRE VISIBLES)
+  // SIDEBAR
   // =============================================
 
   buildSidebar() {
@@ -156,10 +165,12 @@ class App {
     if (!nav) return;
     nav.innerHTML = "";
 
+    // ✅ Obtener permisos
     const permisos = this.getPermisosUsuario();
     console.log("📋 Permisos del usuario:", permisos);
 
     this.modules.forEach((mod) => {
+      // ✅ Verificar si el usuario tiene permiso para ver este módulo
       const tienePermiso = this.tienePermiso(mod.id);
 
       if (tienePermiso) {
@@ -167,7 +178,6 @@ class App {
         a.href = "#";
         a.className = "sidebar-link";
         a.dataset.module = mod.id;
-        // ✅ Icono siempre visible, texto se oculta al colapsar
         a.innerHTML = `<i class="fas ${mod.icon} sidebar-icon"></i><span class="sidebar-label">${mod.label}</span>`;
         a.addEventListener("click", (e) => {
           e.preventDefault();
@@ -177,6 +187,7 @@ class App {
       }
     });
 
+    // ✅ Si no hay módulos permitidos, mostrar mensaje
     if (nav.children.length === 0) {
       nav.innerHTML = `
         <div class="text-center text-white-50 p-3">
@@ -185,52 +196,16 @@ class App {
         </div>
       `;
     }
-
-    // ✅ Aplicar estado inicial del sidebar
-    this.applySidebarState();
-  }
-
-  // ✅ Aplicar estado del sidebar (colapsado o expandido)
-  applySidebarState() {
-    const sidebar = document.getElementById("sidebar");
-    const icon = document.getElementById("sidebarCollapseIcon");
-    if (!sidebar) return;
-
-    if (this.sidebarVisible) {
-      sidebar.classList.remove("collapsed");
-      if (icon) {
-        icon.className = "fas fa-chevron-left";
-      }
-      // Mostrar textos
-      document.querySelectorAll(".sidebar-label").forEach((el) => {
-        el.style.display = "inline";
-      });
-    } else {
-      sidebar.classList.add("collapsed");
-      if (icon) {
-        icon.className = "fas fa-chevron-right";
-      }
-      // Ocultar textos pero mantener iconos
-      document.querySelectorAll(".sidebar-label").forEach((el) => {
-        el.style.display = "none";
-      });
-    }
   }
 
   showSidebar() {
     const sidebar = document.getElementById("sidebar");
+    const icon = document.getElementById("sidebarCollapseIcon");
+
     if (sidebar) {
-      sidebar.classList.remove("collapsed");
+      sidebar.classList.add("active");
       this.sidebarVisible = true;
-      // Mostrar textos
-      document.querySelectorAll(".sidebar-label").forEach((el) => {
-        el.style.display = "inline";
-      });
-      // Cambiar icono del botón colapsar
-      const icon = document.getElementById("sidebarCollapseIcon");
-      if (icon) {
-        icon.className = "fas fa-chevron-left";
-      }
+      if (icon) icon.className = "fas fa-chevron-left";
     }
     document.getElementById("sidebarToggleBtn")?.classList.remove("d-none");
     this.updateFloatingButton();
@@ -239,28 +214,33 @@ class App {
   hideSidebar() {
     const sidebar = document.getElementById("sidebar");
     if (sidebar) {
-      sidebar.classList.add("collapsed");
+      // ✅ Solo ocultar cuando estamos en Inicio
+      sidebar.classList.remove("active");
       this.sidebarVisible = false;
-      // Ocultar textos pero mantener iconos
-      document.querySelectorAll(".sidebar-label").forEach((el) => {
-        el.style.display = "none";
-      });
-      // Cambiar icono del botón colapsar
-      const icon = document.getElementById("sidebarCollapseIcon");
-      if (icon) {
-        icon.className = "fas fa-chevron-right";
-      }
     }
     document.getElementById("sidebarToggleBtn")?.classList.add("d-none");
     this.updateFloatingButton();
   }
 
   toggleSidebar() {
+    const sidebar = document.getElementById("sidebar");
+    const icon = document.getElementById("sidebarCollapseIcon");
+
+    if (!sidebar) return;
+
     if (this.sidebarVisible) {
-      this.hideSidebar();
+      // ✅ Colapsar - solo iconos (pero sidebar visible)
+      sidebar.classList.remove("active");
+      this.sidebarVisible = false;
+      if (icon) icon.className = "fas fa-chevron-right";
     } else {
-      this.showSidebar();
+      // ✅ Expandir - mostrar texto
+      sidebar.classList.add("active");
+      this.sidebarVisible = true;
+      if (icon) icon.className = "fas fa-chevron-left";
     }
+
+    this.updateFloatingButton();
   }
 
   setActiveLink(moduleId) {
@@ -277,23 +257,25 @@ class App {
     const btn = document.getElementById("showSidebarBtn");
     if (!btn) return;
     btn.style.display = "none";
-    // ✅ El botón flotante solo aparece cuando sidebar está oculto
   }
 
   updateFloatingButton() {
     const btn = document.getElementById("showSidebarBtn");
     if (!btn) return;
 
-    // ✅ Mostrar botón flotante SOLO cuando sidebar está oculto Y hay un módulo cargado
-    if (!this.sidebarVisible && this.currentModule !== null) {
-      btn.style.display = "flex";
-    } else {
+    if (this.sidebarVisible) {
       btn.style.display = "none";
+    } else {
+      if (this.currentModule !== null) {
+        btn.style.display = "flex";
+      } else {
+        btn.style.display = "none";
+      }
     }
   }
 
   // =============================================
-  // PANTALLA DE INICIO (MATRIZ)
+  // PANTALLA DE INICIO (MATRIZ) - CON FILTRO DE PERMISOS
   // =============================================
 
   showHome() {
@@ -354,6 +336,7 @@ class App {
           <p class="text-muted small">Contacta al administrador para solicitar permisos.</p>
         </div>
       `;
+      // ✅ OCULTAR SIDEBAR EN INICIO
       this.hideSidebar();
       document.getElementById("sidebarToggleBtn")?.classList.add("d-none");
       this.updateFloatingButton();
@@ -382,6 +365,7 @@ class App {
       </div>
     `;
 
+    // ✅ OCULTAR SIDEBAR EN INICIO
     this.hideSidebar();
     document.getElementById("sidebarToggleBtn")?.classList.add("d-none");
     this.updateFloatingButton();
@@ -422,6 +406,7 @@ class App {
   async loadModule(moduleName) {
     if (!moduleName || moduleName === this.currentModule) return;
 
+    // ✅ Verificar permiso antes de cargar
     if (!this.tienePermiso(moduleName)) {
       showToast("No tienes permiso para acceder a este módulo", "error");
       return;
@@ -723,6 +708,9 @@ class App {
     }
   }
 
+  // =============================================
+  // CARGA DEL MÓDULO DE REPORTES
+  // =============================================
   async loadReportes(container) {
     container.innerHTML = `
       <div class="d-flex justify-content-between align-items-center mb-4">
