@@ -1,23 +1,22 @@
 from datetime import date
 from typing import List, Optional
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-
 from app.database import get_db
 from app.pagination import PaginationParams
+from app.models.model_cliente import Cliente
 from app.models.model_producto import Producto
 from app.models.model_caja import CajaTurno
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario, Alerta
 from app.models.model_venta import Venta, DetalleVenta, MetodoPagoVenta, ServicioAdicional, DetalleServicio
 from app.schemas.schema_venta import (
     VentaCreate, VentaResponse,
-    ServicioAdicionalCreate, ServicioAdicionalResponse,
+    ServicioAdicionalCreate, ServicioAdicionalResponse, MetodoPagoVentaCreate,
 )
 
-router = APIRouter()            # /ventas
-router_servicio = APIRouter()   # /servicios-adicionales
+router = APIRouter()
+router_servicio = APIRouter() 
 
 
 def _generar_alerta_si_stock_bajo(db: Session, producto: Producto):
@@ -37,7 +36,7 @@ def _generar_alerta_si_stock_bajo(db: Session, producto: Producto):
 
 
 # ===================================================================
-# VENTA (+ detalle_venta + metodo_pago_venta)
+# VENTA
 # ===================================================================
 
 @router.get("", response_model=List[VentaResponse])
@@ -50,7 +49,6 @@ def listar_ventas(
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
-    """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Venta).order_by(Venta.fecha.desc())
     if estado is not None:
         query = query.filter(Venta.estado == estado)
@@ -75,11 +73,6 @@ def obtener_venta(venta_id: int, db: Session = Depends(get_db)):
 
 @router.post("", response_model=VentaResponse, status_code=201)
 def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
-    """
-    Registra la venta completa: valida turno abierto y stock disponible,
-    calcula precios desde producto.precio_venta (no se confía en el
-    cliente), baja el stock, y suma el total a la caja del turno.
-    """
     turno = db.query(CajaTurno).filter(CajaTurno.id == datos.id_caja_turno).first()
     if not turno:
         raise HTTPException(status_code=404, detail="Turno de caja no encontrado")
@@ -96,7 +89,6 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
             detail="No existe el tipo de movimiento 'Venta' en tipos-movimiento. Créalo primero (nombre='Venta', signo=-1).",
         )
 
-    # Verificar productos y stock disponible ANTES de mover nada
     productos = {}
     for d in datos.detalles:
         producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
@@ -120,6 +112,12 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
             detail=f"La suma de los pagos (Q{total_pagado}) no coincide con el total de la venta (Q{total})",
         )
 
+    nit_cliente = datos.nit_cliente
+    if datos.id_cliente and not nit_cliente:
+        cliente = db.query(Cliente).filter(Cliente.id == datos.id_cliente).first()
+        if cliente and cliente.nit:
+            nit_cliente = cliente.nit
+
     nueva_venta = Venta(
         id_cliente=datos.id_cliente,
         id_usuario=datos.id_usuario,
@@ -132,11 +130,11 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
         total=total,
         estado="Completada",
         observaciones=datos.observaciones,
+        nit_cliente=nit_cliente,
     )
     db.add(nueva_venta)
     db.flush()
 
-    # Movimiento de inventario que baja el stock (cabecera + detalle)
     movimiento = MovimientoInventario(
         id_usuario=datos.id_usuario,
         id_tipo_movimiento=tipo_venta.id,
@@ -175,7 +173,6 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
     for p in datos.pagos:
         db.add(MetodoPagoVenta(id_venta=nueva_venta.id, **p.model_dump()))
 
-    # Cierra el TODO de caja.py: la venta se suma al total del turno
     turno.total_ventas = round(float(turno.total_ventas or 0) + total, 2)
 
     db.commit()
@@ -208,7 +205,7 @@ def cancelar_venta(venta_id: int, db: Session = Depends(get_db)):
 
 
 # ===================================================================
-# SERVICIO_ADICIONAL (+ detalle_servicio)
+# SERVICIO_ADICIONAL
 # ===================================================================
 
 @router_servicio.get("", response_model=List[ServicioAdicionalResponse])
@@ -250,3 +247,25 @@ def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     db.delete(servicio)
     db.commit()
+    
+@router.post("/{venta_id}/pagos", status_code=201)
+def registrar_pago_venta(
+    venta_id: int,
+    pago_data: MetodoPagoVentaCreate,
+    db: Session = Depends(get_db)
+):
+    venta = db.query(Venta).filter(Venta.id == venta_id).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    
+    nuevo_pago = MetodoPagoVenta(
+        id_venta=venta_id,
+        id_tipo_pago=pago_data.id_tipo_pago,
+        monto=pago_data.monto,
+        referencia=pago_data.referencia
+    )
+    
+    db.add(nuevo_pago)
+    db.commit()
+    db.refresh(nuevo_pago)
+    return nuevo_pago
