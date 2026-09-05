@@ -1,4 +1,4 @@
-// inventario.js - VERSIÓN COMPLETA CON RESUMEN, HISTORIAL Y BÚSQUEDA
+// inventario.js
 
 let movimientosData = [];
 let tiposMovimientoData = [];
