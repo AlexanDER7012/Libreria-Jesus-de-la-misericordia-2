@@ -1,8 +1,8 @@
-// caja.js - Versión con IIFE para evitar duplicados
+// caja.js
 (function () {
   "use strict";
 
-  // Variables locales (no globales)
+  // Variables locales
   let cajaChicaData = [];
   let gastosData = [];
   let tiposGastoData = [];
@@ -131,6 +131,7 @@
   }
 
   // CARGA PARA CONTENEDOR (desde Ventas)
+  // CARGA PARA CONTENEDOR (desde Ventas)
   async function cargarCajaEnContainer(container) {
     if (!container) return;
     window.cajaContainer = container;
@@ -152,78 +153,138 @@
       cajaChicaData = cajaChica || [];
 
       const abiertos = turnos.filter((t) => t.estado === "Abierto");
-      const saldoCajaChica = cajaChica.reduce(
-        (sum, c) => sum + (c.monto || 0),
+      const cerrados = turnos.filter((t) => t.estado === "Cerrado");
+
+      // Calcular totales
+      const totalVentas = turnos.reduce(
+        (sum, t) => sum + (parseFloat(t.total_ventas) || 0),
         0,
       );
 
+      let turnosHtml = "";
+      if (turnos.length === 0) {
+        turnosHtml =
+          '<p class="text-muted small">No hay turnos registrados</p>';
+      } else {
+        turnosHtml = `
+          <div class="table-responsive">
+            <table class="table table-sm table-striped">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Estado</th>
+                  <th>Apertura</th>
+                  <th>Fondo</th>
+                  <th>Ventas</th>
+                  <th>Contado</th>
+                  <th>Diferencia</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${turnos
+                  .slice(0, 10)
+                  .map((t) => {
+                    const estado = t.estado || "Abierto";
+                    const estadoBadge =
+                      estado === "Abierto" ? "bg-success" : "bg-secondary";
+                    const fechaApertura = t.fecha_apertura
+                      ? new Date(t.fecha_apertura).toLocaleDateString()
+                      : "--";
+                    const totalVentas = parseFloat(t.total_ventas) || 0;
+                    const totalContado = parseFloat(t.total_contado) || 0;
+                    const diferencia = parseFloat(t.diferencia) || 0;
+                    const diferenciaClass =
+                      diferencia !== 0 ? "text-danger fw-bold" : "";
+                    return `
+                    <tr>
+                      <td>#${t.id}</td>
+                      <td><span class="badge ${estadoBadge}">${estado}</span></td>
+                      <td>${fechaApertura}</td>
+                      <td>Q${parseFloat(t.fondo_inicial || 0).toFixed(2)}</td>
+                      <td class="text-primary">Q${totalVentas.toFixed(2)}</td>
+                      <td class="text-success">Q${totalContado.toFixed(2)}</td>
+                      <td class="${diferenciaClass}">Q${diferencia.toFixed(2)}</td>
+                    </tr>
+                  `;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+            ${turnos.length > 10 ? `<p class="text-muted small">Mostrando 10 de ${turnos.length} turnos</p>` : ""}
+          </div>
+        `;
+      }
+
       container.innerHTML = `
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6 class="fw-bold">Turnos de Caja</h6>
-                        <p class="small text-muted">Abiertos: ${abiertos.length} | Total: ${turnos.length}</p>
-                        <button class="btn btn-sm btn-success mb-2" onclick="window.showAbrirTurnoModal()">
-                            <i class="fas fa-play me-1"></i>Abrir Turno
-                        </button>
-                        ${
-                          abiertos.length > 0
-                            ? `
-                            <button class="btn btn-sm btn-danger mb-2 ms-1" onclick="window.showCerrarTurnoModal()">
-                                <i class="fas fa-stop me-1"></i>Cerrar Turno
-                            </button>
-                        `
-                            : ""
-                        }
-                        <div class="table-responsive mt-2">
-                            <table class="table table-sm table-striped">
-                                <thead><tr><th>ID</th><th>Estado</th><th>Apertura</th><th>Fondo</th></tr></thead>
-                                <tbody>
-                                    ${turnos
-                                      .slice(0, 10)
-                                      .map(
-                                        (t) => `
-                                        <tr>
-                                            <td>${t.id}</td>
-                                            <td><span class="badge ${t.estado === "Abierto" ? "bg-success" : "bg-secondary"}">${t.estado}</span></td>
-                                            <td>${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : "--"}</td>
-                                            <td>Q${t.fondo_inicial || 0}</td>
-                                        </tr>
-                                    `,
-                                      )
-                                      .join("")}
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="card mt-3 border-success">
-                            <div class="card-body">
-                                <h6 class="fw-bold text-success">
-                                    <i class="fas fa-piggy-bank me-2"></i>Saldo Caja Chica: Q${saldoCajaChica.toFixed(2)}
-                                </h6>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <h6 class="fw-bold">Tipos de Pago (Ventas)</h6>
-                        <div class="d-flex flex-wrap gap-1 mb-2">
-                            ${tiposPago
-                              .filter((t) => t.para_ventas === 1)
-                              .map(
-                                (t) => `
-                                <span class="badge bg-primary">${t.nombre}</span>
-                            `,
-                              )
-                              .join("")}
-                        </div>
-                        <button class="btn btn-sm btn-outline-primary mt-2" onclick="window.showCrearTipoPagoModal()">
-                            <i class="fas fa-plus me-1"></i>Nuevo Tipo Pago
-                        </button>
-                        <div class="text-muted small mt-3">
-                            <i class="fas fa-info-circle me-1"></i>
-                            Para gestionar gastos y caja chica, usa el módulo Caja desde el menú principal.
-                        </div>
-                    </div>
+        <div class="row">
+          <!-- Columna Izquierda: Turnos -->
+          <div class="col-md-7">
+            <div class="card">
+              <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-clock me-2"></i>Turnos de Caja</span>
+                <span class="badge bg-light text-dark">Abiertos: ${abiertos.length} | Total: ${turnos.length}</span>
+              </div>
+              <div class="card-body">
+                <div class="d-flex gap-2 mb-3">
+                  <button class="btn btn-sm btn-success" onclick="window.showAbrirTurnoModal()">
+                    <i class="fas fa-play me-1"></i>Abrir Turno
+                  </button>
+                  ${
+                    abiertos.length > 0
+                      ? `
+                    <button class="btn btn-sm btn-danger" onclick="window.showCerrarTurnoModal()">
+                      <i class="fas fa-stop me-1"></i>Cerrar Turno
+                    </button>
+                  `
+                      : ""
+                  }
                 </div>
-            `;
+                ${turnosHtml}
+                <div class="mt-2 small text-muted">
+                  <i class="fas fa-info-circle me-1"></i>
+                  Total Ventas Generadas: <strong class="text-primary">Q${totalVentas.toFixed(2)}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Columna Derecha: Tipos de Pago -->
+          <div class="col-md-5">
+            <div class="card">
+              <div class="card-header bg-success text-white">
+                <i class="fas fa-credit-card me-2"></i>Tipos de Pago (Ventas)
+              </div>
+              <div class="card-body">
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                  ${
+                    tiposPago.filter((t) => t.para_ventas === 1).length === 0
+                      ? '<p class="text-muted small">No hay tipos de pago configurados</p>'
+                      : tiposPago
+                          .filter((t) => t.para_ventas === 1)
+                          .map(
+                            (t) =>
+                              `<span class="badge bg-primary fs-6 p-2">${t.nombre}</span>`,
+                          )
+                          .join("")
+                  }
+                </div>
+                <button class="btn btn-sm btn-outline-primary" onclick="window.showCrearTipoPagoModal()">
+                  <i class="fas fa-plus me-1"></i>Nuevo Tipo Pago
+                </button>
+                <hr>
+                <div class="text-muted small">
+                  <i class="fas fa-info-circle me-1"></i>
+                  Para gestionar gastos y caja chica, usa el módulo 
+                  <button class="btn btn-link btn-sm p-0 text-primary" onclick="window.app?.loadModule('caja')">
+                    Caja
+                  </button>
+                  desde el menú principal.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
     } catch (error) {
       container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
     }
@@ -319,7 +380,9 @@
   function llenarSelectUbicacion() {
     const select = document.getElementById("cajaUbicacion");
     if (!select) {
-      console.log("❌ Select no encontrado");
+      console.log(
+        "⚠️ Select cajaUbicacion no encontrado (esto es normal si no hay modal abierto)",
+      );
       return;
     }
     select.innerHTML = '<option value="">Seleccionar ubicación</option>';
@@ -354,18 +417,57 @@
       return;
     }
 
-    document.getElementById("cajaModalTitle").textContent =
-      "Abrir Turno de Caja";
-    document.getElementById("cajaDenominacionesContainer").style.display =
-      "none";
-    document.getElementById("cajaDenominacionesList").innerHTML = "";
-    document.getElementById("cajaObservaciones").value = "";
-    document.getElementById("cajaFondoInicial").value = 500;
-    document.getElementById("cajaId").value = "";
-    document.getElementById("cajaUbicacion").disabled = false;
+    const title = document.getElementById("cajaModalTitle");
+    if (title) title.textContent = "Abrir Turno de Caja";
 
-    document.getElementById("btnAbrirTurno").style.display = "block";
-    document.getElementById("btnCerrarTurno").style.display = "none";
+    const denominacionesContainer = document.getElementById(
+      "cajaDenominacionesContainer",
+    );
+    if (denominacionesContainer) denominacionesContainer.style.display = "none";
+
+    const denominacionesList = document.getElementById(
+      "cajaDenominacionesList",
+    );
+    if (denominacionesList) denominacionesList.innerHTML = "";
+
+    const observaciones = document.getElementById("cajaObservaciones");
+    if (observaciones) observaciones.value = "";
+
+    const fondoInicial = document.getElementById("cajaFondoInicial");
+    if (fondoInicial) {
+      fondoInicial.value = 500;
+      fondoInicial.readOnly = false;
+      fondoInicial.min = 0;
+      fondoInicial.step = 1;
+    }
+
+    const cajaId = document.getElementById("cajaId");
+    if (cajaId) cajaId.value = "";
+
+    const ubicacion = document.getElementById("cajaUbicacion");
+    if (ubicacion) {
+      ubicacion.disabled = false;
+      ubicacion.value = "";
+    }
+
+    const btnAbrir = document.getElementById("btnAbrirTurno");
+    if (btnAbrir) {
+      btnAbrir.style.display = "block";
+      btnAbrir.textContent = "Abrir Turno";
+    }
+
+    const btnCerrar = document.getElementById("btnCerrarTurno");
+    if (btnCerrar) btnCerrar.style.display = "none";
+
+    // Limpiar el body del modal si tiene contenido anterior
+    const body = modal.querySelector(".modal-body");
+    if (body) {
+      // Asegurar que el formulario de apertura esté visible
+      const form = document.getElementById("cajaForm");
+      if (form) {
+        form.style.display = "block";
+      }
+    }
 
     llenarSelectUbicacion();
 
@@ -386,7 +488,13 @@
         return;
       }
 
-      turnoParaCerrar = abiertos[0];
+      if (abiertos.length > 1) {
+        const turnoSeleccionado = await mostrarSelectorTurnos(abiertos);
+        if (!turnoSeleccionado) return;
+        turnoParaCerrar = turnoSeleccionado;
+      } else {
+        turnoParaCerrar = abiertos[0];
+      }
 
       const modal = document.getElementById("cajaModal");
       if (!modal) {
@@ -394,27 +502,163 @@
         return;
       }
 
-      document.getElementById("cajaModalTitle").textContent =
-        `Cerrar Turno #${turnoParaCerrar.id}`;
-      document.getElementById("cajaDenominacionesContainer").style.display =
-        "block";
-      document.getElementById("cajaDenominacionesList").innerHTML = "";
-      document.getElementById("cajaObservaciones").value = "";
-      document.getElementById("cajaId").value = turnoParaCerrar.id;
-      document.getElementById("cajaFondoInicial").value =
-        turnoParaCerrar.fondo_inicial || 0;
-      document.getElementById("cajaUbicacion").disabled = true;
+      const title = document.getElementById("cajaModalTitle");
+      if (title) title.textContent = `Cerrar Turno #${turnoParaCerrar.id}`;
 
-      document.getElementById("btnAbrirTurno").style.display = "none";
-      document.getElementById("btnCerrarTurno").style.display = "block";
+      // ✅ Mostrar denominaciones
+      const denominacionesContainer = document.getElementById(
+        "cajaDenominacionesContainer",
+      );
+      if (denominacionesContainer)
+        denominacionesContainer.style.display = "block";
 
-      llenarSelectUbicacion();
+      const denominacionesList = document.getElementById(
+        "cajaDenominacionesList",
+      );
+      if (denominacionesList) denominacionesList.innerHTML = "";
+
+      const observaciones = document.getElementById("cajaObservaciones");
+      if (observaciones) observaciones.value = "";
+
+      const cajaId = document.getElementById("cajaId");
+      if (cajaId) cajaId.value = turnoParaCerrar.id;
+
+      const fondoInicial = document.getElementById("cajaFondoInicial");
+      if (fondoInicial) {
+        fondoInicial.value = turnoParaCerrar.fondo_inicial || 0;
+        fondoInicial.readOnly = true; // ✅ Solo lectura
+      }
+
+      // ✅ OBTENER Y MOSTRAR UBICACIÓN COMO TEXTO
+      const ubicacionSelect = document.getElementById("cajaUbicacion");
+      const ubicacionLabel = document.getElementById("cajaUbicacionLabel");
+
+      // Buscar nombre de ubicación
+      let nombreUbicacion = "Cargando...";
+      if (turnoParaCerrar.id_ubicacion) {
+        try {
+          const ubicaciones = await api.request("/ubicaciones").catch(() => []);
+          const ubicacion = ubicaciones.find(
+            (u) => u.id === turnoParaCerrar.id_ubicacion,
+          );
+          if (ubicacion) nombreUbicacion = ubicacion.nombre || ubicacion.id;
+        } catch (e) {
+          nombreUbicacion = `ID: ${turnoParaCerrar.id_ubicacion}`;
+        }
+      }
+
+      if (ubicacionSelect) {
+        ubicacionSelect.style.display = "none"; // ✅ Ocultar select
+      }
+      if (ubicacionLabel) {
+        ubicacionLabel.textContent = `Ubicación: ${nombreUbicacion}`;
+        ubicacionLabel.style.display = "block";
+      } else {
+        // Si no existe el label, crearlo
+        const ubicacionGroup = ubicacionSelect?.closest(".mb-3");
+        if (ubicacionGroup) {
+          const label = document.createElement("p");
+          label.id = "cajaUbicacionLabel";
+          label.className = "form-control-plaintext fw-bold";
+          label.textContent = `📍 Ubicación: ${nombreUbicacion}`;
+          ubicacionGroup.appendChild(label);
+          if (ubicacionSelect) ubicacionSelect.style.display = "none";
+        }
+      }
+
+      const btnAbrir = document.getElementById("btnAbrirTurno");
+      if (btnAbrir) btnAbrir.style.display = "none";
+
+      const btnCerrar = document.getElementById("btnCerrarTurno");
+      if (btnCerrar) btnCerrar.style.display = "block";
 
       const modalInstance = new bootstrap.Modal(modal);
       modalInstance.show();
     } catch (error) {
       showToast(error.message || "Error al cargar turnos", "error");
     }
+  }
+
+  // SELECCIONAR TURNO
+  function mostrarSelectorTurnos(turnos) {
+    return new Promise((resolve) => {
+      // Eliminar modal anterior si existe
+      const modalExistente = document.getElementById("selectorTurnoModal");
+      if (modalExistente) {
+        modalExistente.remove();
+      }
+
+      const modal = document.createElement("div");
+      modal.className = "modal fade";
+      modal.id = "selectorTurnoModal";
+      modal.setAttribute("tabindex", "-1");
+      modal.setAttribute("aria-hidden", "true");
+      modal.innerHTML = `
+        <div class="modal-dialog modal-md">
+          <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+              <h5 class="modal-title text-white">
+                <i class="fas fa-clock me-2"></i>Seleccionar Turno
+              </h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <p class="text-muted small mb-3">Hay <strong>${turnos.length}</strong> turnos abiertos. Selecciona cuál deseas cerrar:</p>
+              <div class="list-group">
+                ${turnos
+                  .map((t) => {
+                    const fechaApertura = t.fecha_apertura
+                      ? new Date(t.fecha_apertura).toLocaleString()
+                      : "--";
+                    return `
+                    <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
+                            onclick="window.seleccionarTurnoParaCerrar(${t.id})">
+                      <div>
+                        <strong>Turno #${t.id}</strong>
+                        <br>
+                        <small class="text-muted">Usuario: ${t.id_usuario || "--"} | Apertura: ${fechaApertura}</small>
+                      </div>
+                      <span class="badge bg-success">Abierto</span>
+                    </button>
+                  `;
+                  })
+                  .join("")}
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      // Función global para seleccionar turno
+      window.seleccionarTurnoParaCerrar = function (id) {
+        const turno = turnos.find((t) => t.id === id);
+        const modalInstance = bootstrap.Modal.getInstance(
+          document.getElementById("selectorTurnoModal"),
+        );
+        if (modalInstance) modalInstance.hide();
+        setTimeout(() => {
+          const el = document.getElementById("selectorTurnoModal");
+          if (el) el.remove();
+        }, 300);
+        resolve(turno);
+      };
+
+      const modalInstance = new bootstrap.Modal(modal);
+      modalInstance.show();
+
+      modal.addEventListener("hidden.bs.modal", function () {
+        setTimeout(() => {
+          const el = document.getElementById("selectorTurnoModal");
+          if (el) el.remove();
+        }, 300);
+        resolve(null);
+      });
+    });
   }
 
   // AGREGAR DENOMINACION
@@ -428,24 +672,58 @@
     const row = document.createElement("div");
     row.className = "row g-2 align-items-center mb-2 denominacion-row";
     row.innerHTML = `
-            <div class="col-4">
-                <input type="number" class="form-control form-control-sm" placeholder="Valor" min="0.01" step="0.01" />
-            </div>
-            <div class="col-6">
-                <input type="number" class="form-control form-control-sm" placeholder="Cantidad" min="0" step="1" />
-            </div>
-            <div class="col-2">
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.denominacion-row').remove()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-        `;
+      <div class="col-4">
+        <input type="number" class="form-control form-control-sm denominacion-valor" 
+              placeholder="Valor" min="0.01" step="0.01" />
+      </div>
+      <div class="col-5">
+        <input type="number" class="form-control form-control-sm denominacion-cantidad" 
+              placeholder="Cantidad" min="0" step="1" />
+      </div>
+      <div class="col-3">
+        <button type="button" class="btn btn-sm btn-outline-danger" 
+                onclick="this.closest('.denominacion-row').remove()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="col-12 mt-1">
+        <small class="text-muted denominacion-total">Total: Q0.00</small>
+      </div>
+    `;
+
+    // ✅ CORREGIDO: Evento con selectores específicos
+    const valorInput = row.querySelector(".denominacion-valor");
+    const cantidadInput = row.querySelector(".denominacion-cantidad");
+    const totalLabel = row.querySelector(".denominacion-total");
+
+    function calcularTotal() {
+      const valor = parseFloat(valorInput.value) || 0;
+      const cantidad = parseInt(cantidadInput.value) || 0;
+      const total = valor * cantidad;
+      if (totalLabel) {
+        totalLabel.textContent = `Total: Q${total.toFixed(2)}`;
+        totalLabel.className =
+          total > 0
+            ? "text-success denominacion-total"
+            : "text-muted denominacion-total";
+      }
+    }
+
+    valorInput.addEventListener("input", calcularTotal);
+    cantidadInput.addEventListener("input", calcularTotal);
+
     container.appendChild(row);
+
+    // Enfocar el primer input
+    setTimeout(() => {
+      if (valorInput) valorInput.focus();
+    }, 100);
   }
 
   // GUARDAR TURNO (ABRIR)
   async function abrirTurno(event) {
     event.preventDefault();
+
     const id_usuario = getCurrentUser()?.id || 1;
     const id_ubicacion = parseInt(
       document.getElementById("cajaUbicacion").value,
@@ -458,10 +736,34 @@
       return;
     }
 
+    if (fondo_inicial < 0) {
+      showToast("El fondo inicial no puede ser negativo", "error");
+      return;
+    }
+
     try {
+      // Verificar si el usuario ya tiene un turno abierto
+      const turnos = await api.getCajaTurnos();
+      const turnoExistente = turnos.find(
+        (t) => t.id_usuario === id_usuario && t.estado === "Abierto",
+      );
+
+      if (turnoExistente) {
+        const confirmar = await mostrarConfirmacion(
+          "Turno ya abierto",
+          `Ya tienes un turno abierto (ID: ${turnoExistente.id}). ¿Deseas abrir otro turno igual?`,
+        );
+        if (!confirmar) return;
+      }
+
       await api.createCajaTurno({ id_usuario, id_ubicacion, fondo_inicial });
       showToast("Turno abierto correctamente", "success");
-      bootstrap.Modal.getInstance(document.getElementById("cajaModal")).hide();
+
+      const modal = bootstrap.Modal.getInstance(
+        document.getElementById("cajaModal"),
+      );
+      if (modal) modal.hide();
+
       await loadTurnos();
       if (window.cajaContainer) {
         await cargarCajaEnContainer(window.cajaContainer);
@@ -487,23 +789,50 @@
       return;
     }
 
-    const inputs = container.querySelectorAll("input");
-    const denominaciones = [];
-    let totalContado = 0;
-
-    for (let i = 0; i < inputs.length; i += 2) {
-      const valor = parseFloat(inputs[i].value) || 0;
-      const cantidad = parseInt(inputs[i + 1]?.value) || 0;
-      if (valor > 0 && cantidad > 0) {
-        denominaciones.push({ denominacion: valor, cantidad: cantidad });
-        totalContado += valor * cantidad;
-      }
-    }
-
-    if (denominaciones.length === 0) {
+    const rows = container.querySelectorAll(".denominacion-row");
+    if (rows.length === 0) {
       showToast("Debes registrar al menos una denominación", "error");
       return;
     }
+
+    const denominaciones = [];
+    let totalContado = 0;
+    let isValid = true;
+
+    rows.forEach((row) => {
+      const valorInput = row.querySelector(".denominacion-valor");
+      const cantidadInput = row.querySelector(".denominacion-cantidad");
+
+      if (valorInput && cantidadInput) {
+        const valor = parseFloat(valorInput.value) || 0;
+        const cantidad = parseInt(cantidadInput.value) || 0;
+        if (valor > 0 && cantidad > 0) {
+          denominaciones.push({ denominacion: valor, cantidad: cantidad });
+          totalContado += valor * cantidad;
+        } else if (valorInput.value && !cantidadInput.value) {
+          isValid = false;
+          showToast(
+            "Completa la cantidad para todas las denominaciones",
+            "error",
+          );
+        }
+      }
+    });
+
+    if (!isValid) return;
+
+    if (denominaciones.length === 0) {
+      showToast("Debes registrar al menos una denominación válida", "error");
+      return;
+    }
+
+    // Confirmar cierre
+    const confirmar = await mostrarConfirmacion(
+      "Confirmar Cierre",
+      `Total contado: Q${totalContado.toFixed(2)}\n¿Estás seguro de cerrar el turno?`,
+    );
+
+    if (!confirmar) return;
 
     const data = {
       denominaciones: denominaciones,
@@ -516,7 +845,12 @@
         `Turno cerrado correctamente. Total contado: Q${totalContado.toFixed(2)}`,
         "success",
       );
-      bootstrap.Modal.getInstance(document.getElementById("cajaModal")).hide();
+
+      const modal = bootstrap.Modal.getInstance(
+        document.getElementById("cajaModal"),
+      );
+      if (modal) modal.hide();
+
       await loadTurnos();
       if (window.cajaContainer) {
         await cargarCajaEnContainer(window.cajaContainer);
@@ -866,34 +1200,46 @@
       return;
     }
 
-    document.getElementById("cajaModalTitle").textContent =
-      "Nuevo Tipo de Gasto";
-    document.getElementById("cajaDenominacionesContainer").style.display =
-      "none";
-    document.getElementById("btnAbrirTurno").style.display = "none";
-    document.getElementById("btnCerrarTurno").style.display = "none";
+    const body = modal.querySelector(".modal-body");
+    if (!body) {
+      showToast("Error: Cuerpo del modal no encontrado", "error");
+      return;
+    }
 
-    const body = document.getElementById("cajaModalBody");
+    const title = document.getElementById("cajaModalTitle");
+    if (title) title.textContent = "Nuevo Tipo de Gasto";
+
+    const denominacionesContainer = document.getElementById(
+      "cajaDenominacionesContainer",
+    );
+    if (denominacionesContainer) denominacionesContainer.style.display = "none";
+
+    const btnAbrir = document.getElementById("btnAbrirTurno");
+    if (btnAbrir) btnAbrir.style.display = "none";
+
+    const btnCerrar = document.getElementById("btnCerrarTurno");
+    if (btnCerrar) btnCerrar.style.display = "none";
+
     body.innerHTML = `
-            <form id="cajaForm">
-                <div class="mb-3">
-                    <label class="form-label">Nombre</label>
-                    <input type="text" class="form-control" id="tipoGastoNombre" required />
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Descripción</label>
-                    <input type="text" class="form-control" id="tipoGastoDescripcion" />
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">¿Es fijo?</label>
-                    <select class="form-select" id="tipoGastoFijo">
-                        <option value="0">No</option>
-                        <option value="1">Sí</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary w-100" onclick="window.crearTipoGasto(event)">Guardar</button>
-            </form>
-        `;
+      <form id="cajaForm" onsubmit="window.crearTipoGasto(event)">
+        <div class="mb-3">
+          <label class="form-label">Nombre</label>
+          <input type="text" class="form-control" id="tipoGastoNombre" required />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Descripción</label>
+          <input type="text" class="form-control" id="tipoGastoDescripcion" />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">¿Es fijo?</label>
+          <select class="form-select" id="tipoGastoFijo">
+            <option value="0">No</option>
+            <option value="1">Sí</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Guardar</button>
+      </form>
+    `;
 
     const modalInstance = new bootstrap.Modal(modal);
     modalInstance.show();
@@ -965,43 +1311,56 @@
       return;
     }
 
-    document.getElementById("cajaModalTitle").textContent =
-      "Nuevo Tipo de Pago";
-    document.getElementById("cajaDenominacionesContainer").style.display =
-      "none";
-    document.getElementById("btnAbrirTurno").style.display = "none";
-    document.getElementById("btnCerrarTurno").style.display = "none";
+    const body = modal.querySelector(".modal-body");
+    if (!body) {
+      showToast("Error: Cuerpo del modal no encontrado", "error");
+      return;
+    }
 
-    const body = document.getElementById("cajaModalBody");
+    // ✅ Verificar que los elementos existan antes de usarlos
+    const title = document.getElementById("cajaModalTitle");
+    if (title) title.textContent = "Nuevo Tipo de Pago";
+
+    const denominacionesContainer = document.getElementById(
+      "cajaDenominacionesContainer",
+    );
+    if (denominacionesContainer) denominacionesContainer.style.display = "none";
+
+    const btnAbrir = document.getElementById("btnAbrirTurno");
+    if (btnAbrir) btnAbrir.style.display = "none";
+
+    const btnCerrar = document.getElementById("btnCerrarTurno");
+    if (btnCerrar) btnCerrar.style.display = "none";
+
     body.innerHTML = `
-            <form id="cajaForm">
-                <div class="mb-3">
-                    <label class="form-label">Nombre</label>
-                    <input type="text" class="form-control" id="tipoPagoNombre" required />
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Descripción</label>
-                    <input type="text" class="form-control" id="tipoPagoDescripcion" />
-                </div>
-                <div class="row">
-                    <div class="col-6 mb-3">
-                        <label class="form-label">¿Para ventas?</label>
-                        <select class="form-select" id="tipoPagoVentas">
-                            <option value="1">Sí</option>
-                            <option value="0">No</option>
-                        </select>
-                    </div>
-                    <div class="col-6 mb-3">
-                        <label class="form-label">¿Para compras?</label>
-                        <select class="form-select" id="tipoPagoCompras">
-                            <option value="1">Sí</option>
-                            <option value="0">No</option>
-                        </select>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-primary w-100" onclick="window.crearTipoPago(event)">Guardar</button>
-            </form>
-        `;
+      <form id="cajaForm" onsubmit="window.crearTipoPago(event)">
+        <div class="mb-3">
+          <label class="form-label">Nombre</label>
+          <input type="text" class="form-control" id="tipoPagoNombre" required />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Descripción</label>
+          <input type="text" class="form-control" id="tipoPagoDescripcion" />
+        </div>
+        <div class="row">
+          <div class="col-6 mb-3">
+            <label class="form-label">¿Para ventas?</label>
+            <select class="form-select" id="tipoPagoVentas">
+              <option value="1">Sí</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="col-6 mb-3">
+            <label class="form-label">¿Para compras?</label>
+            <select class="form-select" id="tipoPagoCompras">
+              <option value="1">Sí</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Guardar</button>
+      </form>
+    `;
 
     const modalInstance = new bootstrap.Modal(modal);
     modalInstance.show();
@@ -1029,6 +1388,41 @@
     } catch (error) {
       showToast(error.message || "Error al crear tipo de pago", "error");
     }
+  }
+
+  function mostrarConfirmacion(titulo, mensaje) {
+    return new Promise((resolve) => {
+      const modal = document.createElement("div");
+      modal.className = "modal fade";
+      modal.id = "confirmModal";
+      modal.innerHTML = `
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">${titulo}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">${mensaje.replace(/\n/g, "<br>")}</div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="button" class="btn btn-primary" id="confirmYes">Confirmar</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      const modalInstance = new bootstrap.Modal(modal);
+      modalInstance.show();
+      document.getElementById("confirmYes").addEventListener("click", () => {
+        modalInstance.hide();
+        setTimeout(() => modal.remove(), 300);
+        resolve(true);
+      });
+      modal.addEventListener("hidden.bs.modal", () => {
+        setTimeout(() => modal.remove(), 300);
+        resolve(false);
+      });
+    });
   }
 
   // UBICACIONES
@@ -1059,4 +1453,5 @@
   window.cerrarTurno = cerrarTurno;
   window.abrirModalTurno = abrirModalTurno;
   window.agregarDenominacion = agregarDenominacion;
-})(); // Fin del IIFE
+  window.mostrarSelectorTurnos = mostrarSelectorTurnos;
+})();
