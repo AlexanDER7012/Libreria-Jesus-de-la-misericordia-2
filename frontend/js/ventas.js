@@ -120,6 +120,7 @@ async function loadVentasModule() {
       cajaTurnos,
       servicios,
       cotizaciones,
+      ubicaciones,
     ] = await Promise.all([
       api.getVentas().catch(() => []),
       api.getClientes().catch(() => []),
@@ -128,6 +129,7 @@ async function loadVentasModule() {
       api.getCajaTurnos().catch(() => []),
       api.request("/servicios-adicionales").catch(() => []),
       api.request("/cotizaciones").catch(() => []),
+      api.request("/ubicaciones").catch(() => []),
     ]);
 
     ventasData = ventas || [];
@@ -137,18 +139,19 @@ async function loadVentasModule() {
     cajaTurnosData = cajaTurnos || [];
     serviciosAdicionalesData = servicios || [];
     cotizacionesData = cotizaciones || [];
+    window.ubicacionesData = ubicaciones || [];
 
-    if (!window.ubicacionesData || window.ubicacionesData.length === 0) {
-      try {
-        const backup = localStorage.getItem("ubicaciones_backup");
-        if (backup) {
-          const parsed = JSON.parse(backup);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            window.ubicacionesData = parsed;
-          }
-        }
-      } catch (e) {}
-    }
+    try {
+      localStorage.setItem(
+        "ubicaciones_backup",
+        JSON.stringify(window.ubicacionesData),
+      );
+    } catch (e) {}
+
+    console.log(
+      "📍 Ubicaciones cargadas en loadVentasModule:",
+      window.ubicacionesData.length,
+    );
 
     renderVentasTable(ventasData);
     cargarSubClientes();
@@ -744,10 +747,40 @@ function crearModalVenta() {
 }
 
 // ============================================================
-// MODAL VENTA - MOSTRAR
+// MODAL VENTA
 // ============================================================
-function showCreateVentaModal() {
+async function showCreateVentaModal() {
   ventaDetallesTemp = [];
+
+  if (!window.ubicacionesData || window.ubicacionesData.length === 0) {
+    try {
+      const ubicaciones = await api.request("/ubicaciones").catch(() => []);
+      window.ubicacionesData = ubicaciones || [];
+      localStorage.setItem(
+        "ubicaciones_backup",
+        JSON.stringify(window.ubicacionesData),
+      );
+      console.log(
+        "📍 Ubicaciones cargadas en modal:",
+        window.ubicacionesData.length,
+      );
+    } catch (e) {
+      // Intentar desde localStorage
+      try {
+        const backup = localStorage.getItem("ubicaciones_backup");
+        if (backup) {
+          const parsed = JSON.parse(backup);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            window.ubicacionesData = parsed;
+            console.log(
+              "📍 Ubicaciones recuperadas desde backup:",
+              window.ubicacionesData.length,
+            );
+          }
+        }
+      } catch (e2) {}
+    }
+  }
 
   const modal = crearModalVenta();
   if (!modal) return;
@@ -1048,19 +1081,34 @@ function llenarSelectCajaTurno() {
 
 function poblarSelectUbicacionVenta() {
   const select = document.getElementById("ventaUbicacion");
-  if (!select) {
-    console.warn("⚠️ ventaUbicacion no encontrado");
-    return;
-  }
+  if (!select) return;
 
-  if (typeof window.llenarSelectUbicacion === "function") {
-    window.llenarSelectUbicacion(select, window.ubicacionesData || []);
-  } else {
-    select.innerHTML = '<option value="">Seleccionar ubicación</option>';
-    (window.ubicacionesData || []).forEach((u) => {
+  console.log(
+    "📍 Ubicaciones en poblarSelectUbicacionVenta:",
+    window.ubicacionesData?.length || 0,
+  );
+
+  select.innerHTML = '<option value="">Seleccionar ubicación</option>';
+
+  if (window.ubicacionesData && window.ubicacionesData.length > 0) {
+    window.ubicacionesData.forEach((u) => {
       const nombre = u.nombre || u.id || "Sin nombre";
       select.innerHTML += `<option value="${u.id}">${nombre}</option>`;
     });
+  } else {
+    console.warn("⚠️ No hay ubicaciones, intentando cargar...");
+    api
+      .request("/ubicaciones")
+      .then((ubicaciones) => {
+        window.ubicacionesData = ubicaciones || [];
+        localStorage.setItem(
+          "ubicaciones_backup",
+          JSON.stringify(window.ubicacionesData),
+        );
+        // Recargar el select
+        poblarSelectUbicacionVenta();
+      })
+      .catch((e) => console.warn("Error cargando ubicaciones:", e));
   }
 }
 
@@ -1189,7 +1237,7 @@ function renderDetallesVenta() {
 }
 
 // ============================================================
-// GUARDAR VENTA (SIN PAGOS)
+// GUARDAR VENTA
 // ============================================================
 async function saveVenta(event) {
   if (event) event.preventDefault();
@@ -1250,7 +1298,7 @@ async function saveVenta(event) {
     id_cotizacion: id_cotizacion,
     descuento_porcentaje: descuento_porcentaje,
     observaciones: observaciones,
-    nit_cliente: nit_cliente,
+    nit: nit_cliente,
     detalles: ventaDetallesTemp.map((d) => ({
       id_producto: d.id_producto,
       cantidad: d.cantidad,
