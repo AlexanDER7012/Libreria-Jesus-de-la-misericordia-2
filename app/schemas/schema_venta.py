@@ -42,7 +42,7 @@ class VentaCreate(BaseModel):
     id_caja_turno: int
     descuento_porcentaje: Optional[float] = 0
     observaciones: Optional[str] = None
-    nit_cliente: Optional[str] = None
+    nit: Optional[str] = None
     detalles: List[DetalleVentaCreate]
     pagos: List[MetodoPagoVentaCreate]  
 
@@ -61,7 +61,7 @@ class VentaResponse(BaseModel):
     referencia_pago: Optional[str] = None
     estado: Optional[str] = None
     observaciones: Optional[str] = None
-    nit_cliente: Optional[str] = None
+    nit: Optional[str] = None
     detalles: List[DetalleVentaResponse] = []
     pagos: List[MetodoPagoVentaResponse] = []
     model_config = ConfigDict(from_attributes=True)

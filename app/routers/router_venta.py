@@ -112,7 +112,7 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
             detail=f"La suma de los pagos (Q{total_pagado}) no coincide con el total de la venta (Q{total})",
         )
 
-    nit_cliente = datos.nit_cliente
+    nit_cliente = datos.nit
     if datos.id_cliente and not nit_cliente:
         cliente = db.query(Cliente).filter(Cliente.id == datos.id_cliente).first()
         if cliente and cliente.nit:
@@ -130,7 +130,7 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
         total=total,
         estado="Completada",
         observaciones=datos.observaciones,
-        nit_cliente=nit_cliente,
+        nit=nit_cliente,
     )
     db.add(nueva_venta)
     db.flush()

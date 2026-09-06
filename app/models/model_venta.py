@@ -21,7 +21,7 @@ class Venta(Base):
     referencia_pago = Column(String(100)) 
     estado = Column(String(20), default="Completada")
     observaciones = Column(Text)
-    nit_cliente = Column(String(20), nullable=True)  # ✅ NUEVO
+    nit = Column(String(20), nullable=True)  # ✅ NUEVO
 
     detalles = relationship("DetalleVenta", back_populates="venta", cascade="all, delete-orphan")
     pagos = relationship("MetodoPagoVenta", back_populates="venta", cascade="all, delete-orphan")
