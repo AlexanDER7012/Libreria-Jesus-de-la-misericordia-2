@@ -98,8 +98,7 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
     from datetime import datetime as dt
     turno.fecha_cierre = dt.now()
     turno.total_contado = round(total_contado, 2)
-    turno.total_ventas = turno.total_ventas or 0  # TODO: conectar con suma real de venta.py
-    turno.diferencia = round(total_contado - (float(turno.fondo_inicial or 0) + float(turno.total_ventas or 0)), 2)
+    turno.diferencia = round(total_contado - float(turno.total_ventas or 0), 2)
     turno.estado = "Cerrado"
     turno.observaciones = datos.observaciones
 
