@@ -1378,13 +1378,20 @@ async function verVenta(id) {
       .join("");
 
     let pagosHtml = (venta.pagos || [])
-      .map((p) => {
+      .map((p, index) => {
         const tipoPago = tiposPagoData.find((t) => t.id === p.id_tipo_pago);
         return `
         <tr>
           <td>${tipoPago ? tipoPago.nombre : "--"}</td>
           <td>Q${(p.monto || 0).toFixed(2)}</td>
           <td>${p.referencia || "--"}</td>
+          <td>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-danger" onclick="eliminarPagoVenta(${venta.id}, ${p.id})" title="Eliminar pago">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </td>
         </tr>
       `;
       })
@@ -1471,7 +1478,7 @@ async function verVenta(id) {
         <h6 class="fw-bold mt-3">Pagos</h6>
         <div class="table-responsive">
           <table class="table table-sm">
-            <thead><tr><th>Tipo</th><th>Monto</th><th>Referencia</th></tr></thead>
+            <thead><tr><th>Tipo</th><th>Monto</th><th>Referencia</th><th>Acciones</th></tr></thead>
             <tbody>${pagosHtml || '<tr><td colspan="3" class="text-center">Sin pagos</td></tr>'}</tbody>
           </table>
         </div>
@@ -1498,6 +1505,31 @@ async function verVenta(id) {
     });
   } catch (error) {
     showToast(error.message || "Error al ver venta", "error");
+  }
+}
+
+// ============================================================
+// ELIMINAR PAGO DE VENTA
+// ============================================================
+async function eliminarPagoVenta(idVenta, idPago) {
+  const confirmado = await mostrarConfirmacion(
+    "Eliminar Pago",
+    "¿Estás seguro de eliminar este pago? Esto aumentará el saldo pendiente de la venta.",
+    "Eliminar",
+  );
+
+  if (!confirmado) return;
+
+  try {
+    await api.request(`/ventas/${idVenta}/pagos/${idPago}`, "DELETE");
+    showToast("Pago eliminado correctamente", "success");
+
+    // Recargar la venta para actualizar la vista
+    await loadVentasModule();
+    // Volver a abrir la venta para mostrar los cambios
+    setTimeout(() => verVenta(idVenta), 500);
+  } catch (error) {
+    showToast(error.message || "Error al eliminar pago", "error");
   }
 }
 
@@ -2519,6 +2551,7 @@ async function cargarSubServicios() {
               <th>Material</th>
               <th>Mano Obra</th>
               <th>Total</th>
+              <th>Estado</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -2538,9 +2571,21 @@ async function cargarSubServicios() {
   }
 }
 
+// ============================================================
+// OBTENER UBICACIÓN DE CONFIGURACIÓN
+// ============================================================
+async function obtenerUbicacionConfiguracion() {
+  try {
+    const config = await api.request("/configuracion").catch(() => ({}));
+    return config.id_ubicacion || null;
+  } catch (error) {
+    return null;
+  }
+}
+
 function renderServiciosRows(servicios) {
   if (!servicios || servicios.length === 0) {
-    return `<tr><td colspan="9" class="text-center">No hay servicios</td></tr>`;
+    return `<tr><td colspan="11" class="text-center">No hay servicios</td></tr>`;
   }
 
   return servicios
@@ -2549,10 +2594,57 @@ function renderServiciosRows(servicios) {
         (c) => c.id === s.id_cliente,
       );
       const nombreCliente = cliente ? cliente.nombre : "--";
+
+      // ✅ Verificar estado de pago correcto
+      let estadoPago = "Pendiente";
+      let badgeColor = "bg-danger";
+      let estaPagado = false;
+      let saldoRestante = s.total || 0;
+
+      if (s.id_venta) {
+        const venta = ventasData.find((v) => v.id === s.id_venta);
+        if (venta) {
+          // Total de pagos de la venta
+          const totalPagos = (venta.pagos || []).reduce(
+            (sum, p) => sum + (p.monto || 0),
+            0,
+          );
+          const saldoVenta = venta.total - totalPagos;
+
+          // ✅ Si el saldo de la venta es 0, todo está pagado
+          if (saldoVenta <= 0) {
+            estadoPago = "Pagado";
+            badgeColor = "bg-success";
+            estaPagado = true;
+            saldoRestante = 0;
+          } else {
+            // ✅ Si hay saldo, calcular cuánto del servicio está pendiente
+            // Primero se pagan los productos (subtotal), luego los servicios
+            const saldoProductos = (venta.subtotal || 0) - totalPagos;
+
+            if (saldoProductos < 0) {
+              // Parte de los pagos se aplicaron a servicios
+              const pagoServicios = Math.abs(saldoProductos);
+              if (pagoServicios >= s.total) {
+                estadoPago = "Pagado";
+                badgeColor = "bg-success";
+                estaPagado = true;
+                saldoRestante = 0;
+              } else {
+                saldoRestante = s.total - pagoServicios;
+              }
+            } else {
+              // No se ha pagado ningún servicio
+              saldoRestante = s.total;
+            }
+          }
+        }
+      }
+
       return `
       <tr>
         <td>${s.id}</td>
-        <td>${s.id_venta ? `<button class="btn btn-link btn-sm p-0" onclick="verVenta(${s.id_venta})">#${s.id_venta}</button>` : "--"}</td>
+        <td>${s.id_venta ? `<button class="btn btn-link btn-sm p-0" onclick="verVenta(${s.id_venta})">#${s.id_venta}</button>` : "Independiente"}</td>
         <td>
           <button class="btn btn-link btn-sm p-0 text-primary" onclick="verFichaCliente(${s.id_cliente})">
             ${nombreCliente}
@@ -2564,9 +2656,38 @@ function renderServiciosRows(servicios) {
         <td>Q${(s.monto_mano_obra || 0).toFixed(2)}</td>
         <td><strong>Q${(s.total || 0).toFixed(2)}</strong></td>
         <td>
-          <button class="btn btn-sm btn-outline-danger" onclick="eliminarServicio(${s.id})">
-            <i class="fas fa-times"></i>
-          </button>
+          <span class="badge ${badgeColor}">${estadoPago}</span>
+          ${!estaPagado && s.id_venta ? `<span class="badge bg-warning ms-1">Saldo: Q${saldoRestante.toFixed(2)}</span>` : ""}
+          ${!s.id_venta && !estaPagado ? `<span class="badge bg-warning ms-1">Pendiente</span>` : ""}
+        </td>
+        <td>
+          <div class="btn-group btn-group-sm">
+            ${
+              !estaPagado
+                ? `
+              <button class="btn btn-outline-success" onclick="pagarServicio(${s.id})" title="Pagar servicio">
+                <i class="fas fa-money-bill-wave"></i>
+              </button>
+            `
+                : `
+              <button class="btn btn-outline-secondary" disabled title="Ya pagado">
+                <i class="fas fa-check"></i>
+              </button>
+            `
+            }
+            ${
+              s.id_venta
+                ? `
+              <button class="btn btn-outline-info" onclick="verVenta(${s.id_venta})" title="Ver venta">
+                <i class="fas fa-eye"></i>
+              </button>
+            `
+                : ""
+            }
+            <button class="btn btn-outline-danger" onclick="eliminarServicio(${s.id})" title="Eliminar">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
         </td>
       </tr>
     `;
@@ -2600,22 +2721,53 @@ function showCreateServicioModal() {
         <div class="modal-body">
           <form id="servicioForm" onsubmit="saveServicio(event)">
             <input type="hidden" id="servicioId" value="">
+            
+            <!-- ✅ BÚSQUEDA DE CLIENTE POR NIT O NOMBRE -->
             <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Buscar Cliente</label>
+                  <div class="input-group">
+                    <input type="text" class="form-control" id="servicioBuscarCliente" 
+                          placeholder="Buscar por NIT o nombre del cliente" 
+                          onkeyup="if(event.key === 'Enter') buscarClienteServicio()">
+                    <button class="btn btn-outline-primary" type="button" onclick="buscarClienteServicio()">
+                      <i class="fas fa-search"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" onclick="limpiarBusquedaClienteServicio()">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                  <div id="servicioClienteInfo" class="mt-1"></div>
+                </div>
+              </div>
               <div class="col-md-6">
                 <div class="mb-3">
                   <label class="form-label">Cliente *</label>
                   <select class="form-select" id="servicioCliente" required>
                     <option value="">Seleccionar cliente</option>
-                    ${(window.clientesData || [])
-                      .map(
-                        (c) => `
-                      <option value="${c.id}" ${c.activo !== 0 ? "" : "disabled"}>
-                        ${c.nombre} ${c.activo === 0 ? "(Inactivo)" : ""}
-                      </option>
-                    `,
-                      )
-                      .join("")}
                   </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- ✅ BÚSQUEDA DE VENTA -->
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Buscar Venta por ID</label>
+                  <div class="input-group">
+                    <input type="number" class="form-control" id="servicioBuscarVenta" 
+                           placeholder="Ingresa ID de la venta" 
+                           onkeyup="if(event.key === 'Enter') buscarVentaServicio()">
+                    <button class="btn btn-outline-info" type="button" onclick="buscarVentaServicio()">
+                      <i class="fas fa-search"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" onclick="limpiarBusquedaVentaServicio()">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                  <div id="servicioVentaInfo" class="mt-1"></div>
                 </div>
               </div>
               <div class="col-md-6">
@@ -2626,7 +2778,7 @@ function showCreateServicioModal() {
                     ${ventasData
                       .map(
                         (v) => `
-                      <option value="${v.id}">#${v.id} - ${(window.clientesData || []).find((c) => c.id === v.id_cliente)?.nombre || "Sin cliente"}</option>
+                      <option value="${v.id}">#${v.id} - ${(window.clientesData || []).find((c) => c.id === v.id_cliente)?.nombre || "Sin cliente"} - Q${(v.total || 0).toFixed(2)}</option>
                     `,
                       )
                       .join("")}
@@ -2634,15 +2786,16 @@ function showCreateServicioModal() {
                 </div>
               </div>
             </div>
+
             <div class="row">
               <div class="col-md-6">
                 <div class="mb-3">
                   <label class="form-label">Tipo de Servicio *</label>
                   <select class="form-select" id="servicioTipo" required>
                     <option value="">Seleccionar tipo</option>
-                    <option value="Impresiones">Impresión</option>
-                    <option value="Emplasticado">Emplasticado</option>
                     <option value="ForradoLibros">Forrado de Libros</option>
+                    <option value="Impresion">Impresión</option>
+                    <option value="Emplasticado">Emplasticado</option>
                     <option value="PagoImpuestos">Pago de Impuestos</option>
                     <option value="Otro">Otro</option>
                   </select>
@@ -2655,6 +2808,7 @@ function showCreateServicioModal() {
                 </div>
               </div>
             </div>
+
             <div class="row">
               <div class="col-md-6">
                 <div class="mb-3">
@@ -2669,11 +2823,12 @@ function showCreateServicioModal() {
                 </div>
               </div>
             </div>
+
             <div class="row">
               <div class="col-md-6">
                 <div class="mb-3">
                   <label class="form-label">Total</label>
-                  <input type="text" class="form-control" id="servicioTotal" value="Q0.00" readonly>
+                  <input type="text" class="form-control" id="servicioTotal" value="Q0.00" readonly style="font-weight:bold; font-size:1.1rem;">
                 </div>
               </div>
               <div class="col-md-6">
@@ -2683,9 +2838,12 @@ function showCreateServicioModal() {
                 </div>
               </div>
             </div>
+
             <div class="text-end">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-              <button type="submit" class="btn btn-info">Guardar Servicio</button>
+              <button type="submit" class="btn btn-info">
+                <i class="fas fa-save me-2"></i>Guardar Servicio
+              </button>
             </div>
           </form>
         </div>
@@ -2694,12 +2852,156 @@ function showCreateServicioModal() {
   `;
 
   document.body.appendChild(modal);
+
+  llenarSelectClientesServicio();
+
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
 
   modal.addEventListener("hidden.bs.modal", function () {
     this.remove();
   });
+}
+
+// ============================================================
+// BUSCAR CLIENTE PARA SERVICIO (por NIT o nombre)
+// ============================================================
+function buscarClienteServicio() {
+  const input = document.getElementById("servicioBuscarCliente");
+  const busqueda = input.value.trim().toLowerCase();
+  const infoDiv = document.getElementById("servicioClienteInfo");
+  const selectCliente = document.getElementById("servicioCliente");
+
+  if (!busqueda) {
+    infoDiv.innerHTML = "";
+    // Restaurar lista completa de clientes en el select
+    llenarSelectClientesServicio();
+    return;
+  }
+
+  // Buscar por NIT exacto o por coincidencia en nombre
+  const clientes = window.clientesData || [];
+  const clienteEncontrado = clientes.find(
+    (c) =>
+      (c.nit && c.nit === busqueda) ||
+      (c.nombre && c.nombre.toLowerCase().includes(busqueda)),
+  );
+
+  if (clienteEncontrado) {
+    infoDiv.innerHTML = `
+      <div class="alert alert-success small py-1 px-2 mb-0">
+        <i class="fas fa-check-circle me-1"></i>
+        <strong>${clienteEncontrado.nombre}</strong>
+        ${clienteEncontrado.telefono ? ` - ${clienteEncontrado.telefono}` : ""}
+        ${clienteEncontrado.email ? ` - ${clienteEncontrado.email}` : ""}
+        ${clienteEncontrado.nit ? ` - NIT: ${clienteEncontrado.nit}` : ""}
+      </div>
+    `;
+    selectCliente.value = clienteEncontrado.id;
+    showToast(`Cliente encontrado: ${clienteEncontrado.nombre}`, "success");
+  } else {
+    // Mostrar clientes que coinciden parcialmente
+    const coincidencias = clientes.filter(
+      (c) => c.nombre && c.nombre.toLowerCase().includes(busqueda),
+    );
+
+    if (coincidencias.length > 0) {
+      let html = `
+        <div class="alert alert-info small py-1 px-2 mb-0">
+          <i class="fas fa-search me-1"></i>
+          Clientes encontrados (${coincidencias.length}):
+          <ul class="mb-0 mt-1">
+      `;
+      coincidencias.slice(0, 5).forEach((c) => {
+        html += `<li><strong>${c.nombre}</strong> ${c.nit ? `- NIT: ${c.nit}` : ""}</li>`;
+      });
+      if (coincidencias.length > 5) {
+        html += `<li class="text-muted">... y ${coincidencias.length - 5} más</li>`;
+      }
+      html += `</ul>
+        </div>
+      `;
+      infoDiv.innerHTML = html;
+      // No seleccionar automáticamente si hay múltiples coincidencias
+      selectCliente.value = "";
+    } else {
+      infoDiv.innerHTML = `
+        <div class="alert alert-warning small py-1 px-2 mb-0">
+          <i class="fas fa-exclamation-triangle me-1"></i>
+          No se encontró cliente con: "${busqueda}"
+        </div>
+      `;
+      selectCliente.value = "";
+    }
+  }
+}
+
+function limpiarBusquedaClienteServicio() {
+  document.getElementById("servicioBuscarCliente").value = "";
+  document.getElementById("servicioClienteInfo").innerHTML = "";
+  // Restaurar lista completa
+  llenarSelectClientesServicio();
+}
+
+// ============================================================
+// LLENAR SELECT DE CLIENTES PARA SERVICIO
+// ============================================================
+function llenarSelectClientesServicio() {
+  const select = document.getElementById("servicioCliente");
+  if (!select) return;
+  select.innerHTML = '<option value="">Seleccionar cliente</option>';
+  (window.clientesData || []).forEach((c) => {
+    const estado = c.activo !== 0 ? "" : " (Inactivo)";
+    select.innerHTML += `<option value="${c.id}" ${c.activo !== 0 ? "" : "disabled"}>${c.nombre}${estado}</option>`;
+  });
+}
+
+// ============================================================
+// BUSCAR VENTA PARA SERVICIO
+// ============================================================
+async function buscarVentaServicio() {
+  const input = document.getElementById("servicioBuscarVenta");
+  const id = parseInt(input.value.trim());
+  const infoDiv = document.getElementById("servicioVentaInfo");
+  const selectVenta = document.getElementById("servicioVenta");
+
+  if (!id) {
+    infoDiv.innerHTML = "";
+    return;
+  }
+
+  try {
+    const venta = await api.getVenta(id);
+    if (venta) {
+      const cliente = (window.clientesData || []).find(
+        (c) => c.id === venta.id_cliente,
+      );
+      const nombreCliente = cliente ? cliente.nombre : "Sin cliente";
+      infoDiv.innerHTML = `
+        <div class="alert alert-success small py-1 px-2 mb-0">
+          <i class="fas fa-check-circle me-1"></i>
+          Venta #${venta.id} - ${nombreCliente} - Total: Q${(venta.total || 0).toFixed(2)}
+          ${venta.estado ? ` - ${venta.estado}` : ""}
+        </div>
+      `;
+      selectVenta.value = venta.id;
+      showToast(`Venta #${venta.id} encontrada`, "success");
+    }
+  } catch (error) {
+    infoDiv.innerHTML = `
+      <div class="alert alert-warning small py-1 px-2 mb-0">
+        <i class="fas fa-exclamation-triangle me-1"></i>
+        No se encontró venta con ID: ${id}
+      </div>
+    `;
+    selectVenta.value = "";
+  }
+}
+
+function limpiarBusquedaVentaServicio() {
+  document.getElementById("servicioBuscarVenta").value = "";
+  document.getElementById("servicioVentaInfo").innerHTML = "";
+  document.getElementById("servicioVenta").value = "";
 }
 
 function calcularTotalServicio() {
@@ -2736,26 +3038,94 @@ async function saveServicio(event) {
     return;
   }
 
+  const total = monto_material + monto_mano_obra;
+
   const data = {
     id_cliente,
     id_venta,
     tipo_servicio,
     descripcion,
-    monto_material,
-    monto_mano_obra,
+    monto_material: monto_material,
+    monto_mano_obra: monto_mano_obra,
     detalles: detalles
       ? [{ material: detalles, cantidad: 1, costo_unitario: 0 }]
       : [],
   };
 
   try {
-    await api.request("/servicios-adicionales", "POST", data);
-    showToast("Servicio creado correctamente", "success");
+    const result = await api.request("/servicios-adicionales", "POST", data);
+    showToast(`Servicio #${result.id} creado correctamente`, "success");
+
+    // ✅ ACTUALIZAR EL TOTAL DE LA VENTA
+    if (id_venta) {
+      try {
+        // 1. Obtener la venta actual
+        const venta = await api.getVenta(id_venta);
+        console.log("📦 Venta actual:", venta);
+
+        // 2. Obtener TODOS los servicios de la venta
+        const serviciosVenta = await api.request(
+          `/servicios-adicionales?id_venta=${id_venta}`,
+        );
+        console.log("📦 Servicios de la venta:", serviciosVenta);
+
+        // 3. Calcular total de servicios
+        const totalServicios = serviciosVenta.reduce(
+          (sum, s) => sum + (s.total || 0),
+          0,
+        );
+
+        // 4. NUEVO TOTAL = subtotal (productos) + total de servicios
+        const nuevoTotal = (venta.subtotal || 0) + totalServicios;
+        console.log(`📦 Nuevo total: ${nuevoTotal}`);
+
+        // 5. Actualizar la venta
+        await api.request(`/ventas/${id_venta}`, "PUT", {
+          total: nuevoTotal,
+        });
+
+        // 6. ✅ FORZAR RECARGA DE ventasData
+        const ventasActualizadas = await api.getVentas();
+        ventasData = ventasActualizadas || [];
+
+        // 7. Actualizar la venta en ventasData
+        const idx = ventasData.findIndex((v) => v.id === id_venta);
+        if (idx !== -1) {
+          ventasData[idx].total = nuevoTotal;
+        }
+
+        // 8. ✅ FORZAR RECARGA DE LA TABLA DE VENTAS
+        renderVentasTable(ventasData);
+
+        showToast(
+          `Venta #${id_venta} actualizada. Nuevo total: Q${nuevoTotal.toFixed(2)}`,
+          "success",
+        );
+      } catch (error) {
+        console.error("❌ Error actualizando total de venta:", error);
+        showToast("Error al actualizar el total de la venta", "error");
+      }
+    }
+
+    // ✅ Si NO tiene venta asociada, mostrar opción de pago
+    if (!id_venta) {
+      const confirmarPago = await mostrarConfirmacion(
+        "Pago del Servicio",
+        `El servicio #${result.id} tiene un total de Q${total.toFixed(2)}.\n¿Deseas registrar el pago ahora?`,
+      );
+      if (confirmarPago) {
+        await pagarServicioIndependiente(result.id);
+      }
+    }
+
     bootstrap.Modal.getInstance(
       document.getElementById("servicioModal"),
     ).hide();
+
+    // ✅ Recargar servicios y ventas
     await loadVentasModule();
   } catch (error) {
+    console.error("❌ Error al guardar servicio:", error);
     showToast(error.message || "Error al guardar servicio", "error");
   }
 }
@@ -2773,6 +3143,161 @@ async function eliminarServicio(id) {
     await loadVentasModule();
   } catch (error) {
     showToast(error.message || "Error al eliminar servicio", "error");
+  }
+}
+
+// ============================================================
+// PAGAR SERVICIO (desde la pestaña de servicios)
+// ============================================================
+async function pagarServicio(idServicio) {
+  try {
+    const servicio = serviciosAdicionalesData.find((s) => s.id === idServicio);
+    if (!servicio) {
+      showToast("Servicio no encontrado", "error");
+      return;
+    }
+
+    // Si el servicio tiene venta asociada, abrir pago de la venta
+    if (servicio.id_venta) {
+      const venta = ventasData.find((v) => v.id === servicio.id_venta);
+      if (venta) {
+        // Verificar si la venta ya está pagada
+        const totalPagos = (venta.pagos || []).reduce(
+          (sum, p) => sum + (p.monto || 0),
+          0,
+        );
+        if (totalPagos >= venta.total) {
+          showToast(
+            "Este servicio ya está pagado a través de la venta",
+            "warning",
+          );
+          return;
+        }
+        mostrarModalPago(servicio.id_venta);
+        showToast(
+          "El pago del servicio se registrará en la venta asociada",
+          "info",
+        );
+        return;
+      }
+    }
+
+    // ✅ Servicio independiente - crear venta express
+    const id_usuario = getCurrentUser()?.id || 1;
+
+    // Obtener ubicación de configuración
+    let id_ubicacion = null;
+    try {
+      const config = await api.request("/configuracion").catch(() => ({}));
+      id_ubicacion = config.id_ubicacion || null;
+      if (!id_ubicacion) {
+        showToast("No hay ubicación configurada", "error");
+        return;
+      }
+    } catch (error) {
+      showToast("Error al obtener configuración", "error");
+      return;
+    }
+
+    // Crear venta para el servicio
+    const ventaData = {
+      id_usuario: id_usuario,
+      id_cliente: servicio.id_cliente,
+      id_caja_turno: null,
+      id_ubicacion: id_ubicacion,
+      id_cotizacion: null,
+      descuento_porcentaje: 0,
+      observaciones: `Servicio: ${servicio.tipo_servicio}`,
+      nit: null,
+      detalles: [],
+      pagos: [],
+    };
+
+    const result = await api.createVenta(ventaData);
+    showToast(`Venta #${result.id} creada para el servicio`, "success");
+
+    // Actualizar el servicio con el id_venta
+    await api.request(`/servicios-adicionales/${idServicio}`, "PATCH", {
+      id_venta: result.id,
+    });
+
+    // Actualizar el total de la venta con el monto del servicio
+    await api.request(`/ventas/${result.id}`, "PATCH", {
+      total: servicio.total,
+      subtotal: 0,
+    });
+
+    // Mostrar modal de pago para la venta
+    mostrarModalPago(result.id);
+
+    await loadVentasModule();
+  } catch (error) {
+    showToast(error.message || "Error al procesar pago", "error");
+  }
+}
+
+// ============================================================
+// PAGAR SERVICIO INDEPENDIENTE
+// ============================================================
+async function pagarServicioIndependiente(idServicio) {
+  try {
+    const servicio = serviciosAdicionalesData.find((s) => s.id === idServicio);
+    if (!servicio) {
+      showToast("Servicio no encontrado", "error");
+      return;
+    }
+
+    // Crear una venta express para el servicio
+    const id_usuario = getCurrentUser()?.id || 1;
+
+    // Obtener ubicación de configuración
+    let id_ubicacion = null;
+    try {
+      const config = await api.request("/configuracion").catch(() => ({}));
+      id_ubicacion = config.id_ubicacion || null;
+      if (!id_ubicacion) {
+        showToast("No hay ubicación configurada", "error");
+        return;
+      }
+    } catch (error) {
+      showToast("Error al obtener configuración", "error");
+      return;
+    }
+
+    // Crear venta para el servicio
+    const ventaData = {
+      id_usuario: id_usuario,
+      id_cliente: servicio.id_cliente,
+      id_caja_turno: null,
+      id_ubicacion: id_ubicacion,
+      id_cotizacion: null,
+      descuento_porcentaje: 0,
+      observaciones: `Servicio: ${servicio.tipo_servicio}`,
+      nit: null,
+      detalles: [],
+      pagos: [],
+    };
+
+    const result = await api.createVenta(ventaData);
+    showToast(`Venta #${result.id} creada para el servicio`, "success");
+
+    // Actualizar el servicio con el id_venta
+    await api.request(`/servicios-adicionales/${idServicio}`, "PATCH", {
+      id_venta: result.id,
+    });
+
+    // Actualizar el total de la venta con el monto del servicio
+    await api.request(`/ventas/${result.id}`, "PATCH", {
+      total: servicio.total,
+      subtotal: 0,
+    });
+
+    // Mostrar modal de pago para la venta
+    mostrarModalPago(result.id);
+
+    await loadVentasModule();
+  } catch (error) {
+    showToast(error.message || "Error al procesar pago", "error");
   }
 }
 
@@ -3159,3 +3684,6 @@ window.limpiarBusquedaCliente = limpiarBusquedaCliente;
 window.imprimirVenta = imprimirVenta;
 window.exportarVentasExcel = exportarVentasExcel;
 window.exportarVentasPDF = exportarVentasPDF;
+window.pagarServicio = pagarServicio;
+window.pagarServicioIndependiente = pagarServicioIndependiente;
+window.eliminarPagoVenta = eliminarPagoVenta;
