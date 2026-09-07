@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import hash_password
+from app.security import hash_password, get_current_user
 from app.models.model_usuario import (
     Usuario, Empleado, Rol, RolPermiso, Puesto, Turno,
     Modulo, Permiso, HistoricoPagoEmpleado, LogActividad,
@@ -75,6 +75,23 @@ def listar_usuarios(
         query = query.filter(Usuario.nombre_usuario.ilike(f"%{buscar}%"))
     query = _aplicar_orden(query, Usuario, orden_por, orden_direccion, ORDEN_USUARIO_PERMITIDO)
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
+
+
+@router.get("/mis-permisos", response_model=List[PermisoResponse])
+def obtener_mis_permisos(usuario_actual: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Devuelve los permisos del usuario que inició sesión (según su token).
+    IMPORTANTE: esta ruta debe declararse ANTES de '/{usuario_id}' -- si no,
+    FastAPI intentaría interpretar 'mis-permisos' como si fuera un usuario_id.
+    """
+    if not usuario_actual.id_rol:
+        return []
+    return (
+        db.query(Permiso)
+        .join(RolPermiso, RolPermiso.id_permiso == Permiso.id)
+        .filter(RolPermiso.id_rol == usuario_actual.id_rol)
+        .all()
+    )
 
 
 @router.get("/{usuario_id}", response_model=UsuarioResponse)

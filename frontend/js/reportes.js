@@ -97,11 +97,19 @@ async function loadReportesModule() {
                     <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#subLoginResumen"><i class="fas fa-sign-in-alt me-1"></i>Resumen de Logins</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subUsuariosActivos"><i class="fas fa-user-check me-1"></i>Usuarios Más Activos</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subBitacora"><i class="fas fa-clipboard-list me-1"></i>Bitácora de Actividades</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subCuentasActivas"><i class="fas fa-user-shield me-1"></i>Cuentas Activas</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subCuentasInactivas"><i class="fas fa-user-slash me-1"></i>Cuentas Inactivas</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subUsuariosPorFecha"><i class="fas fa-calendar-alt me-1"></i>Usuarios por Fecha</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subUsuariosBuscar"><i class="fas fa-search me-1"></i>Búsqueda Inteligente</a></li>
                 </ul>
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="subLoginResumen"><div id="reporteLoginResumenContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                     <div class="tab-pane fade" id="subUsuariosActivos"><div id="reporteUsuariosActivosContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                     <div class="tab-pane fade" id="subBitacora"><div id="reporteBitacoraContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
+                    <div class="tab-pane fade" id="subCuentasActivas"><div id="reporteCuentasActivasContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
+                    <div class="tab-pane fade" id="subCuentasInactivas"><div id="reporteCuentasInactivasContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
+                    <div class="tab-pane fade" id="subUsuariosPorFecha"><div id="reporteUsuariosPorFechaContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
+                    <div class="tab-pane fade" id="subUsuariosBuscar"><div id="reporteUsuariosBuscarContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                 </div>
             </div>
         </div>
@@ -127,12 +135,345 @@ async function loadReportesModule() {
     cargarReporteLoginResumen(),
     cargarReporteUsuariosActivos(),
     cargarReporteBitacora(),
+    cargarReporteCuentasActivas(),
+    cargarReporteCuentasInactivas(),
+    cargarReporteUsuariosPorFecha(),
+    cargarReporteUsuariosBuscar(),
   ]);
 }
 
 // ============================================================
 // REPORTES DE VENTAS (YA EXISTENTES - SE MANTIENEN)
 // ============================================================
+
+// ============================================================
+// USUARIOS - NUEVOS: CUENTAS ACTIVAS / INACTIVAS / POR FECHA / BUSQUEDA
+// ============================================================
+
+const LIMITE_REPORTE_USUARIOS = 10;
+let skipCuentasActivas = 0;
+let skipCuentasInactivas = 0;
+let skipUsuariosPorFecha = 0;
+let skipUsuariosBuscar = 0;
+
+function _opcionesOrdenUsuario(idSelect, idDireccion) {
+  return `
+    <div class="col-md-3">
+      <label class="form-label small">Ordenar por</label>
+      <select class="form-select form-select-sm" id="${idSelect}">
+        <option value="">Sin ordenar</option>
+        <option value="id">ID</option>
+        <option value="nombre_usuario">Usuario</option>
+        <option value="fecha_creacion">Fecha Creación</option>
+        <option value="fecha_ultimo_acceso">Último Acceso</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small">Dirección</label>
+      <select class="form-select form-select-sm" id="${idDireccion}">
+        <option value="asc">Ascendente</option>
+        <option value="desc">Descendente</option>
+      </select>
+    </div>
+  `;
+}
+
+function _renderTablaUsuarios(detalle, tituloTabla) {
+  if (!detalle || detalle.length === 0) {
+    return `<div class="alert alert-warning">No hay usuarios que coincidan con el filtro</div>`;
+  }
+  return `
+    <div class="card"><div class="card-header"><h6 class="mb-0 fw-bold">${tituloTabla}</h6></div>
+    <div class="card-body"><div class="table-responsive"><table class="table table-hover table-striped">
+    <thead><tr><th>ID</th><th>Usuario</th><th>Fecha Creación</th><th>Último Acceso</th><th>Estado</th></tr></thead>
+    <tbody>${detalle
+      .map(
+        (u) => `<tr>
+          <td>${u.id}</td>
+          <td><strong>${u.nombre_usuario || "--"}</strong></td>
+          <td>${u.fecha_creacion ? new Date(u.fecha_creacion).toLocaleDateString() : "--"}</td>
+          <td>${u.fecha_ultimo_acceso ? new Date(u.fecha_ultimo_acceso).toLocaleString() : "--"}</td>
+          <td><span class="badge ${u.activo !== 0 ? "bg-success" : "bg-danger"}">${u.activo !== 0 ? "Activo" : "Inactivo"}</span></td>
+        </tr>`,
+      )
+      .join("")}</tbody></table></div></div></div>
+  `;
+}
+
+function _controlesPaginacion(onAnterior, onSiguiente, skipActual) {
+  return `
+    <div class="d-flex justify-content-between align-items-center mt-2">
+      <button class="btn btn-sm btn-outline-secondary" onclick="${onAnterior}" ${skipActual === 0 ? "disabled" : ""}>
+        <i class="fas fa-chevron-left me-1"></i>Anterior
+      </button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="${onSiguiente}">
+        Siguiente<i class="fas fa-chevron-right ms-1"></i>
+      </button>
+    </div>
+  `;
+}
+
+// -------------------- CUENTAS ACTIVAS --------------------
+
+async function cargarReporteCuentasActivas() {
+  const container = document.getElementById("reporteCuentasActivasContainer");
+  if (!container) return;
+  try {
+    container.innerHTML = `
+      <div class="row mb-3">
+        ${_opcionesOrdenUsuario("cuentaActivaOrden", "cuentaActivaDireccion")}
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-primary btn-sm" onclick="skipCuentasActivas=0;actualizarCuentasActivas()">
+            <i class="fas fa-search me-1"></i>Consultar
+          </button>
+        </div>
+        <div class="col-md-2 d-flex align-items-end gap-1">
+          <button class="btn btn-success btn-sm" onclick="exportarCuentasActivasPDF()" title="Exportar a PDF"><i class="fas fa-file-pdf me-1"></i>PDF</button>
+          <button class="btn btn-info btn-sm" onclick="exportarCuentasActivasExcel()" title="Exportar a Excel"><i class="fas fa-file-excel me-1"></i>Excel</button>
+        </div>
+      </div>
+      <div id="cuentaActivaResultado"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando datos...</p></div></div>
+    `;
+    await actualizarCuentasActivas();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function actualizarCuentasActivas() {
+  const ordenPor = document.getElementById("cuentaActivaOrden")?.value || "";
+  const ordenDir = document.getElementById("cuentaActivaDireccion")?.value || "asc";
+  const resultado = document.getElementById("cuentaActivaResultado");
+  if (!resultado) return;
+  try {
+    let url = `/reportes/usuarios/activos?skip=${skipCuentasActivas}&limit=${LIMITE_REPORTE_USUARIOS}`;
+    if (ordenPor) url += `&orden_por=${ordenPor}&orden_direccion=${ordenDir}`;
+    const data = await api.request(url);
+    resultado.innerHTML =
+      _renderTablaUsuarios(data, "Cuentas Activas") +
+      _controlesPaginacion(
+        `skipCuentasActivas=Math.max(0,skipCuentasActivas-${LIMITE_REPORTE_USUARIOS});actualizarCuentasActivas()`,
+        `skipCuentasActivas+=${LIMITE_REPORTE_USUARIOS};actualizarCuentasActivas()`,
+        skipCuentasActivas,
+      );
+  } catch (error) {
+    resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+// -------------------- CUENTAS INACTIVAS --------------------
+
+async function cargarReporteCuentasInactivas() {
+  const container = document.getElementById("reporteCuentasInactivasContainer");
+  if (!container) return;
+  try {
+    container.innerHTML = `
+      <div class="row mb-3">
+        ${_opcionesOrdenUsuario("cuentaInactivaOrden", "cuentaInactivaDireccion")}
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-primary btn-sm" onclick="skipCuentasInactivas=0;actualizarCuentasInactivas()">
+            <i class="fas fa-search me-1"></i>Consultar
+          </button>
+        </div>
+        <div class="col-md-2 d-flex align-items-end gap-1">
+          <button class="btn btn-success btn-sm" onclick="exportarCuentasInactivasPDF()" title="Exportar a PDF"><i class="fas fa-file-pdf me-1"></i>PDF</button>
+          <button class="btn btn-info btn-sm" onclick="exportarCuentasInactivasExcel()" title="Exportar a Excel"><i class="fas fa-file-excel me-1"></i>Excel</button>
+        </div>
+      </div>
+      <div id="cuentaInactivaResultado"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando datos...</p></div></div>
+    `;
+    await actualizarCuentasInactivas();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function actualizarCuentasInactivas() {
+  const ordenPor = document.getElementById("cuentaInactivaOrden")?.value || "";
+  const ordenDir = document.getElementById("cuentaInactivaDireccion")?.value || "asc";
+  const resultado = document.getElementById("cuentaInactivaResultado");
+  if (!resultado) return;
+  try {
+    let url = `/reportes/usuarios/inactivos?skip=${skipCuentasInactivas}&limit=${LIMITE_REPORTE_USUARIOS}`;
+    if (ordenPor) url += `&orden_por=${ordenPor}&orden_direccion=${ordenDir}`;
+    const data = await api.request(url);
+    resultado.innerHTML =
+      _renderTablaUsuarios(data, "Cuentas Inactivas (dadas de baja)") +
+      _controlesPaginacion(
+        `skipCuentasInactivas=Math.max(0,skipCuentasInactivas-${LIMITE_REPORTE_USUARIOS});actualizarCuentasInactivas()`,
+        `skipCuentasInactivas+=${LIMITE_REPORTE_USUARIOS};actualizarCuentasInactivas()`,
+        skipCuentasInactivas,
+      );
+  } catch (error) {
+    resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+
+
+async function cargarReporteUsuariosPorFecha() {
+  const container = document.getElementById("reporteUsuariosPorFechaContainer");
+  if (!container) return;
+  try {
+    const hoy = new Date();
+    const hace30Dias = new Date();
+    hace30Dias.setDate(hace30Dias.getDate() - 30);
+    container.innerHTML = `
+      <div class="row mb-3">
+        <div class="col-md-2">
+          <label class="form-label small">Fecha Desde</label>
+          <input type="date" class="form-control form-control-sm" id="usuariosFechaDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small">Fecha Hasta</label>
+          <input type="date" class="form-control form-control-sm" id="usuariosFechaHasta" value="${hoy.toISOString().split("T")[0]}">
+        </div>
+        ${_opcionesOrdenUsuario("usuariosFechaOrden", "usuariosFechaDireccion")}
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-primary btn-sm" onclick="skipUsuariosPorFecha=0;actualizarUsuariosPorFecha()">
+            <i class="fas fa-search me-1"></i>Consultar
+          </button>
+        </div>
+        <div class="col-md-1 d-flex align-items-end gap-1">
+          <button class="btn btn-success btn-sm" onclick="exportarUsuariosPorFechaPDF()" title="Exportar a PDF"><i class="fas fa-file-pdf"></i></button>
+          <button class="btn btn-info btn-sm" onclick="exportarUsuariosPorFechaExcel()" title="Exportar a Excel"><i class="fas fa-file-excel"></i></button>
+        </div>
+      </div>
+      <div id="usuariosFechaResultado"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando datos...</p></div></div>
+    `;
+    await actualizarUsuariosPorFecha();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function actualizarUsuariosPorFecha() {
+  const desde = document.getElementById("usuariosFechaDesde")?.value;
+  const hasta = document.getElementById("usuariosFechaHasta")?.value;
+  const ordenPor = document.getElementById("usuariosFechaOrden")?.value || "";
+  const ordenDir = document.getElementById("usuariosFechaDireccion")?.value || "asc";
+  const resultado = document.getElementById("usuariosFechaResultado");
+  if (!resultado) return;
+  try {
+    let url = `/reportes/usuarios/por-fecha?skip=${skipUsuariosPorFecha}&limit=${LIMITE_REPORTE_USUARIOS}`;
+    if (desde) url += `&fecha_desde=${desde}`;
+    if (hasta) url += `&fecha_hasta=${hasta}`;
+    if (ordenPor) url += `&orden_por=${ordenPor}&orden_direccion=${ordenDir}`;
+    const data = await api.request(url);
+    resultado.innerHTML =
+      _renderTablaUsuarios(data, `Usuarios registrados del ${desde || "--"} al ${hasta || "--"}`) +
+      _controlesPaginacion(
+        `skipUsuariosPorFecha=Math.max(0,skipUsuariosPorFecha-${LIMITE_REPORTE_USUARIOS});actualizarUsuariosPorFecha()`,
+        `skipUsuariosPorFecha+=${LIMITE_REPORTE_USUARIOS};actualizarUsuariosPorFecha()`,
+        skipUsuariosPorFecha,
+      );
+  } catch (error) {
+    resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+
+async function cargarReporteUsuariosBuscar() {
+  const container = document.getElementById("reporteUsuariosBuscarContainer");
+  if (!container) return;
+  try {
+    container.innerHTML = `
+      <div class="row mb-3 g-2">
+        <div class="col-md-2">
+          <label class="form-label small">Estado</label>
+          <select class="form-select form-select-sm" id="buscarUsuarioEstado">
+            <option value="todos">Todos</option>
+            <option value="activos">Activos</option>
+            <option value="inactivos">Inactivos</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small">Nombre de usuario</label>
+          <input type="text" class="form-control form-control-sm" id="buscarUsuarioNombre" placeholder="Buscar...">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small">Fecha Desde</label>
+          <input type="date" class="form-control form-control-sm" id="buscarUsuarioDesde">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small">Fecha Hasta</label>
+          <input type="date" class="form-control form-control-sm" id="buscarUsuarioHasta">
+        </div>
+        ${_opcionesOrdenUsuario("buscarUsuarioOrden", "buscarUsuarioDireccion")}
+      </div>
+      <div class="row mb-3">
+        <div class="col-md-2">
+          <button class="btn btn-primary btn-sm w-100" onclick="skipUsuariosBuscar=0;actualizarUsuariosBuscar()">
+            <i class="fas fa-search me-1"></i>Buscar
+          </button>
+        </div>
+        <div class="col-md-2 d-flex gap-1">
+          <button class="btn btn-success btn-sm" onclick="exportarUsuariosBuscarPDF()" title="Exportar a PDF"><i class="fas fa-file-pdf"></i></button>
+          <button class="btn btn-info btn-sm" onclick="exportarUsuariosBuscarExcel()" title="Exportar a Excel"><i class="fas fa-file-excel"></i></button>
+        </div>
+      </div>
+      <div id="buscarUsuarioResultado"><div class="text-center py-5"><p class="text-muted">Ajusta los filtros y presiona Buscar</p></div></div>
+    `;
+    await actualizarUsuariosBuscar();
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function actualizarUsuariosBuscar() {
+  const estado = document.getElementById("buscarUsuarioEstado")?.value || "todos";
+  const buscar = document.getElementById("buscarUsuarioNombre")?.value?.trim();
+  const desde = document.getElementById("buscarUsuarioDesde")?.value;
+  const hasta = document.getElementById("buscarUsuarioHasta")?.value;
+  const ordenPor = document.getElementById("buscarUsuarioOrden")?.value || "";
+  const ordenDir = document.getElementById("buscarUsuarioDireccion")?.value || "asc";
+  const resultado = document.getElementById("buscarUsuarioResultado");
+  if (!resultado) return;
+  try {
+    let url = `/reportes/usuarios/buscar?estado=${estado}&skip=${skipUsuariosBuscar}&limit=${LIMITE_REPORTE_USUARIOS}`;
+    if (buscar) url += `&buscar=${encodeURIComponent(buscar)}`;
+    if (desde) url += `&fecha_desde=${desde}`;
+    if (hasta) url += `&fecha_hasta=${hasta}`;
+    if (ordenPor) url += `&orden_por=${ordenPor}&orden_direccion=${ordenDir}`;
+    const data = await api.request(url);
+    resultado.innerHTML =
+      _renderTablaUsuarios(data, "Resultado de la búsqueda") +
+      _controlesPaginacion(
+        `skipUsuariosBuscar=Math.max(0,skipUsuariosBuscar-${LIMITE_REPORTE_USUARIOS});actualizarUsuariosBuscar()`,
+        `skipUsuariosBuscar+=${LIMITE_REPORTE_USUARIOS};actualizarUsuariosBuscar()`,
+        skipUsuariosBuscar,
+      );
+  } catch (error) {
+    resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+
+function exportarCuentasActivasPDF() { exportarPDF("cuentaActivaResultado", "Cuentas_Activas"); }
+function exportarCuentasActivasExcel() { exportarExcel("cuentaActivaResultado", "Cuentas_Activas"); }
+function exportarCuentasInactivasPDF() { exportarPDF("cuentaInactivaResultado", "Cuentas_Inactivas"); }
+function exportarCuentasInactivasExcel() { exportarExcel("cuentaInactivaResultado", "Cuentas_Inactivas"); }
+function exportarUsuariosPorFechaPDF() { exportarPDF("usuariosFechaResultado", "Usuarios_Por_Fecha"); }
+function exportarUsuariosPorFechaExcel() { exportarExcel("usuariosFechaResultado", "Usuarios_Por_Fecha"); }
+function exportarUsuariosBuscarPDF() { exportarPDF("buscarUsuarioResultado", "Busqueda_Usuarios"); }
+function exportarUsuariosBuscarExcel() { exportarExcel("buscarUsuarioResultado", "Busqueda_Usuarios"); }
+
+window.cargarReporteCuentasActivas = cargarReporteCuentasActivas;
+window.actualizarCuentasActivas = actualizarCuentasActivas;
+window.cargarReporteCuentasInactivas = cargarReporteCuentasInactivas;
+window.actualizarCuentasInactivas = actualizarCuentasInactivas;
+window.cargarReporteUsuariosPorFecha = cargarReporteUsuariosPorFecha;
+window.actualizarUsuariosPorFecha = actualizarUsuariosPorFecha;
+window.cargarReporteUsuariosBuscar = cargarReporteUsuariosBuscar;
+window.actualizarUsuariosBuscar = actualizarUsuariosBuscar;
+window.exportarCuentasActivasPDF = exportarCuentasActivasPDF;
+window.exportarCuentasActivasExcel = exportarCuentasActivasExcel;
+window.exportarCuentasInactivasPDF = exportarCuentasInactivasPDF;
+window.exportarCuentasInactivasExcel = exportarCuentasInactivasExcel;
+window.exportarUsuariosPorFechaPDF = exportarUsuariosPorFechaPDF;
+window.exportarUsuariosPorFechaExcel = exportarUsuariosPorFechaExcel;
+window.exportarUsuariosBuscarPDF = exportarUsuariosBuscarPDF;
+window.exportarUsuariosBuscarExcel = exportarUsuariosBuscarExcel;
 
 async function cargarReporteVentasDiarias() {
   const container = document.getElementById("reporteVentasDiariasContainer");
