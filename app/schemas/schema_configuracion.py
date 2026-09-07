@@ -26,6 +26,7 @@ class ConfiguracionGeneralBase(BaseModel):
     formato_impresion: Optional[str] = None
     logo_ruta: Optional[str] = None
     moneda: Optional[str] = None
+    id_ubicacion: Optional[int] = None
 
 
 class ConfiguracionGeneralUpdate(ConfiguracionGeneralBase, TelefonoValidatorMixin):
@@ -33,9 +34,6 @@ class ConfiguracionGeneralUpdate(ConfiguracionGeneralBase, TelefonoValidatorMixi
 
 
 class ConfiguracionGeneralResponse(ConfiguracionGeneralBase):
-    # NO hereda TelefonoValidatorMixin (ver nota en schema_cliente.py) --
-    # antes heredaba de ConfiguracionGeneralUpdate por error, lo cual
-    # arrastraba la validación también a la lectura.
     id: int
     fecha_actualizacion: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
