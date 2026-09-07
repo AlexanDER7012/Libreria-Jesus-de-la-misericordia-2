@@ -218,11 +218,18 @@ def listar_servicios(id_cliente: Optional[int] = None, db: Session = Depends(get
 
 @router_servicio.post("", response_model=ServicioAdicionalResponse, status_code=201)
 def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get_db)):
-    monto_material = round(sum(d.cantidad * d.costo_unitario for d in datos.detalles), 2)
+    monto_material = datos.monto_material or 0
     total = round(monto_material + (datos.monto_mano_obra or 0), 2)
 
-    datos_dict = datos.model_dump(exclude={"detalles"})
-    nuevo = ServicioAdicional(**datos_dict, monto_material=monto_material, total=total)
+    nuevo = ServicioAdicional(
+        id_venta=datos.id_venta,
+        id_cliente=datos.id_cliente,
+        tipo_servicio=datos.tipo_servicio,
+        descripcion=datos.descripcion,
+        monto_mano_obra=datos.monto_mano_obra or 0,
+        monto_material=monto_material,
+        total=total
+    )
     db.add(nuevo)
     db.flush()
 
