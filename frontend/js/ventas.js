@@ -306,11 +306,10 @@ function renderVentasTable(ventas) {
     const saldo = (v.total || 0) - totalPagos;
     const pagada = saldo <= 0;
 
-    // Obtener vendedor
     let nombreVendedor = "--";
-    if (v.id_usuario) {
+    if (v.id_vendedor) {
       const vendedor = vendedoresData.find(
-        (e) => e.id_usuario === v.id_usuario,
+        (e) => e.id_usuario === v.id_vendedor,
       );
       if (vendedor) nombreVendedor = vendedor.nombre || "--";
     }
@@ -605,10 +604,9 @@ async function imprimirVenta(id) {
 }
 
 // ============================================================
-// CREAR MODAL DE VENTA (SIN PAGOS)
+// CREAR MODAL DE VENTA
 // ============================================================
 function crearModalVenta() {
-  // ✅ Eliminar modal existente si hay
   let modalExistente = document.getElementById("ventaModal");
   if (modalExistente) {
     modalExistente.remove();
@@ -676,7 +674,15 @@ function crearModalVenta() {
             </div>
 
             <div class="row">
-              <div class="col-md-4">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Vendedor *</label>
+                  <select class="form-select" id="ventaVendedor" required>
+                    <option value="">Cargando vendedores...</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-md-6">
                 <div class="mb-3">
                   <label class="form-label">Turno Caja *</label>
                   <select class="form-select" id="ventaCajaTurno" required>
@@ -684,14 +690,9 @@ function crearModalVenta() {
                   </select>
                 </div>
               </div>
-              <div class="col-md-4">
-                <div class="mb-3">
-                  <label class="form-label">Ubicación *</label>
-                  <select class="form-select" id="ventaUbicacion" required>
-                    <option value="">Seleccionar ubicación</option>
-                  </select>
-                </div>
-              </div>
+            </div>
+
+            <div class="row">
               <div class="col-md-4">
                 <div class="mb-3">
                   <label class="form-label">Descuento (%)</label>
@@ -744,6 +745,36 @@ function crearModalVenta() {
 
   document.body.appendChild(modal);
   return modal;
+}
+
+// ============================================================
+// LLENAR SELECT DE VENDEDORES (HÍBRIDO)
+// ============================================================
+async function llenarSelectVendedores() {
+  const select = document.getElementById("ventaVendedor");
+  if (!select) return;
+
+  const vendedores = await cargarVendedoresConTurno();
+
+  select.innerHTML = '<option value="">Seleccionar vendedor</option>';
+
+  if (vendedores.length === 0) {
+    select.innerHTML =
+      '<option value="">No hay vendedores con turno abierto</option>';
+    select.disabled = true;
+    return;
+  }
+
+  select.disabled = false;
+  vendedores.forEach((v) => {
+    select.innerHTML += `<option value="${v.id_usuario}" data-turno="${v.turno_id}">${v.nombre}</option>`;
+  });
+
+  // ✅ AUTO-SELECCIÓN: Si solo hay 1 vendedor, seleccionarlo automáticamente
+  if (vendedores.length === 1) {
+    select.value = vendedores[0].id_usuario;
+    select.dispatchEvent(new Event("change"));
+  }
 }
 
 // ============================================================
@@ -812,7 +843,7 @@ async function showCreateVentaModal() {
 
   llenarSelectCliente();
   llenarSelectCajaTurno();
-  poblarSelectUbicacionVenta();
+  await llenarSelectVendedores();
   llenarSelectProductoDetalle();
 
   if (ventaDetallesList) ventaDetallesList.innerHTML = "";
@@ -1069,55 +1100,30 @@ function llenarSelectCliente() {
   });
 }
 
-function llenarSelectCajaTurno() {
+async function llenarSelectCajaTurno() {
   const select = document.getElementById("ventaCajaTurno");
   if (!select) return;
+
+  try {
+    const turnos = await api.getCajaTurnos().catch(() => []);
+    cajaTurnosData = turnos || [];
+  } catch (error) {
+    console.warn("Error cargando turnos:", error);
+  }
+
   select.innerHTML = '<option value="">Seleccionar turno</option>';
+
   const abiertos = cajaTurnosData.filter((t) => t.estado === "Abierto");
+
+  if (abiertos.length === 0) {
+    select.innerHTML = '<option value="">No hay turnos abiertos</option>';
+    return;
+  }
+
   abiertos.forEach((t) => {
-    select.innerHTML += `<option value="${t.id}">Turno #${t.id}</option>`;
+    const usuario = t.id_usuario || "--";
+    select.innerHTML += `<option value="${t.id}">Turno #${t.id} - Usuario: ${usuario}</option>`;
   });
-}
-
-function poblarSelectUbicacionVenta() {
-  const select = document.getElementById("ventaUbicacion");
-  if (!select) return;
-
-  console.log(
-    "📍 Ubicaciones en poblarSelectUbicacionVenta:",
-    window.ubicacionesData?.length || 0,
-  );
-
-  select.innerHTML = '<option value="">Seleccionar ubicación</option>';
-
-  if (window.ubicacionesData && window.ubicacionesData.length > 0) {
-    window.ubicacionesData.forEach((u) => {
-      const nombre = u.nombre || u.id || "Sin nombre";
-      select.innerHTML += `<option value="${u.id}">${nombre}</option>`;
-    });
-  } else {
-    console.warn("⚠️ No hay ubicaciones, intentando cargar...");
-    api
-      .request("/ubicaciones")
-      .then((ubicaciones) => {
-        window.ubicacionesData = ubicaciones || [];
-        localStorage.setItem(
-          "ubicaciones_backup",
-          JSON.stringify(window.ubicacionesData),
-        );
-        // Recargar el select
-        poblarSelectUbicacionVenta();
-      })
-      .catch((e) => console.warn("Error cargando ubicaciones:", e));
-  }
-}
-
-function refrescarSelectUbicacion() {
-  if (typeof window.actualizarSelectsUbicacion === "function") {
-    window.actualizarSelectsUbicacion();
-  } else {
-    poblarSelectUbicacionVenta();
-  }
 }
 
 function llenarSelectProductoDetalle() {
@@ -1250,11 +1256,26 @@ async function saveVenta(event) {
     return;
   }
 
-  const id_ubicacion = parseInt(
-    document.getElementById("ventaUbicacion").value,
-  );
-  if (!id_ubicacion) {
-    showToast("Selecciona una ubicación", "error");
+  let id_ubicacion = null;
+  try {
+    const config = await api.request("/configuracion").catch(() => ({}));
+    id_ubicacion = config.id_ubicacion || null;
+    if (!id_ubicacion) {
+      showToast(
+        "No hay ubicación configurada. Contacta al administrador.",
+        "error",
+      );
+      return;
+    }
+  } catch (error) {
+    showToast("Error al obtener configuración", "error");
+    return;
+  }
+
+  const id_vendedor =
+    parseInt(document.getElementById("ventaVendedor").value) || null;
+  if (!id_vendedor) {
+    showToast("Selecciona un vendedor", "error");
     return;
   }
 
@@ -1292,6 +1313,7 @@ async function saveVenta(event) {
 
   const data = {
     id_usuario: id_usuario,
+    id_vendedor: id_vendedor,
     id_cliente: id_cliente,
     id_caja_turno: id_caja_turno,
     id_ubicacion: id_ubicacion,
@@ -2763,12 +2785,30 @@ async function cargarSubVendedores() {
   if (!container) return;
 
   try {
+    const usuarios = await api.getUsuarios().catch(() => []);
     const empleados = await api.getEmpleados().catch(() => []);
-    vendedoresData = empleados.filter(
-      (e) => e.id_rol === 3 || e.rol === "vendedor",
-    );
 
-    if (!vendedoresData || vendedoresData.length === 0) {
+    const empleadosMap = {};
+    empleados.forEach((e) => {
+      empleadosMap[e.id] = e;
+    });
+
+    const vendedoresUsuarios = usuarios.filter((u) => u.id_rol === 3);
+
+    const resultado = vendedoresUsuarios
+      .filter((u) => u.id_empleado !== null)
+      .map((u) => {
+        const empleado = empleadosMap[u.id_empleado];
+        return {
+          ...u,
+          ...empleado,
+          id_usuario: u.id,
+        };
+      });
+
+    console.log("📋 Vendedores encontrados:", resultado);
+
+    if (!resultado || resultado.length === 0) {
       container.innerHTML = `
         <div class="text-center py-5">
           <i class="fas fa-user-tie fa-3x text-muted mb-3"></i>
@@ -2784,6 +2824,7 @@ async function cargarSubVendedores() {
     let html = `
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h6 class="mb-0">Listado de Vendedores</h6>
+        <span class="badge bg-info">${resultado.length} vendedores</span>
       </div>
       <div class="table-responsive">
         <table class="table table-hover table-striped">
@@ -2791,10 +2832,9 @@ async function cargarSubVendedores() {
             <tr>
               <th>ID</th>
               <th>Nombre</th>
-              <th>DPI</th>
-              <th>Teléfono</th>
+              <th>Usuario</th>
               <th>Email</th>
-              <th>Fecha Contratación</th>
+              <th>Teléfono</th>
               <th>Ventas</th>
               <th>Estado</th>
             </tr>
@@ -2802,19 +2842,19 @@ async function cargarSubVendedores() {
           <tbody>
     `;
 
-    vendedoresData.forEach((v) => {
+    resultado.forEach((v) => {
       const ventasVendedor = ventasData.filter(
         (venta) => venta.id_usuario === v.id_usuario,
       );
       const activo = v.activo !== 0;
+
       html += `
         <tr>
           <td>${v.id}</td>
           <td><strong>${v.nombre || "--"}</strong></td>
-          <td>${v.dpi || "--"}</td>
-          <td>${v.telefono || "--"}</td>
+          <td>${v.nombre_usuario || "--"}</td>
           <td>${v.email || "--"}</td>
-          <td>${v.fecha_contratacion ? new Date(v.fecha_contratacion).toLocaleDateString() : "--"}</td>
+          <td>${v.telefono || "--"}</td>
           <td><span class="badge bg-warning">${ventasVendedor.length}</span></td>
           <td>
             <span class="badge ${activo ? "bg-success" : "bg-danger"}">
@@ -2830,12 +2870,13 @@ async function cargarSubVendedores() {
         </table>
       </div>
       <div class="text-end">
-        <small class="text-muted">Total: ${vendedoresData.length} vendedores</small>
+        <small class="text-muted">Total: ${resultado.length} vendedores</small>
       </div>
     `;
 
     container.innerHTML = html;
   } catch (error) {
+    console.error("❌ Error cargando vendedores:", error);
     container.innerHTML = `<div class="alert alert-danger">Error al cargar vendedores: ${error.message}</div>`;
   }
 }
@@ -2851,14 +2892,125 @@ function getCurrentUser() {
   }
 }
 
-async function cargarSubCajaBasico() {
+// ============================================================
+// CARGAR VENDEDORES CON TURNO ABIERTO
+// ============================================================
+async function cargarVendedoresConTurno() {
   try {
     const turnos = await api.getCajaTurnos().catch(() => []);
-    const tiposPago = await api.getTiposPago().catch(() => []);
-    const ubicaciones = await api.request("/ubicaciones").catch(() => []);
-    window.turnosActivos = turnos.filter((t) => t.estado === "abierto");
+    const abiertos = turnos.filter((t) => t.estado === "Abierto");
+
+    if (abiertos.length === 0) {
+      return [];
+    }
+
+    // Obtener usuarios de los turnos abiertos
+    const usuarios = await api.getUsuarios().catch(() => []);
+    const usuariosMap = {};
+    usuarios.forEach((u) => {
+      usuariosMap[u.id] = u;
+    });
+
+    const vendedores = abiertos.map((t) => {
+      const user = usuariosMap[t.id_usuario];
+      return {
+        id_usuario: t.id_usuario,
+        nombre: user ? user.nombre_usuario : `Usuario ${t.id_usuario}`,
+        turno_id: t.id,
+        id_empleado: user ? user.id_empleado : null,
+      };
+    });
+
+    return vendedores;
+  } catch (error) {
+    console.error("Error cargando vendedores con turno:", error);
+    return [];
+  }
+}
+
+// ============================================================
+// PESTAÑA: CAJA
+// ============================================================
+async function cargarSubCajaBasico(container) {
+  // Si no se pasa container, usar el del DOM
+  if (!container) {
+    container = document.getElementById("cajaSubContainer");
+  }
+  if (!container) return;
+
+  try {
+    const [turnos, tiposPago] = await Promise.all([
+      api.getCajaTurnos().catch(() => []),
+      api.getTiposPago().catch(() => []),
+    ]);
+
+    window.turnosActivos = turnos.filter((t) => t.estado === "Abierto");
     window.tiposPagoData = tiposPago;
-    window.ubicacionesData = ubicaciones;
+
+    let html = `
+      <div class="row">
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header bg-primary text-white">
+              <i class="fas fa-cash-register me-2"></i>Tipos de Pago (Ventas)
+            </div>
+            <div class="card-body">
+              ${
+                tiposPago.filter((t) => t.para_ventas === 1).length === 0
+                  ? '<p class="text-muted">No hay tipos de pago configurados para ventas</p>'
+                  : tiposPago
+                      .filter((t) => t.para_ventas === 1)
+                      .map(
+                        (t) =>
+                          `<span class="badge bg-primary me-1 mb-1">${t.nombre}</span>`,
+                      )
+                      .join("")
+              }
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header bg-success text-white">
+              <i class="fas fa-users me-2"></i>Turnos Activos
+            </div>
+            <div class="card-body">
+              ${
+                window.turnosActivos.length === 0
+                  ? '<p class="text-muted">No hay turnos activos</p>'
+                  : window.turnosActivos
+                      .map(
+                        (t) =>
+                          `<div class="d-flex justify-content-between align-items-center border-bottom py-1">
+                    <span>Turno #${t.id}</span>
+                    <span class="badge bg-success">Abierto</span>
+                  </div>`,
+                      )
+                      .join("")
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header bg-warning">
+              <i class="fas fa-info-circle me-2"></i>Gestión de Caja
+            </div>
+            <div class="card-body text-center">
+              <p class="text-muted">Para gestionar gastos y caja chica, usa el módulo Caja desde el menú principal.</p>
+              <button class="btn btn-primary" onclick="window.app?.loadModule('caja')">
+                <i class="fas fa-arrow-right me-2"></i>Ir a Caja
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = html;
+
     return {
       turnos: window.turnosActivos,
       tiposPago: window.tiposPagoData,
@@ -2866,6 +3018,7 @@ async function cargarSubCajaBasico() {
     };
   } catch (error) {
     console.error("Error cargando datos de caja:", error);
+    container.innerHTML = `<div class="alert alert-danger">Error al cargar caja: ${error.message}</div>`;
     return { turnos: [], tiposPago: [], ubicaciones: [] };
   }
 }
