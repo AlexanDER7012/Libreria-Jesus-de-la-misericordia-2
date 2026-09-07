@@ -18,6 +18,7 @@ class ConfiguracionGeneral(Base):
     logo_ruta = Column(String(255))
     moneda = Column(String(10), default="GTQ")
     fecha_actualizacion = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    id_ubicacion = Column(Integer, ForeignKey("ubicacion.id"), nullable=True)
 
 
 class MetaFinanciera(Base):
