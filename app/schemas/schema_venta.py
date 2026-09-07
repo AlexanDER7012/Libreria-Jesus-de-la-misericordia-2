@@ -85,9 +85,9 @@ class ServicioAdicionalCreate(BaseModel):
     id_cliente: Optional[int] = None
     tipo_servicio: str
     descripcion: Optional[str] = None
+    monto_material: Optional[float] = 0
     monto_mano_obra: Optional[float] = 0
     detalles: List[DetalleServicioCreate] = []
-
 
 class ServicioAdicionalResponse(BaseModel):
     id: int
