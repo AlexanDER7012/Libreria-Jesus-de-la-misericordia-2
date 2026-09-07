@@ -203,6 +203,26 @@ def cancelar_venta(venta_id: int, db: Session = Depends(get_db)):
     db.refresh(venta)
     return venta
 
+@router.patch("/{venta_id}", response_model=VentaResponse)
+def actualizar_venta(
+    venta_id: int,
+    datos: dict,  # Recibe un diccionario con los campos a actualizar
+    db: Session = Depends(get_db)
+):
+    venta = db.query(Venta).filter(Venta.id == venta_id).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    
+    # Actualizar solo los campos enviados
+    if "total" in datos:
+        venta.total = datos["total"]
+    if "estado" in datos:
+        venta.estado = datos["estado"]
+    # Agregar más campos según sea necesario
+    
+    db.commit()
+    db.refresh(venta)
+    return venta
 
 # ===================================================================
 # SERVICIO_ADICIONAL
@@ -276,3 +296,49 @@ def registrar_pago_venta(
     db.commit()
     db.refresh(nuevo_pago)
     return nuevo_pago
+
+@router.delete("/{venta_id}/pagos/{pago_id}", status_code=204)
+def eliminar_pago_venta(
+    venta_id: int,
+    pago_id: int,
+    db: Session = Depends(get_db)
+):
+    # Verificar que la venta existe
+    venta = db.query(Venta).filter(Venta.id == venta_id).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    
+    # Buscar el pago
+    pago = db.query(MetodoPagoVenta).filter(
+        MetodoPagoVenta.id == pago_id,
+        MetodoPagoVenta.id_venta == venta_id
+    ).first()
+    
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    
+    # Eliminar el pago
+    db.delete(pago)
+    db.commit()
+    
+    return None
+
+@router.put("/{venta_id}", response_model=VentaResponse)
+def actualizar_venta_put(
+    venta_id: int,
+    datos: dict,
+    db: Session = Depends(get_db)
+):
+    venta = db.query(Venta).filter(Venta.id == venta_id).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    
+    # Actualizar solo los campos enviados
+    if "total" in datos:
+        venta.total = datos["total"]
+    if "estado" in datos:
+        venta.estado = datos["estado"]
+    
+    db.commit()
+    db.refresh(venta)
+    return venta
