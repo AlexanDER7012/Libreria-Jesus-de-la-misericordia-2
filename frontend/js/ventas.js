@@ -2640,11 +2640,10 @@ function showCreateServicioModal() {
                   <label class="form-label">Tipo de Servicio *</label>
                   <select class="form-select" id="servicioTipo" required>
                     <option value="">Seleccionar tipo</option>
-                    <option value="Mantenimiento">Mantenimiento</option>
-                    <option value="Reparación">Reparación</option>
-                    <option value="Instalación">Instalación</option>
-                    <option value="Consultoría">Consultoría</option>
-                    <option value="Capacitación">Capacitación</option>
+                    <option value="Impresiones">Impresión</option>
+                    <option value="Emplasticado">Emplasticado</option>
+                    <option value="ForradoLibros">Forrado de Libros</option>
+                    <option value="PagoImpuestos">Pago de Impuestos</option>
                     <option value="Otro">Otro</option>
                   </select>
                 </div>
