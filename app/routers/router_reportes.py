@@ -17,13 +17,14 @@ En main.py se registra así:
 """
 
 from datetime import date
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.pagination import PaginationParams
 from app.models.model_producto import Producto
 from app.models.model_venta import Venta, DetalleVenta, MetodoPagoVenta
 from app.models.model_caja import CajaTurno, TipoPago
@@ -31,6 +32,7 @@ from app.models.model_compra import Compra
 from app.models.model_proveedor import Proveedor
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario
 from app.models.model_usuario import LogActividad, Usuario
+from app.schemas.schema_usuario import UsuarioResponse
 from app.schemas.schema_reportes import (
     VentasDiariasResponse,
     ConciliacionPagosResponse, ConciliacionPagoItem,
@@ -476,3 +478,88 @@ def reporte_bitacora(
             fecha=log.fecha, accion=log.accion, modulo=log.modulo,
         ))
     return BitacoraResponse(desde=desde, hasta=hasta, cantidad=len(detalle), detalle=detalle)
+
+
+# ============================================================================
+# REPORTES DE USUARIOS -- activos, inactivos, por fecha, e "inteligente"
+# ============================================================================
+
+ORDEN_USUARIO_PERMITIDO = {"id", "nombre_usuario", "fecha_creacion", "fecha_ultimo_acceso", "activo"}
+
+
+def _aplicar_orden_usuario(query, orden_por: Optional[str], orden_direccion: str):
+    if not orden_por or orden_por not in ORDEN_USUARIO_PERMITIDO:
+        return query
+    columna = getattr(Usuario, orden_por)
+    return query.order_by(columna.desc() if orden_direccion == "desc" else columna.asc())
+
+
+@router_usuarios.get("/activos", response_model=List[UsuarioResponse])
+def reporte_usuarios_activos(
+    orden_por: Optional[str] = None,
+    orden_direccion: Literal["asc", "desc"] = "asc",
+    paginacion: PaginationParams = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Reporte de usuarios activos, con ordenamiento por columna y paginación."""
+    query = db.query(Usuario).filter(Usuario.activo == 1)
+    query = _aplicar_orden_usuario(query, orden_por, orden_direccion)
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
+
+
+@router_usuarios.get("/inactivos", response_model=List[UsuarioResponse])
+def reporte_usuarios_inactivos(
+    orden_por: Optional[str] = None,
+    orden_direccion: Literal["asc", "desc"] = "asc",
+    paginacion: PaginationParams = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Reporte de usuarios inactivos (dados de baja), con ordenamiento y paginación."""
+    query = db.query(Usuario).filter(Usuario.activo == 0)
+    query = _aplicar_orden_usuario(query, orden_por, orden_direccion)
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
+
+
+@router_usuarios.get("/por-fecha", response_model=List[UsuarioResponse])
+def reporte_usuarios_por_fecha(
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    orden_por: Optional[str] = None,
+    orden_direccion: Literal["asc", "desc"] = "asc",
+    paginacion: PaginationParams = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Reporte de usuarios filtrado por fecha de creación (registro) de la cuenta."""
+    query = db.query(Usuario)
+    if fecha_desde is not None:
+        query = query.filter(func.date(Usuario.fecha_creacion) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(Usuario.fecha_creacion) <= fecha_hasta)
+    query = _aplicar_orden_usuario(query, orden_por, orden_direccion)
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
+
+
+@router_usuarios.get("/buscar", response_model=List[UsuarioResponse])
+def reporte_usuarios_inteligente(
+    estado: Literal["activos", "inactivos", "todos"] = "todos",
+    buscar: Optional[str] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    orden_por: Optional[str] = None,
+    orden_direccion: Literal["asc", "desc"] = "asc",
+    paginacion: PaginationParams = Depends(),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Usuario)
+    if estado == "activos":
+        query = query.filter(Usuario.activo == 1)
+    elif estado == "inactivos":
+        query = query.filter(Usuario.activo == 0)
+    if buscar:
+        query = query.filter(Usuario.nombre_usuario.ilike(f"%{buscar}%"))
+    if fecha_desde is not None:
+        query = query.filter(func.date(Usuario.fecha_creacion) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(Usuario.fecha_creacion) <= fecha_hasta)
+    query = _aplicar_orden_usuario(query, orden_por, orden_direccion)
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()

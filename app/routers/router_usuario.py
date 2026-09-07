@@ -1,10 +1,10 @@
 from typing import List, Literal, Optional
 
-from app.security import get_current_user 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.pagination import PaginationParams
 from app.security import hash_password
 from app.models.model_usuario import (
     Usuario, Empleado, Rol, RolPermiso, Puesto, Turno,
@@ -42,39 +42,39 @@ def _filtrar_por_estado(query, modelo, estado: str):
     return query
 
 
+def _aplicar_orden(query, modelo, orden_por: str, orden_direccion: str, campos_permitidos: set):
+    if not orden_por or orden_por not in campos_permitidos:
+        return query
+    columna = getattr(modelo, orden_por)
+    return query.order_by(columna.desc() if orden_direccion == "desc" else columna.asc())
+
+
+ORDEN_USUARIO_PERMITIDO = {"id", "nombre_usuario", "fecha_creacion", "fecha_ultimo_acceso", "activo"}
+
+
 # ===================================================================
 # USUARIO
 # ===================================================================
-
-
-@router.get("/mis-permisos", response_model=List[PermisoResponse])
-def obtener_mis_permisos(
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    """Obtiene todos los permisos del usuario actual (a través de su rol)."""
-    if not current_user.id_rol:
-        return []
-    
-    permisos = (
-        db.query(Permiso)
-        .join(RolPermiso, RolPermiso.id_permiso == Permiso.id)
-        .filter(RolPermiso.id_rol == current_user.id_rol)
-        .all()
-    )
-    return permisos
 
 @router.get("", response_model=List[UsuarioResponse])
 def listar_usuarios(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
     buscar: Optional[str] = None,
+    orden_por: Optional[str] = None,
+    orden_direccion: Literal["asc", "desc"] = "asc",
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
-    """buscar: coincidencia en nombre_usuario."""
+    """
+    buscar: coincidencia en nombre_usuario.
+    orden_por: uno de id, nombre_usuario, fecha_creacion, fecha_ultimo_acceso, activo.
+    Paginado: ?skip=0&limit=50 (default), máximo 200 por página.
+    """
     query = _filtrar_por_estado(db.query(Usuario), Usuario, estado)
     if buscar:
         query = query.filter(Usuario.nombre_usuario.ilike(f"%{buscar}%"))
-    return query.all()
+    query = _aplicar_orden(query, Usuario, orden_por, orden_direccion, ORDEN_USUARIO_PERMITIDO)
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router.get("/{usuario_id}", response_model=UsuarioResponse)
@@ -83,7 +83,6 @@ def obtener_usuario(usuario_id: int, db: Session = Depends(get_db)):
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return usuario
-
 
 
 @router.post("", response_model=UsuarioResponse, status_code=201)

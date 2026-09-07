@@ -1,3 +1,10 @@
+"""
+app/models/model_usuario.py
+------------------------------
+Tablas: usuario, rol, permiso, rol_permiso, modulo, empleado, puesto,
+        turno, historico_pago_empleado, log_actividad
+"""
+
 from sqlalchemy import Column, Integer, String, Text, Date, DateTime, DECIMAL, Time, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -29,9 +36,9 @@ class Rol(Base):
     __tablename__ = "rol"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nombre = Column(String(50))  # Duenia, Administrador, Vendedor, Vacacionista
+    nombre = Column(String(50))
     descripcion = Column(Text)
-    nivel = Column(Integer)  # 0=Duenia, 1=Administrador, 2=Vendedor, 3=Vacacionista
+    nivel = Column(Integer)
 
     rol_permisos = relationship("RolPermiso", back_populates="rol")
     usuarios = relationship("Usuario", back_populates="rol")
@@ -50,7 +57,7 @@ class Puesto(Base):
     __tablename__ = "puesto"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nombre = Column(String(100))
+    nombre = Column(String(100))  # ej. Vendedor, Administrador
     descripcion = Column(Text)
 
     empleados = relationship("Empleado", back_populates="puesto")
@@ -59,11 +66,12 @@ class Turno(Base):
     __tablename__ = "turno"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nombre = Column(String(50))
+    nombre = Column(String(50))  # Matutino, Vespertino
     hora_inicio = Column(Time)
     hora_fin = Column(Time)
 
     empleados = relationship("Empleado", back_populates="turno")
+
 
 class Empleado(Base):
     __tablename__ = "empleado"
@@ -95,6 +103,7 @@ class Usuario(Base):
     nombre_usuario = Column(String(50), unique=True)
     password = Column(String(255))
     id_rol = Column(Integer, ForeignKey("rol.id"))
+    fecha_creacion = Column(DateTime, server_default=func.now())  # NUEVO: para el reporte por fecha
     fecha_ultimo_acceso = Column(DateTime)
     intentos_fallidos = Column(Integer, default=0)
     activo = Column(Integer, default=1)
@@ -109,9 +118,9 @@ class HistoricoPagoEmpleado(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_empleado = Column(Integer, ForeignKey("empleado.id"))
     fecha_pago = Column(DateTime)
-    concepto = Column(String(50)) 
+    concepto = Column(String(50))  # Sueldo, Bonificacion, Comision
     monto = Column(DECIMAL(12, 2))
-    periodo = Column(String(50))
+    periodo = Column(String(50))  # ej. "Enero 2026", "Quincena 1 2026"
     referencia = Column(String(100))
     observaciones = Column(Text)
 
@@ -124,7 +133,7 @@ class LogActividad(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_usuario = Column(Integer, ForeignKey("usuario.id"))
     fecha = Column(DateTime, server_default=func.now())
-    accion = Column(String(20)) 
+    accion = Column(String(20))  # INSERT, UPDATE, DELETE, LOGIN, LOGOUT
     modulo = Column(String(50))
     ip = Column(String(45))
-    detalles = Column(Text) 
+    detalles = Column(Text)  # JSON con los datos cambiados

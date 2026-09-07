@@ -169,6 +169,7 @@ class UsuarioResponse(UsuarioBase):
     """
     id: int
     nombre_usuario: Optional[str] = None
+    fecha_creacion: Optional[datetime] = None
     fecha_ultimo_acceso: Optional[datetime] = None
     intentos_fallidos: Optional[int] = None
     activo: Optional[int] = None
