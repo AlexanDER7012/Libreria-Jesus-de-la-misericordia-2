@@ -3,14 +3,25 @@
 let configuracionData = null;
 let metasData = [];
 
-// Carga del modulo
+// =============================================
+// FUNCIONES AUXILIARES
+// =============================================
+
+function getNombreUbicacion(id) {
+  const ubicacion = (window.ubicacionesData || []).find((u) => u.id === id);
+  return ubicacion ? ubicacion.nombre : `ID: ${id}`;
+}
+
+// =============================================
+// CARGA DEL MODULO
+// =============================================
 async function loadConfiguracionModule() {
   const container = document.getElementById("mainContent");
   if (!container) return;
 
   container.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4><i class="fas fa-cog me-2 text-dark"></i>Configuracion</h4>
+            <h4><i class="fas fa-cog me-2 text-dark"></i>Configuración</h4>
         </div>
 
         <ul class="nav nav-tabs mb-3" id="configTabs">
@@ -36,7 +47,7 @@ async function loadConfiguracionModule() {
                 <div id="configuracionContainer">
                     <div class="text-center py-5">
                         <div class="spinner-border text-dark" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando configuracion...</p>
+                        <p class="mt-2 text-muted">Cargando configuración...</p>
                     </div>
                 </div>
             </div>
@@ -71,10 +82,6 @@ async function loadConfiguracionModule() {
       api.getMetasFinancieras().catch(() => []),
       api.request("/ubicaciones").catch((err) => {
         console.warn("Error al cargar ubicaciones:", err);
-        showToast(
-          "No se pudieron cargar ubicaciones. Puedes agregarlas manualmente.",
-          "warning",
-        );
         return [];
       }),
     ]);
@@ -101,7 +108,9 @@ async function loadConfiguracionModule() {
   }
 }
 
-// Renderizar configuracion general
+// =============================================
+// RENDER CONFIGURACION GENERAL
+// =============================================
 function renderConfiguracion(config) {
   const container = document.getElementById("configuracionContainer");
   if (!container) return;
@@ -110,7 +119,7 @@ function renderConfiguracion(config) {
     container.innerHTML = `
             <div class="text-center py-4 text-muted">
                 <i class="fas fa-cog fa-3x mb-3"></i>
-                <p>No hay configuracion registrada</p>
+                <p>No hay configuración registrada</p>
                 <button class="btn btn-dark btn-sm" onclick="showEditConfigModal()">
                     <i class="fas fa-plus me-2"></i>Configurar
                 </button>
@@ -123,7 +132,7 @@ function renderConfiguracion(config) {
         <div class="card">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 fw-bold">Configuracion General</h6>
+                    <h6 class="mb-0 fw-bold">Configuración General</h6>
                     <button class="btn btn-sm btn-outline-dark" onclick="showEditConfigModal()">
                         <i class="fas fa-edit me-1"></i>Editar
                     </button>
@@ -133,43 +142,50 @@ function renderConfiguracion(config) {
                 <div class="row">
                     <div class="col-md-6">
                         <div class="mb-2"><strong>Nombre Negocio:</strong> ${config.nombre_negocio || "--"}</div>
-                        <div class="mb-2"><strong>Direccion:</strong> ${config.direccion || "--"}</div>
-                        <div class="mb-2"><strong>Telefono:</strong> ${config.telefono || "--"}</div>
+                        <div class="mb-2"><strong>Dirección:</strong> ${config.direccion || "--"}</div>
+                        <div class="mb-2"><strong>Teléfono:</strong> ${config.telefono || "--"}</div>
                         <div class="mb-2"><strong>Email:</strong> ${config.email || "--"}</div>
                     </div>
                     <div class="col-md-6">
                         <div class="mb-2"><strong>NIT:</strong> ${config.nit || "--"}</div>
                         <div class="mb-2"><strong>IVA %:</strong> ${config.iva_porcentaje || 0}%</div>
                         <div class="mb-2"><strong>Caja Chica Default:</strong> Q${config.monto_caja_chica_default || 0}</div>
-                        <div class="mb-2"><strong>Dias Alerta Stock:</strong> ${config.dias_alerta_stock || 0}</div>
+                        <div class="mb-2"><strong>Días Alerta Stock:</strong> ${config.dias_alerta_stock || 0}</div>
                         <div class="mb-2"><strong>Moneda:</strong> ${config.moneda || "Q"}</div>
-                        <div class="mb-2"><strong>Formato Impresion:</strong> ${config.formato_impresion || "--"}</div>
+                        <div class="mb-2"><strong>Formato Impresión:</strong> ${config.formato_impresion || "--"}</div>
+                        <div class="mb-2"><strong>Ubicación por Defecto:</strong> ${config.id_ubicacion ? getNombreUbicacion(config.id_ubicacion) : "--"}</div>
                     </div>
                 </div>
                 ${config.logo_ruta ? `<div class="mt-3"><strong>Logo:</strong> <img src="${config.logo_ruta}" style="max-height:100px;" /></div>` : ""}
                 <div class="mt-3 text-muted small">
-                    Ultima actualizacion: ${config.fecha_actualizacion ? new Date(config.fecha_actualizacion).toLocaleString() : "--"}
+                    Última actualización: ${config.fecha_actualizacion ? new Date(config.fecha_actualizacion).toLocaleString() : "--"}
                 </div>
             </div>
         </div>
     `;
 }
 
-// Editar configuracion - modal
+// =============================================
+// EDITAR CONFIGURACION - MODAL
+// =============================================
 function showEditConfigModal() {
-  const modal = document.getElementById("configModal");
+  let modal = document.getElementById("configModal");
   if (!modal) {
     crearModalConfig();
-    setTimeout(() => showEditConfigModal(), 100);
-    return;
+    modal = document.getElementById("configModal");
+    if (!modal) {
+      showToast("Error al crear modal", "error");
+      return;
+    }
   }
 
   const title = document.getElementById("configModalTitle");
-  title.textContent = "Editar Configuracion";
+  if (title) title.textContent = "Editar Configuración";
 
   const form = document.getElementById("configForm");
-  form.reset();
+  if (form) form.reset();
 
+  // Cargar datos de configuración
   if (configuracionData) {
     document.getElementById("configNombreNegocio").value =
       configuracionData.nombre_negocio || "";
@@ -194,11 +210,27 @@ function showEditConfigModal() {
       configuracionData.logo_ruta || "";
   }
 
+  // ✅ Cargar ubicaciones en el select
+  const selectUbicacion = document.getElementById("configUbicacion");
+  if (selectUbicacion) {
+    const currentValue = configuracionData?.id_ubicacion || "";
+    selectUbicacion.innerHTML =
+      '<option value="">Seleccionar ubicación</option>';
+    (window.ubicacionesData || []).forEach((u) => {
+      selectUbicacion.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
+    });
+    if (currentValue) {
+      selectUbicacion.value = currentValue;
+    }
+  }
+
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
 }
 
-// Guardar configuracion
+// =============================================
+// GUARDAR CONFIGURACION
+// =============================================
 async function saveConfig(event) {
   event.preventDefault();
 
@@ -217,19 +249,29 @@ async function saveConfig(event) {
     moneda: document.getElementById("configMoneda").value || "Q",
     formato_impresion: document.getElementById("configFormato").value || null,
     logo_ruta: document.getElementById("configLogo").value || null,
+    id_ubicacion:
+      parseInt(document.getElementById("configUbicacion").value) || null,
   };
 
   try {
-    await api.updateConfiguracion(data);
-    showToast("Configuracion actualizada correctamente", "success");
-    bootstrap.Modal.getInstance(document.getElementById("configModal")).hide();
+    // ✅ Usar la ruta exacta con slash al final
+    await api.request("/configuracion/", "PUT", data);
+    showToast("Configuración actualizada correctamente", "success");
+
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("configModal"),
+    );
+    if (modal) modal.hide();
+
     await loadConfiguracionModule();
   } catch (error) {
-    showToast(error.message || "Error al guardar configuracion", "error");
+    showToast(error.message || "Error al guardar configuración", "error");
   }
 }
 
-// Renderizar metas financieras
+// =============================================
+// METAS FINANCIERAS
+// =============================================
 function renderMetas(metas) {
   const container = document.getElementById("metasContainer");
   if (!container) return;
@@ -247,6 +289,21 @@ function renderMetas(metas) {
     return;
   }
 
+  const meses = [
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+  ];
+
   let html = `
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -263,21 +320,6 @@ function renderMetas(metas) {
                 </thead>
                 <tbody>
     `;
-
-  const meses = [
-    "Enero",
-    "Febrero",
-    "Marzo",
-    "Abril",
-    "Mayo",
-    "Junio",
-    "Julio",
-    "Agosto",
-    "Septiembre",
-    "Octubre",
-    "Noviembre",
-    "Diciembre",
-  ];
 
   metas.forEach((m) => {
     html += `
@@ -306,25 +348,28 @@ function renderMetas(metas) {
   container.innerHTML = html;
 }
 
-// Crear meta - modal
 function showCreateMetaModal() {
-  const modal = document.getElementById("metaModal");
+  let modal = document.getElementById("metaModal");
   if (!modal) {
     crearModalMeta();
-    setTimeout(() => showCreateMetaModal(), 100);
-    return;
+    modal = document.getElementById("metaModal");
+    if (!modal) {
+      showToast("Error al crear modal", "error");
+      return;
+    }
   }
 
   const title = document.getElementById("metaModalTitle");
-  title.textContent = "Nueva Meta Financiera";
+  if (title) title.textContent = "Nueva Meta Financiera";
+
   document.getElementById("metaForm").reset();
   document.getElementById("metaId").value = "";
+  document.getElementById("metaAnio").value = new Date().getFullYear();
 
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
 }
 
-// Guardar meta
 async function saveMeta(event) {
   event.preventDefault();
 
@@ -347,16 +392,24 @@ async function saveMeta(event) {
   try {
     await api.request("/metas-financieras", "POST", data);
     showToast("Meta creada correctamente", "success");
-    bootstrap.Modal.getInstance(document.getElementById("metaModal")).hide();
+
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("metaModal"),
+    );
+    if (modal) modal.hide();
+
     await loadConfiguracionModule();
   } catch (error) {
     showToast(error.message || "Error al crear meta", "error");
   }
 }
 
-// Eliminar meta
 async function deleteMeta(id) {
-  if (!confirm("¿Estás seguro de eliminar esta meta?")) return;
+  const confirmado = await mostrarConfirmacion(
+    "Eliminar Meta",
+    "¿Estás seguro de eliminar esta meta?",
+  );
+  if (!confirmado) return;
 
   try {
     await api.request(`/metas-financieras/${id}`, "DELETE");
@@ -367,169 +420,176 @@ async function deleteMeta(id) {
   }
 }
 
-// Crear modal configuracion
+// =============================================
+// CREAR MODALES
+// =============================================
 function crearModalConfig() {
-  const modalHtml = `
-        <div class="modal fade" id="configModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="configModalTitle">Configuracion</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="configForm">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Nombre Negocio</label>
-                                    <input type="text" class="form-control" id="configNombreNegocio" />
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">NIT</label>
-                                    <input type="text" class="form-control" id="configNit" />
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Direccion</label>
-                                <input type="text" class="form-control" id="configDireccion" />
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Telefono</label>
-                                    <input type="text" class="form-control" id="configTelefono" />
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Email</label>
-                                    <input type="email" class="form-control" id="configEmail" />
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">IVA %</label>
-                                    <input type="number" step="0.01" class="form-control" id="configIva" />
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Caja Chica Default</label>
-                                    <input type="number" step="0.01" class="form-control" id="configCajaChica" />
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Dias Alerta Stock</label>
-                                    <input type="number" class="form-control" id="configDiasAlerta" />
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Moneda</label>
-                                    <input type="text" class="form-control" id="configMoneda" placeholder="Q" />
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Formato Impresion</label>
-                                    <select class="form-select" id="configFormato">
-                                        <option value="">Seleccionar</option>
-                                        <option value="ticket">Ticket</option>
-                                        <option value="carta">Carta</option>
-                                        <option value="media">Media</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Ruta Logo</label>
-                                <input type="text" class="form-control" id="configLogo" placeholder="/assets/img/logo.png" />
-                            </div>
-                            <button type="submit" class="btn btn-dark w-100" onclick="saveConfig(event)">Guardar</button>
-                        </form>
-                    </div>
+  if (document.getElementById("configModal")) return;
+
+  const html = `
+    <div class="modal fade" id="configModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="configModalTitle">Configuración</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="configForm" onsubmit="saveConfig(event)">
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Nombre Negocio</label>
+                  <input type="text" class="form-control" id="configNombreNegocio" />
                 </div>
-            </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">NIT</label>
+                  <input type="text" class="form-control" id="configNit" />
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Dirección</label>
+                <input type="text" class="form-control" id="configDireccion" />
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Teléfono</label>
+                  <input type="text" class="form-control" id="configTelefono" />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Email</label>
+                  <input type="email" class="form-control" id="configEmail" />
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-4 mb-3">
+                  <label class="form-label">IVA %</label>
+                  <input type="number" step="0.01" class="form-control" id="configIva" />
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label class="form-label">Caja Chica Default</label>
+                  <input type="number" step="0.01" class="form-control" id="configCajaChica" />
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label class="form-label">Días Alerta Stock</label>
+                  <input type="number" class="form-control" id="configDiasAlerta" />
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Moneda</label>
+                  <input type="text" class="form-control" id="configMoneda" placeholder="Q" />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Formato Impresión</label>
+                  <select class="form-select" id="configFormato">
+                    <option value="">Seleccionar</option>
+                    <option value="ticket">Ticket</option>
+                    <option value="carta">Carta</option>
+                    <option value="media">Media</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-12 mb-3">
+                  <label class="form-label">Ubicación por Defecto</label>
+                  <select class="form-select" id="configUbicacion">
+                    <option value="">Seleccionar ubicación</option>
+                  </select>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Ruta Logo</label>
+                <input type="text" class="form-control" id="configLogo" placeholder="/assets/img/logo.png" />
+              </div>
+              <button type="submit" class="btn btn-dark w-100">Guardar</button>
+            </form>
+          </div>
         </div>
-    `;
-  document.body.insertAdjacentHTML("beforeend", modalHtml);
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML("beforeend", html);
 }
 
-// Crear modal meta
 function crearModalMeta() {
-  const modalHtml = `
-        <div class="modal fade" id="metaModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="metaModalTitle">Meta Financiera</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="metaForm">
-                            <input type="hidden" id="metaId" />
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Mes</label>
-                                    <select class="form-select" id="metaMes" required>
-                                        <option value="">Seleccionar</option>
-                                        <option value="1">Enero</option>
-                                        <option value="2">Febrero</option>
-                                        <option value="3">Marzo</option>
-                                        <option value="4">Abril</option>
-                                        <option value="5">Mayo</option>
-                                        <option value="6">Junio</option>
-                                        <option value="7">Julio</option>
-                                        <option value="8">Agosto</option>
-                                        <option value="9">Septiembre</option>
-                                        <option value="10">Octubre</option>
-                                        <option value="11">Noviembre</option>
-                                        <option value="12">Diciembre</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Año</label>
-                                    <input type="number" class="form-control" id="metaAnio" value="${new Date().getFullYear()}" required />
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Meta Ingresos</label>
-                                <input type="number" step="0.01" class="form-control" id="metaIngresos" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Meta Utilidad</label>
-                                <input type="number" step="0.01" class="form-control" id="metaUtilidad" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Meta Gastos</label>
-                                <input type="number" step="0.01" class="form-control" id="metaGastos" />
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100" onclick="saveMeta(event)">Guardar</button>
-                        </form>
-                    </div>
+  if (document.getElementById("metaModal")) return;
+
+  const html = `
+    <div class="modal fade" id="metaModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="metaModalTitle">Meta Financiera</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="metaForm" onsubmit="saveMeta(event)">
+              <input type="hidden" id="metaId" />
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Mes</label>
+                  <select class="form-select" id="metaMes" required>
+                    <option value="">Seleccionar</option>
+                    <option value="1">Enero</option>
+                    <option value="2">Febrero</option>
+                    <option value="3">Marzo</option>
+                    <option value="4">Abril</option>
+                    <option value="5">Mayo</option>
+                    <option value="6">Junio</option>
+                    <option value="7">Julio</option>
+                    <option value="8">Agosto</option>
+                    <option value="9">Septiembre</option>
+                    <option value="10">Octubre</option>
+                    <option value="11">Noviembre</option>
+                    <option value="12">Diciembre</option>
+                  </select>
                 </div>
-            </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Año</label>
+                  <input type="number" class="form-control" id="metaAnio" value="${new Date().getFullYear()}" required />
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Meta Ingresos</label>
+                <input type="number" step="0.01" class="form-control" id="metaIngresos" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Meta Utilidad</label>
+                <input type="number" step="0.01" class="form-control" id="metaUtilidad" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Meta Gastos</label>
+                <input type="number" step="0.01" class="form-control" id="metaGastos" />
+              </div>
+              <button type="submit" class="btn btn-primary w-100">Guardar</button>
+            </form>
+          </div>
         </div>
-    `;
-  document.body.insertAdjacentHTML("beforeend", modalHtml);
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML("beforeend", html);
 }
 
 // =============================================
 // UBICACIONES
 // =============================================
-
-// Cargar ubicaciones
 async function cargarUbicaciones() {
   const container = document.getElementById("ubicacionesContainer");
   if (!container) return;
 
   try {
-    const ubicaciones = await api.request("/ubicaciones").catch((err) => {
-      console.warn("Error al cargar ubicaciones:", err);
-      showToast(
-        "No se pudieron cargar ubicaciones. Usando datos locales.",
-        "warning",
-      );
-      return [];
-    });
-    window.ubicacionesData = ubicaciones;
-    // Guardar backup
+    const ubicaciones = await api.request("/ubicaciones").catch(() => []);
+    window.ubicacionesData = ubicaciones || [];
+
     try {
-      localStorage.setItem("ubicaciones_backup", JSON.stringify(ubicaciones));
+      localStorage.setItem(
+        "ubicaciones_backup",
+        JSON.stringify(window.ubicacionesData),
+      );
     } catch (e) {}
+
     renderUbicaciones(ubicaciones);
-    // Refrescar todos los selects
     actualizarSelectsUbicacion();
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">Error al cargar ubicaciones: ${error.message}</div>`;
@@ -545,10 +605,6 @@ function renderUbicaciones(ubicaciones) {
       <div class="text-center py-4 text-muted">
         <i class="fas fa-map-marker-alt fa-3x mb-3"></i>
         <p>No hay ubicaciones registradas</p>
-        <p class="small text-warning">
-          <i class="fas fa-exclamation-triangle me-1"></i>
-          Si no puedes cargar ubicaciones, agrega una nueva manualmente.
-        </p>
         <button class="btn btn-primary btn-sm" onclick="showCreateUbicacionModal()">
           <i class="fas fa-plus me-1"></i>Nueva Ubicación
         </button>
@@ -616,7 +672,6 @@ function renderUbicaciones(ubicaciones) {
   container.innerHTML = html;
 }
 
-// Crear Ubicación
 function showCreateUbicacionModal() {
   let modal = document.getElementById("ubicacionModal");
   if (!modal) {
@@ -631,9 +686,7 @@ function showCreateUbicacionModal() {
   const title = document.getElementById("ubicacionModalTitle");
   if (title) title.textContent = "Nueva Ubicación";
 
-  const form = document.getElementById("ubicacionForm");
-  if (form) form.reset();
-
+  document.getElementById("ubicacionForm").reset();
   document.getElementById("ubicacionId").value = "";
   document.getElementById("ubicacionActivo").value = "1";
 
@@ -641,7 +694,6 @@ function showCreateUbicacionModal() {
   modalInstance.show();
 }
 
-// Editar Ubicación
 async function showEditUbicacionModal(id) {
   try {
     const ubicacion = window.ubicacionesData.find((u) => u.id === id);
@@ -678,7 +730,6 @@ async function showEditUbicacionModal(id) {
   }
 }
 
-// Guardar Ubicación
 async function saveUbicacion(event) {
   event.preventDefault();
 
@@ -686,10 +737,9 @@ async function saveUbicacion(event) {
   const nombre = document.getElementById("ubicacionNombre").value.trim();
 
   if (!nombre) {
-    mostrarErrorCampo("ubicacionNombre", "El nombre es obligatorio");
+    showToast("El nombre es obligatorio", "error");
     return;
   }
-  limpiarErrorCampo("ubicacionNombre");
 
   const data = {
     nombre: nombre,
@@ -700,54 +750,26 @@ async function saveUbicacion(event) {
   };
 
   try {
-    let response;
     if (id) {
-      response = await api.request(`/ubicaciones/${id}`, "PUT", data);
+      await api.request(`/ubicaciones/${id}`, "PUT", data);
       showToast("Ubicación actualizada correctamente", "success");
-      // Actualizar en array global
-      const idx = window.ubicacionesData.findIndex((u) => u.id == id);
-      if (idx !== -1) {
-        window.ubicacionesData[idx] = {
-          ...window.ubicacionesData[idx],
-          ...data,
-        };
-      }
     } else {
-      response = await api.request("/ubicaciones", "POST", data);
+      await api.request("/ubicaciones", "POST", data);
       showToast("Ubicación creada correctamente", "success");
-      // Si la API devuelve el objeto creado, lo agregamos
-      if (response && response.id) {
-        window.ubicacionesData.push(response);
-      } else {
-        // Si no devuelve el objeto, forzamos recarga
-        await cargarUbicaciones();
-      }
     }
-
-    // Guardar backup
-    try {
-      localStorage.setItem(
-        "ubicaciones_backup",
-        JSON.stringify(window.ubicacionesData),
-      );
-    } catch (e) {}
-
-    // Refrescar tabla
-    renderUbicaciones(window.ubicacionesData);
-
-    // Refrescar todos los selects
-    actualizarSelectsUbicacion();
 
     const modal = bootstrap.Modal.getInstance(
       document.getElementById("ubicacionModal"),
     );
     if (modal) modal.hide();
+
+    await cargarUbicaciones();
+    await loadConfiguracionModule();
   } catch (error) {
     showToast(error.message || "Error al guardar ubicación", "error");
   }
 }
 
-// Cambiar estado
 async function toggleUbicacionEstado(id) {
   const ubicacion = window.ubicacionesData.find((u) => u.id === id);
   if (!ubicacion) return;
@@ -770,70 +792,12 @@ async function toggleUbicacionEstado(id) {
       "success",
     );
     await cargarUbicaciones();
-    // actualizarSelectsUbicacion ya se llama dentro de cargarUbicaciones
+    await loadConfiguracionModule();
   } catch (error) {
     showToast(error.message || "Error al cambiar estado", "error");
   }
 }
 
-// Actualizar ubicaciones globales
-async function actualizarUbicacionesGlobales() {
-  try {
-    const ubicaciones = await api.request("/ubicaciones").catch(() => []);
-    window.ubicacionesData = ubicaciones;
-    // Guardar backup
-    try {
-      localStorage.setItem("ubicaciones_backup", JSON.stringify(ubicaciones));
-    } catch (e) {}
-    actualizarSelectsUbicacion();
-  } catch (error) {
-    console.error("Error actualizando ubicaciones globales:", error);
-  }
-}
-
-// ==================== FUNCIONES GLOBALES PARA SELECTS ====================
-function actualizarSelectsUbicacion() {
-  // Ventas
-  const selectVenta = document.getElementById("ventaUbicacion");
-  if (selectVenta) {
-    llenarSelectUbicacion(selectVenta, window.ubicacionesData || []);
-  }
-  // Compras
-  const selectCompra = document.getElementById("compraUbicacion");
-  if (selectCompra) {
-    llenarSelectUbicacion(selectCompra, window.ubicacionesData || []);
-  }
-  // Caja
-  const selectCaja = document.getElementById("cajaUbicacion");
-  if (selectCaja) {
-    llenarSelectUbicacion(selectCaja, window.ubicacionesData || []);
-  }
-  // Inventario
-  document.querySelectorAll(".inv-ubicacion-select").forEach((sel) => {
-    llenarSelectUbicacion(sel, window.ubicacionesData || []);
-  });
-}
-
-function llenarSelectUbicacion(selectElement, ubicaciones) {
-  if (!selectElement) return;
-  const currentValue = selectElement.value;
-  selectElement.innerHTML = '<option value="">Seleccionar ubicación</option>';
-  (ubicaciones || []).forEach((u) => {
-    const opt = document.createElement("option");
-    opt.value = u.id;
-    opt.textContent = u.nombre || u.id;
-    selectElement.appendChild(opt);
-  });
-  // Restaurar el valor seleccionado si existe
-  if (
-    currentValue &&
-    [...selectElement.options].some((o) => o.value == currentValue)
-  ) {
-    selectElement.value = currentValue;
-  }
-}
-
-// Crear Modal Ubicacion
 function crearModalUbicacion() {
   if (document.getElementById("ubicacionModal")) return;
 
@@ -846,12 +810,11 @@ function crearModalUbicacion() {
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <form id="ubicacionForm" novalidate>
+            <form id="ubicacionForm" onsubmit="saveUbicacion(event)" novalidate>
               <input type="hidden" id="ubicacionId" />
               <div class="mb-3">
                 <label class="form-label">Nombre *</label>
                 <input type="text" class="form-control" id="ubicacionNombre" required />
-                <div class="invalid-feedback" id="ubicacionNombreError">El nombre es obligatorio</div>
               </div>
               <div class="mb-3">
                 <label class="form-label">Descripción</label>
@@ -876,7 +839,7 @@ function crearModalUbicacion() {
                   <option value="0">Inactivo</option>
                 </select>
               </div>
-              <button type="submit" class="btn btn-primary w-100" onclick="saveUbicacion(event)">Guardar</button>
+              <button type="submit" class="btn btn-primary w-100">Guardar</button>
             </form>
           </div>
         </div>
@@ -886,7 +849,34 @@ function crearModalUbicacion() {
   document.body.insertAdjacentHTML("beforeend", html);
 }
 
-// Exponer funciones globales
+// =============================================
+// FUNCIONES GLOBALES PARA SELECTS
+// =============================================
+function actualizarSelectsUbicacion() {
+  const selects = document.querySelectorAll('select[data-ubicacion="true"]');
+  selects.forEach((sel) => {
+    llenarSelectUbicacion(sel, window.ubicacionesData || []);
+  });
+}
+
+function llenarSelectUbicacion(selectElement, ubicaciones) {
+  if (!selectElement) return;
+  const currentValue = selectElement.value;
+  selectElement.innerHTML = '<option value="">Seleccionar ubicación</option>';
+  (ubicaciones || []).forEach((u) => {
+    selectElement.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
+  });
+  if (
+    currentValue &&
+    [...selectElement.options].some((o) => o.value == currentValue)
+  ) {
+    selectElement.value = currentValue;
+  }
+}
+
+// =============================================
+// EXPONER FUNCIONES GLOBALES
+// =============================================
 window.loadConfiguracionModule = loadConfiguracionModule;
 window.showEditConfigModal = showEditConfigModal;
 window.saveConfig = saveConfig;
@@ -898,6 +888,6 @@ window.showCreateUbicacionModal = showCreateUbicacionModal;
 window.showEditUbicacionModal = showEditUbicacionModal;
 window.saveUbicacion = saveUbicacion;
 window.toggleUbicacionEstado = toggleUbicacionEstado;
-window.actualizarUbicacionesGlobales = actualizarUbicacionesGlobales;
 window.actualizarSelectsUbicacion = actualizarSelectsUbicacion;
 window.llenarSelectUbicacion = llenarSelectUbicacion;
+window.getNombreUbicacion = getNombreUbicacion;
