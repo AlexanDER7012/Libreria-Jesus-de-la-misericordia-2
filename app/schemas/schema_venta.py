@@ -42,9 +42,15 @@ class VentaCreate(BaseModel):
     id_caja_turno: int
     descuento_porcentaje: Optional[float] = 0
     observaciones: Optional[str] = None
-    nit: Optional[str] = None
+    nit: Optional[str] = None  # NIT para el recibo; si no se manda y hay id_cliente, se usa el del cliente
     detalles: List[DetalleVentaCreate]
-    pagos: List[MetodoPagoVentaCreate]  
+    pagos: List[MetodoPagoVentaCreate]  # uno o varios (efectivo + transferencia, etc.)
+
+
+class VentaUpdate(BaseModel):
+
+    observaciones: Optional[str] = None
+
 
 class VentaResponse(BaseModel):
     id: int
@@ -83,11 +89,12 @@ class DetalleServicioResponse(DetalleServicioCreate):
 class ServicioAdicionalCreate(BaseModel):
     id_venta: Optional[int] = None
     id_cliente: Optional[int] = None
-    tipo_servicio: str
+    tipo_servicio: str  # Impresion, Emplasticado, PagoCirculacion
     descripcion: Optional[str] = None
-    monto_material: Optional[float] = 0
+    monto_material: Optional[float] = 0  # se usa solo si NO se mandan 'detalles' (ver router)
     monto_mano_obra: Optional[float] = 0
-    detalles: List[DetalleServicioCreate] = []
+    detalles: List[DetalleServicioCreate] = []  # materiales usados (vacío si no aplica, ej. pago de circulación)
+
 
 class ServicioAdicionalResponse(BaseModel):
     id: int
