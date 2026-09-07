@@ -126,7 +126,6 @@
       loadGastos(),
       loadTiposGasto(),
       loadTiposPago(),
-      loadUbicaciones(),
     ]);
   }
 
@@ -376,40 +375,6 @@
     container.innerHTML = html;
   }
 
-  // FUNCIONES PARA LLENAR SELECT
-  function llenarSelectUbicacion() {
-    const select = document.getElementById("cajaUbicacion");
-    if (!select) {
-      console.log(
-        "⚠️ Select cajaUbicacion no encontrado (esto es normal si no hay modal abierto)",
-      );
-      return;
-    }
-    select.innerHTML = '<option value="">Seleccionar ubicación</option>';
-    (window.ubicacionesData || []).forEach((u) => {
-      select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
-    });
-    console.log("✅ Select llenado con", select.options.length, "opciones");
-  }
-
-  // ABRIR TURNO
-  function showAbrirTurnoModal() {
-    if (!window.ubicacionesData || window.ubicacionesData.length === 0) {
-      api
-        .request("/ubicaciones")
-        .then(function (ubicaciones) {
-          window.ubicacionesData = ubicaciones || [];
-          abrirModalTurno();
-        })
-        .catch(function () {
-          showToast("Error al cargar ubicaciones", "error");
-          abrirModalTurno();
-        });
-    } else {
-      abrirModalTurno();
-    }
-  }
-
   function abrirModalTurno() {
     const modal = document.getElementById("cajaModal");
     if (!modal) {
@@ -444,12 +409,6 @@
     const cajaId = document.getElementById("cajaId");
     if (cajaId) cajaId.value = "";
 
-    const ubicacion = document.getElementById("cajaUbicacion");
-    if (ubicacion) {
-      ubicacion.disabled = false;
-      ubicacion.value = "";
-    }
-
     const btnAbrir = document.getElementById("btnAbrirTurno");
     if (btnAbrir) {
       btnAbrir.style.display = "block";
@@ -458,18 +417,6 @@
 
     const btnCerrar = document.getElementById("btnCerrarTurno");
     if (btnCerrar) btnCerrar.style.display = "none";
-
-    // Limpiar el body del modal si tiene contenido anterior
-    const body = modal.querySelector(".modal-body");
-    if (body) {
-      // Asegurar que el formulario de apertura esté visible
-      const form = document.getElementById("cajaForm");
-      if (form) {
-        form.style.display = "block";
-      }
-    }
-
-    llenarSelectUbicacion();
 
     const modalInstance = new bootstrap.Modal(modal);
     modalInstance.show();
@@ -533,28 +480,29 @@
       const ubicacionSelect = document.getElementById("cajaUbicacion");
       const ubicacionLabel = document.getElementById("cajaUbicacionLabel");
 
-      // Buscar nombre de ubicación
+      // Buscar nombre de ubicación desde configuración
       let nombreUbicacion = "Cargando...";
-      if (turnoParaCerrar.id_ubicacion) {
-        try {
+      try {
+        const config = await api.request("/configuracion").catch(() => ({}));
+        const idUbicacion = config.id_ubicacion;
+        if (idUbicacion) {
           const ubicaciones = await api.request("/ubicaciones").catch(() => []);
-          const ubicacion = ubicaciones.find(
-            (u) => u.id === turnoParaCerrar.id_ubicacion,
-          );
+          const ubicacion = ubicaciones.find((u) => u.id === idUbicacion);
           if (ubicacion) nombreUbicacion = ubicacion.nombre || ubicacion.id;
-        } catch (e) {
-          nombreUbicacion = `ID: ${turnoParaCerrar.id_ubicacion}`;
+        } else {
+          nombreUbicacion = "No configurada";
         }
+      } catch (e) {
+        nombreUbicacion = "Error al cargar";
       }
 
       if (ubicacionSelect) {
-        ubicacionSelect.style.display = "none"; // ✅ Ocultar select
+        ubicacionSelect.style.display = "none";
       }
       if (ubicacionLabel) {
-        ubicacionLabel.textContent = `Ubicación: ${nombreUbicacion}`;
+        ubicacionLabel.textContent = `📍 Ubicación: ${nombreUbicacion}`;
         ubicacionLabel.style.display = "block";
       } else {
-        // Si no existe el label, crearlo
         const ubicacionGroup = ubicacionSelect?.closest(".mb-3");
         if (ubicacionGroup) {
           const label = document.createElement("p");
@@ -725,16 +673,25 @@
     event.preventDefault();
 
     const id_usuario = getCurrentUser()?.id || 1;
-    const id_ubicacion = parseInt(
-      document.getElementById("cajaUbicacion").value,
-    );
-    const fondo_inicial =
-      parseFloat(document.getElementById("cajaFondoInicial").value) || 500;
 
-    if (!id_ubicacion) {
-      showToast("Selecciona una ubicación", "error");
+    let id_ubicacion = null;
+    try {
+      const config = await api.request("/configuracion").catch(() => ({}));
+      id_ubicacion = config.id_ubicacion || null;
+      if (!id_ubicacion) {
+        showToast(
+          "No hay ubicación configurada. Contacta al administrador.",
+          "error",
+        );
+        return;
+      }
+    } catch (error) {
+      showToast("Error al obtener configuración", "error");
       return;
     }
+
+    const fondo_inicial =
+      parseFloat(document.getElementById("cajaFondoInicial").value) || 500;
 
     if (fondo_inicial < 0) {
       showToast("El fondo inicial no puede ser negativo", "error");
@@ -1423,17 +1380,6 @@
         resolve(false);
       });
     });
-  }
-
-  // UBICACIONES
-  async function loadUbicaciones() {
-    try {
-      const ubicaciones = await api.request("/ubicaciones");
-      window.ubicacionesData = ubicaciones || [];
-    } catch (error) {
-      console.error("Error cargando ubicaciones:", error);
-      window.ubicacionesData = [];
-    }
   }
 
   // EXPONER FUNCIONES GLOBALES
