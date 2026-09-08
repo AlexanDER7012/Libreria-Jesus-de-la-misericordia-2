@@ -10,6 +10,9 @@ async function loadProductosModule() {
   const container = document.getElementById("mainContent");
   if (!container) return;
 
+  // Asegurar que los modales existan
+  ensureAllModals();
+
   container.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4><i class="fas fa-box me-2 text-success"></i>Productos</h4>
@@ -127,6 +130,278 @@ async function loadProductosModule() {
                 Error al cargar datos: ${error.message}
             </div>
         `;
+  }
+}
+
+// FUNCIÓN PARA CREAR TODOS LOS MODALES
+function ensureAllModals() {
+  // Modal de Producto
+  if (!document.getElementById("productoModal")) {
+    const productoModalHTML = `
+      <div class="modal fade" id="productoModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+              <h5 class="modal-title" id="productoModalTitle">
+                <i class="fas fa-box me-2"></i>Nuevo Producto
+              </h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <form id="productoForm" novalidate>
+                <input type="hidden" id="productoId" />
+                
+                <!-- FILA 1: Código y Nombre -->
+                <div class="row g-3 mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Código <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="productoCodigo" placeholder="Ej: PROD-001" required />
+                    <div class="invalid-feedback" id="productoCodigoError">El código es obligatorio</div>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="productoNombre" placeholder="Nombre del producto" required />
+                    <div class="invalid-feedback" id="productoNombreError">El nombre es obligatorio</div>
+                  </div>
+                </div>
+
+                <!-- FILA 2: Categoría y Marca -->
+                <div class="row g-3 mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Categoría</label>
+                    <select class="form-select" id="productoCategoria">
+                      <option value="">Seleccionar categoría</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Marca</label>
+                    <select class="form-select" id="productoMarca">
+                      <option value="">Seleccionar marca</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- FILA 3: Descripción -->
+                <div class="row g-3 mb-3">
+                  <div class="col-12">
+                    <label class="form-label fw-bold">Descripción</label>
+                    <textarea class="form-control" id="productoDescripcion" rows="2" placeholder="Descripción del producto"></textarea>
+                  </div>
+                </div>
+
+                <!-- FILA 4: Unidades y Factor de Conversión -->
+                <div class="row g-3 mb-3">
+                  <div class="col-md-4">
+                    <label class="form-label fw-bold">Unidad de Compra</label>
+                    <select class="form-select" id="productoUnidadCompra">
+                      <option value="">Seleccionar unidad</option>
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label fw-bold">Unidad de Venta</label>
+                    <select class="form-select" id="productoUnidadVenta">
+                      <option value="">Seleccionar unidad</option>
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label fw-bold">Factor de Conversión</label>
+                    <input type="number" class="form-control" id="productoFactorConversion" value="1" step="0.01" min="0.01" />
+                    <small class="text-muted">Unidades de compra por unidad de venta</small>
+                  </div>
+                </div>
+
+                <!-- FILA 5: Precios y Margen -->
+                <div class="row g-3 mb-3">
+                  <div class="col-md-3">
+                    <label class="form-label fw-bold">Precio de Compra</label>
+                    <div class="input-group">
+                      <span class="input-group-text">Q</span>
+                      <input type="number" class="form-control" id="productoPrecioCompra" value="0" step="0.01" min="0" />
+                    </div>
+                    <div class="invalid-feedback" id="productoPrecioCompraError">Debe ser un número</div>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label fw-bold">Precio de Venta</label>
+                    <div class="input-group">
+                      <span class="input-group-text">Q</span>
+                      <input type="number" class="form-control" id="productoPrecioVenta" value="0" step="0.01" min="0" />
+                    </div>
+                    <div class="invalid-feedback" id="productoPrecioVentaError">Debe ser un número</div>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label fw-bold">Margen de Ganancia (%)</label>
+                    <input type="number" class="form-control" id="productoMargenGanancia" value="0" step="0.01" min="0" max="100" />
+                    <small class="text-muted">Porcentaje de ganancia sobre el costo</small>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label fw-bold">Precio Automático</label>
+                    <select class="form-select" id="productoPrecioAutomatico">
+                      <option value="0">Manual</option>
+                      <option value="1">Automático (Costo + Margen)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- FILA 6: Stock y Estado -->
+                <div class="row g-3 mb-3">
+                  <div class="col-md-3">
+                    <label class="form-label fw-bold">Stock Mínimo</label>
+                    <input type="number" class="form-control" id="productoStockMinimo" value="0" step="0.01" min="0" />
+                    <small class="text-muted">Alerta de stock bajo</small>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label fw-bold">Stock Máximo</label>
+                    <input type="number" class="form-control" id="productoStockMaximo" value="0" step="0.01" min="0" />
+                    <small class="text-muted">Capacidad máxima de almacenamiento</small>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Estado</label>
+                    <select class="form-select" id="productoActivo">
+                      <option value="1">Activo</option>
+                      <option value="0">Inactivo</option>
+                    </select>
+                  </div>
+                </div>
+              </form>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                <i class="fas fa-times me-2"></i>Cancelar
+              </button>
+              <button type="submit" class="btn btn-success" form="productoForm">
+                <i class="fas fa-save me-2"></i>Guardar Producto
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML("beforeend", productoModalHTML);
+    document
+      .getElementById("productoForm")
+      .addEventListener("submit", saveProducto);
+  }
+
+  // Modal de Categoría
+  if (!document.getElementById("categoriaModal")) {
+    const categoriaModalHTML = `
+      <div class="modal fade" id="categoriaModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+              <h5 class="modal-title">
+                <i class="fas fa-tags me-2"></i>Categoría
+              </h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <form id="categoriaForm" novalidate>
+                <input type="hidden" id="categoriaId" />
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="categoriaNombre" required />
+                  <div class="invalid-feedback" id="categoriaNombreError">El nombre es obligatorio</div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Estado</label>
+                  <select class="form-select" id="categoriaActivo">
+                    <option value="1">Activo</option>
+                    <option value="0">Inactivo</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Guardar</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML("beforeend", categoriaModalHTML);
+    document
+      .getElementById("categoriaForm")
+      .addEventListener("submit", saveCategoria);
+  }
+
+  // Modal de Marca
+  if (!document.getElementById("marcaModal")) {
+    const marcaModalHTML = `
+      <div class="modal fade" id="marcaModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+              <h5 class="modal-title">
+                <i class="fas fa-copyright me-2"></i>Marca
+              </h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <form id="marcaForm" novalidate>
+                <input type="hidden" id="marcaId" />
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="marcaNombre" required />
+                  <div class="invalid-feedback" id="marcaNombreError">El nombre es obligatorio</div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Estado</label>
+                  <select class="form-select" id="marcaActivo">
+                    <option value="1">Activo</option>
+                    <option value="0">Inactivo</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-info w-100 text-white">Guardar</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML("beforeend", marcaModalHTML);
+    document.getElementById("marcaForm").addEventListener("submit", saveMarca);
+  }
+
+  // Modal de Unidad
+  if (!document.getElementById("unidadModal")) {
+    const unidadModalHTML = `
+      <div class="modal fade" id="unidadModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+              <h5 class="modal-title">
+                <i class="fas fa-ruler me-2"></i>Unidad de Medida
+              </h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <form id="unidadForm" novalidate>
+                <input type="hidden" id="unidadId" />
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="unidadNombre" required />
+                  <div class="invalid-feedback" id="unidadNombreError">El nombre es obligatorio</div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Abreviatura</label>
+                  <input type="text" class="form-control" id="unidadAbreviatura" />
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Estado</label>
+                  <select class="form-select" id="unidadActivo">
+                    <option value="1">Activo</option>
+                    <option value="0">Inactivo</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-warning w-100">Guardar</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML("beforeend", unidadModalHTML);
+    document
+      .getElementById("unidadForm")
+      .addEventListener("submit", saveUnidad);
   }
 }
 
@@ -581,8 +856,7 @@ function renderCategoriasTable(categorias) {
 function showCreateCategoriaModal() {
   const modal = document.getElementById("categoriaModal");
   if (!modal) {
-    crearModalCategoria();
-    setTimeout(() => showCreateCategoriaModal(), 100);
+    showToast("Error: Modal de categoría no encontrado", "error");
     return;
   }
 
@@ -604,8 +878,7 @@ async function showEditCategoriaModal(id) {
 
   const modal = document.getElementById("categoriaModal");
   if (!modal) {
-    crearModalCategoria();
-    setTimeout(() => showEditCategoriaModal(id), 100);
+    showToast("Error: Modal de categoría no encontrado", "error");
     return;
   }
 
@@ -694,41 +967,6 @@ async function toggleCategoriaEstado(id) {
   }
 }
 
-function crearModalCategoria() {
-  const html = `
-        <div class="modal fade" id="categoriaModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Categoría</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="categoriaForm" novalidate>
-                            <input type="hidden" id="categoriaId" />
-                            <div class="mb-3">
-                                <label class="form-label">Nombre *</label>
-                                <input type="text" class="form-control" id="categoriaNombre" required />
-                                <div class="invalid-feedback" id="categoriaNombreError">El nombre es obligatorio</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Estado</label>
-                                <select class="form-select" id="categoriaActivo">
-                                    <option value="1">Activo</option>
-                                    <option value="0">Inactivo</option>
-                                </select>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">Guardar</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-  document.body.insertAdjacentHTML("beforeend", html);
-  document.getElementById("categoriaForm").onsubmit = saveCategoria;
-}
-
 // PANEL: MARCAS
 function renderMarcasTable(marcas) {
   const container = document.getElementById("marcasTableContainer");
@@ -805,8 +1043,7 @@ function renderMarcasTable(marcas) {
 function showCreateMarcaModal() {
   const modal = document.getElementById("marcaModal");
   if (!modal) {
-    crearModalMarca();
-    setTimeout(() => showCreateMarcaModal(), 100);
+    showToast("Error: Modal de marca no encontrado", "error");
     return;
   }
 
@@ -828,8 +1065,7 @@ async function showEditMarcaModal(id) {
 
   const modal = document.getElementById("marcaModal");
   if (!modal) {
-    crearModalMarca();
-    setTimeout(() => showEditMarcaModal(id), 100);
+    showToast("Error: Modal de marca no encontrado", "error");
     return;
   }
 
@@ -916,41 +1152,6 @@ async function toggleMarcaEstado(id) {
   }
 }
 
-function crearModalMarca() {
-  const html = `
-        <div class="modal fade" id="marcaModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Marca</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="marcaForm" novalidate>
-                            <input type="hidden" id="marcaId" />
-                            <div class="mb-3">
-                                <label class="form-label">Nombre *</label>
-                                <input type="text" class="form-control" id="marcaNombre" required />
-                                <div class="invalid-feedback" id="marcaNombreError">El nombre es obligatorio</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Estado</label>
-                                <select class="form-select" id="marcaActivo">
-                                    <option value="1">Activo</option>
-                                    <option value="0">Inactivo</option>
-                                </select>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">Guardar</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-  document.body.insertAdjacentHTML("beforeend", html);
-  document.getElementById("marcaForm").onsubmit = saveMarca;
-}
-
 // PANEL: UNIDADES
 function renderUnidadesTable(unidades) {
   const container = document.getElementById("unidadesTableContainer");
@@ -1029,8 +1230,7 @@ function renderUnidadesTable(unidades) {
 function showCreateUnidadModal() {
   const modal = document.getElementById("unidadModal");
   if (!modal) {
-    crearModalUnidad();
-    setTimeout(() => showCreateUnidadModal(), 100);
+    showToast("Error: Modal de unidad no encontrado", "error");
     return;
   }
 
@@ -1052,8 +1252,7 @@ async function showEditUnidadModal(id) {
 
   const modal = document.getElementById("unidadModal");
   if (!modal) {
-    crearModalUnidad();
-    setTimeout(() => showEditUnidadModal(id), 100);
+    showToast("Error: Modal de unidad no encontrado", "error");
     return;
   }
 
@@ -1142,45 +1341,6 @@ async function toggleUnidadEstado(id) {
   } catch (error) {
     showToast(error.message || "Error al cambiar estado", "error");
   }
-}
-
-function crearModalUnidad() {
-  const html = `
-        <div class="modal fade" id="unidadModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Unidad de Medida</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="unidadForm" novalidate>
-                            <input type="hidden" id="unidadId" />
-                            <div class="mb-3">
-                                <label class="form-label">Nombre *</label>
-                                <input type="text" class="form-control" id="unidadNombre" required />
-                                <div class="invalid-feedback" id="unidadNombreError">El nombre es obligatorio</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Abreviatura</label>
-                                <input type="text" class="form-control" id="unidadAbreviatura" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Estado</label>
-                                <select class="form-select" id="unidadActivo">
-                                    <option value="1">Activo</option>
-                                    <option value="0">Inactivo</option>
-                                </select>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">Guardar</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-  document.body.insertAdjacentHTML("beforeend", html);
-  document.getElementById("unidadForm").onsubmit = saveUnidad;
 }
 
 // EXPONER FUNCIONES GLOBALES
