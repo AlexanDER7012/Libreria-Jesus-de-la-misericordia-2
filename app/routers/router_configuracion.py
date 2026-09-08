@@ -36,7 +36,7 @@ def obtener_configuracion(db: Session = Depends(get_db)):
     return _obtener_o_crear_configuracion(db)
 
 
-@router.put("/", response_model=ConfiguracionGeneralResponse)
+@router.put("", response_model=ConfiguracionGeneralResponse)
 def actualizar_configuracion(datos: ConfiguracionGeneralUpdate, db: Session = Depends(get_db)):
     config = _obtener_o_crear_configuracion(db)
     for campo, valor in datos.model_dump(exclude_unset=True).items():

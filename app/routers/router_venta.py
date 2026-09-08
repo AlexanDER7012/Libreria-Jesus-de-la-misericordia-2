@@ -11,12 +11,12 @@ from app.models.model_caja import CajaTurno
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario, Alerta
 from app.models.model_venta import Venta, DetalleVenta, MetodoPagoVenta, ServicioAdicional, DetalleServicio
 from app.schemas.schema_venta import (
-    VentaCreate, VentaResponse,
+    VentaCreate, VentaUpdate, VentaResponse,
     ServicioAdicionalCreate, ServicioAdicionalResponse, MetodoPagoVentaCreate,
 )
 
 router = APIRouter()
-router_servicio = APIRouter() 
+router_servicio = APIRouter()
 
 
 def _generar_alerta_si_stock_bajo(db: Session, producto: Producto):
@@ -203,26 +203,85 @@ def cancelar_venta(venta_id: int, db: Session = Depends(get_db)):
     db.refresh(venta)
     return venta
 
-@router.patch("/{venta_id}", response_model=VentaResponse)
-def actualizar_venta(
-    venta_id: int,
-    datos: dict,  # Recibe un diccionario con los campos a actualizar
-    db: Session = Depends(get_db)
-):
+
+@router.put("/{venta_id}", response_model=VentaResponse)
+def actualizar_venta(venta_id: int, datos: VentaUpdate, db: Session = Depends(get_db)):
+    """
+    Actualiza una venta existente. A propósito, solo permite cambiar
+    'observaciones' (ver VentaUpdate para el porqué). Para cancelar una
+    venta, usa PATCH /{venta_id}/cancelar, que sí revierte el stock y el
+    total de caja correctamente.
+    """
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
-    
-    # Actualizar solo los campos enviados
-    if "total" in datos:
-        venta.total = datos["total"]
-    if "estado" in datos:
-        venta.estado = datos["estado"]
-    # Agregar más campos según sea necesario
-    
+
+    for campo, valor in datos.model_dump(exclude_unset=True).items():
+        setattr(venta, campo, valor)
+
     db.commit()
     db.refresh(venta)
     return venta
+
+
+@router.post("/{venta_id}/pagos", status_code=201)
+def registrar_pago_venta(venta_id: int, pago_data: MetodoPagoVentaCreate, db: Session = Depends(get_db)):
+    venta = db.query(Venta).filter(Venta.id == venta_id).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    nuevo_pago = MetodoPagoVenta(
+        id_venta=venta_id,
+        id_tipo_pago=pago_data.id_tipo_pago,
+        monto=pago_data.monto,
+        referencia=pago_data.referencia,
+    )
+    db.add(nuevo_pago)
+    db.commit()
+    db.refresh(nuevo_pago)
+    return nuevo_pago
+
+
+@router.delete("/{venta_id}/pagos/{pago_id}", status_code=204)
+def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: Session = Depends(get_db)):
+    """
+    Elimina un pago de la venta. Por defecto, NO deja eliminar un pago si
+    eso hace que los pagos restantes ya no cuadren con el total de la
+    venta (para evitar que quede una venta "completa" sin estar
+    realmente pagada del todo). Usa ?forzar=true si de verdad quieres
+    eliminarlo de todas formas (por ejemplo, para corregir un pago
+    duplicado antes de registrar el correcto).
+    """
+    venta = db.query(Venta).filter(Venta.id == venta_id).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    pago = db.query(MetodoPagoVenta).filter(
+        MetodoPagoVenta.id == pago_id, MetodoPagoVenta.id_venta == venta_id
+    ).first()
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+
+    db.delete(pago)
+    db.flush()
+
+    total_pagado_restante = db.query(func.sum(MetodoPagoVenta.monto)).filter(
+        MetodoPagoVenta.id_venta == venta_id
+    ).scalar() or 0
+
+    if not forzar and abs(float(total_pagado_restante) - float(venta.total or 0)) > 0.01:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Al eliminar este pago, los pagos restantes (Q{total_pagado_restante}) ya no "
+                f"cuadran con el total de la venta (Q{venta.total}). Usa ?forzar=true si de verdad "
+                f"quieres continuar (por ejemplo, para luego registrar el pago correcto)."
+            ),
+        )
+
+    db.commit()
+
 
 # ===================================================================
 # SERVICIO_ADICIONAL
@@ -238,7 +297,18 @@ def listar_servicios(id_cliente: Optional[int] = None, db: Session = Depends(get
 
 @router_servicio.post("", response_model=ServicioAdicionalResponse, status_code=201)
 def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get_db)):
-    monto_material = datos.monto_material or 0
+    """
+    Si vienen 'detalles' (materiales usados), monto_material SIEMPRE se
+    calcula desde ahí -- no se confía en lo que mande el cliente (mismo
+    criterio que usamos en producto.py para el precio). Si no vienen
+    detalles (ej. un servicio como "Pago de circulación" que no usa
+    materiales), sí se toma el monto_material que mande el cliente.
+    """
+    if datos.detalles:
+        monto_material = round(sum(d.cantidad * d.costo_unitario for d in datos.detalles), 2)
+    else:
+        monto_material = round(datos.monto_material or 0, 2)
+
     total = round(monto_material + (datos.monto_mano_obra or 0), 2)
 
     nuevo = ServicioAdicional(
@@ -248,7 +318,7 @@ def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get
         descripcion=datos.descripcion,
         monto_mano_obra=datos.monto_mano_obra or 0,
         monto_material=monto_material,
-        total=total
+        total=total,
     )
     db.add(nuevo)
     db.flush()
@@ -274,71 +344,3 @@ def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     db.delete(servicio)
     db.commit()
-    
-@router.post("/{venta_id}/pagos", status_code=201)
-def registrar_pago_venta(
-    venta_id: int,
-    pago_data: MetodoPagoVentaCreate,
-    db: Session = Depends(get_db)
-):
-    venta = db.query(Venta).filter(Venta.id == venta_id).first()
-    if not venta:
-        raise HTTPException(status_code=404, detail="Venta no encontrada")
-    
-    nuevo_pago = MetodoPagoVenta(
-        id_venta=venta_id,
-        id_tipo_pago=pago_data.id_tipo_pago,
-        monto=pago_data.monto,
-        referencia=pago_data.referencia
-    )
-    
-    db.add(nuevo_pago)
-    db.commit()
-    db.refresh(nuevo_pago)
-    return nuevo_pago
-
-@router.delete("/{venta_id}/pagos/{pago_id}", status_code=204)
-def eliminar_pago_venta(
-    venta_id: int,
-    pago_id: int,
-    db: Session = Depends(get_db)
-):
-    # Verificar que la venta existe
-    venta = db.query(Venta).filter(Venta.id == venta_id).first()
-    if not venta:
-        raise HTTPException(status_code=404, detail="Venta no encontrada")
-    
-    # Buscar el pago
-    pago = db.query(MetodoPagoVenta).filter(
-        MetodoPagoVenta.id == pago_id,
-        MetodoPagoVenta.id_venta == venta_id
-    ).first()
-    
-    if not pago:
-        raise HTTPException(status_code=404, detail="Pago no encontrado")
-    
-    # Eliminar el pago
-    db.delete(pago)
-    db.commit()
-    
-    return None
-
-@router.put("/{venta_id}", response_model=VentaResponse)
-def actualizar_venta_put(
-    venta_id: int,
-    datos: dict,
-    db: Session = Depends(get_db)
-):
-    venta = db.query(Venta).filter(Venta.id == venta_id).first()
-    if not venta:
-        raise HTTPException(status_code=404, detail="Venta no encontrada")
-    
-    # Actualizar solo los campos enviados
-    if "total" in datos:
-        venta.total = datos["total"]
-    if "estado" in datos:
-        venta.estado = datos["estado"]
-    
-    db.commit()
-    db.refresh(venta)
-    return venta
