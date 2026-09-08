@@ -145,12 +145,392 @@
       </div>
     </div>
 
-    <!-- Modal de Productos -->
-    <div class="modal fade" id="productoModal" tabindex="-1">
-      <div class="modal-dialog modal-lg">
+    <!-- Modal de Productos (VERSIÓN CON PESTAÑAS - MÁS COMPACTA) -->
+    <div class="modal fade" id="productoModal" tabindex="-1" aria-hidden="true">
+      <div
+        class="modal-dialog modal-xl modal-dialog-scrollable"
+        style="max-height: 90vh"
+      >
+        <div class="modal-content" style="max-height: 90vh">
+          <div class="modal-header bg-success text-white sticky-top">
+            <h5 class="modal-title" id="productoModalTitle">
+              <i class="fas fa-box me-2"></i>Nuevo Producto
+            </h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div
+            class="modal-body"
+            style="overflow-y: auto; max-height: calc(90vh - 130px)"
+          >
+            <form id="productoForm" novalidate>
+              <input type="hidden" id="productoId" />
+
+              <!-- PESTAÑAS INTERNAS -->
+              <ul
+                class="nav nav-tabs nav-fill mb-3"
+                id="productoFormTabs"
+                role="tablist"
+              >
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link active"
+                    id="tab-basicos"
+                    data-bs-toggle="tab"
+                    data-bs-target="#panel-basicos"
+                    type="button"
+                    role="tab"
+                  >
+                    <i class="fas fa-info-circle me-1"></i>Básicos
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    id="tab-precios"
+                    data-bs-toggle="tab"
+                    data-bs-target="#panel-precios"
+                    type="button"
+                    role="tab"
+                  >
+                    <i class="fas fa-tag me-1"></i>Precios
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    id="tab-stock"
+                    data-bs-toggle="tab"
+                    data-bs-target="#panel-stock"
+                    type="button"
+                    role="tab"
+                  >
+                    <i class="fas fa-warehouse me-1"></i>Stock
+                  </button>
+                </li>
+              </ul>
+
+              <div class="tab-content">
+                <!-- PANEL 1: BÁSICOS -->
+                <div
+                  class="tab-pane fade show active"
+                  id="panel-basicos"
+                  role="tabpanel"
+                >
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold"
+                        >Código <span class="text-danger">*</span></label
+                      >
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="productoCodigo"
+                        placeholder="Ej: PROD-001"
+                        required
+                      />
+                      <div class="invalid-feedback" id="productoCodigoError">
+                        El código es obligatorio
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold"
+                        >Nombre <span class="text-danger">*</span></label
+                      >
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="productoNombre"
+                        placeholder="Nombre del producto"
+                        required
+                      />
+                      <div class="invalid-feedback" id="productoNombreError">
+                        El nombre es obligatorio
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold">Categoría</label>
+                      <select class="form-select" id="productoCategoria">
+                        <option value="">Seleccionar categoría</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold">Marca</label>
+                      <select class="form-select" id="productoMarca">
+                        <option value="">Seleccionar marca</option>
+                      </select>
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label fw-bold">Descripción</label>
+                      <textarea
+                        class="form-control"
+                        id="productoDescripcion"
+                        rows="2"
+                        placeholder="Descripción del producto"
+                      ></textarea>
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label fw-bold">Estado</label>
+                      <select class="form-select" id="productoActivo">
+                        <option value="1">Activo</option>
+                        <option value="0">Inactivo</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- PANEL 2: PRECIOS -->
+                <div class="tab-pane fade" id="panel-precios" role="tabpanel">
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold">Unidad de Compra</label>
+                      <select class="form-select" id="productoUnidadCompra">
+                        <option value="">Seleccionar unidad</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold">Unidad de Venta</label>
+                      <select class="form-select" id="productoUnidadVenta">
+                        <option value="">Seleccionar unidad</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold"
+                        >Factor de Conversión</label
+                      >
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="productoFactorConversion"
+                        value="1"
+                        step="0.01"
+                        min="0.01"
+                      />
+                      <small class="text-muted"
+                        >Unidades de compra por unidad de venta</small
+                      >
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold"
+                        >Precio Automático</label
+                      >
+                      <select class="form-select" id="productoPrecioAutomatico">
+                        <option value="0">Manual</option>
+                        <option value="1">Automático (Costo + Margen)</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label fw-bold">Precio de Compra</label>
+                      <div class="input-group">
+                        <span class="input-group-text">Q</span>
+                        <input
+                          type="number"
+                          class="form-control"
+                          id="productoPrecioCompra"
+                          value="0"
+                          step="0.01"
+                          min="0"
+                        />
+                      </div>
+                      <div
+                        class="invalid-feedback"
+                        id="productoPrecioCompraError"
+                      >
+                        Debe ser un número
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label fw-bold">Precio de Venta</label>
+                      <div class="input-group">
+                        <span class="input-group-text">Q</span>
+                        <input
+                          type="number"
+                          class="form-control"
+                          id="productoPrecioVenta"
+                          value="0"
+                          step="0.01"
+                          min="0"
+                        />
+                      </div>
+                      <div
+                        class="invalid-feedback"
+                        id="productoPrecioVentaError"
+                      >
+                        Debe ser un número
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label fw-bold"
+                        >Margen de Ganancia (%)</label
+                      >
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="productoMargenGanancia"
+                        value="0"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                      />
+                      <small class="text-muted"
+                        >Porcentaje de ganancia sobre el costo</small
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <!-- PANEL 3: STOCK -->
+                <div class="tab-pane fade" id="panel-stock" role="tabpanel">
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold">Stock Mínimo</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="productoStockMinimo"
+                        value="0"
+                        step="0.01"
+                        min="0"
+                      />
+                      <small class="text-muted">Alerta de stock bajo</small>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold">Stock Máximo</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="productoStockMaximo"
+                        value="0"
+                        step="0.01"
+                        min="0"
+                      />
+                      <small class="text-muted"
+                        >Capacidad máxima de almacenamiento</small
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-success w-100 mt-3">
+                <i class="fas fa-save me-2"></i>Guardar Producto
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Categorías -->
+    <div
+      class="modal fade"
+      id="categoriaModal"
+      tabindex="-1"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-scrollable">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="productoModalTitle">Producto</h5>
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title">
+              <i class="fas fa-tags me-2"></i>Categoría
+            </h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="categoriaForm" novalidate>
+              <input type="hidden" id="categoriaId" />
+              <div class="mb-3">
+                <label class="form-label fw-bold"
+                  >Nombre <span class="text-danger">*</span></label
+                >
+                <input
+                  type="text"
+                  class="form-control"
+                  id="categoriaNombre"
+                  required
+                />
+                <div class="invalid-feedback" id="categoriaNombreError">
+                  El nombre es obligatorio
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Estado</label>
+                <select class="form-select" id="categoriaActivo">
+                  <option value="1">Activo</option>
+                  <option value="0">Inactivo</option>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary w-100">
+                Guardar
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Marcas -->
+    <div class="modal fade" id="marcaModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-info text-white">
+            <h5 class="modal-title">
+              <i class="fas fa-copyright me-2"></i>Marca
+            </h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="marcaForm" novalidate>
+              <input type="hidden" id="marcaId" />
+              <div class="mb-3">
+                <label class="form-label fw-bold"
+                  >Nombre <span class="text-danger">*</span></label
+                >
+                <input
+                  type="text"
+                  class="form-control"
+                  id="marcaNombre"
+                  required
+                />
+                <div class="invalid-feedback" id="marcaNombreError">
+                  El nombre es obligatorio
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Estado</label>
+                <select class="form-select" id="marcaActivo">
+                  <option value="1">Activo</option>
+                  <option value="0">Inactivo</option>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-info w-100 text-white">
+                Guardar
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Unidades -->
+    <div class="modal fade" id="unidadModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-warning text-dark">
+            <h5 class="modal-title">
+              <i class="fas fa-ruler me-2"></i>Unidad de Medida
+            </h5>
             <button
               type="button"
               class="btn-close"
@@ -158,154 +538,39 @@
             ></button>
           </div>
           <div class="modal-body">
-            <form id="productoForm" novalidate>
-              <input type="hidden" id="productoId" />
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Código *</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    id="productoCodigo"
-                    required
-                  />
-                  <div class="invalid-feedback" id="productoCodigoError">
-                    El código es obligatorio
-                  </div>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Nombre *</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    id="productoNombre"
-                    required
-                  />
-                  <div class="invalid-feedback" id="productoNombreError">
-                    El nombre es obligatorio
-                  </div>
-                </div>
-              </div>
+            <form id="unidadForm" novalidate>
+              <input type="hidden" id="unidadId" />
               <div class="mb-3">
-                <label class="form-label">Descripción</label>
-                <textarea
+                <label class="form-label fw-bold"
+                  >Nombre <span class="text-danger">*</span></label
+                >
+                <input
+                  type="text"
                   class="form-control"
-                  id="productoDescripcion"
-                  rows="2"
-                ></textarea>
-              </div>
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Categoría</label>
-                  <select class="form-select" id="productoCategoria"></select>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Marca</label>
-                  <select class="form-select" id="productoMarca"></select>
-                </div>
-              </div>
-              <div class="row">
-                <div class="col-md-4 mb-3">
-                  <label class="form-label">Precio Compra</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    class="form-control"
-                    id="productoPrecioCompra"
-                  />
-                  <div class="invalid-feedback" id="productoPrecioCompraError">
-                    Debe ser un número
-                  </div>
-                </div>
-                <div class="col-md-4 mb-3">
-                  <label class="form-label">Precio Venta</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    class="form-control"
-                    id="productoPrecioVenta"
-                  />
-                  <div class="invalid-feedback" id="productoPrecioVentaError">
-                    Debe ser un número
-                  </div>
-                </div>
-                <div class="col-md-4 mb-3">
-                  <label class="form-label">Precio Automático</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    class="form-control"
-                    id="productoPrecioAutomatico"
-                    value="0"
-                  />
-                </div>
-              </div>
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Margen Ganancia %</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    class="form-control"
-                    id="productoMargenGanancia"
-                    value="0"
-                  />
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Factor Conversión</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    class="form-control"
-                    id="productoFactorConversion"
-                    value="1"
-                  />
-                </div>
-              </div>
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Unidad Compra</label>
-                  <select
-                    class="form-select"
-                    id="productoUnidadCompra"
-                  ></select>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Unidad Venta</label>
-                  <select class="form-select" id="productoUnidadVenta"></select>
-                </div>
-              </div>
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Stock Mínimo</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    class="form-control"
-                    id="productoStockMinimo"
-                    value="0"
-                  />
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Stock Máximo</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    class="form-control"
-                    id="productoStockMaximo"
-                    value="0"
-                  />
+                  id="unidadNombre"
+                  required
+                />
+                <div class="invalid-feedback" id="unidadNombreError">
+                  El nombre es obligatorio
                 </div>
               </div>
               <div class="mb-3">
-                <label class="form-label">Estado</label>
-                <select class="form-select" id="productoActivo">
+                <label class="form-label fw-bold">Abreviatura</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="unidadAbreviatura"
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Estado</label>
+                <select class="form-select" id="unidadActivo">
                   <option value="1">Activo</option>
                   <option value="0">Inactivo</option>
                 </select>
               </div>
-              <button type="submit" class="btn btn-success w-100">
-                <i class="fas fa-save me-2"></i>Guardar
+              <button type="submit" class="btn btn-warning w-100">
+                Guardar
               </button>
             </form>
           </div>
