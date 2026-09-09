@@ -37,6 +37,17 @@
           >
             <i class="fas fa-home me-1"></i> Inicio
           </button>
+          <!-- BOTÓN SITIO WEB -->
+          <button
+            class="btn btn-outline-light btn-sm"
+            onclick="
+              window.location.href =
+                'https://lail-web.github.io/Libreria-y-Papeleria-Jesus-de-la-Misericordia-II-/#servicios'
+            "
+            title="Visitar el sitio web de la librería"
+          >
+            <i class="fas fa-store me-1"></i> Sitio Web
+          </button>
           <button
             class="btn btn-outline-light btn-sm"
             onclick="toggleTheme()"
@@ -831,21 +842,36 @@
 
     <!-- Modal de Ver Venta -->
     <div class="modal fade" id="verVentaModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-height: 90vh;">
-        <div class="modal-content" style="max-height: 90vh;">
+      <div
+        class="modal-dialog modal-xl modal-dialog-scrollable"
+        style="max-height: 90vh"
+      >
+        <div class="modal-content" style="max-height: 90vh">
           <div class="modal-header bg-primary text-white sticky-top">
             <h5 class="modal-title">
-              <i class="fas fa-receipt me-2"></i>Venta #<span id="verVentaNumero"></span>
+              <i class="fas fa-receipt me-2"></i>Venta #<span
+                id="verVentaNumero"
+              ></span>
             </h5>
             <div>
-              <button class="btn btn-sm btn-outline-light me-2" onclick="imprimirVenta()" title="Imprimir">
+              <button
+                class="btn btn-sm btn-outline-light me-2"
+                onclick="imprimirVenta()"
+                title="Imprimir"
+              >
                 <i class="fas fa-print"></i>
               </button>
-              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+              <button
+                type="button"
+                class="btn-close btn-close-white"
+                data-bs-dismiss="modal"
+              ></button>
             </div>
           </div>
-          <div class="modal-body" style="overflow-y: auto; max-height: calc(90vh - 130px);">
-            
+          <div
+            class="modal-body"
+            style="overflow-y: auto; max-height: calc(90vh - 130px)"
+          >
             <!-- INFORMACIÓN GENERAL - 2 columnas -->
             <div class="row g-3 mb-3">
               <div class="col-md-6">
@@ -861,7 +887,9 @@
                     </div>
                     <div class="row">
                       <div class="col-4 text-muted">Estado:</div>
-                      <div class="col-8"><span class="badge" id="verVentaEstado">-</span></div>
+                      <div class="col-8">
+                        <span class="badge" id="verVentaEstado">-</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -871,7 +899,9 @@
                   <div class="card-body py-2">
                     <div class="row">
                       <div class="col-4 text-muted">Subtotal:</div>
-                      <div class="col-8 fw-bold" id="verVentaSubtotal">Q0.00</div>
+                      <div class="col-8 fw-bold" id="verVentaSubtotal">
+                        Q0.00
+                      </div>
                     </div>
                     <div class="row">
                       <div class="col-4 text-muted">Descuento:</div>
@@ -879,7 +909,12 @@
                     </div>
                     <div class="row">
                       <div class="col-4 text-muted">Total:</div>
-                      <div class="col-8 fw-bold text-success" id="verVentaTotal">Q0.00</div>
+                      <div
+                        class="col-8 fw-bold text-success"
+                        id="verVentaTotal"
+                      >
+                        Q0.00
+                      </div>
                     </div>
                     <div class="row">
                       <div class="col-4 text-muted">Saldo:</div>
@@ -891,22 +926,44 @@
             </div>
 
             <!-- PESTAÑAS INTERNAS -->
-            <ul class="nav nav-tabs nav-fill mb-3" id="verVentaTabs" role="tablist">
+            <ul
+              class="nav nav-tabs nav-fill mb-3"
+              id="verVentaTabs"
+              role="tablist"
+            >
               <li class="nav-item">
-                <button class="nav-link active" id="tab-ver-detalles" data-bs-toggle="tab" 
-                        data-bs-target="#panel-ver-detalles" type="button" role="tab">
+                <button
+                  class="nav-link active"
+                  id="tab-ver-detalles"
+                  data-bs-toggle="tab"
+                  data-bs-target="#panel-ver-detalles"
+                  type="button"
+                  role="tab"
+                >
                   <i class="fas fa-list me-1"></i>Productos
                 </button>
               </li>
               <li class="nav-item">
-                <button class="nav-link" id="tab-ver-pagos" data-bs-toggle="tab" 
-                        data-bs-target="#panel-ver-pagos" type="button" role="tab">
+                <button
+                  class="nav-link"
+                  id="tab-ver-pagos"
+                  data-bs-toggle="tab"
+                  data-bs-target="#panel-ver-pagos"
+                  type="button"
+                  role="tab"
+                >
                   <i class="fas fa-credit-card me-1"></i>Pagos
                 </button>
               </li>
               <li class="nav-item">
-                <button class="nav-link" id="tab-ver-servicios" data-bs-toggle="tab" 
-                        data-bs-target="#panel-ver-servicios" type="button" role="tab">
+                <button
+                  class="nav-link"
+                  id="tab-ver-servicios"
+                  data-bs-toggle="tab"
+                  data-bs-target="#panel-ver-servicios"
+                  type="button"
+                  role="tab"
+                >
                   <i class="fas fa-tools me-1"></i>Servicios
                 </button>
               </li>
@@ -914,7 +971,11 @@
 
             <div class="tab-content">
               <!-- PANEL: PRODUCTOS -->
-              <div class="tab-pane fade show active" id="panel-ver-detalles" role="tabpanel">
+              <div
+                class="tab-pane fade show active"
+                id="panel-ver-detalles"
+                role="tabpanel"
+              >
                 <div class="table-responsive">
                   <table class="table table-sm table-hover">
                     <thead class="table-light">
@@ -927,13 +988,17 @@
                     </thead>
                     <tbody id="verVentaDetallesBody">
                       <tr>
-                        <td colspan="4" class="text-center text-muted">Cargando productos...</td>
+                        <td colspan="4" class="text-center text-muted">
+                          Cargando productos...
+                        </td>
                       </tr>
                     </tbody>
                     <tfoot>
                       <tr class="table-light fw-bold">
                         <td colspan="3" class="text-end">TOTAL PRODUCTOS:</td>
-                        <td class="text-end" id="verVentaTotalDetalles">Q0.00</td>
+                        <td class="text-end" id="verVentaTotalDetalles">
+                          Q0.00
+                        </td>
                       </tr>
                     </tfoot>
                   </table>
@@ -954,7 +1019,9 @@
                     </thead>
                     <tbody id="verVentaPagosBody">
                       <tr>
-                        <td colspan="4" class="text-center text-muted">Cargando pagos...</td>
+                        <td colspan="4" class="text-center text-muted">
+                          Cargando pagos...
+                        </td>
                       </tr>
                     </tbody>
                     <tfoot>
@@ -968,7 +1035,11 @@
               </div>
 
               <!-- PANEL: SERVICIOS -->
-              <div class="tab-pane fade" id="panel-ver-servicios" role="tabpanel">
+              <div
+                class="tab-pane fade"
+                id="panel-ver-servicios"
+                role="tabpanel"
+              >
                 <div class="table-responsive">
                   <table class="table table-sm table-hover">
                     <thead class="table-light">
@@ -982,7 +1053,9 @@
                     </thead>
                     <tbody id="verVentaServiciosBody">
                       <tr>
-                        <td colspan="5" class="text-center text-muted">No hay servicios adicionales</td>
+                        <td colspan="5" class="text-center text-muted">
+                          No hay servicios adicionales
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -991,8 +1064,12 @@
             </div>
 
             <!-- OBSERVACIONES -->
-            <div class="mt-3" id="verVentaObservacionesContainer" style="display:none;">
-              <hr>
+            <div
+              class="mt-3"
+              id="verVentaObservacionesContainer"
+              style="display: none"
+            >
+              <hr />
               <div class="card bg-light">
                 <div class="card-body py-2">
                   <span class="text-muted">Observaciones:</span>
@@ -1002,10 +1079,18 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
               <i class="fas fa-times me-2"></i>Cerrar
             </button>
-            <button type="button" class="btn btn-primary" onclick="imprimirVenta()">
+            <button
+              type="button"
+              class="btn btn-primary"
+              onclick="imprimirVenta()"
+            >
               <i class="fas fa-print me-2"></i>Imprimir
             </button>
           </div>
@@ -1014,16 +1099,32 @@
     </div>
 
     <!-- Modal de Ficha del Cliente -->
-    <div class="modal fade" id="clienteFichaModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-height: 90vh;">
-        <div class="modal-content" style="max-height: 90vh;">
+    <div
+      class="modal fade"
+      id="clienteFichaModal"
+      tabindex="-1"
+      aria-hidden="true"
+    >
+      <div
+        class="modal-dialog modal-xl modal-dialog-scrollable"
+        style="max-height: 90vh"
+      >
+        <div class="modal-content" style="max-height: 90vh">
           <div class="modal-header bg-primary text-white sticky-top">
             <h5 class="modal-title">
               <i class="fas fa-user me-2"></i>Ficha del Cliente
             </h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+            ></button>
           </div>
-          <div class="modal-body" id="clienteFichaBody" style="overflow-y: auto; max-height: calc(90vh - 130px);">
+          <div
+            class="modal-body"
+            id="clienteFichaBody"
+            style="overflow-y: auto; max-height: calc(90vh - 130px)"
+          >
             <!-- El contenido se llena desde ventas.js -->
             <div class="text-center py-5">
               <div class="spinner-border text-primary" role="status"></div>
@@ -1031,7 +1132,11 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
               <i class="fas fa-times me-2"></i>Cerrar
             </button>
           </div>

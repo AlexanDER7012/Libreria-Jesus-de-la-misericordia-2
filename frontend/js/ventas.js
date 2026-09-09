@@ -2680,7 +2680,7 @@ function renderServiciosRows(servicios) {
       );
       const nombreCliente = cliente ? cliente.nombre : "--";
 
-      // ✅ Verificar estado de pago correcto
+      // Verificar estado de pago correcto
       let estadoPago = "Pendiente";
       let badgeColor = "bg-danger";
       let estaPagado = false;
@@ -3141,7 +3141,7 @@ async function saveServicio(event) {
     const result = await api.request("/servicios-adicionales", "POST", data);
     showToast(`Servicio #${result.id} creado correctamente`, "success");
 
-    // ✅ ACTUALIZAR EL TOTAL DE LA VENTA
+    // ACTUALIZAR EL TOTAL DE LA VENTA
     if (id_venta) {
       try {
         // 1. Obtener la venta actual
@@ -3169,7 +3169,7 @@ async function saveServicio(event) {
           total: nuevoTotal,
         });
 
-        // 6. ✅ FORZAR RECARGA DE ventasData
+        // 6. FORZAR RECARGA DE ventasData
         const ventasActualizadas = await api.getVentas();
         ventasData = ventasActualizadas || [];
 
@@ -3179,7 +3179,7 @@ async function saveServicio(event) {
           ventasData[idx].total = nuevoTotal;
         }
 
-        // 8. ✅ FORZAR RECARGA DE LA TABLA DE VENTAS
+        // 8. FORZAR RECARGA DE LA TABLA DE VENTAS
         renderVentasTable(ventasData);
 
         showToast(
@@ -3192,7 +3192,7 @@ async function saveServicio(event) {
       }
     }
 
-    // ✅ Si NO tiene venta asociada, mostrar opción de pago
+    // Si NO tiene venta asociada, mostrar opción de pago
     if (!id_venta) {
       const confirmarPago = await mostrarConfirmacion(
         "Pago del Servicio",
@@ -3207,7 +3207,7 @@ async function saveServicio(event) {
       document.getElementById("servicioModal"),
     ).hide();
 
-    // ✅ Recargar servicios y ventas
+    // Recargar servicios y ventas
     await loadVentasModule();
   } catch (error) {
     console.error("❌ Error al guardar servicio:", error);
@@ -3267,7 +3267,7 @@ async function pagarServicio(idServicio) {
       }
     }
 
-    // ✅ Servicio independiente - crear venta express
+    // Servicio independiente - crear venta express
     const id_usuario = getCurrentUser()?.id || 1;
 
     // Obtener ubicación de configuración
@@ -3385,6 +3385,33 @@ async function pagarServicioIndependiente(idServicio) {
     showToast(error.message || "Error al procesar pago", "error");
   }
 }
+
+// ============================================================
+// CREAR TIPO DE PAGO - COMPRAS
+// ============================================================
+function showCreateTipoPagoModal() {
+  // Redirigir al módulo de compras
+  showToast(
+    "Ve al módulo de Compras > Tipos de Pago para crear uno nuevo",
+    "info",
+  );
+  // O abrir el modal de tipos de pago
+  if (typeof loadComprasModule === "function") {
+    loadComprasModule();
+    // Cambiar a la pestaña de tipos de pago
+    setTimeout(() => {
+      const tab = document.querySelector(
+        '#comprasTabs button[data-bs-target="#panel-tipos-pago"]',
+      );
+      if (tab) {
+        const tabInstance = new bootstrap.Tab(tab);
+        tabInstance.show();
+      }
+    }, 500);
+  }
+}
+
+// Exponer globalmente
 
 // ============================================================
 // PESTAÑA: VENDEDORES
@@ -3719,6 +3746,109 @@ async function verFichaProducto(idProducto) {
 }
 
 // ============================================================
+// CREAR TIPO DE PAGO DESDE VENTAS
+// ============================================================
+function showCrearTipoPagoModal() {
+  // Verificar si ya existe el modal en el DOM
+  let modal = document.getElementById("tipoPagoModal");
+
+  // Si no existe, crearlo dinámicamente
+  if (!modal) {
+    const html = `
+      <div class="modal fade" id="tipoPagoModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+              <h5 class="modal-title">
+                <i class="fas fa-credit-card me-2"></i>Nuevo Tipo de Pago
+              </h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <form id="tipoPagoForm">
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="tipoPagoNombre" required placeholder="Ej: Efectivo, Tarjeta, Cheque" />
+                </div>
+                <div class="row">
+                  <div class="col-6 mb-3">
+                    <label class="form-label fw-bold">¿Para Ventas?</label>
+                    <select class="form-select" id="tipoPagoVentas">
+                      <option value="1">Sí</option>
+                      <option value="0">No</option>
+                    </select>
+                  </div>
+                  <div class="col-6 mb-3">
+                    <label class="form-label fw-bold">¿Para Compras?</label>
+                    <select class="form-select" id="tipoPagoCompras">
+                      <option value="1">Sí</option>
+                      <option value="0">No</option>
+                    </select>
+                  </div>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Guardar</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML("beforeend", html);
+
+    // Asignar evento al formulario
+    document
+      .getElementById("tipoPagoForm")
+      .addEventListener("submit", function (e) {
+        e.preventDefault();
+        saveTipoPagoDesdeVentas();
+      });
+  }
+
+  // Mostrar el modal
+  const modalInstance = new bootstrap.Modal(
+    document.getElementById("tipoPagoModal"),
+  );
+  modalInstance.show();
+}
+
+// ============================================================
+// GUARDAR TIPO DE PAGO DESDE VENTAS
+// ============================================================
+async function saveTipoPagoDesdeVentas() {
+  const nombre = document.getElementById("tipoPagoNombre").value.trim();
+  const para_ventas = parseInt(document.getElementById("tipoPagoVentas").value);
+  const para_compras = parseInt(
+    document.getElementById("tipoPagoCompras").value,
+  );
+
+  if (!nombre) {
+    showToast("El nombre es obligatorio", "error");
+    return;
+  }
+
+  try {
+    const result = await api.request("/tipos-pago", "POST", {
+      nombre,
+      para_ventas,
+      para_compras,
+    });
+
+    showToast(`Tipo de pago "${nombre}" creado correctamente`, "success");
+
+    // Cerrar modal
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("tipoPagoModal"),
+    );
+    if (modal) modal.hide();
+
+    // Recargar datos
+    await loadVentasModule();
+  } catch (error) {
+    showToast(error.message || "Error al crear tipo de pago", "error");
+  }
+}
+
+// ============================================================
 // EXPONER FUNCIONES GLOBALES
 // ============================================================
 window.loadVentasModule = loadVentasModule;
@@ -3772,3 +3902,5 @@ window.exportarVentasPDF = exportarVentasPDF;
 window.pagarServicio = pagarServicio;
 window.pagarServicioIndependiente = pagarServicioIndependiente;
 window.eliminarPagoVenta = eliminarPagoVenta;
+window.showCreateTipoPagoModal = showCreateTipoPagoModal;
+window.showCrearTipoPagoModal = showCrearTipoPagoModal;
