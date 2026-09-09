@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
 from app.security import hash_password, get_current_user
+from app.bitacora import registrar_actividad
 from app.models.model_usuario import (
     Usuario, Empleado, Rol, RolPermiso, Puesto, Turno,
     Modulo, Permiso, HistoricoPagoEmpleado, LogActividad,
@@ -103,7 +104,7 @@ def obtener_usuario(usuario_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=UsuarioResponse, status_code=201)
-def crear_usuario(datos: UsuarioCreate, db: Session = Depends(get_db)):
+def crear_usuario(datos: UsuarioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     existente = db.query(Usuario).filter(Usuario.nombre_usuario == datos.nombre_usuario).first()
     if existente:
         raise HTTPException(status_code=400, detail="Ese nombre de usuario ya existe")
@@ -118,13 +119,14 @@ def crear_usuario(datos: UsuarioCreate, db: Session = Depends(get_db)):
         activo=1,
     )
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Usuario")
     db.commit()
     db.refresh(nuevo)
     return nuevo
 
 
 @router.put("/{usuario_id}", response_model=UsuarioResponse)
-def actualizar_usuario(usuario_id: int, datos: UsuarioUpdate, db: Session = Depends(get_db)):
+def actualizar_usuario(usuario_id: int, datos: UsuarioUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -136,30 +138,33 @@ def actualizar_usuario(usuario_id: int, datos: UsuarioUpdate, db: Session = Depe
     for campo, valor in datos_dict.items():
         setattr(usuario, campo, valor)
 
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Usuario")
     db.commit()
     db.refresh(usuario)
     return usuario
 
 
 @router.delete("/{usuario_id}", response_model=UsuarioResponse)
-def eliminar_usuario(usuario_id: int, db: Session = Depends(get_db)):
+def eliminar_usuario(usuario_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Baja lógica: activo pasa de 1 a 0 (el usuario ya no puede iniciar sesión)."""
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     usuario.activo = 0
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Usuario")
     db.commit()
     db.refresh(usuario)
     return usuario
 
 
 @router.patch("/{usuario_id}/reactivar", response_model=UsuarioResponse)
-def reactivar_usuario(usuario_id: int, db: Session = Depends(get_db)):
+def reactivar_usuario(usuario_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     usuario.activo = 1
     usuario.intentos_fallidos = 0
+    registrar_actividad(db, usuario_actual.id, "REACTIVAR", "Usuario")
     db.commit()
     db.refresh(usuario)
     return usuario
@@ -192,20 +197,21 @@ def obtener_empleado(empleado_id: int, db: Session = Depends(get_db)):
 
 
 @router_empleado.post("", response_model=EmpleadoResponse, status_code=201)
-def crear_empleado(datos: EmpleadoCreate, db: Session = Depends(get_db)):
+def crear_empleado(datos: EmpleadoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     existente = db.query(Empleado).filter(Empleado.dpi == datos.dpi).first()
     if existente:
         raise HTTPException(status_code=400, detail="Ya existe un empleado con ese DPI")
 
     nuevo = Empleado(**datos.model_dump(), activo=1)
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Empleado")
     db.commit()
     db.refresh(nuevo)
     return nuevo
 
 
 @router_empleado.put("/{empleado_id}", response_model=EmpleadoResponse)
-def actualizar_empleado(empleado_id: int, datos: EmpleadoUpdate, db: Session = Depends(get_db)):
+def actualizar_empleado(empleado_id: int, datos: EmpleadoUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     empleado = db.query(Empleado).filter(Empleado.id == empleado_id).first()
     if not empleado:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
@@ -213,29 +219,32 @@ def actualizar_empleado(empleado_id: int, datos: EmpleadoUpdate, db: Session = D
     for campo, valor in datos.model_dump(exclude_unset=True).items():
         setattr(empleado, campo, valor)
 
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Empleado")
     db.commit()
     db.refresh(empleado)
     return empleado
 
 
 @router_empleado.delete("/{empleado_id}", response_model=EmpleadoResponse)
-def eliminar_empleado(empleado_id: int, db: Session = Depends(get_db)):
+def eliminar_empleado(empleado_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Baja lógica: activo pasa de 1 a 0."""
     empleado = db.query(Empleado).filter(Empleado.id == empleado_id).first()
     if not empleado:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
     empleado.activo = 0
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Empleado")
     db.commit()
     db.refresh(empleado)
     return empleado
 
 
 @router_empleado.patch("/{empleado_id}/reactivar", response_model=EmpleadoResponse)
-def reactivar_empleado(empleado_id: int, db: Session = Depends(get_db)):
+def reactivar_empleado(empleado_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     empleado = db.query(Empleado).filter(Empleado.id == empleado_id).first()
     if not empleado:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
     empleado.activo = 1
+    registrar_actividad(db, usuario_actual.id, "REACTIVAR", "Empleado")
     db.commit()
     db.refresh(empleado)
     return empleado
@@ -251,9 +260,10 @@ def listar_roles(db: Session = Depends(get_db)):
 
 
 @router_rol.post("", response_model=RolResponse, status_code=201)
-def crear_rol(datos: RolCreate, db: Session = Depends(get_db)):
+def crear_rol(datos: RolCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nuevo = Rol(**datos.model_dump())
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Rol")
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -287,7 +297,7 @@ def listar_permisos_detalle_de_rol(rol_id: int, db: Session = Depends(get_db)):
 
 
 @router_rol.post("/permisos", response_model=RolPermisoResponse, status_code=201)
-def asignar_permiso_a_rol(datos: RolPermisoCreate, db: Session = Depends(get_db)):
+def asignar_permiso_a_rol(datos: RolPermisoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Asigna un permiso existente a un rol existente."""
     if not db.query(Rol).filter(Rol.id == datos.id_rol).first():
         raise HTTPException(status_code=404, detail="Rol no encontrado")
@@ -296,18 +306,20 @@ def asignar_permiso_a_rol(datos: RolPermisoCreate, db: Session = Depends(get_db)
 
     nueva_asignacion = RolPermiso(**datos.model_dump())
     db.add(nueva_asignacion)
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Rol")
     db.commit()
     db.refresh(nueva_asignacion)
     return nueva_asignacion
 
 
 @router_rol.delete("/permisos/{rol_permiso_id}", status_code=204)
-def quitar_permiso_de_rol(rol_permiso_id: int, db: Session = Depends(get_db)):
+def quitar_permiso_de_rol(rol_permiso_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Aquí sí se borra el registro real (es solo una relación, no un catálogo)."""
     asignacion = db.query(RolPermiso).filter(RolPermiso.id == rol_permiso_id).first()
     if not asignacion:
         raise HTTPException(status_code=404, detail="Asignación no encontrada")
     db.delete(asignacion)
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Rol")
     db.commit()
 
 
@@ -321,9 +333,10 @@ def listar_puestos(db: Session = Depends(get_db)):
 
 
 @router_puesto.post("", response_model=PuestoResponse, status_code=201)
-def crear_puesto(datos: PuestoCreate, db: Session = Depends(get_db)):
+def crear_puesto(datos: PuestoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nuevo = Puesto(**datos.model_dump())
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Puesto")
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -339,9 +352,10 @@ def listar_turnos(db: Session = Depends(get_db)):
 
 
 @router_turno.post("", response_model=TurnoResponse, status_code=201)
-def crear_turno(datos: TurnoCreate, db: Session = Depends(get_db)):
+def crear_turno(datos: TurnoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nuevo = Turno(**datos.model_dump())
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Turno")
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -357,9 +371,10 @@ def listar_modulos(db: Session = Depends(get_db)):
 
 
 @router_modulo.post("", response_model=ModuloResponse, status_code=201)
-def crear_modulo(datos: ModuloCreate, db: Session = Depends(get_db)):
+def crear_modulo(datos: ModuloCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nuevo = Modulo(**datos.model_dump())
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Modulo")
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -375,9 +390,10 @@ def listar_permisos(db: Session = Depends(get_db)):
 
 
 @router_permiso.post("", response_model=PermisoResponse, status_code=201)
-def crear_permiso(datos: PermisoCreate, db: Session = Depends(get_db)):
+def crear_permiso(datos: PermisoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nuevo = Permiso(**datos.model_dump())
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Permiso")
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -396,12 +412,13 @@ def listar_pagos(id_empleado: int | None = None, db: Session = Depends(get_db)):
 
 
 @router_pago.post("", response_model=HistoricoPagoEmpleadoResponse, status_code=201)
-def registrar_pago(datos: HistoricoPagoEmpleadoCreate, db: Session = Depends(get_db)):
+def registrar_pago(datos: HistoricoPagoEmpleadoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     if not db.query(Empleado).filter(Empleado.id == datos.id_empleado).first():
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
     nuevo = HistoricoPagoEmpleado(**datos.model_dump())
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "HistoricoPagoEmpleado")
     db.commit()
     db.refresh(nuevo)
     return nuevo

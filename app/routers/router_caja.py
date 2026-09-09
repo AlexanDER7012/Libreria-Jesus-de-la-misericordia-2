@@ -4,6 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.security import get_current_user
+from app.bitacora import registrar_actividad
+from app.models.model_usuario import Usuario
 from app.models.model_caja import (
     CajaTurno, CajaDenominacion, CajaChicaMovimiento, Gasto, TipoGasto, TipoPago,
 )
@@ -56,7 +59,7 @@ def obtener_turno(turno_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/abrir", response_model=CajaTurnoResponse, status_code=201)
-def abrir_turno(datos: CajaTurnoAbrir, db: Session = Depends(get_db)):
+def abrir_turno(datos: CajaTurnoAbrir, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Abre un nuevo turno de caja. No permite dos turnos abiertos a la vez en la misma sucursal."""
     turno_abierto = db.query(CajaTurno).filter(
         CajaTurno.id_ubicacion == datos.id_ubicacion, CajaTurno.estado == "Abierto"
@@ -69,13 +72,14 @@ def abrir_turno(datos: CajaTurnoAbrir, db: Session = Depends(get_db)):
 
     nuevo = CajaTurno(**datos.model_dump(), estado="Abierto")
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "CajaTurno")
     db.commit()
     db.refresh(nuevo)
     return nuevo
 
 
 @router.patch("/{turno_id}/cerrar", response_model=CajaTurnoResponse)
-def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(get_db)):
+def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     turno = db.query(CajaTurno).filter(CajaTurno.id == turno_id).first()
     if not turno:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
@@ -102,6 +106,7 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
     turno.estado = "Cerrado"
     turno.observaciones = datos.observaciones
 
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "CajaTurno")
     db.commit()
     db.refresh(turno)
     return turno
@@ -120,7 +125,7 @@ def listar_movimientos_caja_chica(id_ubicacion: Optional[int] = None, db: Sessio
 
 
 @router_caja_chica.post("", response_model=CajaChicaMovimientoResponse, status_code=201)
-def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Session = Depends(get_db)):
+def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Registra un movimiento y calcula el saldo corriente de esa sucursal."""
     ultimo = (
         db.query(CajaChicaMovimiento)
@@ -133,6 +138,7 @@ def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Sessio
 
     nuevo = CajaChicaMovimiento(**datos.model_dump(), saldo=nuevo_saldo)
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "CajaChica")
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -167,12 +173,14 @@ def listar_gastos(
 
 
 @router_gasto.post("", response_model=GastoResponse, status_code=201)
-def registrar_gasto(datos: GastoCreate, db: Session = Depends(get_db)):
+def registrar_gasto(datos: GastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nuevo = Gasto(**datos.model_dump())
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Gasto")
     db.commit()
     db.refresh(nuevo)
     return nuevo
+
 
 # ===================================================================
 # TIPO_GASTO (catálogo simple)
@@ -184,12 +192,14 @@ def listar_tipos_gasto(db: Session = Depends(get_db)):
 
 
 @router_tipo_gasto.post("", response_model=TipoGastoResponse, status_code=201)
-def crear_tipo_gasto(datos: TipoGastoCreate, db: Session = Depends(get_db)):
+def crear_tipo_gasto(datos: TipoGastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nuevo = TipoGasto(**datos.model_dump())
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "TipoGasto")
     db.commit()
     db.refresh(nuevo)
     return nuevo
+
 
 # ===================================================================
 # TIPO_PAGO (catalogo simple)
@@ -201,9 +211,10 @@ def listar_tipos_pago(db: Session = Depends(get_db)):
 
 
 @router_tipo_pago.post("", response_model=TipoPagoResponse, status_code=201)
-def crear_tipo_pago(datos: TipoPagoCreate, db: Session = Depends(get_db)):
+def crear_tipo_pago(datos: TipoPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nuevo = TipoPago(**datos.model_dump())
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "TipoPago")
     db.commit()
     db.refresh(nuevo)
     return nuevo

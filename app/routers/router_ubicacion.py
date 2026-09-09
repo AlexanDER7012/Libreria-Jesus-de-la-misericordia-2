@@ -16,6 +16,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
+from app.security import get_current_user
+from app.bitacora import registrar_actividad
+from app.models.model_usuario import Usuario
 from app.models.model_ubicacion import Ubicacion, Sububicacion
 from app.schemas.schema_ubicacion import (
     UbicacionCreate,
@@ -63,17 +66,18 @@ def obtener_ubicacion(ubicacion_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=UbicacionResponse, status_code=201)
-def crear_ubicacion(datos: UbicacionCreate, db: Session = Depends(get_db)):
+def crear_ubicacion(datos: UbicacionCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Crea una nueva sucursal."""
     nueva = Ubicacion(**datos.model_dump(), activo=1)
     db.add(nueva)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Ubicacion")
     db.commit()
     db.refresh(nueva)
     return nueva
 
 
 @router.put("/{ubicacion_id}", response_model=UbicacionResponse)
-def actualizar_ubicacion(ubicacion_id: int, datos: UbicacionUpdate, db: Session = Depends(get_db)):
+def actualizar_ubicacion(ubicacion_id: int, datos: UbicacionUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Actualiza uno o varios campos de una sucursal existente."""
     ubicacion = db.query(Ubicacion).filter(Ubicacion.id == ubicacion_id).first()
     if not ubicacion:
@@ -82,19 +86,21 @@ def actualizar_ubicacion(ubicacion_id: int, datos: UbicacionUpdate, db: Session 
     for campo, valor in datos.model_dump(exclude_unset=True).items():
         setattr(ubicacion, campo, valor)
 
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Ubicacion")
     db.commit()
     db.refresh(ubicacion)
     return ubicacion
 
 
 @router.delete("/{ubicacion_id}", response_model=UbicacionResponse)
-def eliminar_ubicacion(ubicacion_id: int, db: Session = Depends(get_db)):
+def eliminar_ubicacion(ubicacion_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Baja lógica: activo pasa de 1 a 0."""
     ubicacion = db.query(Ubicacion).filter(Ubicacion.id == ubicacion_id).first()
     if not ubicacion:
         raise HTTPException(status_code=404, detail="Ubicación no encontrada")
 
     ubicacion.activo = 0
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Ubicacion")
     db.commit()
     db.refresh(ubicacion)
     return ubicacion
@@ -140,7 +146,7 @@ def obtener_sububicacion(sububicacion_id: int, db: Session = Depends(get_db)):
 
 
 @sub_router.post("", response_model=SububicacionResponse, status_code=201)
-def crear_sububicacion(datos: SububicacionCreate, db: Session = Depends(get_db)):
+def crear_sububicacion(datos: SububicacionCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Crea una nueva sububicación. Debe indicar a qué ubicacion (sucursal) pertenece."""
     ubicacion = db.query(Ubicacion).filter(Ubicacion.id == datos.id_ubicacion).first()
     if not ubicacion:
@@ -148,13 +154,14 @@ def crear_sububicacion(datos: SububicacionCreate, db: Session = Depends(get_db))
 
     nueva = Sububicacion(**datos.model_dump(), activo=1)
     db.add(nueva)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Sububicacion")
     db.commit()
     db.refresh(nueva)
     return nueva
 
 
 @sub_router.put("/{sububicacion_id}", response_model=SububicacionResponse)
-def actualizar_sububicacion(sububicacion_id: int, datos: SububicacionUpdate, db: Session = Depends(get_db)):
+def actualizar_sububicacion(sububicacion_id: int, datos: SububicacionUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     sub = db.query(Sububicacion).filter(Sububicacion.id == sububicacion_id).first()
     if not sub:
         raise HTTPException(status_code=404, detail="Sububicación no encontrada")
@@ -162,19 +169,21 @@ def actualizar_sububicacion(sububicacion_id: int, datos: SububicacionUpdate, db:
     for campo, valor in datos.model_dump(exclude_unset=True).items():
         setattr(sub, campo, valor)
 
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Sububicacion")
     db.commit()
     db.refresh(sub)
     return sub
 
 
 @sub_router.delete("/{sububicacion_id}", response_model=SububicacionResponse)
-def eliminar_sububicacion(sububicacion_id: int, db: Session = Depends(get_db)):
+def eliminar_sububicacion(sububicacion_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Baja lógica: activo pasa de 1 a 0."""
     sub = db.query(Sububicacion).filter(Sububicacion.id == sububicacion_id).first()
     if not sub:
         raise HTTPException(status_code=404, detail="Sububicación no encontrada")
 
     sub.activo = 0
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Sububicacion")
     db.commit()
     db.refresh(sub)
     return sub
