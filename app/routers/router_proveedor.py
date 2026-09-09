@@ -5,7 +5,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
+from app.security import get_current_user
+from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
+from app.models.model_usuario import Usuario
 from app.models.model_proveedor import Proveedor, TipoProveedor, Pedido, DetallePedido
 from app.schemas.schema_proveedor import (
     ProveedorCreate, ProveedorUpdate, ProveedorResponse,
@@ -67,44 +70,48 @@ def obtener_proveedor(proveedor_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=ProveedorResponse, status_code=201)
-def crear_proveedor(datos: ProveedorCreate, db: Session = Depends(get_db)):
+def crear_proveedor(datos: ProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nuevo = Proveedor(**datos.model_dump(), activo=1)
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Proveedor")
     db.commit()
     db.refresh(nuevo)
     return nuevo
 
 
 @router.put("/{proveedor_id}", response_model=ProveedorResponse)
-def actualizar_proveedor(proveedor_id: int, datos: ProveedorUpdate, db: Session = Depends(get_db)):
+def actualizar_proveedor(proveedor_id: int, datos: ProveedorUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
     for campo, valor in datos.model_dump(exclude_unset=True).items():
         setattr(proveedor, campo, valor)
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Proveedor")
     db.commit()
     db.refresh(proveedor)
     return proveedor
 
 
 @router.delete("/{proveedor_id}", response_model=ProveedorResponse)
-def eliminar_proveedor(proveedor_id: int, db: Session = Depends(get_db)):
+def eliminar_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Baja lógica: activo pasa de 1 a 0."""
     proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
     proveedor.activo = 0
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Proveedor")
     db.commit()
     db.refresh(proveedor)
     return proveedor
 
 
 @router.patch("/{proveedor_id}/reactivar", response_model=ProveedorResponse)
-def reactivar_proveedor(proveedor_id: int, db: Session = Depends(get_db)):
+def reactivar_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
     proveedor.activo = 1
+    registrar_actividad(db, usuario_actual.id, "REACTIVAR", "Proveedor")
     db.commit()
     db.refresh(proveedor)
     return proveedor
@@ -120,9 +127,10 @@ def listar_tipos_proveedor(db: Session = Depends(get_db)):
 
 
 @router_tipo.post("", response_model=TipoProveedorResponse, status_code=201)
-def crear_tipo_proveedor(datos: TipoProveedorCreate, db: Session = Depends(get_db)):
+def crear_tipo_proveedor(datos: TipoProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nuevo = TipoProveedor(**datos.model_dump())
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "TipoProveedor")
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -173,16 +181,17 @@ def calcular_total_pedido(pedido_id: int, db: Session = Depends(get_db)):
 
 
 @router_pedido.post("", response_model=PedidoResponse, status_code=201)
-def crear_pedido(datos: PedidoCreate, db: Session = Depends(get_db)):
+def crear_pedido(datos: PedidoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nuevo = Pedido(**datos.model_dump(), estado="Pendiente")
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Pedido")
     db.commit()
     db.refresh(nuevo)
     return nuevo
 
 
 @router_pedido.post("/{pedido_id}/detalles", response_model=DetallePedidoResponse, status_code=201)
-def agregar_producto_a_pedido(pedido_id: int, datos: DetallePedidoCreate, db: Session = Depends(get_db)):
+def agregar_producto_a_pedido(pedido_id: int, datos: DetallePedidoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
@@ -193,19 +202,21 @@ def agregar_producto_a_pedido(pedido_id: int, datos: DetallePedidoCreate, db: Se
 
     nuevo_detalle = DetallePedido(id_pedido=pedido_id, **datos.model_dump())
     db.add(nuevo_detalle)
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Pedido")
     db.commit()
     db.refresh(nuevo_detalle)
     return nuevo_detalle
 
 
 @router_pedido.delete("/{pedido_id}/detalles/{detalle_id}", status_code=204)
-def quitar_producto_de_pedido(pedido_id: int, detalle_id: int, db: Session = Depends(get_db)):
+def quitar_producto_de_pedido(pedido_id: int, detalle_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     detalle = db.query(DetallePedido).filter(
         DetallePedido.id == detalle_id, DetallePedido.id_pedido == pedido_id
     ).first()
     if not detalle:
         raise HTTPException(status_code=404, detail="Detalle no encontrado en este pedido")
     db.delete(detalle)
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Pedido")
     db.commit()
 
 
@@ -215,6 +226,7 @@ def cambiar_estado_pedido(
     nuevo_estado: str = Query(..., description=f"Uno de: {', '.join(ESTADOS_PEDIDO)}"),
     forzar: bool = Query(False, description="Forzar aprobación aunque no alcance el mínimo de Q500"),
     db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(get_current_user),
 ):
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:
@@ -234,6 +246,7 @@ def cambiar_estado_pedido(
             )
 
     pedido.estado = nuevo_estado
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Pedido")
     db.commit()
     db.refresh(pedido)
     return pedido

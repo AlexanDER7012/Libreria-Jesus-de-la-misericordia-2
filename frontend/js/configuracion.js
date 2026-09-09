@@ -254,8 +254,7 @@ async function saveConfig(event) {
   };
 
   try {
-    // ✅ Usar la ruta exacta con slash al final
-    await api.request("/configuracion/", "PUT", data);
+    await api.request("/configuracion", "PUT", data);
     showToast("Configuración actualizada correctamente", "success");
 
     const modal = bootstrap.Modal.getInstance(

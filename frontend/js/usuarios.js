@@ -9,7 +9,6 @@ let modulosData = [];
 let permisosData = [];
 let rolPermisosData = [];
 let pagosEmpleadoData = [];
-let logsData = [];
 
 // ============================================================
 // CARGA DEL MÓDULO
@@ -109,7 +108,6 @@ async function cargarDatos() {
       modulos,
       permisos,
       pagos,
-      logs,
     ] = await Promise.all([
       api.getUsuarios().catch(() => []),
       api.getEmpleados().catch(() => []),
@@ -119,7 +117,6 @@ async function cargarDatos() {
       api.getModulos().catch(() => []),
       api.getPermisos().catch(() => []),
       api.request("/pagos-empleado").catch(() => []),
-      api.request("/logs").catch(() => []),
     ]);
 
     usuariosData = usuarios || [];
@@ -130,7 +127,6 @@ async function cargarDatos() {
     modulosData = modulos || [];
     permisosData = permisos || [];
     pagosEmpleadoData = pagos || [];
-    logsData = logs || [];
 
     console.log("✅ Datos cargados:");
     console.log("  - Usuarios:", usuariosData.length);
@@ -142,7 +138,7 @@ async function cargarDatos() {
     renderRoles(rolesData);
     renderPagos(pagosEmpleadoData);
     renderCatalogos();
-    renderLogs(logsData);
+    cargarBitacoraUsuarios();
 
     await cargarPermisosRoles();
   } catch (error) {
@@ -581,21 +577,83 @@ function renderCatalogos() {
 // ============================================================
 // RENDER: BITÁCORA
 // ============================================================
-function renderLogs(logs) {
+async function cargarBitacoraUsuarios() {
   const container = document.getElementById("logsContainer");
   if (!container) return;
 
-  if (!logs || logs.length === 0) {
-    container.innerHTML = `
+  const hoy = new Date();
+  const hace30Dias = new Date();
+  hace30Dias.setDate(hace30Dias.getDate() - 30);
+
+  const usuariosOptions = (usuariosData || [])
+    .map((u) => `<option value="${u.id}">${u.nombre_usuario}</option>`)
+    .join("");
+
+  container.innerHTML = `
+        <div class="row mb-3 g-2">
+            <div class="col-md-3">
+                <label class="form-label small">Fecha Desde</label>
+                <input type="date" class="form-control form-control-sm" id="bitacoraUsrDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Fecha Hasta</label>
+                <input type="date" class="form-control form-control-sm" id="bitacoraUsrHasta" value="${hoy.toISOString().split("T")[0]}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Usuario</label>
+                <select class="form-select form-select-sm" id="bitacoraUsrUsuario">
+                    <option value="">Todos los usuarios</option>
+                    ${usuariosOptions}
+                </select>
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button class="btn btn-primary btn-sm" onclick="actualizarBitacoraUsuarios()" title="Consultar">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+            <div class="col-md-2 d-flex align-items-end gap-1">
+                <button class="btn btn-success btn-sm" onclick="exportarPDF('bitacoraUsrResultado', 'Bitacora_Usuarios')" title="Exportar a PDF">
+                    <i class="fas fa-file-pdf"></i>
+                </button>
+                <button class="btn btn-info btn-sm" onclick="exportarExcel('bitacoraUsrResultado', 'Bitacora_Usuarios')" title="Exportar a Excel">
+                    <i class="fas fa-file-excel"></i>
+                </button>
+            </div>
+        </div>
+        <div id="bitacoraUsrResultado">
+            <div class="text-center py-5">
+                <div class="spinner-border text-danger" role="status"></div>
+                <p class="mt-2 text-muted">Cargando bitácora...</p>
+            </div>
+        </div>
+    `;
+
+  await actualizarBitacoraUsuarios();
+}
+
+async function actualizarBitacoraUsuarios() {
+  const desde = document.getElementById("bitacoraUsrDesde")?.value;
+  const hasta = document.getElementById("bitacoraUsrHasta")?.value;
+  const idUsuario = document.getElementById("bitacoraUsrUsuario")?.value;
+  const resultado = document.getElementById("bitacoraUsrResultado");
+  if (!desde || !hasta || !resultado) return;
+
+  try {
+    let url = `/reportes/usuarios/bitacora?desde=${desde}&hasta=${hasta}`;
+    if (idUsuario) url += `&id_usuario=${idUsuario}`;
+    const data = await api.request(url);
+
+    if (!data || !data.detalle || data.detalle.length === 0) {
+      resultado.innerHTML = `
             <div class="text-center py-4 text-muted">
                 <i class="fas fa-history fa-3x mb-3"></i>
-                <p>No hay registros en la bitácora</p>
+                <p>No hay registros en la bitácora para este filtro</p>
             </div>
         `;
-    return;
-  }
+      return;
+    }
 
-  let html = `
+    let html = `
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -605,49 +663,47 @@ function renderLogs(logs) {
                         <th>Fecha</th>
                         <th>Acción</th>
                         <th>Módulo</th>
-                        <th>IP</th>
-                        <th>Detalles</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
 
-  logs.slice(0, 200).forEach((l) => {
-    const usuario = usuariosData.find((u) => u.id === l.id_usuario);
-    const accionColor =
-      l.accion === "LOGIN"
-        ? "success"
-        : l.accion === "LOGIN_FALLIDO"
-          ? "danger"
-          : l.accion === "CREAR"
-            ? "primary"
-            : l.accion === "EDITAR"
-              ? "warning"
-              : l.accion === "ELIMINAR"
-                ? "danger"
-                : "secondary";
+    data.detalle.forEach((l) => {
+      const accionColor =
+        l.accion === "LOGIN"
+          ? "success"
+          : l.accion === "LOGIN_FALLIDO"
+            ? "danger"
+            : l.accion === "CREAR"
+              ? "primary"
+              : l.accion === "EDITAR"
+                ? "warning"
+                : l.accion === "ELIMINAR"
+                  ? "danger"
+                  : "secondary";
 
-    html += `
+      html += `
             <tr>
                 <td>${l.id}</td>
-                <td><strong>${usuario ? usuario.nombre_usuario : "--"}</strong></td>
+                <td><strong>${l.nombre_usuario || "--"}</strong></td>
                 <td>${l.fecha ? new Date(l.fecha).toLocaleString() : "--"}</td>
                 <td><span class="badge bg-${accionColor}">${l.accion || "--"}</span></td>
                 <td>${l.modulo || "--"}</td>
-                <td>${l.ip || "--"}</td>
-                <td><small>${l.detalles || "--"}</small></td>
             </tr>
         `;
-  });
+    });
 
-  html += `
+    html += `
                 </tbody>
             </table>
         </div>
-        <div class="text-end"><small class="text-muted">Mostrando últimos 200 registros de ${logs.length}</small></div>
+        <div class="text-end"><small class="text-muted">${data.cantidad} registros (período ${data.desde} al ${data.hasta})</small></div>
     `;
 
-  container.innerHTML = html;
+    resultado.innerHTML = html;
+  } catch (error) {
+    resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
 }
 
 // ============================================================
@@ -2026,3 +2082,5 @@ window.llenarSelectPuesto = llenarSelectPuesto;
 window.llenarSelectTurno = llenarSelectTurno;
 window.llenarSelectEmpleadoPago = llenarSelectEmpleadoPago;
 window.cargarDatos = cargarDatos;
+window.cargarBitacoraUsuarios = cargarBitacoraUsuarios;
+window.actualizarBitacoraUsuarios = actualizarBitacoraUsuarios;

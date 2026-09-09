@@ -2,6 +2,9 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.security import get_current_user
+from app.bitacora import registrar_actividad
+from app.models.model_usuario import Usuario
 from app.models.model_configuracion import ConfiguracionGeneral, MetaFinanciera
 from app.schemas.schema_configuracion import (
     ConfiguracionGeneralUpdate, ConfiguracionGeneralResponse,
@@ -37,10 +40,11 @@ def obtener_configuracion(db: Session = Depends(get_db)):
 
 
 @router.put("", response_model=ConfiguracionGeneralResponse)
-def actualizar_configuracion(datos: ConfiguracionGeneralUpdate, db: Session = Depends(get_db)):
+def actualizar_configuracion(datos: ConfiguracionGeneralUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     config = _obtener_o_crear_configuracion(db)
     for campo, valor in datos.model_dump(exclude_unset=True).items():
         setattr(config, campo, valor)
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Configuracion")
     db.commit()
     db.refresh(config)
     return config
@@ -59,7 +63,7 @@ def listar_metas(anio: Optional[int] = None, db: Session = Depends(get_db)):
 
 
 @router_meta.post("", response_model=MetaFinancieraResponse, status_code=201)
-def crear_meta(datos: MetaFinancieraCreate, db: Session = Depends(get_db)):
+def crear_meta(datos: MetaFinancieraCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     existente = db.query(MetaFinanciera).filter(
         MetaFinanciera.mes == datos.mes, MetaFinanciera.anio == datos.anio
     ).first()
@@ -68,18 +72,20 @@ def crear_meta(datos: MetaFinancieraCreate, db: Session = Depends(get_db)):
 
     nueva = MetaFinanciera(**datos.model_dump())
     db.add(nueva)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "MetaFinanciera")
     db.commit()
     db.refresh(nueva)
     return nueva
 
 
 @router_meta.put("/{meta_id}", response_model=MetaFinancieraResponse)
-def actualizar_meta(meta_id: int, datos: MetaFinancieraCreate, db: Session = Depends(get_db)):
+def actualizar_meta(meta_id: int, datos: MetaFinancieraCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     meta = db.query(MetaFinanciera).filter(MetaFinanciera.id == meta_id).first()
     if not meta:
         raise HTTPException(status_code=404, detail="Meta financiera no encontrada")
     for campo, valor in datos.model_dump().items():
         setattr(meta, campo, valor)
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "MetaFinanciera")
     db.commit()
     db.refresh(meta)
     return meta

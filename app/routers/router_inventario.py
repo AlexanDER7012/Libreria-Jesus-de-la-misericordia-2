@@ -5,7 +5,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
+from app.security import get_current_user
+from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
+from app.models.model_usuario import Usuario
 from app.models.model_inventario import (
     MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario,
     InventarioFisico, TrasladoSucursal, Alerta,
@@ -52,7 +55,7 @@ def _generar_alerta_si_stock_bajo(db: Session, producto: Producto):
 def _calcular_nuevo_stock(stock_actual: float, cantidad: float, signo: int) -> float:
     """
     Calcula el nuevo stock según el signo del tipo de movimiento.
-    
+
     Reglas:
     - signo = 1  → SUMA (entrada) - Ej: Compra, Devolución, Otros Ingresos
     - signo = 0  → NO cambia stock (neutral)
@@ -60,7 +63,7 @@ def _calcular_nuevo_stock(stock_actual: float, cantidad: float, signo: int) -> f
     """
     stock = float(stock_actual or 0)
     cant = float(cantidad or 0)
-    
+
     if signo == 1:
         # Entrada: suma
         return stock + cant
@@ -68,7 +71,7 @@ def _calcular_nuevo_stock(stock_actual: float, cantidad: float, signo: int) -> f
         # Salida: resta
         if stock < cant:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Stock insuficiente. Disponible: {stock}, Requerido: {cant}"
             )
         return stock - cant
@@ -99,16 +102,17 @@ def listar_movimientos(
         query = query.filter(func.date(MovimientoInventario.fecha) >= fecha_desde)
     if fecha_hasta is not None:
         query = query.filter(func.date(MovimientoInventario.fecha) <= fecha_hasta)
-    
+
     # ✅ IMPORTANTE: Obtener los movimientos con sus detalles
     movimientos = query.offset(paginacion.skip).limit(paginacion.limit).all()
-    
+
     # ✅ Forzar la carga de detalles para cada movimiento
     for m in movimientos:
         # Esto asegura que los detalles se carguen antes de serializar
         _ = m.detalles
-    
+
     return movimientos
+
 
 @router.get("/{movimiento_id}", response_model=MovimientoInventarioResponse)
 def obtener_movimiento(movimiento_id: int, db: Session = Depends(get_db)):
@@ -119,11 +123,11 @@ def obtener_movimiento(movimiento_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=MovimientoInventarioResponse, status_code=201)
-def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(get_db)):
+def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """
     Crea un movimiento con sus detalles, y ACTUALIZA el stock_actual de
     cada producto involucrado según el signo del tipo de movimiento.
-    
+
     Reglas de signo (campo 'signo' en tabla 'tipo'):
     - signo = 1  → SUMA (entrada) - Ej: Compra, Devolución, Otros Ingresos
     - signo = 0  → NO cambia stock (neutral)
@@ -189,15 +193,16 @@ def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(ge
         producto = productos[d.id_producto]
         stock_anterior = float(producto.stock_actual or 0)
         nuevo_stock = _calcular_nuevo_stock(stock_anterior, d.cantidad, tipo.signo)
-        
+
         producto.stock_actual = nuevo_stock
-        
+
         # Log para depuración
         nombre_signo = "SUMA" if tipo.signo == 1 else "RESTA" if tipo.signo == 2 else "NEUTRO"
         print(f"📦 {producto.nombre}: {stock_anterior} → {nuevo_stock} ({nombre_signo}, {d.cantidad} unidades)")
 
         _generar_alerta_si_stock_bajo(db, producto)
 
+    registrar_actividad(db, usuario_actual.id, "CREAR", "MovimientoInventario")
     db.commit()
     db.refresh(nuevo_movimiento)
     return nuevo_movimiento
@@ -213,9 +218,10 @@ def listar_tipos_movimiento(db: Session = Depends(get_db)):
 
 
 @router_tipo.post("", response_model=TipoMovimientoInventarioResponse, status_code=201)
-def crear_tipo_movimiento(datos: TipoMovimientoInventarioCreate, db: Session = Depends(get_db)):
+def crear_tipo_movimiento(datos: TipoMovimientoInventarioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nuevo = TipoMovimientoInventario(**datos.model_dump())
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "TipoMovimientoInventario")
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -234,7 +240,7 @@ def listar_conteos(id_producto: Optional[int] = None, db: Session = Depends(get_
 
 
 @router_fisico.post("", response_model=InventarioFisicoResponse, status_code=201)
-def registrar_conteo(datos: InventarioFisicoCreate, db: Session = Depends(get_db)):
+def registrar_conteo(datos: InventarioFisicoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """
     Registra un conteo físico, comparando contra el stock_sistema actual.
     NO ajusta el stock todavía -- eso se hace aparte con /aplicar-ajuste,
@@ -254,13 +260,14 @@ def registrar_conteo(datos: InventarioFisicoCreate, db: Session = Depends(get_db
         ajustado=0,
     )
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "InventarioFisico")
     db.commit()
     db.refresh(nuevo)
     return nuevo
 
 
 @router_fisico.patch("/{conteo_id}/aplicar-ajuste", response_model=InventarioFisicoResponse)
-def aplicar_ajuste(conteo_id: int, db: Session = Depends(get_db)):
+def aplicar_ajuste(conteo_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Corrige producto.stock_actual para que coincida con lo contado físicamente."""
     conteo = db.query(InventarioFisico).filter(InventarioFisico.id == conteo_id).first()
     if not conteo:
@@ -274,6 +281,7 @@ def aplicar_ajuste(conteo_id: int, db: Session = Depends(get_db)):
 
     _generar_alerta_si_stock_bajo(db, producto)
 
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "InventarioFisico")
     db.commit()
     db.refresh(conteo)
     return conteo
@@ -305,7 +313,7 @@ def listar_traslados(
 
 
 @router_traslado.post("", response_model=TrasladoSucursalResponse, status_code=201)
-def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db)):
+def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """
     Registra la salida de producto de una sucursal hacia otra, a precio de
     costo. No cambia producto.stock_actual (es un total global: el traslado
@@ -316,13 +324,14 @@ def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db))
 
     nuevo = TrasladoSucursal(**datos.model_dump(), estado="EnProceso")
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "TrasladoSucursal")
     db.commit()
     db.refresh(nuevo)
     return nuevo
 
 
 @router_traslado.patch("/{traslado_id}/confirmar-recepcion", response_model=TrasladoSucursalResponse)
-def confirmar_recepcion(traslado_id: int, id_usuario_recibe: int, db: Session = Depends(get_db)):
+def confirmar_recepcion(traslado_id: int, id_usuario_recibe: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """La sucursal destino confirma que ya le llegó el producto."""
     traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).first()
     if not traslado:
@@ -334,6 +343,7 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: int, db: Session = 
     traslado.id_usuario_recibe = id_usuario_recibe
     traslado.fecha_recepcion = datetime.now()
 
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "TrasladoSucursal")
     db.commit()
     db.refresh(traslado)
     return traslado
@@ -358,12 +368,13 @@ def listar_alertas(
 
 
 @router_alerta.patch("/{alerta_id}/marcar-leida", response_model=AlertaResponse)
-def marcar_leida(alerta_id: int, db: Session = Depends(get_db)):
+def marcar_leida(alerta_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     alerta = db.query(Alerta).filter(Alerta.id == alerta_id).first()
     if not alerta:
         raise HTTPException(status_code=404, detail="Alerta no encontrada")
     alerta.leida = 1
     alerta.fecha_lectura = datetime.now()
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Alerta")
     db.commit()
     db.refresh(alerta)
     return alerta

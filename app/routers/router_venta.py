@@ -5,9 +5,12 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
+from app.security import get_current_user
+from app.bitacora import registrar_actividad
 from app.models.model_cliente import Cliente
 from app.models.model_producto import Producto
 from app.models.model_caja import CajaTurno
+from app.models.model_usuario import Usuario
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario, Alerta
 from app.models.model_venta import Venta, DetalleVenta, MetodoPagoVenta, ServicioAdicional, DetalleServicio
 from app.schemas.schema_venta import (
@@ -72,7 +75,7 @@ def obtener_venta(venta_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=VentaResponse, status_code=201)
-def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
+def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     turno = db.query(CajaTurno).filter(CajaTurno.id == datos.id_caja_turno).first()
     if not turno:
         raise HTTPException(status_code=404, detail="Turno de caja no encontrado")
@@ -175,13 +178,14 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db)):
 
     turno.total_ventas = round(float(turno.total_ventas or 0) + total, 2)
 
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Venta")
     db.commit()
     db.refresh(nueva_venta)
     return nueva_venta
 
 
 @router.patch("/{venta_id}/cancelar", response_model=VentaResponse)
-def cancelar_venta(venta_id: int, db: Session = Depends(get_db)):
+def cancelar_venta(venta_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
@@ -199,13 +203,14 @@ def cancelar_venta(venta_id: int, db: Session = Depends(get_db)):
             turno.total_ventas = round(float(turno.total_ventas or 0) - float(venta.total or 0), 2)
 
     venta.estado = "Cancelada"
+    registrar_actividad(db, usuario_actual.id, "CANCELAR", "Venta")
     db.commit()
     db.refresh(venta)
     return venta
 
 
 @router.put("/{venta_id}", response_model=VentaResponse)
-def actualizar_venta(venta_id: int, datos: VentaUpdate, db: Session = Depends(get_db)):
+def actualizar_venta(venta_id: int, datos: VentaUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """
     Actualiza una venta existente. A propósito, solo permite cambiar
     'observaciones' (ver VentaUpdate para el porqué). Para cancelar una
@@ -219,13 +224,14 @@ def actualizar_venta(venta_id: int, datos: VentaUpdate, db: Session = Depends(ge
     for campo, valor in datos.model_dump(exclude_unset=True).items():
         setattr(venta, campo, valor)
 
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Venta")
     db.commit()
     db.refresh(venta)
     return venta
 
 
 @router.post("/{venta_id}/pagos", status_code=201)
-def registrar_pago_venta(venta_id: int, pago_data: MetodoPagoVentaCreate, db: Session = Depends(get_db)):
+def registrar_pago_venta(venta_id: int, pago_data: MetodoPagoVentaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
@@ -237,13 +243,14 @@ def registrar_pago_venta(venta_id: int, pago_data: MetodoPagoVentaCreate, db: Se
         referencia=pago_data.referencia,
     )
     db.add(nuevo_pago)
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Venta")
     db.commit()
     db.refresh(nuevo_pago)
     return nuevo_pago
 
 
 @router.delete("/{venta_id}/pagos/{pago_id}", status_code=204)
-def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: Session = Depends(get_db)):
+def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """
     Elimina un pago de la venta. Por defecto, NO deja eliminar un pago si
     eso hace que los pagos restantes ya no cuadren con el total de la
@@ -280,6 +287,7 @@ def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: S
             ),
         )
 
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Venta")
     db.commit()
 
 
@@ -296,7 +304,7 @@ def listar_servicios(id_cliente: Optional[int] = None, db: Session = Depends(get
 
 
 @router_servicio.post("", response_model=ServicioAdicionalResponse, status_code=201)
-def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get_db)):
+def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """
     Si vienen 'detalles' (materiales usados), monto_material SIEMPRE se
     calcula desde ahí -- no se confía en lo que mande el cliente (mismo
@@ -332,15 +340,17 @@ def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get
             subtotal=round(d.cantidad * d.costo_unitario, 2),
         ))
 
+    registrar_actividad(db, usuario_actual.id, "CREAR", "ServicioAdicional")
     db.commit()
     db.refresh(nuevo)
     return nuevo
 
 
 @router_servicio.delete("/{servicio_id}", status_code=204)
-def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db)):
+def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     servicio = db.query(ServicioAdicional).filter(ServicioAdicional.id == servicio_id).first()
     if not servicio:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     db.delete(servicio)
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "ServicioAdicional")
     db.commit()

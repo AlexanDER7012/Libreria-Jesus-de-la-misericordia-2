@@ -5,7 +5,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
+from app.security import get_current_user
+from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
+from app.models.model_usuario import Usuario
 from app.models.model_cotizacion import Cotizacion, DetalleCotizacion
 from app.schemas.schema_cotizacion import (
     CotizacionCreate, CotizacionResponse,
@@ -70,7 +73,7 @@ def buscar_por_expediente(numero_expediente: str, db: Session = Depends(get_db))
 
 
 @router.post("", response_model=CotizacionResponse, status_code=201)
-def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db)):
+def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     if not datos.detalles:
         raise HTTPException(status_code=400, detail="La cotización debe incluir al menos un producto")
 
@@ -102,13 +105,14 @@ def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db)):
             precio_unitario=precio,
         ))
 
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Cotizacion")
     db.commit()
     db.refresh(nueva_cotizacion)
     return nueva_cotizacion
 
 
 @router.patch("/{cotizacion_id}/estado", response_model=CotizacionResponse)
-def cambiar_estado_cotizacion(cotizacion_id: int, nuevo_estado: str, db: Session = Depends(get_db)):
+def cambiar_estado_cotizacion(cotizacion_id: int, nuevo_estado: str, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     if nuevo_estado not in ("Pendiente", "Aceptada", "Rechazada"):
         raise HTTPException(status_code=400, detail="Estado inválido. Debe ser Pendiente, Aceptada o Rechazada")
 
@@ -117,6 +121,7 @@ def cambiar_estado_cotizacion(cotizacion_id: int, nuevo_estado: str, db: Session
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
 
     cotizacion.estado = nuevo_estado
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Cotizacion")
     db.commit()
     db.refresh(cotizacion)
     return cotizacion

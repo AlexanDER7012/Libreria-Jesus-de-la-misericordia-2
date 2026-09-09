@@ -3,7 +3,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
+from app.security import get_current_user
+from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto, Categoria, Marca, UnidadMedida, HistoricoPrecio
+from app.models.model_usuario import Usuario
 from app.schemas.schema_producto import (
     ProductoCreate, ProductoUpdate, ProductoResponse,
     CategoriaCreate, CategoriaResponse,
@@ -100,7 +103,7 @@ def historico_precios_de_producto(producto_id: int, db: Session = Depends(get_db
 
 
 @router.post("", response_model=ProductoResponse, status_code=201)
-def crear_producto(datos: ProductoCreate, db: Session = Depends(get_db)):
+def crear_producto(datos: ProductoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     if db.query(Producto).filter(Producto.codigo == datos.codigo).first():
         raise HTTPException(status_code=400, detail="Ya existe un producto con ese código")
 
@@ -113,18 +116,23 @@ def crear_producto(datos: ProductoCreate, db: Session = Depends(get_db)):
 
     nuevo = Producto(**datos_dict, stock_actual=0, activo=1)
     db.add(nuevo)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Producto")
     db.commit()
     db.refresh(nuevo)
 
     if nuevo.precio_venta is not None:
-        _registrar_cambio_precio(db, nuevo, None, nuevo.precio_venta, motivo="Precio inicial al crear el producto")
+        _registrar_cambio_precio(
+            db, nuevo, None, nuevo.precio_venta,
+            id_usuario=usuario_actual.id,
+            motivo="Precio inicial al crear el producto",
+        )
         db.commit()
 
     return nuevo
 
 
 @router.put("/{producto_id}", response_model=ProductoResponse)
-def actualizar_producto(producto_id: int, datos: ProductoUpdate, db: Session = Depends(get_db)):
+def actualizar_producto(producto_id: int, datos: ProductoUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     producto = db.query(Producto).filter(Producto.id == producto_id).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -141,33 +149,39 @@ def actualizar_producto(producto_id: int, datos: ProductoUpdate, db: Session = D
     for campo, valor in datos_dict.items():
         setattr(producto, campo, valor)
 
-    # TODO: cuando exista el login, pasar aquí el id_usuario real (usuario autenticado)
     if producto.precio_venta != precio_anterior:
-        _registrar_cambio_precio(db, producto, precio_anterior, producto.precio_venta, motivo="Actualización de producto")
+        _registrar_cambio_precio(
+            db, producto, precio_anterior, producto.precio_venta,
+            id_usuario=usuario_actual.id,
+            motivo="Actualización de producto",
+        )
 
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Producto")
     db.commit()
     db.refresh(producto)
     return producto
 
 
 @router.delete("/{producto_id}", response_model=ProductoResponse)
-def eliminar_producto(producto_id: int, db: Session = Depends(get_db)):
+def eliminar_producto(producto_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Baja lógica: activo pasa de 1 a 0 (el producto deja de ofrecerse, pero conserva su historial)."""
     producto = db.query(Producto).filter(Producto.id == producto_id).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     producto.activo = 0
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Producto")
     db.commit()
     db.refresh(producto)
     return producto
 
 
 @router.patch("/{producto_id}/reactivar", response_model=ProductoResponse)
-def reactivar_producto(producto_id: int, db: Session = Depends(get_db)):
+def reactivar_producto(producto_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     producto = db.query(Producto).filter(Producto.id == producto_id).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     producto.activo = 1
+    registrar_actividad(db, usuario_actual.id, "REACTIVAR", "Producto")
     db.commit()
     db.refresh(producto)
     return producto
@@ -186,9 +200,10 @@ def listar_categorias(buscar: Optional[str] = None, db: Session = Depends(get_db
 
 
 @router_categoria.post("", response_model=CategoriaResponse, status_code=201)
-def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db)):
+def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nueva = Categoria(**datos.model_dump())
     db.add(nueva)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Categoria")
     db.commit()
     db.refresh(nueva)
     return nueva
@@ -207,9 +222,10 @@ def listar_marcas(buscar: Optional[str] = None, db: Session = Depends(get_db)):
 
 
 @router_marca.post("", response_model=MarcaResponse, status_code=201)
-def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db)):
+def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nueva = Marca(**datos.model_dump())
     db.add(nueva)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Marca")
     db.commit()
     db.refresh(nueva)
     return nueva
@@ -228,9 +244,10 @@ def listar_unidades_medida(buscar: Optional[str] = None, db: Session = Depends(g
 
 
 @router_unidad.post("", response_model=UnidadMedidaResponse, status_code=201)
-def crear_unidad_medida(datos: UnidadMedidaCreate, db: Session = Depends(get_db)):
+def crear_unidad_medida(datos: UnidadMedidaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nueva = UnidadMedida(**datos.model_dump())
     db.add(nueva)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "UnidadMedida")
     db.commit()
     db.refresh(nueva)
     return nueva

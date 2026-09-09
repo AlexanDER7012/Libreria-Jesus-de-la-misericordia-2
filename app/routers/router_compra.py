@@ -6,7 +6,10 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.pagination import PaginationParams
+from app.security import get_current_user
+from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
+from app.models.model_usuario import Usuario
 from app.models.model_compra import Compra, DetalleCompra, CompraPago, NotaEntrega, DevolucionCompra
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario
 from app.schemas.schema_compra import (
@@ -58,7 +61,7 @@ def obtener_compra(compra_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=CompraResponse, status_code=201)
-def crear_compra(datos: CompraCreate, db: Session = Depends(get_db)):
+def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     if not datos.detalles:
         raise HTTPException(status_code=400, detail="La compra debe incluir al menos un producto")
 
@@ -95,13 +98,14 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db)):
             subtotal=round(d.cantidad_comprada * d.costo_unitario, 2),
         ))
 
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Compra")
     db.commit()
     db.refresh(nueva_compra)
     return nueva_compra
 
 
 @router.post("/{compra_id}/nota-entrega", response_model=NotaEntregaResponse, status_code=201)
-def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session = Depends(get_db)):
+def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     compra = db.query(Compra).filter(Compra.id == compra_id).first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
@@ -143,13 +147,14 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
 
         compra.estado = "Recibida"
 
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Compra")
     db.commit()
     db.refresh(nueva_nota)
     return nueva_nota
 
 
 @router.post("/{compra_id}/pagos", response_model=CompraPagoResponse, status_code=201)
-def registrar_pago_compra(compra_id: int, datos: CompraPagoCreate, db: Session = Depends(get_db)):
+def registrar_pago_compra(compra_id: int, datos: CompraPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Registra un pago a proveedor y recalcula saldo_pendiente y el estado de la compra."""
     compra = db.query(Compra).filter(Compra.id == compra_id).first()
     if not compra:
@@ -166,6 +171,7 @@ def registrar_pago_compra(compra_id: int, datos: CompraPagoCreate, db: Session =
     elif total_pagado > 0:
         compra.estado = "Parcial"
 
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Compra")
     db.commit()
     db.refresh(nuevo_pago)
     return nuevo_pago
@@ -184,9 +190,10 @@ def listar_devoluciones(id_proveedor: Optional[int] = None, db: Session = Depend
 
 
 @router_devolucion.post("", response_model=DevolucionCompraResponse, status_code=201)
-def registrar_devolucion(datos: DevolucionCompraCreate, db: Session = Depends(get_db)):
+def registrar_devolucion(datos: DevolucionCompraCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     nueva = DevolucionCompra(**datos.model_dump())
     db.add(nueva)
+    registrar_actividad(db, usuario_actual.id, "CREAR", "DevolucionCompra")
     db.commit()
     db.refresh(nueva)
     return nueva
