@@ -261,6 +261,10 @@ def listar_roles(db: Session = Depends(get_db)):
 
 @router_rol.post("", response_model=RolResponse, status_code=201)
 def crear_rol(datos: RolCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    existente = db.query(Rol).filter(Rol.nombre == datos.nombre).first()
+    if existente:
+        raise HTTPException(status_code=400, detail="Ya existe un rol con este nombre")
+
     nuevo = Rol(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(db, usuario_actual.id, "CREAR", "Rol")

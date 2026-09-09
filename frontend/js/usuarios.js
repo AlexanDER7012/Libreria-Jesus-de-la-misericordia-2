@@ -71,12 +71,20 @@ async function loadUsuariosModule() {
 
         <div class="tab-content">
             <div class="tab-pane fade show active" id="usuariosTab">
+                <div class="d-flex justify-content-end mb-2">
+                    <select class="form-select form-select-sm" style="max-width: 200px" id="filtroEstadoUsuarios" onchange="filtrarUsuariosTabla()">
+                        <option value="activos" selected>Activos</option>
+                        <option value="inactivos">Inactivos</option>
+                        <option value="todos">Todos</option>
+                    </select>
+                </div>
                 <div id="usuariosContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando usuarios...</p></div></div>
             </div>
             <div class="tab-pane fade" id="empleadosTab">
                 <div id="empleadosContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando empleados...</p></div></div>
             </div>
             <div class="tab-pane fade" id="rolesTab">
+                <h6 class="fw-bold mb-3"><i class="fas fa-user-tag me-2"></i>Roles y sus Permisos</h6>
                 <div id="rolesContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando roles...</p></div></div>
             </div>
             <div class="tab-pane fade" id="pagosTab">
@@ -110,7 +118,7 @@ async function cargarDatos() {
       pagos,
     ] = await Promise.all([
       api.getUsuarios().catch(() => []),
-      api.getEmpleados().catch(() => []),
+      api.request("/empleados?estado=todos").catch(() => []),
       api.getRoles().catch(() => []),
       api.getPuestos().catch(() => []),
       api.getTurnos().catch(() => []),
@@ -141,11 +149,31 @@ async function cargarDatos() {
     cargarBitacoraUsuarios();
 
     await cargarPermisosRoles();
+    renderRoles(rolesData); // se vuelve a llamar ya con rolPermisosData listo, para que las tarjetas de rol muestren los permisos correctos desde la primera carga
+
+    // Oculta las pestañas para las que el usuario logueado no tenga el
+    // permiso correspondiente (la función genérica vive en components.js).
+    aplicarControlAccesoPorPestana("usuariosTabs", PESTANAS_CONTROLADAS_USUARIOS, permisosData);
   } catch (error) {
     console.error("Error cargando datos:", error);
     showToast("Error al cargar datos: " + error.message, "error");
   }
 }
+
+// ============================================================
+// CONTROL DE ACCESO POR PESTAÑA
+// ============================================================
+// La lógica genérica ahora vive en components.js (aplicarControlAccesoPorPestana),
+// para poder reutilizarla igual en Reportes, Compras, Ventas, etc. Aquí solo
+// se define el mapa de pestañas propio de este módulo.
+const PESTANAS_CONTROLADAS_USUARIOS = {
+  usuariosTab: "Tab:Usuarios:Usuarios",
+  empleadosTab: "Tab:Usuarios:Empleados",
+  rolesTab: "Tab:Usuarios:Roles",
+  pagosTab: "Tab:Usuarios:Pagos",
+  catalogosTab: "Tab:Usuarios:Catalogos",
+  logsTab: "Tab:Usuarios:Bitacora",
+};
 
 // ============================================================
 // CARGAR PERMISOS DE ROLES
@@ -154,9 +182,9 @@ async function cargarPermisosRoles() {
   rolPermisosData = [];
   for (const rol of rolesData) {
     try {
-      const permisos = await api.request(`/roles/${rol.id}/permisos`);
+      const permisos = await api.request(`/roles/${rol.id}/permisos-detalle`);
       rolPermisosData = rolPermisosData.concat(
-        permisos.map((p) => ({ ...p, rol_nombre: rol.nombre })),
+        permisos.map((p) => ({ ...p, id_rol: rol.id, rol_nombre: rol.nombre })),
       );
     } catch (e) {
       console.warn(`No se pudieron cargar permisos para rol ${rol.id}`);
@@ -253,6 +281,23 @@ function renderUsuarios(usuarios) {
 }
 
 // ============================================================
+// FILTRO DE ESTADO (activos/inactivos/todos) EN LA TABLA DE USUARIOS
+// ============================================================
+// OJO: esto NO reasigna la variable global 'usuariosData' -- esa se usa
+// también en la pestaña de Roles (para saber quién tiene cada rol, y para
+// el selector de "agregar usuario a este rol"). Si se pisara aquí, filtrar
+// esta tabla podría alterar sin querer lo que se ve en Roles.
+async function filtrarUsuariosTabla() {
+  const estado = document.getElementById("filtroEstadoUsuarios")?.value || "activos";
+  try {
+    const usuarios = await api.request(`/usuarios?estado=${estado}`);
+    renderUsuarios(usuarios);
+  } catch (error) {
+    showToast(error.message || "Error al filtrar usuarios", "error");
+  }
+}
+
+// ============================================================
 // RENDER: EMPLEADOS
 // ============================================================
 function renderEmpleados(empleados) {
@@ -314,9 +359,15 @@ function renderEmpleados(empleados) {
                     <button class="btn btn-sm btn-outline-primary" onclick="showEditEmpleadoModal(${e.id})" title="Editar">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteEmpleado(${e.id})" title="Eliminar">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                    ${
+                      activo
+                        ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteEmpleado(${e.id})" title="Desactivar">
+                             <i class="fas fa-trash"></i>
+                           </button>`
+                        : `<button class="btn btn-sm btn-outline-success" onclick="reactivarEmpleado(${e.id})" title="Reactivar">
+                             <i class="fas fa-check"></i>
+                           </button>`
+                    }
                 </td>
             </tr>
         `;
@@ -331,10 +382,6 @@ function renderEmpleados(empleados) {
 
   container.innerHTML = html;
 }
-
-// ============================================================
-// RENDER: ROLES Y PERMISOS
-// ============================================================
 function renderRoles(roles) {
   const container = document.getElementById("rolesContainer");
   if (!container) return;
@@ -356,35 +403,75 @@ function renderRoles(roles) {
         <div class="row">
             ${roles
               .map((r) => {
-                const permisosRol = rolPermisosData.filter(
-                  (p) => p.id_rol === r.id,
-                );
-                const permisosNombres = permisosRol.map((p) => {
-                  const permiso = permisosData.find(
-                    (per) => per.id === p.id_permiso,
-                  );
-                  return permiso ? permiso.nombre : "--";
+                // rolPermisosData ya trae el permiso completo (nombre,
+                // id_modulo) gracias a que cargarPermisosRoles usa
+                // /permisos-detalle -- no hace falta cruzar contra
+                // permisosData otra vez.
+                const permisosDelRol = rolPermisosData.filter((p) => p.id_rol === r.id);
+
+                // Agrupar los permisos por módulo, ej: "Ventas: Ver, Crear"
+                const permisosPorModulo = {};
+                permisosDelRol.forEach((p) => {
+                  const modulo = modulosData.find((m) => m.id === p.id_modulo);
+                  const nombreModulo = modulo ? modulo.nombre : "General";
+                  if (!permisosPorModulo[nombreModulo]) permisosPorModulo[nombreModulo] = [];
+                  permisosPorModulo[nombreModulo].push(p.nombre || "(sin nombre)");
                 });
+
+                const htmlPermisos = Object.keys(permisosPorModulo).length
+                  ? Object.entries(permisosPorModulo)
+                      .map(
+                        ([modulo, acciones]) =>
+                          `<div class="small mb-1"><strong>${modulo}:</strong> ${acciones.join(", ")}</div>`,
+                      )
+                      .join("")
+                  : `<div class="small text-muted">(sin permisos asignados)</div>`;
+
+                // Usuarios que tienen este rol asignado (ya vienen solo
+                // los activos, gracias al filtro por default de getUsuarios()
+                // -- si alguien se desactiva, desaparece solo de aquí).
+                const usuariosDelRol = (usuariosData || []).filter((u) => u.id_rol === r.id);
+                const htmlUsuariosLista = usuariosDelRol.length
+                  ? usuariosDelRol
+                      .map(
+                        (u) => `
+                        <span class="badge bg-light text-dark border me-1 mb-1">
+                          ${u.nombre_usuario}
+                          <i class="fas fa-times ms-1 text-danger" style="cursor:pointer" onclick="quitarUsuarioDeRol(${u.id})" title="Quitar de este rol"></i>
+                        </span>`,
+                      )
+                      .join("")
+                  : `<span class="small text-muted">(ninguno todavía)</span>`;
+
+                // Selector para asignar un usuario más a este rol (cualquiera
+                // que hoy NO tenga ya este mismo rol -- puede venir de otro
+                // rol distinto, o de ningún rol).
+                const usuariosDisponibles = (usuariosData || []).filter((u) => u.id_rol !== r.id);
+                const htmlSelectorAgregar = usuariosDisponibles.length
+                  ? `<select class="form-select form-select-sm mt-1" onchange="asignarUsuarioARol(this, ${r.id})">
+                       <option value="">+ Agregar usuario a este rol...</option>
+                       ${usuariosDisponibles.map((u) => `<option value="${u.id}">${u.nombre_usuario}</option>`).join("")}
+                     </select>`
+                  : "";
 
                 return `
                 <div class="col-md-6 col-lg-4 mb-3">
                     <div class="card h-100">
                         <div class="card-body">
-                            <h6 class="fw-bold">${r.nombre}</h6>
-                            <p class="small text-muted">${r.descripcion || "Sin descripción"}</p>
-                            <p class="small">Nivel: ${r.nivel || 0}</p>
+                            <h6 class="fw-bold"><i class="fas fa-user-tag me-2"></i>${r.nombre}</h6>
+                            <p class="small text-muted mb-2">${r.descripcion || "Sin descripción"}</p>
+
                             <div class="mb-2">
-                                <span class="badge bg-secondary">${permisosRol.length} permisos</span>
+                                <i class="fas fa-users me-1 text-muted"></i>
+                                <span class="small"><strong>Usuarios con este rol:</strong></span>
+                                <div class="mt-1">${htmlUsuariosLista}</div>
+                                ${htmlSelectorAgregar}
                             </div>
-                            <div class="d-flex gap-1 flex-wrap">
-                                ${permisosNombres
-                                  .slice(0, 5)
-                                  .map(
-                                    (n) =>
-                                      `<span class="badge bg-primary">${n}</span>`,
-                                  )
-                                  .join("")}
-                                ${permisosNombres.length > 5 ? `<span class="badge bg-secondary">+${permisosNombres.length - 5}</span>` : ""}
+
+                            <div class="mb-2">
+                                <i class="fas fa-key me-1 text-muted"></i>
+                                <span class="small"><strong>Permisos:</strong></span>
+                                <div class="ms-3 mt-1">${htmlPermisos}</div>
                             </div>
                         </div>
                         <div class="card-footer bg-transparent">
@@ -406,6 +493,42 @@ function renderRoles(roles) {
     `;
 
   container.innerHTML = html;
+}
+
+// ============================================================
+// ASIGNAR / QUITAR USUARIO DE UN ROL (desde la tarjeta del rol)
+// ============================================================
+async function asignarUsuarioARol(selectElement, idRol) {
+  const idUsuario = parseInt(selectElement.value);
+  if (!idUsuario) return;
+
+  try {
+    await api.request(`/usuarios/${idUsuario}`, "PUT", { id_rol: idRol });
+    showToast("Usuario asignado al rol correctamente", "success");
+    await cargarDatos();
+  } catch (error) {
+    showToast(error.message || "Error al asignar el usuario a este rol", "error");
+  }
+}
+
+async function quitarUsuarioDeRol(idUsuario) {
+  const usuario = (usuariosData || []).find((u) => u.id === idUsuario);
+  const nombre = usuario ? usuario.nombre_usuario : `usuario #${idUsuario}`;
+
+  const confirmado = await mostrarConfirmacion(
+    "Quitar usuario del rol",
+    `¿Quitar a "${nombre}" de este rol?`,
+    "Quitar",
+  );
+  if (!confirmado) return;
+
+  try {
+    await api.request(`/usuarios/${idUsuario}`, "PUT", { id_rol: null });
+    showToast(`"${nombre}" fue removido de este rol`, "success");
+    await cargarDatos();
+  } catch (error) {
+    showToast(error.message || "Error al quitar el usuario de este rol", "error");
+  }
 }
 
 // ============================================================
@@ -894,7 +1017,12 @@ async function saveUsuario(event) {
 }
 
 async function deleteUsuario(id) {
-  if (!confirm("¿Desactivar este usuario? Podrá reactivarse después.")) return;
+  const confirmado = await mostrarConfirmacion(
+    "Desactivar usuario",
+    "¿Desactivar este usuario? Podrá reactivarse después.",
+    "Desactivar",
+  );
+  if (!confirmado) return;
   try {
     await api.request(`/usuarios/${id}`, "DELETE");
     showToast("Usuario desactivado correctamente", "success");
@@ -905,7 +1033,12 @@ async function deleteUsuario(id) {
 }
 
 async function reactivarUsuario(id) {
-  if (!confirm("¿Reactivar este usuario?")) return;
+  const confirmado = await mostrarConfirmacion(
+    "Reactivar usuario",
+    "¿Reactivar este usuario?",
+    "Reactivar",
+  );
+  if (!confirmado) return;
   try {
     await api.request(`/usuarios/${id}/reactivar`, "PATCH");
     showToast("Usuario reactivado correctamente", "success");
@@ -1070,13 +1203,34 @@ async function saveEmpleado(event) {
 }
 
 async function deleteEmpleado(id) {
-  if (!confirm("¿Eliminar este empleado?")) return;
+  const confirmado = await mostrarConfirmacion(
+    "Desactivar empleado",
+    "¿Desactivar este empleado? Podrá reactivarse después.",
+    "Desactivar",
+  );
+  if (!confirmado) return;
   try {
     await api.request(`/empleados/${id}`, "DELETE");
-    showToast("Empleado eliminado correctamente", "success");
+    showToast("Empleado desactivado correctamente", "success");
     await cargarDatos();
   } catch (error) {
-    showToast(error.message || "Error al eliminar empleado", "error");
+    showToast(error.message || "Error al desactivar empleado", "error");
+  }
+}
+
+async function reactivarEmpleado(id) {
+  const confirmado = await mostrarConfirmacion(
+    "Reactivar empleado",
+    "¿Reactivar este empleado?",
+    "Reactivar",
+  );
+  if (!confirmado) return;
+  try {
+    await api.request(`/empleados/${id}/reactivar`, "PATCH");
+    showToast("Empleado reactivado correctamente", "success");
+    await cargarDatos();
+  } catch (error) {
+    showToast(error.message || "Error al reactivar empleado", "error");
   }
 }
 
@@ -1634,12 +1788,25 @@ async function verPermisosRol(idRol) {
     }
     modalDiv.innerHTML = `<div class="modal-dialog modal-lg"><div class="modal-content">${html}</div></div>`;
 
-    const modalInstance = new bootstrap.Modal(modalDiv);
-    modalInstance.show();
-
-    modalDiv.addEventListener("hidden.bs.modal", function () {
-      cargarDatos();
-    });
+    // OJO: verPermisosRol se vuelve a llamar cada vez que togglePermiso marca
+    // o desmarca un permiso (para refrescar los datos). Antes, esto volvía a
+    // crear un bootstrap.Modal nuevo y a llamar .show() aunque el modal ya
+    // estuviera abierto -- eso causaba el parpadeo visual. Y como también
+    // volvía a agregar el listener de 'hidden.bs.modal' cada vez, si
+    // marcabas 5 permisos se acumulaban 5 listeners, y al cerrar el modal
+    // se disparaban 5 recargas completas del módulo a la vez (de ahí que
+    // "se quedara trabado"). Ahora: solo se crea/muestra/engancha el
+    // listener LA PRIMERA VEZ que se abre.
+    let modalInstance = bootstrap.Modal.getInstance(modalDiv);
+    if (!modalInstance) {
+      modalInstance = new bootstrap.Modal(modalDiv);
+      modalDiv.addEventListener("hidden.bs.modal", function () {
+        cargarDatos();
+      });
+    }
+    if (!modalDiv.classList.contains("show")) {
+      modalInstance.show();
+    }
   } catch (error) {
     console.error("Error en verPermisosRol:", error);
     showToast(error.message || "Error al cargar permisos", "error");
@@ -2083,4 +2250,8 @@ window.llenarSelectTurno = llenarSelectTurno;
 window.llenarSelectEmpleadoPago = llenarSelectEmpleadoPago;
 window.cargarDatos = cargarDatos;
 window.cargarBitacoraUsuarios = cargarBitacoraUsuarios;
+window.asignarUsuarioARol = asignarUsuarioARol;
+window.quitarUsuarioDeRol = quitarUsuarioDeRol;
+window.reactivarEmpleado = reactivarEmpleado;
+window.filtrarUsuariosTabla = filtrarUsuariosTabla;
 window.actualizarBitacoraUsuarios = actualizarBitacoraUsuarios;
