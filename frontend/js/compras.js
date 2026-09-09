@@ -1,5 +1,4 @@
-// COMPRAS - CON TODAS LAS PESTAÑAS (Compras, Proveedores, Caja Chica, Gastos, Tipos de Pago)
-// VERSIÓN CORREGIDA - Actualiza inventario automáticamente al crear compra
+// compras.js
 
 // =============================================
 // VARIABLES GLOBALES
@@ -18,7 +17,6 @@ let tiposGastoData = [];
 // =============================================
 // FUNCIÓN PARA REGISTRAR MOVIMIENTO DE INVENTARIO
 // =============================================
-// compras.js - Función registrarMovimientoInventario CORREGIDA
 
 async function registrarMovimientoInventario(
   id_producto,
@@ -1021,7 +1019,6 @@ function renderTiposPagoCompras(tipos) {
 // =============================================
 // FUNCIONES CRUD: PROVEEDORES
 // =============================================
-
 function showCreateProveedorModal() {
   const existingModal = document.getElementById("proveedorModal");
   if (existingModal) {
@@ -1029,63 +1026,88 @@ function showCreateProveedorModal() {
   }
 
   const html = `
-        <div class="modal fade" id="proveedorModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="proveedorModalTitle">Nuevo Proveedor</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal fade" id="proveedorModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable" style="max-height: 90vh;">
+                <div class="modal-content" style="max-height: 90vh;">
+                    <div class="modal-header bg-primary text-white sticky-top">
+                        <h5 class="modal-title" id="proveedorModalTitle">
+                            <i class="fas fa-building me-2"></i>Nuevo Proveedor
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
-                    <div class="modal-body">
+                    <div class="modal-body" style="overflow-y: auto; max-height: calc(90vh - 130px);">
                         <form id="proveedorForm">
                             <input type="hidden" id="proveedorId" value="" />
-                            <div class="mb-3">
-                                <label class="form-label">Nombre *</label>
-                                <input type="text" class="form-control" id="proveedorNombre" required />
+                            
+                            <!-- FILA 1: Nombre y Contacto -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="proveedorNombre" required placeholder="Nombre del proveedor" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Contacto</label>
+                                    <input type="text" class="form-control" id="proveedorContacto" placeholder="Persona de contacto" />
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Contacto</label>
-                                <input type="text" class="form-control" id="proveedorContacto" />
+
+                            <!-- FILA 2: Teléfono y Email -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Teléfono</label>
+                                    <input type="text" class="form-control" id="proveedorTelefono" placeholder="Teléfono" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Email</label>
+                                    <input type="email" class="form-control" id="proveedorEmail" placeholder="correo@ejemplo.com" />
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Teléfono</label>
-                                <input type="text" class="form-control" id="proveedorTelefono" />
+
+                            <!-- FILA 3: Dirección y NIT -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Dirección</label>
+                                    <input type="text" class="form-control" id="proveedorDireccion" placeholder="Dirección" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">NIT</label>
+                                    <input type="text" class="form-control" id="proveedorNit" placeholder="Número de NIT" />
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Email</label>
-                                <input type="email" class="form-control" id="proveedorEmail" />
+
+                            <!-- FILA 4: Código y Días Crédito -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Código Proveedor</label>
+                                    <input type="text" class="form-control" id="proveedorCodigo" placeholder="Código interno" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Días de Crédito</label>
+                                    <input type="number" class="form-control" id="proveedorDiasCredito" placeholder="30" />
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Dirección</label>
-                                <input type="text" class="form-control" id="proveedorDireccion" />
+
+                            <!-- FILA 5: Tipo y Estado -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Tipo de Proveedor</label>
+                                    <select class="form-select" id="proveedorTipo">
+                                        <option value="">Seleccionar tipo</option>
+                                        ${(window.tiposProveedorData || []).map((t) => `<option value="${t.id}">${t.nombre}</option>`).join("")}
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Estado</label>
+                                    <select class="form-select" id="proveedorActivo">
+                                        <option value="1">Activo</option>
+                                        <option value="0">Inactivo</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">NIT</label>
-                                <input type="text" class="form-control" id="proveedorNit" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Código Proveedor</label>
-                                <input type="text" class="form-control" id="proveedorCodigo" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Días de Crédito</label>
-                                <input type="number" class="form-control" id="proveedorDiasCredito" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Tipo de Proveedor</label>
-                                <select class="form-select" id="proveedorTipo">
-                                    <option value="">Seleccionar tipo</option>
-                                    ${(window.tiposProveedorData || []).map((t) => `<option value="${t.id}">${t.nombre}</option>`).join("")}
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Estado</label>
-                                <select class="form-select" id="proveedorActivo">
-                                    <option value="1">Activo</option>
-                                    <option value="0">Inactivo</option>
-                                </select>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100" id="btnGuardarProveedor">Guardar</button>
+
+                            <button type="submit" class="btn btn-primary w-100" id="btnGuardarProveedor">
+                                <i class="fas fa-save me-2"></i>Guardar Proveedor
+                            </button>
                         </form>
                     </div>
                 </div>
@@ -1667,7 +1689,6 @@ async function cambiarEstadoPedido(id) {
 // =============================================
 // FUNCIONES CRUD: CAJA CHICA
 // =============================================
-
 function showCreateCajaChicaModal() {
   const ubicaciones = (window.ubicacionesData || []).filter(
     (u) => u.activo !== 0,
@@ -1682,46 +1703,59 @@ function showCreateCajaChicaModal() {
     .join("");
 
   const html = `
-        <div class="modal fade" id="cajaChicaModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Nuevo Movimiento de Caja Chica</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal fade" id="cajaChicaModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable" style="max-height: 90vh;">
+                <div class="modal-content" style="max-height: 90vh;">
+                    <div class="modal-header bg-success text-white sticky-top">
+                        <h5 class="modal-title">
+                            <i class="fas fa-coins me-2"></i>Nuevo Movimiento de Caja Chica
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
-                    <div class="modal-body">
+                    <div class="modal-body" style="overflow-y: auto; max-height: calc(90vh - 130px);">
                         <form id="cajaChicaForm">
-                            <div class="mb-3">
-                                <label class="form-label">Ubicación *</label>
-                                <select class="form-select" id="cajaChicaUbicacion" required>
-                                    <option value="">Seleccionar ubicación</option>
-                                    ${ubicacionOptions}
-                                </select>
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Ubicación <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="cajaChicaUbicacion" required>
+                                        <option value="">Seleccionar ubicación</option>
+                                        ${ubicacionOptions}
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Tipo <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="cajaChicaTipo" required>
+                                        <option value="ingreso">Ingreso</option>
+                                        <option value="egreso">Egreso</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Tipo *</label>
-                                <select class="form-select" id="cajaChicaTipo" required>
-                                    <option value="ingreso">Ingreso</option>
-                                    <option value="egreso">Egreso</option>
-                                </select>
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Monto <span class="text-danger">*</span></label>
+                                    <input type="number" step="0.01" class="form-control" id="cajaChicaMonto" required placeholder="0.00" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Concepto <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="cajaChicaConcepto" required placeholder="Ej: Compra de materiales" />
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Monto *</label>
-                                <input type="number" step="0.01" class="form-control" id="cajaChicaMonto" required />
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Referencia</label>
+                                    <input type="text" class="form-control" id="cajaChicaReferencia" placeholder="Número de referencia" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Observaciones</label>
+                                    <textarea class="form-control" id="cajaChicaObservaciones" rows="2" placeholder="Observaciones adicionales"></textarea>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Concepto *</label>
-                                <input type="text" class="form-control" id="cajaChicaConcepto" required />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Referencia</label>
-                                <input type="text" class="form-control" id="cajaChicaReferencia" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Observaciones</label>
-                                <textarea class="form-control" id="cajaChicaObservaciones" rows="2"></textarea>
-                            </div>
-                            <button type="submit" class="btn btn-success w-100">Registrar Movimiento</button>
+
+                            <button type="submit" class="btn btn-success w-100" id="btnGuardarCajaChica">
+                                <i class="fas fa-save me-2"></i>Registrar Movimiento
+                            </button>
                         </form>
                     </div>
                 </div>

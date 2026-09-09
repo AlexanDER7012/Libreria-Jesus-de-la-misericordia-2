@@ -81,63 +81,111 @@
     <!-- ======================================== -->
 
     <!-- Modal de Clientes -->
-    <div class="modal fade" id="clienteModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="clienteModalTitle">Cliente</h5>
+    <div class="modal fade" id="clienteModal" tabindex="-1" aria-hidden="true">
+      <div
+        class="modal-dialog modal-lg modal-dialog-scrollable"
+        style="max-height: 90vh"
+      >
+        <div class="modal-content" style="max-height: 90vh">
+          <div class="modal-header bg-primary text-white sticky-top">
+            <h5 class="modal-title" id="clienteModalTitle">
+              <i class="fas fa-user me-2"></i>Cliente
+            </h5>
             <button
               type="button"
-              class="btn-close"
+              class="btn-close btn-close-white"
               data-bs-dismiss="modal"
             ></button>
           </div>
-          <div class="modal-body">
+          <div
+            class="modal-body"
+            style="overflow-y: auto; max-height: calc(90vh - 130px)"
+          >
             <form id="clienteForm" onsubmit="saveCliente(event)">
               <input type="hidden" id="clienteId" />
-              <div class="mb-3">
-                <label class="form-label">Nombre</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  id="clienteNombre"
-                  required
-                />
-                <div class="invalid-feedback" id="clienteNombreError"></div>
+
+              <!-- FILA 1: Nombre y Teléfono -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold"
+                    >Nombre <span class="text-danger">*</span></label
+                  >
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="clienteNombre"
+                    required
+                    placeholder="Nombre completo"
+                  />
+                  <div class="invalid-feedback" id="clienteNombreError"></div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Teléfono</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="clienteTelefono"
+                    placeholder="Teléfono"
+                  />
+                </div>
               </div>
-              <div class="mb-3">
-                <label class="form-label">Teléfono</label>
-                <input type="text" class="form-control" id="clienteTelefono" />
+
+              <!-- FILA 2: Email y Dirección -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Email</label>
+                  <input
+                    type="email"
+                    class="form-control"
+                    id="clienteEmail"
+                    placeholder="correo@ejemplo.com"
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Dirección</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="clienteDireccion"
+                    placeholder="Dirección"
+                  />
+                </div>
               </div>
-              <div class="mb-3">
-                <label class="form-label">Email</label>
-                <input type="email" class="form-control" id="clienteEmail" />
+
+              <!-- FILA 3: NIT y Tipo -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">NIT</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="clienteNit"
+                    placeholder="Número de NIT"
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Tipo</label>
+                  <select class="form-select" id="clienteTipo">
+                    <option value="General">General</option>
+                    <option value="Frecuente">Frecuente</option>
+                    <option value="Mayorista">Mayorista</option>
+                  </select>
+                </div>
               </div>
-              <div class="mb-3">
-                <label class="form-label">Dirección</label>
-                <input type="text" class="form-control" id="clienteDireccion" />
+
+              <!-- FILA 4: Estado -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Estado</label>
+                  <select class="form-select" id="clienteActivo">
+                    <option value="1">Activo</option>
+                    <option value="0">Inactivo</option>
+                  </select>
+                </div>
               </div>
-              <div class="mb-3">
-                <label class="form-label">NIT</label>
-                <input type="text" class="form-control" id="clienteNit" />
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Tipo</label>
-                <select class="form-select" id="clienteTipo">
-                  <option value="General">General</option>
-                  <option value="Frecuente">Frecuente</option>
-                  <option value="Mayorista">Mayorista</option>
-                </select>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Estado</label>
-                <select class="form-select" id="clienteActivo">
-                  <option value="1">Activo</option>
-                  <option value="0">Inactivo</option>
-                </select>
-              </div>
+
               <button type="submit" class="btn btn-primary w-100">
-                Guardar
+                <i class="fas fa-save me-2"></i>Guardar Cliente
               </button>
             </form>
           </div>
@@ -145,7 +193,7 @@
       </div>
     </div>
 
-    <!-- Modal de Productos (VERSIÓN CON PESTAÑAS - MÁS COMPACTA) -->
+    <!-- Modal de Productos  -->
     <div class="modal fade" id="productoModal" tabindex="-1" aria-hidden="true">
       <div
         class="modal-dialog modal-xl modal-dialog-scrollable"
@@ -781,42 +829,267 @@
       </div>
     </div>
 
+    <!-- Modal de Ver Venta -->
+    <div class="modal fade" id="verVentaModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-height: 90vh;">
+        <div class="modal-content" style="max-height: 90vh;">
+          <div class="modal-header bg-primary text-white sticky-top">
+            <h5 class="modal-title">
+              <i class="fas fa-receipt me-2"></i>Venta #<span id="verVentaNumero"></span>
+            </h5>
+            <div>
+              <button class="btn btn-sm btn-outline-light me-2" onclick="imprimirVenta()" title="Imprimir">
+                <i class="fas fa-print"></i>
+              </button>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+          </div>
+          <div class="modal-body" style="overflow-y: auto; max-height: calc(90vh - 130px);">
+            
+            <!-- INFORMACIÓN GENERAL - 2 columnas -->
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <div class="card bg-light">
+                  <div class="card-body py-2">
+                    <div class="row">
+                      <div class="col-4 text-muted">Cliente:</div>
+                      <div class="col-8 fw-bold" id="verVentaCliente">-</div>
+                    </div>
+                    <div class="row">
+                      <div class="col-4 text-muted">Fecha:</div>
+                      <div class="col-8" id="verVentaFecha">-</div>
+                    </div>
+                    <div class="row">
+                      <div class="col-4 text-muted">Estado:</div>
+                      <div class="col-8"><span class="badge" id="verVentaEstado">-</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="card bg-light">
+                  <div class="card-body py-2">
+                    <div class="row">
+                      <div class="col-4 text-muted">Subtotal:</div>
+                      <div class="col-8 fw-bold" id="verVentaSubtotal">Q0.00</div>
+                    </div>
+                    <div class="row">
+                      <div class="col-4 text-muted">Descuento:</div>
+                      <div class="col-8" id="verVentaDescuento">0%</div>
+                    </div>
+                    <div class="row">
+                      <div class="col-4 text-muted">Total:</div>
+                      <div class="col-8 fw-bold text-success" id="verVentaTotal">Q0.00</div>
+                    </div>
+                    <div class="row">
+                      <div class="col-4 text-muted">Saldo:</div>
+                      <div class="col-8" id="verVentaSaldo">Q0.00</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PESTAÑAS INTERNAS -->
+            <ul class="nav nav-tabs nav-fill mb-3" id="verVentaTabs" role="tablist">
+              <li class="nav-item">
+                <button class="nav-link active" id="tab-ver-detalles" data-bs-toggle="tab" 
+                        data-bs-target="#panel-ver-detalles" type="button" role="tab">
+                  <i class="fas fa-list me-1"></i>Productos
+                </button>
+              </li>
+              <li class="nav-item">
+                <button class="nav-link" id="tab-ver-pagos" data-bs-toggle="tab" 
+                        data-bs-target="#panel-ver-pagos" type="button" role="tab">
+                  <i class="fas fa-credit-card me-1"></i>Pagos
+                </button>
+              </li>
+              <li class="nav-item">
+                <button class="nav-link" id="tab-ver-servicios" data-bs-toggle="tab" 
+                        data-bs-target="#panel-ver-servicios" type="button" role="tab">
+                  <i class="fas fa-tools me-1"></i>Servicios
+                </button>
+              </li>
+            </ul>
+
+            <div class="tab-content">
+              <!-- PANEL: PRODUCTOS -->
+              <div class="tab-pane fade show active" id="panel-ver-detalles" role="tabpanel">
+                <div class="table-responsive">
+                  <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Producto</th>
+                        <th class="text-center">Cantidad</th>
+                        <th class="text-end">Precio</th>
+                        <th class="text-end">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody id="verVentaDetallesBody">
+                      <tr>
+                        <td colspan="4" class="text-center text-muted">Cargando productos...</td>
+                      </tr>
+                    </tbody>
+                    <tfoot>
+                      <tr class="table-light fw-bold">
+                        <td colspan="3" class="text-end">TOTAL PRODUCTOS:</td>
+                        <td class="text-end" id="verVentaTotalDetalles">Q0.00</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              <!-- PANEL: PAGOS -->
+              <div class="tab-pane fade" id="panel-ver-pagos" role="tabpanel">
+                <div class="table-responsive">
+                  <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Tipo</th>
+                        <th class="text-end">Monto</th>
+                        <th>Referencia</th>
+                        <th>Fecha</th>
+                      </tr>
+                    </thead>
+                    <tbody id="verVentaPagosBody">
+                      <tr>
+                        <td colspan="4" class="text-center text-muted">Cargando pagos...</td>
+                      </tr>
+                    </tbody>
+                    <tfoot>
+                      <tr class="table-light fw-bold">
+                        <td colspan="3" class="text-end">TOTAL PAGADO:</td>
+                        <td class="text-end" id="verVentaTotalPagos">Q0.00</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              <!-- PANEL: SERVICIOS -->
+              <div class="tab-pane fade" id="panel-ver-servicios" role="tabpanel">
+                <div class="table-responsive">
+                  <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Tipo</th>
+                        <th>Descripción</th>
+                        <th class="text-end">Material</th>
+                        <th class="text-end">Mano Obra</th>
+                        <th class="text-end">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody id="verVentaServiciosBody">
+                      <tr>
+                        <td colspan="5" class="text-center text-muted">No hay servicios adicionales</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- OBSERVACIONES -->
+            <div class="mt-3" id="verVentaObservacionesContainer" style="display:none;">
+              <hr>
+              <div class="card bg-light">
+                <div class="card-body py-2">
+                  <span class="text-muted">Observaciones:</span>
+                  <span id="verVentaObservaciones">-</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+              <i class="fas fa-times me-2"></i>Cerrar
+            </button>
+            <button type="button" class="btn btn-primary" onclick="imprimirVenta()">
+              <i class="fas fa-print me-2"></i>Imprimir
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Ficha del Cliente -->
+    <div class="modal fade" id="clienteFichaModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-height: 90vh;">
+        <div class="modal-content" style="max-height: 90vh;">
+          <div class="modal-header bg-primary text-white sticky-top">
+            <h5 class="modal-title">
+              <i class="fas fa-user me-2"></i>Ficha del Cliente
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" id="clienteFichaBody" style="overflow-y: auto; max-height: calc(90vh - 130px);">
+            <!-- El contenido se llena desde ventas.js -->
+            <div class="text-center py-5">
+              <div class="spinner-border text-primary" role="status"></div>
+              <p class="mt-2 text-muted">Cargando datos del cliente...</p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+              <i class="fas fa-times me-2"></i>Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal de Compras -->
-    <div class="modal fade" id="compraModal" tabindex="-1">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="compraModalTitle">Nueva Compra</h5>
+    <div class="modal fade" id="compraModal" tabindex="-1" aria-hidden="true">
+      <div
+        class="modal-dialog modal-lg modal-dialog-scrollable"
+        style="max-height: 90vh"
+      >
+        <div class="modal-content" style="max-height: 90vh">
+          <div class="modal-header bg-info text-white sticky-top">
+            <h5 class="modal-title" id="compraModalTitle">
+              <i class="fas fa-truck me-2"></i>Nueva Compra
+            </h5>
             <button
               type="button"
-              class="btn-close"
+              class="btn-close btn-close-white"
               data-bs-dismiss="modal"
             ></button>
           </div>
-          <div class="modal-body">
+          <div
+            class="modal-body"
+            style="overflow-y: auto; max-height: calc(90vh - 130px)"
+          >
             <form id="compraForm">
               <input type="hidden" id="compraId" />
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Proveedor</label>
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Proveedor</label>
                   <select
                     class="form-select"
                     id="compraProveedor"
                     required
                   ></select>
                 </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">N° Factura</label>
-                  <input type="text" class="form-control" id="compraFactura" />
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">N° Factura</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="compraFactura"
+                    placeholder="Número de factura"
+                  />
                 </div>
               </div>
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">Ubicación Destino</label>
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Ubicación Destino</label>
                   <select class="form-select" id="compraUbicacion"></select>
                 </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label">IVA %</label>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">IVA %</label>
                   <input
                     type="number"
                     step="0.01"
@@ -826,17 +1099,23 @@
                   />
                 </div>
               </div>
-              <div class="mb-3">
-                <label class="form-label">Observaciones</label>
-                <textarea
-                  class="form-control"
-                  id="compraObservaciones"
-                  rows="2"
-                ></textarea>
+
+              <div class="row g-3 mb-3">
+                <div class="col-12">
+                  <label class="form-label fw-bold">Observaciones</label>
+                  <textarea
+                    class="form-control"
+                    id="compraObservaciones"
+                    rows="2"
+                  ></textarea>
+                </div>
               </div>
 
               <hr />
-              <h6 class="fw-bold">Detalles de Compra</h6>
+              <h6 class="fw-bold">
+                <i class="fas fa-list me-2"></i>Detalles de Compra
+              </h6>
+
               <div id="compraDetallesContainer">
                 <div class="row g-2 align-items-end" id="compraDetalleRow">
                   <div class="col-md-4">
@@ -867,7 +1146,7 @@
                       class="btn btn-success btn-sm mt-2"
                       onclick="agregarDetalleCompra(event)"
                     >
-                      +
+                      <i class="fas fa-plus"></i>
                     </button>
                   </div>
                 </div>
@@ -879,7 +1158,7 @@
                 class="btn btn-info w-100 mt-3"
                 onclick="saveCompra(event)"
               >
-                Guardar Compra
+                <i class="fas fa-save me-2"></i>Guardar Compra
               </button>
             </form>
           </div>
@@ -969,66 +1248,139 @@
     </div>
 
     <!-- Modal de Proveedores -->
-    <div class="modal fade" id="proveedorModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="proveedorModalTitle">Proveedor</h5>
+    <div
+      class="modal fade"
+      id="proveedorModal"
+      tabindex="-1"
+      aria-hidden="true"
+    >
+      <div
+        class="modal-dialog modal-lg modal-dialog-scrollable"
+        style="max-height: 90vh"
+      >
+        <div class="modal-content" style="max-height: 90vh">
+          <div class="modal-header bg-primary text-white sticky-top">
+            <h5 class="modal-title" id="proveedorModalTitle">
+              <i class="fas fa-building me-2"></i>Nuevo Proveedor
+            </h5>
             <button
               type="button"
-              class="btn-close"
+              class="btn-close btn-close-white"
               data-bs-dismiss="modal"
             ></button>
           </div>
-          <div class="modal-body">
+          <div
+            class="modal-body"
+            style="overflow-y: auto; max-height: calc(90vh - 130px)"
+          >
             <form id="proveedorForm">
               <input type="hidden" id="proveedorId" />
-              <div class="mb-3">
-                <label class="form-label">Nombre</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  id="proveedorNombre"
-                  required
-                />
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold"
+                    >Nombre <span class="text-danger">*</span></label
+                  >
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="proveedorNombre"
+                    required
+                    placeholder="Nombre del proveedor"
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Contacto</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="proveedorContacto"
+                    placeholder="Persona de contacto"
+                  />
+                </div>
               </div>
-              <div class="mb-3">
-                <label class="form-label">Teléfono</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  id="proveedorTelefono"
-                />
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Teléfono</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="proveedorTelefono"
+                    placeholder="Teléfono"
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Email</label>
+                  <input
+                    type="email"
+                    class="form-control"
+                    id="proveedorEmail"
+                    placeholder="correo@ejemplo.com"
+                  />
+                </div>
               </div>
-              <div class="mb-3">
-                <label class="form-label">Email</label>
-                <input type="email" class="form-control" id="proveedorEmail" />
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Dirección</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="proveedorDireccion"
+                    placeholder="Dirección"
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">NIT</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="proveedorNit"
+                    placeholder="Número de NIT"
+                  />
+                </div>
               </div>
-              <div class="mb-3">
-                <label class="form-label">Dirección</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  id="proveedorDireccion"
-                />
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Código Proveedor</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="proveedorCodigo"
+                    placeholder="Código interno"
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Días de Crédito</label>
+                  <input
+                    type="number"
+                    class="form-control"
+                    id="proveedorDiasCredito"
+                    placeholder="30"
+                  />
+                </div>
               </div>
-              <div class="mb-3">
-                <label class="form-label">NIT</label>
-                <input type="text" class="form-control" id="proveedorNit" />
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Tipo de Proveedor</label>
+                  <select class="form-select" id="proveedorTipo">
+                    <option value="">Seleccionar tipo</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Estado</label>
+                  <select class="form-select" id="proveedorActivo">
+                    <option value="1">Activo</option>
+                    <option value="0">Inactivo</option>
+                  </select>
+                </div>
               </div>
-              <div class="mb-3">
-                <label class="form-label">Tipo</label>
-                <select class="form-select" id="proveedorTipo"></select>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Estado</label>
-                <select class="form-select" id="proveedorActivo">
-                  <option value="1">Activo</option>
-                  <option value="0">Inactivo</option>
-                </select>
-              </div>
+
               <button type="submit" class="btn btn-primary w-100">
-                Guardar
+                <i class="fas fa-save me-2"></i>Guardar Proveedor
               </button>
             </form>
           </div>

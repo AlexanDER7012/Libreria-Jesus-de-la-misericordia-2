@@ -965,123 +965,233 @@ async function verFichaCliente(idCliente) {
       (s) => s.id_cliente === idCliente,
     );
 
-    let ventasHtml =
-      ventasCliente.length === 0
-        ? '<p class="text-muted">No hay ventas registradas para este cliente</p>'
-        : `
-        <div class="table-responsive">
-            <table class="table table-sm table-striped">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Fecha</th>
-                        <th>Total</th>
-                        <th>Estado Pago</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${ventasCliente
-                      .map((v) => {
-                        const totalPagos = (v.pagos || []).reduce(
-                          (sum, p) => sum + (p.monto || 0),
-                          0,
-                        );
-                        const saldo = (v.total || 0) - totalPagos;
-                        const pagada = saldo <= 0;
-                        return `
-                        <tr>
-                            <td><button class="btn btn-link btn-sm p-0" onclick="verVenta(${v.id})">#${v.id}</button></td>
-                            <td>${v.fecha ? new Date(v.fecha).toLocaleDateString() : "--"}</td>
-                            <td>Q${(v.total || 0).toFixed(2)}</td>
-                            <td><span class="badge ${pagada ? "bg-success" : "bg-danger"}">${pagada ? "Pagada" : "Pendiente"}</span></td>
-                        </tr>
-                      `;
-                      })
-                      .join("")}
-                </tbody>
-            </table>
+    // Calcular totales
+    const totalVentas = ventasCliente.reduce(
+      (sum, v) => sum + (v.total || 0),
+      0,
+    );
+
+    // Generar HTML para ventas
+    let ventasHtml = "";
+    if (ventasCliente.length === 0) {
+      ventasHtml = `
+        <div class="text-center py-3">
+          <i class="fas fa-shopping-cart fa-2x text-muted mb-2"></i>
+          <p class="text-muted">No hay ventas registradas para este cliente</p>
         </div>
       `;
-
-    let serviciosHtml =
-      serviciosCliente.length === 0
-        ? '<p class="text-muted">No hay servicios adicionales para este cliente</p>'
-        : `
+    } else {
+      ventasHtml = `
         <div class="table-responsive">
-            <table class="table table-sm table-striped">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Tipo</th>
-                        <th>Descripción</th>
-                        <th>Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${serviciosCliente
-                      .map(
-                        (s) => `
-                        <tr>
-                            <td>${s.id}</td>
-                            <td>${s.tipo_servicio || "--"}</td>
-                            <td>${s.descripcion || "--"}</td>
-                            <td>Q${(s.total || 0).toFixed(2)}</td>
-                        </tr>
-                      `,
-                      )
-                      .join("")}
-                </tbody>
-            </table>
+          <table class="table table-sm table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>Fecha</th>
+                <th>Subtotal</th>
+                <th>Total</th>
+                <th>Estado Pago</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${ventasCliente
+                .map((v) => {
+                  const totalPagos = (v.pagos || []).reduce(
+                    (sum, p) => sum + (p.monto || 0),
+                    0,
+                  );
+                  const saldo = (v.total || 0) - totalPagos;
+                  const pagada = saldo <= 0;
+                  return `
+                  <tr>
+                    <td><span class="badge bg-secondary">#${v.id}</span></td>
+                    <td>${v.fecha ? new Date(v.fecha).toLocaleDateString() : "--"}</td>
+                    <td>Q${(v.subtotal || 0).toFixed(2)}</td>
+                    <td><strong>Q${(v.total || 0).toFixed(2)}</strong></td>
+                    <td>
+                      <span class="badge ${pagada ? "bg-success" : "bg-danger"}">
+                        ${pagada ? "Pagada" : "Pendiente"}
+                      </span>
+                      ${!pagada ? `<span class="badge bg-warning ms-1">Saldo: Q${saldo.toFixed(2)}</span>` : ""}
+                    </td>
+                    <td>
+                      <button class="btn btn-sm btn-outline-info" onclick="verVenta(${v.id})">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                    </td>
+                  </tr>
+                `;
+                })
+                .join("")}
+            </tbody>
+          </table>
         </div>
       `;
+    }
 
-    const modalContent = `
-            <div class="modal-header">
-                <h5 class="modal-title">Ficha del Cliente</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    // Generar HTML para servicios
+    let serviciosHtml = "";
+    if (serviciosCliente.length === 0) {
+      serviciosHtml = `
+        <div class="text-center py-3">
+          <i class="fas fa-tools fa-2x text-muted mb-2"></i>
+          <p class="text-muted">No hay servicios adicionales para este cliente</p>
+        </div>
+      `;
+    } else {
+      serviciosHtml = `
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>Venta</th>
+                <th>Tipo</th>
+                <th>Descripción</th>
+                <th>Material</th>
+                <th>Mano Obra</th>
+                <th>Total</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${serviciosCliente
+                .map((s) => {
+                  const pagado = s.pagado === 1 || s.estado_pago === "Pagado";
+                  return `
+                  <tr>
+                    <td>${s.id}</td>
+                    <td>${s.id_venta ? `<button class="btn btn-link btn-sm p-0" onclick="verVenta(${s.id_venta})">#${s.id_venta}</button>` : "Independiente"}</td>
+                    <td>${s.tipo_servicio || "--"}</td>
+                    <td>${s.descripcion || "--"}</td>
+                    <td>Q${(s.monto_material || 0).toFixed(2)}</td>
+                    <td>Q${(s.monto_mano_obra || 0).toFixed(2)}</td>
+                    <td><strong>Q${(s.total || 0).toFixed(2)}</strong></td>
+                    <td>
+                      <span class="badge ${pagado ? "bg-success" : "bg-danger"}">
+                        ${pagado ? "Pagado" : "Pendiente"}
+                      </span>
+                    </td>
+                  </tr>
+                `;
+                })
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    const body = document.getElementById("clienteFichaBody");
+    body.innerHTML = `
+      <!-- INFORMACIÓN DEL CLIENTE - 2 COLUMNAS -->
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <div class="card bg-light">
+            <div class="card-body py-2">
+              <div class="row">
+                <div class="col-4 text-muted fw-bold">Nombre:</div>
+                <div class="col-8">${cliente.nombre || "--"}</div>
+              </div>
+              <div class="row">
+                <div class="col-4 text-muted fw-bold">Teléfono:</div>
+                <div class="col-8">${cliente.telefono || "--"}</div>
+              </div>
+              <div class="row">
+                <div class="col-4 text-muted fw-bold">Email:</div>
+                <div class="col-8">${cliente.email || "--"}</div>
+              </div>
             </div>
-            <div class="modal-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <p><strong>Nombre:</strong> ${cliente.nombre || "--"}</p>
-                        <p><strong>Teléfono:</strong> ${cliente.telefono || "--"}</p>
-                        <p><strong>Email:</strong> ${cliente.email || "--"}</p>
-                    </div>
-                    <div class="col-md-6">
-                        <p><strong>Dirección:</strong> ${cliente.direccion || "--"}</p>
-                        <p><strong>NIT:</strong> ${cliente.nit || "--"}</p>
-                        <p><strong>Tipo:</strong> ${cliente.tipo_cliente || "General"}</p>
-                        <p><strong>Estado:</strong> 
-                            <span class="badge ${cliente.activo !== 0 ? "bg-success" : "bg-danger"}">
-                                ${cliente.activo !== 0 ? "Activo" : "Inactivo"}
-                            </span>
-                        </p>
-                    </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card bg-light">
+            <div class="card-body py-2">
+              <div class="row">
+                <div class="col-4 text-muted fw-bold">Dirección:</div>
+                <div class="col-8">${cliente.direccion || "--"}</div>
+              </div>
+              <div class="row">
+                <div class="col-4 text-muted fw-bold">NIT:</div>
+                <div class="col-8">${cliente.nit || "--"}</div>
+              </div>
+              <div class="row">
+                <div class="col-4 text-muted fw-bold">Tipo:</div>
+                <div class="col-8">${cliente.tipo_cliente || "General"}</div>
+              </div>
+              <div class="row">
+                <div class="col-4 text-muted fw-bold">Estado:</div>
+                <div class="col-8">
+                  <span class="badge ${cliente.activo !== 0 ? "bg-success" : "bg-danger"}">
+                    ${cliente.activo !== 0 ? "Activo" : "Inactivo"}
+                  </span>
                 </div>
-                <hr>
-                <h6 class="fw-bold">Historial de Ventas</h6>
-                ${ventasHtml}
-                <hr>
-                <h6 class="fw-bold">Servicios Adicionales</h6>
-                ${serviciosHtml}
+              </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RESUMEN DE ACTIVIDAD -->
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <div class="card bg-info bg-opacity-10">
+            <div class="card-body text-center py-2">
+              <h6 class="text-info mb-0">Total Ventas</h6>
+              <h4 class="mb-0">${ventasCliente.length}</h4>
             </div>
-        `;
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card bg-success bg-opacity-10">
+            <div class="card-body text-center py-2">
+              <h6 class="text-success mb-0">Monto Total</h6>
+              <h4 class="mb-0">Q${totalVentas.toFixed(2)}</h4>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card bg-warning bg-opacity-10">
+            <div class="card-body text-center py-2">
+              <h6 class="text-warning mb-0">Servicios</h6>
+              <h4 class="mb-0">${serviciosCliente.length}</h4>
+            </div>
+          </div>
+        </div>
+      </div>
 
-    const modalDiv = document.createElement("div");
-    modalDiv.className = "modal fade";
-    modalDiv.id = "clienteFichaModal";
-    modalDiv.innerHTML = `<div class="modal-dialog modal-lg"><div class="modal-content">${modalContent}</div></div>`;
-    document.body.appendChild(modalDiv);
+      <!-- PESTAÑAS INTERNAS -->
+      <ul class="nav nav-tabs nav-fill mb-3" id="clienteFichaTabs" role="tablist">
+        <li class="nav-item">
+          <button class="nav-link active" id="tab-ficha-ventas" data-bs-toggle="tab" 
+                  data-bs-target="#panel-ficha-ventas" type="button" role="tab">
+            <i class="fas fa-shopping-cart me-1"></i>Ventas (${ventasCliente.length})
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" id="tab-ficha-servicios" data-bs-toggle="tab" 
+                  data-bs-target="#panel-ficha-servicios" type="button" role="tab">
+            <i class="fas fa-tools me-1"></i>Servicios (${serviciosCliente.length})
+          </button>
+        </li>
+      </ul>
 
-    const modalInstance = new bootstrap.Modal(modalDiv);
-    modalInstance.show();
+      <div class="tab-content">
+        <div class="tab-pane fade show active" id="panel-ficha-ventas" role="tabpanel">
+          ${ventasHtml}
+        </div>
+        <div class="tab-pane fade" id="panel-ficha-servicios" role="tabpanel">
+          ${serviciosHtml}
+        </div>
+      </div>
+    `;
 
-    modalDiv.addEventListener("hidden.bs.modal", function () {
-      this.remove();
-    });
+    // Mostrar modal
+    const modal = new bootstrap.Modal(
+      document.getElementById("clienteFichaModal"),
+    );
+    modal.show();
   } catch (error) {
     showToast(error.message || "Error al cargar ficha del cliente", "error");
   }
@@ -1361,150 +1471,125 @@ async function verVenta(id) {
     const saldo = (venta.total || 0) - totalPagos;
     const pagada = saldo <= 0;
 
-    let detallesHtml = (venta.detalles || [])
-      .map((d) => {
+    // Llenar datos básicos
+    document.getElementById("verVentaNumero").textContent = venta.id || "";
+    document.getElementById("verVentaCliente").textContent = nombreCliente;
+    document.getElementById("verVentaFecha").textContent = venta.fecha
+      ? new Date(venta.fecha).toLocaleString()
+      : "--";
+
+    // Estado
+    const estadoBadge = document.getElementById("verVentaEstado");
+    const estado = venta.estado_pago || (pagada ? "PAGADA" : "PENDIENTE");
+    estadoBadge.textContent = estado;
+    estadoBadge.className = `badge ${estado === "PAGADA" || estado === "Pagada" ? "bg-success" : estado === "PENDIENTE" || estado === "Pendiente" ? "bg-warning text-dark" : "bg-danger"}`;
+
+    // Totales
+    document.getElementById("verVentaSubtotal").textContent =
+      `Q${(venta.subtotal || 0).toFixed(2)}`;
+    document.getElementById("verVentaDescuento").textContent =
+      `${venta.descuento || 0}%`;
+    document.getElementById("verVentaTotal").textContent =
+      `Q${(venta.total || 0).toFixed(2)}`;
+    document.getElementById("verVentaSaldo").textContent =
+      `Q${saldo.toFixed(2)}`;
+
+    // Detalles (productos)
+    const detallesBody = document.getElementById("verVentaDetallesBody");
+    if (venta.detalles && venta.detalles.length > 0) {
+      let html = "";
+      let totalDetalles = 0;
+      venta.detalles.forEach((d) => {
         const producto = (window.productosData || []).find(
           (p) => p.id === d.id_producto,
         );
-        return `
-        <tr>
-          <td>${producto ? producto.nombre : "--"}</td>
-          <td>${d.cantidad || 0}</td>
-          <td>Q${(d.precio_unitario || 0).toFixed(2)}</td>
-          <td>Q${(d.subtotal || 0).toFixed(2)}</td>
-        </tr>
-      `;
-      })
-      .join("");
+        const subtotal = (d.cantidad || 0) * (d.precio_unitario || 0);
+        totalDetalles += subtotal;
+        html += `
+          <tr>
+            <td>${producto ? producto.nombre : "Producto"}</td>
+            <td class="text-center">${d.cantidad || 0}</td>
+            <td class="text-end">Q${(d.precio_unitario || 0).toFixed(2)}</td>
+            <td class="text-end">Q${subtotal.toFixed(2)}</td>
+          </tr>
+        `;
+      });
+      detallesBody.innerHTML = html;
+      document.getElementById("verVentaTotalDetalles").textContent =
+        `Q${totalDetalles.toFixed(2)}`;
+    } else {
+      detallesBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">No hay productos</td></tr>`;
+      document.getElementById("verVentaTotalDetalles").textContent = "Q0.00";
+    }
 
-    let pagosHtml = (venta.pagos || [])
-      .map((p, index) => {
+    // Pagos
+    const pagosBody = document.getElementById("verVentaPagosBody");
+    if (venta.pagos && venta.pagos.length > 0) {
+      let html = "";
+      let totalPagosMostrar = 0;
+      venta.pagos.forEach((p) => {
+        totalPagosMostrar += p.monto || 0;
         const tipoPago = tiposPagoData.find((t) => t.id === p.id_tipo_pago);
-        return `
-        <tr>
-          <td>${tipoPago ? tipoPago.nombre : "--"}</td>
-          <td>Q${(p.monto || 0).toFixed(2)}</td>
-          <td>${p.referencia || "--"}</td>
-          <td>
-            <div class="btn-group btn-group-sm">
-              <button class="btn btn-outline-danger" onclick="eliminarPagoVenta(${venta.id}, ${p.id})" title="Eliminar pago">
-                <i class="fas fa-trash"></i>
-              </button>
-            </div>
-          </td>
-        </tr>
-      `;
-      })
-      .join("");
+        html += `
+          <tr>
+            <td>${tipoPago ? tipoPago.nombre : "Efectivo"}</td>
+            <td class="text-end">Q${(p.monto || 0).toFixed(2)}</td>
+            <td>${p.referencia || "--"}</td>
+            <td>${p.fecha_creacion ? new Date(p.fecha_creacion).toLocaleDateString() : "-"}</td>
+          </tr>
+        `;
+      });
+      pagosBody.innerHTML = html;
+      document.getElementById("verVentaTotalPagos").textContent =
+        `Q${totalPagosMostrar.toFixed(2)}`;
+    } else {
+      pagosBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">No hay pagos registrados</td></tr>`;
+      document.getElementById("verVentaTotalPagos").textContent = "Q0.00";
+    }
 
+    // Servicios adicionales
+    const serviciosBody = document.getElementById("verVentaServiciosBody");
     const serviciosVenta = serviciosAdicionalesData.filter(
       (s) => s.id_venta === id,
     );
-    let serviciosHtml =
-      serviciosVenta.length === 0
-        ? '<p class="text-muted small">No hay servicios adicionales para esta venta</p>'
-        : `
-        <div class="table-responsive">
-          <table class="table table-sm table-striped">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Tipo</th>
-                <th>Descripción</th>
-                <th>Material</th>
-                <th>Mano Obra</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${serviciosVenta
-                .map(
-                  (s) => `
-                <tr>
-                  <td>${s.id}</td>
-                  <td>${s.tipo_servicio || "--"}</td>
-                  <td>${s.descripcion || "--"}</td>
-                  <td>Q${(s.monto_material || 0).toFixed(2)}</td>
-                  <td>Q${(s.monto_mano_obra || 0).toFixed(2)}</td>
-                  <td><strong>Q${(s.total || 0).toFixed(2)}</strong></td>
-                </tr>
-              `,
-                )
-                .join("")}
-            </tbody>
-          </table>
-        </div>
-      `;
+    if (serviciosVenta.length > 0) {
+      let html = "";
+      serviciosVenta.forEach((s) => {
+        const totalServicio =
+          (s.monto_material || 0) + (s.monto_mano_obra || 0);
+        html += `
+          <tr>
+            <td>${s.tipo_servicio || "--"}</td>
+            <td>${s.descripcion || "--"}</td>
+            <td class="text-end">Q${(s.monto_material || 0).toFixed(2)}</td>
+            <td class="text-end">Q${(s.monto_mano_obra || 0).toFixed(2)}</td>
+            <td class="text-end">Q${totalServicio.toFixed(2)}</td>
+          </tr>
+        `;
+      });
+      serviciosBody.innerHTML = html;
+    } else {
+      serviciosBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">No hay servicios adicionales</td></tr>`;
+    }
 
-    const modalContent = `
-      <div class="modal-header">
-        <h5 class="modal-title">Venta #${venta.id}</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div class="row mb-3">
-          <div class="col-md-6">
-            <strong>Cliente:</strong>
-            <button class="btn btn-link btn-sm p-0 text-primary" onclick="verFichaCliente(${venta.id_cliente})">
-              ${nombreCliente}
-            </button>
-          </div>
-          <div class="col-md-6"><strong>Fecha:</strong> ${venta.fecha ? new Date(venta.fecha).toLocaleString() : "--"}</div>
-        </div>
-        <div class="row mb-3">
-          <div class="col-md-4"><strong>Subtotal:</strong> Q${(venta.subtotal || 0).toFixed(2)}</div>
-          <div class="col-md-4"><strong>Total:</strong> Q${(venta.total || 0).toFixed(2)}</div>
-          <div class="col-md-4"><strong>Saldo:</strong> Q${saldo.toFixed(2)}</div>
-        </div>
-        <div class="row mb-3">
-          <div class="col-md-6"><strong>Descuento:</strong> ${venta.descuento_porcentaje || 0}%</div>
-          <div class="col-md-6">
-            <strong>Estado Pago:</strong>
-            <span class="badge ${pagada ? "bg-success" : "bg-danger"}">
-              ${pagada ? "Pagada" : "Pendiente"}
-            </span>
-          </div>
-        </div>
-        ${venta.observaciones ? `<div class="mb-3"><strong>Observaciones:</strong> ${venta.observaciones}</div>` : ""}
+    // Observaciones
+    const obsContainer = document.getElementById(
+      "verVentaObservacionesContainer",
+    );
+    if (venta.observaciones) {
+      document.getElementById("verVentaObservaciones").textContent =
+        venta.observaciones;
+      obsContainer.style.display = "block";
+    } else {
+      obsContainer.style.display = "none";
+    }
 
-        <h6 class="fw-bold mt-3">Detalles</h6>
-        <div class="table-responsive">
-          <table class="table table-sm">
-            <thead><tr><th>Producto</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th></tr></thead>
-            <tbody>${detallesHtml || '<tr><td colspan="4" class="text-center">Sin detalles</td></tr>'}</tbody>
-          </table>
-        </div>
-
-        <h6 class="fw-bold mt-3">Pagos</h6>
-        <div class="table-responsive">
-          <table class="table table-sm">
-            <thead><tr><th>Tipo</th><th>Monto</th><th>Referencia</th><th>Acciones</th></tr></thead>
-            <tbody>${pagosHtml || '<tr><td colspan="3" class="text-center">Sin pagos</td></tr>'}</tbody>
-          </table>
-        </div>
-
-        <h6 class="fw-bold mt-3">Servicios Adicionales</h6>
-        ${serviciosHtml}
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-      </div>
-    `;
-
-    const modalDiv = document.createElement("div");
-    modalDiv.className = "modal fade";
-    modalDiv.id = "ventaDetalleModal";
-    modalDiv.innerHTML = `<div class="modal-dialog modal-lg"><div class="modal-content">${modalContent}</div></div>`;
-    document.body.appendChild(modalDiv);
-
-    const modalInstance = new bootstrap.Modal(modalDiv);
-    modalInstance.show();
-
-    modalDiv.addEventListener("hidden.bs.modal", function () {
-      this.remove();
-    });
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById("verVentaModal"));
+    modal.show();
   } catch (error) {
-    showToast(error.message || "Error al ver venta", "error");
+    console.error("Error al cargar venta:", error);
+    showToast("Error al cargar los datos de la venta", "error");
   }
 }
 
