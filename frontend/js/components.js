@@ -326,6 +326,66 @@ function mostrarLoading(containerId, mensaje = "Cargando...") {
     `;
 }
 
+
+/**
+ * Oculta las pestañas de un módulo para las que el usuario logueado no
+ * tenga el permiso correspondiente.
+ *
+ * @param {string} idContenedorTabs - id del <ul> que contiene las pestañas
+ *   (ej. "usuariosTabs", "reportesTabs").
+ * @param {Object} mapaPermisos - objeto { idTabPane: "NombrePermisoExacto" }.
+ *   Ej: { rolesTab: "Tab:Usuarios:Roles", logsTab: "Tab:Usuarios:Bitacora" }
+ * @param {Array} catalogoCompletoDePermisos - la lista COMPLETA de permisos
+ *   del sistema (ej. la variable permisosData de cada módulo). Se usa para
+ *   decidir si un permiso ya fue configurado o no (ver diseño abajo).
+ *
+ * DISEÑO "A PRUEBA DE NO ROMPER NADA": si el permiso de una pestaña
+ * todavía no existe en el catálogo completo (nadie lo ha creado en
+ * Catálogos > Permisos), esa pestaña NO se oculta -- se sigue viendo
+ * como siempre. Solo empieza a restringirse en cuanto el permiso
+ * específico existe Y no está asignado al rol del usuario actual.
+ */
+function aplicarControlAccesoPorPestana(idContenedorTabs, mapaPermisos, catalogoCompletoDePermisos) {
+  let misPermisosNombres = [];
+  try {
+    const misPermisos = JSON.parse(localStorage.getItem("user_permisos") || "[]");
+    misPermisosNombres = misPermisos.map((p) => p.nombre);
+  } catch (e) {
+    console.warn("No se pudo leer user_permisos de localStorage:", e);
+    return; // si no se puede leer, no restringimos nada (fail-open)
+  }
+
+  let pestanaActivaFueOcultada = false;
+
+  Object.entries(mapaPermisos).forEach(([idTabPane, nombrePermiso]) => {
+    const permisoExisteEnCatalogo = (catalogoCompletoDePermisos || []).some(
+      (p) => p.nombre === nombrePermiso,
+    );
+    if (!permisoExisteEnCatalogo) return; // todavía no se configuró esta pestaña, no tocar
+
+    const tieneAcceso = misPermisosNombres.includes(nombrePermiso);
+    if (tieneAcceso) return;
+
+    const link = document.querySelector(`a[href="#${idTabPane}"]`);
+    const li = link ? link.closest("li") : null;
+    if (li) {
+      if (li.querySelector(".nav-link.active")) pestanaActivaFueOcultada = true;
+      li.style.display = "none";
+    }
+    const pane = document.getElementById(idTabPane);
+    if (pane) pane.remove();
+  });
+
+  if (pestanaActivaFueOcultada) {
+    const primeraVisible = document.querySelector(
+      `#${idContenedorTabs} li:not([style*="display: none"]) .nav-link`,
+    );
+    if (primeraVisible) {
+      new bootstrap.Tab(primeraVisible).show();
+    }
+  }
+}
+
 // EXPONER FUNCIONES GLOBALES
 
 window.showToast = showToast;
@@ -337,3 +397,4 @@ window.validarCampoNumerico = validarCampoNumerico;
 window.validarCampoEmail = validarCampoEmail;
 window.mostrarConfirmacion = mostrarConfirmacion;
 window.mostrarLoading = mostrarLoading;
+window.aplicarControlAccesoPorPestana = aplicarControlAccesoPorPestana;
