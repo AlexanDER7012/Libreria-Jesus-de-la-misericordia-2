@@ -29,7 +29,7 @@
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h4><i class="fas fa-cash-register me-2 text-primary"></i>Caja</h4>
                 <div>
-                    <button class="btn btn-primary btn-sm me-2" onclick="window.showAbrirTurnoModal()">
+                    <button class="btn btn-primary btn-sm me-2" onclick="window.abrirModalTurno()">
                         <i class="fas fa-play me-1"></i>Abrir Turno
                     </button>
                     <button class="btn btn-warning btn-sm me-2" onclick="window.showCerrarTurnoModal()">
@@ -244,7 +244,7 @@
               </div>
               <div class="card-body">
                 <div class="d-flex gap-2 mb-3">
-                  <button class="btn btn-sm btn-success" onclick="window.showAbrirTurnoModal()">
+                  <button class="btn btn-sm btn-success" onclick="window.abrirModalTurno()">
                     <i class="fas fa-play me-1"></i>Abrir Turno
                   </button>
                   ${
@@ -1447,7 +1447,6 @@
   // EXPONER FUNCIONES GLOBALES
   window.loadCajaModule = loadCajaModule;
   window.cargarCajaEnContainer = cargarCajaEnContainer;
-  window.showAbrirTurnoModal = showAbrirTurnoModal;
   window.cargarTurnosTabla = cargarTurnosTabla;
   window.filtrarTurnos = filtrarTurnos;
   window.turnosAnterior = turnosAnterior;
