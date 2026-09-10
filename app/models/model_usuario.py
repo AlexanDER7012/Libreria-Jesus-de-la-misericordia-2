@@ -36,7 +36,7 @@ class Rol(Base):
     __tablename__ = "rol"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nombre = Column(String(50))
+    nombre = Column(String(50), unique=True)  # Dueña, Administrador, Vendedor, Vacacionista
     descripcion = Column(Text)
     nivel = Column(Integer)
 
@@ -101,7 +101,7 @@ class Usuario(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_empleado = Column(Integer, ForeignKey("empleado.id"))
     nombre_usuario = Column(String(50), unique=True)
-    password = Column(String(255))
+    password = Column(String(255))  # hash bcrypt (nunca texto plano)
     id_rol = Column(Integer, ForeignKey("rol.id"))
     fecha_creacion = Column(DateTime, server_default=func.now())  # NUEVO: para el reporte por fecha
     fecha_ultimo_acceso = Column(DateTime)
