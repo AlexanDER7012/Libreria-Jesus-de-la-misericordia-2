@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.pagination import PaginationParams
 from app.security import get_current_user
 from app.bitacora import registrar_actividad
 from app.models.model_usuario import Usuario
@@ -35,9 +36,10 @@ def listar_turnos(
     id_ubicacion: Optional[int] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
-    """Filtra por fecha_desde/fecha_hasta (sobre fecha_apertura)."""
+    """Filtra por fecha_desde/fecha_hasta (sobre fecha_apertura). Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(CajaTurno).order_by(CajaTurno.fecha_apertura.desc())
     if estado is not None:
         query = query.filter(CajaTurno.estado == estado)
@@ -47,7 +49,7 @@ def listar_turnos(
         query = query.filter(func.date(CajaTurno.fecha_apertura) >= fecha_desde)
     if fecha_hasta is not None:
         query = query.filter(func.date(CajaTurno.fecha_apertura) <= fecha_hasta)
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router.get("/{turno_id}", response_model=CajaTurnoResponse)
@@ -117,11 +119,22 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
 # ===================================================================
 
 @router_caja_chica.get("", response_model=List[CajaChicaMovimientoResponse])
-def listar_movimientos_caja_chica(id_ubicacion: Optional[int] = None, db: Session = Depends(get_db)):
+def listar_movimientos_caja_chica(
+    id_ubicacion: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    paginacion: PaginationParams = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(CajaChicaMovimiento).order_by(CajaChicaMovimiento.fecha.desc())
     if id_ubicacion is not None:
         query = query.filter(CajaChicaMovimiento.id_ubicacion == id_ubicacion)
-    return query.all()
+    if fecha_desde is not None:
+        query = query.filter(func.date(CajaChicaMovimiento.fecha) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(CajaChicaMovimiento.fecha) <= fecha_hasta)
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router_caja_chica.post("", response_model=CajaChicaMovimientoResponse, status_code=201)
@@ -155,9 +168,10 @@ def listar_gastos(
     buscar: Optional[str] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
-    """buscar: coincidencia en el concepto del gasto. Filtra por fecha_desde/fecha_hasta."""
+    """buscar: coincidencia en el concepto del gasto. Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Gasto).order_by(Gasto.fecha.desc())
     if id_ubicacion is not None:
         query = query.filter(Gasto.id_ubicacion == id_ubicacion)
@@ -169,7 +183,7 @@ def listar_gastos(
         query = query.filter(func.date(Gasto.fecha) >= fecha_desde)
     if fecha_hasta is not None:
         query = query.filter(func.date(Gasto.fecha) <= fecha_hasta)
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router_gasto.post("", response_model=GastoResponse, status_code=201)

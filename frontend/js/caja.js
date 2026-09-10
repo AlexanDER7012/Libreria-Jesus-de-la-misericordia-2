@@ -7,6 +7,10 @@
   let gastosData = [];
   let tiposGastoData = [];
 
+  // Paginación (server-side) de la tabla de Turnos
+  let skipTurnos = 0;
+  const LIMITE_TURNOS = 10;
+
   // HELPER
   function getCurrentUser() {
     try {
@@ -62,6 +66,21 @@
 
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="turnosTab">
+                    <div class="row mb-2 g-2 justify-content-end">
+                        <div class="col-auto">
+                            <select class="form-select form-select-sm" id="turnosFiltroEstado" onchange="window.filtrarTurnos()">
+                                <option value="">Todos los estados</option>
+                                <option value="Abierto">Abierto</option>
+                                <option value="Cerrado">Cerrado</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <input type="date" class="form-control form-control-sm" id="turnosFechaDesde" onchange="window.filtrarTurnos()">
+                        </div>
+                        <div class="col-auto">
+                            <input type="date" class="form-control form-control-sm" id="turnosFechaHasta" onchange="window.filtrarTurnos()">
+                        </div>
+                    </div>
                     <div id="turnosContainer">
                         <div class="text-center py-5">
                             <div class="spinner-border text-primary" role="status"></div>
@@ -121,7 +140,7 @@
         `;
 
     await Promise.all([
-      loadTurnos(),
+      cargarTurnosTabla(),
       loadCajaChica(),
       loadGastos(),
       loadTiposGasto(),
@@ -290,15 +309,58 @@
   }
 
   // TURNOS
-  async function loadTurnos() {
+  async function cargarTurnosTabla() {
     const container = document.getElementById("turnosContainer");
     if (!container) return;
     try {
-      window.cajaTurnosData = (await api.getCajaTurnos()) || [];
+      const estado = document.getElementById("turnosFiltroEstado")?.value;
+      const desde = document.getElementById("turnosFechaDesde")?.value;
+      const hasta = document.getElementById("turnosFechaHasta")?.value;
+
+      let url = `/caja-turno?skip=${skipTurnos}&limit=${LIMITE_TURNOS}`;
+      if (estado) url += `&estado=${estado}`;
+      if (desde) url += `&fecha_desde=${desde}`;
+      if (hasta) url += `&fecha_hasta=${hasta}`;
+
+      window.cajaTurnosData = (await api.request(url)) || [];
       renderTurnos(window.cajaTurnosData);
+      _agregarControlesPaginacionTurnos();
     } catch (error) {
       container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
     }
+  }
+
+  function filtrarTurnos() {
+    skipTurnos = 0;
+    cargarTurnosTabla();
+  }
+
+  function turnosAnterior() {
+    skipTurnos = Math.max(0, skipTurnos - LIMITE_TURNOS);
+    cargarTurnosTabla();
+  }
+
+  function turnosSiguiente() {
+    skipTurnos += LIMITE_TURNOS;
+    cargarTurnosTabla();
+  }
+
+  function _agregarControlesPaginacionTurnos() {
+    const container = document.getElementById("turnosContainer");
+    if (!container) return;
+    container.insertAdjacentHTML(
+      "beforeend",
+      `
+            <div class="d-flex justify-content-between align-items-center mt-2">
+                <button class="btn btn-sm btn-outline-secondary" onclick="window.turnosAnterior()" ${skipTurnos === 0 ? "disabled" : ""}>
+                    <i class="fas fa-chevron-left me-1"></i>Anterior
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="window.turnosSiguiente()">
+                    Siguiente<i class="fas fa-chevron-right ms-1"></i>
+                </button>
+            </div>
+        `,
+    );
   }
 
   function renderTurnos(turnos) {
@@ -721,7 +783,7 @@
       );
       if (modal) modal.hide();
 
-      await loadTurnos();
+      await cargarTurnosTabla();
       if (window.cajaContainer) {
         await cargarCajaEnContainer(window.cajaContainer);
       }
@@ -808,7 +870,7 @@
       );
       if (modal) modal.hide();
 
-      await loadTurnos();
+      await cargarTurnosTabla();
       if (window.cajaContainer) {
         await cargarCajaEnContainer(window.cajaContainer);
       }
@@ -1386,6 +1448,10 @@
   window.loadCajaModule = loadCajaModule;
   window.cargarCajaEnContainer = cargarCajaEnContainer;
   window.showAbrirTurnoModal = showAbrirTurnoModal;
+  window.cargarTurnosTabla = cargarTurnosTabla;
+  window.filtrarTurnos = filtrarTurnos;
+  window.turnosAnterior = turnosAnterior;
+  window.turnosSiguiente = turnosSiguiente;
   window.showCerrarTurnoModal = showCerrarTurnoModal;
   window.showRegistrarGastoModal = showRegistrarGastoModal;
   window.showRegistrarCajaChicaModal = showRegistrarCajaChicaModal;

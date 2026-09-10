@@ -23,6 +23,45 @@ router = APIRouter()             # /compras
 router_devolucion = APIRouter()  # /devoluciones-compra
 
 
+@router.get("/resumen-totales")
+def resumen_totales_compras(
+    estado: Optional[str] = None,
+    id_proveedor: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    db: Session = Depends(get_db),
+):
+    """
+    Suma el total en compras, lo ya pagado, y el saldo pendiente -- sobre
+    TODAS las compras que cumplan el filtro (sin paginar, a diferencia de
+    GET /compras que sí pagina). Pensado para la tarjeta de totales en la
+    pestaña de Compras.
+    IMPORTANTE: esta ruta debe declararse ANTES de '/{compra_id}' -- si no,
+    FastAPI intentaría interpretar 'resumen-totales' como si fuera un compra_id.
+    """
+    query = db.query(Compra)
+    if estado is not None:
+        query = query.filter(Compra.estado == estado)
+    if id_proveedor is not None:
+        query = query.filter(Compra.id_proveedor == id_proveedor)
+    if fecha_desde is not None:
+        query = query.filter(func.date(Compra.fecha) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(Compra.fecha) <= fecha_hasta)
+
+    compras = query.all()
+    total_comprado = round(sum(float(c.total or 0) for c in compras), 2)
+    total_pendiente = round(sum(float(c.saldo_pendiente or 0) for c in compras), 2)
+    total_pagado = round(total_comprado - total_pendiente, 2)
+
+    return {
+        "cantidad_compras": len(compras),
+        "total_comprado": total_comprado,
+        "total_pagado": total_pagado,
+        "total_pendiente": total_pendiente,
+    }
+
+
 # ===================================================================
 # COMPRA (+ detalle_compra)
 # ===================================================================
@@ -182,11 +221,22 @@ def registrar_pago_compra(compra_id: int, datos: CompraPagoCreate, db: Session =
 # ===================================================================
 
 @router_devolucion.get("", response_model=List[DevolucionCompraResponse])
-def listar_devoluciones(id_proveedor: Optional[int] = None, db: Session = Depends(get_db)):
+def listar_devoluciones(
+    id_proveedor: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    paginacion: PaginationParams = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(DevolucionCompra).order_by(DevolucionCompra.fecha.desc())
     if id_proveedor is not None:
         query = query.filter(DevolucionCompra.id_proveedor == id_proveedor)
-    return query.all()
+    if fecha_desde is not None:
+        query = query.filter(func.date(DevolucionCompra.fecha) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(DevolucionCompra.fecha) <= fecha_hasta)
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router_devolucion.post("", response_model=DevolucionCompraResponse, status_code=201)

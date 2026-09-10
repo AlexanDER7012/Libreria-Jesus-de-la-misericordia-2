@@ -4,6 +4,12 @@ let ventasData = [];
 let tiposPagoData = [];
 let cajaTurnosData = [];
 let serviciosAdicionalesData = [];
+
+// Paginación (client-side, porque serviciosAdicionalesData se usa completo
+// en varios otros lugares del archivo -- cruces por cliente/venta, búsquedas
+// por id para editar/cambiar estado)
+let paginaServicios = 0;
+const SERVICIOS_POR_PAGINA = 10;
 let cotizacionesData = [];
 let ventaDetallesTemp = [];
 let vendedoresData = [];
@@ -2640,17 +2646,18 @@ async function cargarSubServicios() {
               <th>Acciones</th>
             </tr>
           </thead>
-          <tbody id="serviciosTableBody">
-            ${renderServiciosRows(servicios)}
-          </tbody>
+          <tbody id="serviciosTableBody"></tbody>
         </table>
       </div>
+      <div id="serviciosPaginacionContainer" class="d-flex justify-content-between align-items-center mt-2"></div>
       <div class="text-end">
         <small class="text-muted">Total: ${servicios.length} servicios</small>
       </div>
     `;
 
     container.innerHTML = html;
+    paginaServicios = 0;
+    _renderServiciosPaginado(serviciosAdicionalesData);
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">Error al cargar servicios: ${error.message}</div>`;
   }
@@ -2780,16 +2787,49 @@ function renderServiciosRows(servicios) {
     .join("");
 }
 
-function filtrarServicios() {
-  const filtro = document.getElementById("filtroClienteServicios").value;
+function _listaServiciosFiltrada() {
+  const filtro = document.getElementById("filtroClienteServicios")?.value;
   let servicios = serviciosAdicionalesData;
   if (filtro) {
     servicios = servicios.filter((s) => s.id_cliente === parseInt(filtro));
   }
+  return servicios;
+}
+
+function _renderServiciosPaginado(lista) {
+  const inicio = paginaServicios * SERVICIOS_POR_PAGINA;
+  const paginaActual = lista.slice(inicio, inicio + SERVICIOS_POR_PAGINA);
   const tbody = document.getElementById("serviciosTableBody");
-  if (tbody) {
-    tbody.innerHTML = renderServiciosRows(servicios);
+  if (tbody) tbody.innerHTML = renderServiciosRows(paginaActual);
+
+  const totalPaginas = Math.max(1, Math.ceil(lista.length / SERVICIOS_POR_PAGINA));
+  const contenedorPaginacion = document.getElementById("serviciosPaginacionContainer");
+  if (contenedorPaginacion) {
+    contenedorPaginacion.innerHTML = `
+      <button class="btn btn-sm btn-outline-secondary" onclick="serviciosAnterior()" ${paginaServicios === 0 ? "disabled" : ""}>
+        <i class="fas fa-chevron-left me-1"></i>Anterior
+      </button>
+      <small class="text-muted">Página ${paginaServicios + 1} de ${totalPaginas}</small>
+      <button class="btn btn-sm btn-outline-secondary" onclick="serviciosSiguiente()" ${paginaServicios + 1 >= totalPaginas ? "disabled" : ""}>
+        Siguiente<i class="fas fa-chevron-right ms-1"></i>
+      </button>
+    `;
   }
+}
+
+function filtrarServicios() {
+  paginaServicios = 0; // el filtro cambió, regresamos a la primera página
+  _renderServiciosPaginado(_listaServiciosFiltrada());
+}
+
+function serviciosAnterior() {
+  if (paginaServicios > 0) paginaServicios--;
+  _renderServiciosPaginado(_listaServiciosFiltrada());
+}
+
+function serviciosSiguiente() {
+  paginaServicios++;
+  _renderServiciosPaginado(_listaServiciosFiltrada());
 }
 
 function showCreateServicioModal() {

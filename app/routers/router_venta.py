@@ -296,11 +296,21 @@ def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: S
 # ===================================================================
 
 @router_servicio.get("", response_model=List[ServicioAdicionalResponse])
-def listar_servicios(id_cliente: Optional[int] = None, db: Session = Depends(get_db)):
+def listar_servicios(
+    id_cliente: Optional[int] = None,
+    paginacion: PaginationParams = Depends(),
+    db: Session = Depends(get_db),
+):
+    """
+    Paginado: ?skip=0&limit=50 (default), máximo 200 por página.
+    OJO: esta tabla no tiene columna de fecha, así que no se puede filtrar
+    por rango de fechas todavía -- habría que agregar esa columna primero
+    (con su migración) si se necesita más adelante.
+    """
     query = db.query(ServicioAdicional)
     if id_cliente is not None:
         query = query.filter(ServicioAdicional.id_cliente == id_cliente)
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router_servicio.post("", response_model=ServicioAdicionalResponse, status_code=201)
