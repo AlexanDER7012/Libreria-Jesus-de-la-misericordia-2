@@ -10,9 +10,13 @@ let comprasTiposPagoData = [];
 let proveedoresData = [];
 let tiposProveedorData = [];
 let pedidosData = [];
-let cajaChicaData = [];
-let gastosData = [];
 let tiposGastoData = [];
+
+// Paginación (server-side) de Caja Chica y Gastos
+let skipCajaChica = 0;
+const LIMITE_CAJA_CHICA = 10;
+let skipGastos = 0;
+const LIMITE_GASTOS = 10;
 
 // =============================================
 // FUNCIÓN PARA REGISTRAR MOVIMIENTO DE INVENTARIO
@@ -178,6 +182,7 @@ async function loadComprasModule() {
         <div class="tab-content" id="comprasTabContent">
             <!-- PANEL: COMPRAS -->
             <div class="tab-pane fade show active" id="panel-compras" role="tabpanel">
+                <div id="comprasResumenContainer" class="mb-3"></div>
                 <div id="comprasTableContainer">
                     <div class="text-center py-5">
                         <div class="spinner-border text-info" role="status"></div>
@@ -239,6 +244,14 @@ async function loadComprasModule() {
 
             <!-- PANEL: CAJA CHICA -->
             <div class="tab-pane fade" id="panel-caja-chica" role="tabpanel">
+                <div class="row mb-2 g-2 justify-content-end">
+                    <div class="col-auto">
+                        <input type="date" class="form-control form-control-sm" id="cajaChicaFechaDesde" onchange="skipCajaChica=0;cargarCajaChicaTabla()">
+                    </div>
+                    <div class="col-auto">
+                        <input type="date" class="form-control form-control-sm" id="cajaChicaFechaHasta" onchange="skipCajaChica=0;cargarCajaChicaTabla()">
+                    </div>
+                </div>
                 <div id="cajaChicaContainer">
                     <div class="text-center py-5">
                         <div class="spinner-border text-success" role="status"></div>
@@ -266,6 +279,14 @@ async function loadComprasModule() {
 
                 <div class="tab-content" id="gastosSubContent">
                     <div class="tab-pane fade show active" id="subpanel-gastos" role="tabpanel">
+                        <div class="row mb-2 g-2 justify-content-end">
+                            <div class="col-auto">
+                                <input type="date" class="form-control form-control-sm" id="gastosFechaDesde" onchange="skipGastos=0;cargarGastosTabla()">
+                            </div>
+                            <div class="col-auto">
+                                <input type="date" class="form-control form-control-sm" id="gastosFechaHasta" onchange="skipGastos=0;cargarGastosTabla()">
+                            </div>
+                        </div>
                         <div id="gastosContainer">
                             <div class="text-center py-5">
                                 <div class="spinner-border text-primary" role="status"></div>
@@ -302,8 +323,6 @@ async function loadComprasModule() {
       proveedores,
       tiposProveedor,
       pedidos,
-      cajaChica,
-      gastos,
       tiposGasto,
       tiposPago,
       productos,
@@ -313,8 +332,6 @@ async function loadComprasModule() {
       api.getProveedores().catch(() => []),
       api.getTiposProveedor().catch(() => []),
       api.getPedidos().catch(() => []),
-      api.getCajaChica().catch(() => []),
-      api.getGastos().catch(() => []),
       api.getTiposGasto().catch(() => []),
       api.getTiposPago().catch(() => []),
       api.getProductos().catch(() => []),
@@ -325,8 +342,6 @@ async function loadComprasModule() {
     proveedoresData = proveedores || [];
     tiposProveedorData = tiposProveedor || [];
     pedidosData = pedidos || [];
-    cajaChicaData = cajaChica || [];
-    gastosData = gastos || [];
     tiposGastoData = tiposGasto || [];
     comprasTiposPagoData = tiposPago || [];
 
@@ -338,11 +353,12 @@ async function loadComprasModule() {
     window.tiposGastoData = tiposGasto || [];
 
     renderComprasTable(comprasData);
+    cargarResumenCompras();
     renderProveedoresTab(proveedoresData);
     renderTiposProveedorTab(tiposProveedorData);
     renderPedidosTab(pedidosData);
-    renderCajaChicaTab(cajaChicaData);
-    renderGastosTab(gastosData);
+    cargarCajaChicaTabla();
+    cargarGastosTabla();
     renderTiposGastoTab(tiposGastoData);
     renderTiposPagoCompras(comprasTiposPagoData);
   } catch (error) {
@@ -420,8 +436,11 @@ function renderComprasTable(compras) {
                 <td><span class="badge ${estadoBadge}">${estado}</span></td>
                 <td>Q${c.saldo_pendiente || 0}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-info" onclick="verCompra(${c.id})">
+                    <button class="btn btn-sm btn-outline-info" onclick="verCompra(${c.id})" title="Ver detalle">
                         <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="imprimirCompra(${c.id})" title="Imprimir reporte">
+                        <i class="fas fa-print"></i>
                     </button>
                     <button class="btn btn-sm btn-outline-success" onclick="registrarNotaEntrega(${c.id})">
                         <i class="fas fa-file-signature"></i>
@@ -444,6 +463,49 @@ function renderComprasTable(compras) {
     `;
 
   container.innerHTML = html;
+}
+
+// =============================================
+// RESUMEN DE TOTALES (Compras)
+// =============================================
+async function cargarResumenCompras() {
+  const container = document.getElementById("comprasResumenContainer");
+  if (!container) return;
+
+  try {
+    const resumen = await api.request("/compras/resumen-totales");
+    container.innerHTML = `
+      <div class="row g-2">
+        <div class="col-md-4">
+          <div class="card border-info h-100">
+            <div class="card-body py-2 text-center">
+              <div class="text-muted small">Total en Compras</div>
+              <div class="fw-bold fs-5 text-info">Q${Number(resumen.total_comprado || 0).toFixed(2)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card border-success h-100">
+            <div class="card-body py-2 text-center">
+              <div class="text-muted small">Total Pagado</div>
+              <div class="fw-bold fs-5 text-success">Q${Number(resumen.total_pagado || 0).toFixed(2)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card border-danger h-100">
+            <div class="card-body py-2 text-center">
+              <div class="text-muted small">Saldo Pendiente por Pagar</div>
+              <div class="fw-bold fs-5 text-danger">Q${Number(resumen.total_pendiente || 0).toFixed(2)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (error) {
+    console.warn("No se pudo cargar el resumen de compras:", error);
+    container.innerHTML = "";
+  }
 }
 
 // =============================================
@@ -871,6 +933,69 @@ function renderGastosTab(gastos) {
     `;
 
   container.innerHTML = html;
+}
+
+// =============================================
+// PAGINACIÓN (server-side) DE CAJA CHICA Y GASTOS
+// =============================================
+function _agregarControlesPaginacionCompras(containerId, onAnterior, onSiguiente, skipActual) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.insertAdjacentHTML(
+    "beforeend",
+    `
+        <div class="d-flex justify-content-between align-items-center mt-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="${onAnterior}" ${skipActual === 0 ? "disabled" : ""}>
+                <i class="fas fa-chevron-left me-1"></i>Anterior
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="${onSiguiente}">
+                Siguiente<i class="fas fa-chevron-right ms-1"></i>
+            </button>
+        </div>
+    `,
+  );
+}
+
+async function cargarCajaChicaTabla() {
+  try {
+    const desde = document.getElementById("cajaChicaFechaDesde")?.value;
+    const hasta = document.getElementById("cajaChicaFechaHasta")?.value;
+    let url = `/caja-chica?skip=${skipCajaChica}&limit=${LIMITE_CAJA_CHICA}`;
+    if (desde) url += `&fecha_desde=${desde}`;
+    if (hasta) url += `&fecha_hasta=${hasta}`;
+    const movimientos = await api.request(url);
+    renderCajaChicaTab(movimientos);
+    _agregarControlesPaginacionCompras(
+      "cajaChicaContainer",
+      `skipCajaChica=Math.max(0,skipCajaChica-${LIMITE_CAJA_CHICA});cargarCajaChicaTabla()`,
+      `skipCajaChica+=${LIMITE_CAJA_CHICA};cargarCajaChicaTabla()`,
+      skipCajaChica,
+    );
+  } catch (error) {
+    document.getElementById("cajaChicaContainer").innerHTML =
+      `<div class="alert alert-danger">${error.message}</div>`;
+  }
+}
+
+async function cargarGastosTabla() {
+  try {
+    const desde = document.getElementById("gastosFechaDesde")?.value;
+    const hasta = document.getElementById("gastosFechaHasta")?.value;
+    let url = `/gastos?skip=${skipGastos}&limit=${LIMITE_GASTOS}`;
+    if (desde) url += `&fecha_desde=${desde}`;
+    if (hasta) url += `&fecha_hasta=${hasta}`;
+    const gastos = await api.request(url);
+    renderGastosTab(gastos);
+    _agregarControlesPaginacionCompras(
+      "gastosContainer",
+      `skipGastos=Math.max(0,skipGastos-${LIMITE_GASTOS});cargarGastosTabla()`,
+      `skipGastos+=${LIMITE_GASTOS};cargarGastosTabla()`,
+      skipGastos,
+    );
+  } catch (error) {
+    document.getElementById("gastosContainer").innerHTML =
+      `<div class="alert alert-danger">${error.message}</div>`;
+  }
 }
 
 function renderTiposGastoTab(tipos) {
@@ -2666,6 +2791,9 @@ async function verCompra(id) {
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button class="btn btn-outline-primary" onclick="imprimirCompra(${compra.id})">
+                    <i class="fas fa-print me-1"></i>Imprimir Reporte
+                </button>
             </div>
         `;
 
@@ -2683,6 +2811,110 @@ async function verCompra(id) {
     });
   } catch (error) {
     showToast(error.message || "Error al ver compra", "error");
+  }
+}
+
+// =============================================
+// IMPRIMIR REPORTE DE COMPRA
+// =============================================
+async function imprimirCompra(id) {
+  try {
+    const compra = await api.request(`/compras/${id}`);
+    if (!compra) {
+      showToast("Compra no encontrada", "error");
+      return;
+    }
+
+    const proveedor = (window.proveedoresData || []).find(
+      (p) => p.id === compra.id_proveedor,
+    );
+    const nombreProveedor = proveedor ? proveedor.nombre : "--";
+
+    const filasDetalle = (compra.detalles || [])
+      .map((d) => {
+        const producto = (window.productosData || []).find(
+          (p) => p.id === d.id_producto,
+        );
+        return `
+          <tr>
+            <td>${producto ? producto.nombre : "--"}</td>
+            <td style="text-align:center">${d.cantidad_comprada || 0}</td>
+            <td style="text-align:right">Q${Number(d.costo_unitario || 0).toFixed(2)}</td>
+            <td style="text-align:right">Q${Number(d.subtotal || 0).toFixed(2)}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const fecha = compra.fecha ? new Date(compra.fecha).toLocaleString() : "--";
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>Compra #${compra.id}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 30px; color: #222; }
+          h1 { font-size: 20px; margin-bottom: 4px; }
+          .subtitulo { color: #666; margin-bottom: 20px; font-size: 13px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+          th, td { border: 1px solid #ccc; padding: 6px 8px; font-size: 13px; }
+          th { background: #f2f2f2; text-align: left; }
+          .datos { margin-bottom: 6px; font-size: 14px; }
+          .datos strong { display: inline-block; width: 140px; }
+          .totales { margin-top: 15px; text-align: right; font-size: 14px; }
+          .totales div { margin-bottom: 4px; }
+          .total-final { font-size: 16px; font-weight: bold; border-top: 2px solid #333; padding-top: 6px; margin-top: 6px; }
+          .btn-imprimir { margin-top: 25px; padding: 8px 18px; font-size: 14px; cursor: pointer; }
+          @media print {
+            .btn-imprimir { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Reporte de Compra #${compra.id}</h1>
+        <div class="subtitulo">Generado el ${new Date().toLocaleString()}</div>
+
+        <div class="datos"><strong>Proveedor:</strong> ${nombreProveedor}</div>
+        <div class="datos"><strong>N&deg; Factura:</strong> ${compra.numero_factura || "--"}</div>
+        <div class="datos"><strong>Fecha:</strong> ${fecha}</div>
+        <div class="datos"><strong>Estado:</strong> ${compra.estado || "Pendiente"}</div>
+        ${compra.observaciones ? `<div class="datos"><strong>Observaciones:</strong> ${compra.observaciones}</div>` : ""}
+
+        <table>
+          <thead>
+            <tr><th>Producto</th><th>Cantidad</th><th>Costo Unitario</th><th>Subtotal</th></tr>
+          </thead>
+          <tbody>
+            ${filasDetalle || '<tr><td colspan="4" style="text-align:center">Sin detalles</td></tr>'}
+          </tbody>
+        </table>
+
+        <div class="totales">
+          <div>Subtotal: Q${Number(compra.subtotal || 0).toFixed(2)}</div>
+          <div>IVA: Q${Number(compra.iva || 0).toFixed(2)}</div>
+          <div class="total-final">Total: Q${Number(compra.total || 0).toFixed(2)}</div>
+          <div>Saldo Pendiente: Q${Number(compra.saldo_pendiente || 0).toFixed(2)}</div>
+        </div>
+
+        <button class="btn-imprimir" onclick="window.print()">Imprimir</button>
+      </body>
+      </html>
+    `;
+
+    const ventanaImpresion = window.open("", "_blank");
+    if (!ventanaImpresion) {
+      showToast(
+        "El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes para este sitio.",
+        "warning",
+      );
+      return;
+    }
+    ventanaImpresion.document.write(html);
+    ventanaImpresion.document.close();
+  } catch (error) {
+    showToast(error.message || "Error al generar el reporte de la compra", "error");
   }
 }
 
@@ -2754,6 +2986,7 @@ window.loadComprasModule = loadComprasModule;
 window.showCreateCompraModal = showCreateCompraModal;
 window.saveCompra = saveCompra;
 window.verCompra = verCompra;
+window.imprimirCompra = imprimirCompra;
 window.registrarNotaEntrega = registrarNotaEntrega;
 window.registrarPagoCompra = registrarPagoCompra;
 window.registrarMovimientoInventario = registrarMovimientoInventario;
@@ -2783,6 +3016,8 @@ window.cambiarEstadoPedido = cambiarEstadoPedido;
 
 // Caja Chica
 window.renderCajaChicaTab = renderCajaChicaTab;
+window.cargarCajaChicaTabla = cargarCajaChicaTabla;
+window.cargarGastosTabla = cargarGastosTabla;
 window.showCreateCajaChicaModal = showCreateCajaChicaModal;
 window.saveCajaChica = saveCajaChica;
 window.verCajaChica = verCajaChica;

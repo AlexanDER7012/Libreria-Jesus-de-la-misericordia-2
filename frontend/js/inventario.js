@@ -7,6 +7,14 @@ let trasladosData = [];
 let alertasData = [];
 let filtroBusqueda = "";
 
+// Paginación (server-side) de Conteo Físico, Traslados y Alertas
+let skipConteo = 0;
+const LIMITE_CONTEO = 10;
+let skipTraslados = 0;
+const LIMITE_TRASLADOS = 10;
+let skipAlertas = 0;
+const LIMITE_ALERTAS = 10;
+
 // =============================================
 // FUNCIONES AUXILIARES
 // =============================================
@@ -259,12 +267,44 @@ async function loadInventarioModule() {
                 </div>
             </div>
             <div class="tab-pane fade" id="panel-conteo" role="tabpanel">
+                <div class="row mb-2 g-2 justify-content-end">
+                    <div class="col-auto">
+                        <input type="date" class="form-control form-control-sm" id="conteoFechaDesde" onchange="skipConteo=0;cargarConteoTabla()">
+                    </div>
+                    <div class="col-auto">
+                        <input type="date" class="form-control form-control-sm" id="conteoFechaHasta" onchange="skipConteo=0;cargarConteoTabla()">
+                    </div>
+                </div>
                 <div id="conteoContainer"><div class="text-center py-5"><div class="spinner-border text-warning" role="status"></div><p class="mt-2 text-muted">Cargando conteos físicos...</p></div></div>
             </div>
             <div class="tab-pane fade" id="panel-traslados" role="tabpanel">
+                <div class="row mb-2 g-2 justify-content-end">
+                    <div class="col-auto">
+                        <select class="form-select form-select-sm" id="trasladosFiltroEstado" onchange="skipTraslados=0;cargarTrasladosTabla()">
+                            <option value="">Todos los estados</option>
+                            <option value="EnProceso">En Proceso</option>
+                            <option value="Recibido">Recibido</option>
+                            <option value="Completado">Completado</option>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <input type="date" class="form-control form-control-sm" id="trasladosFechaDesde" onchange="skipTraslados=0;cargarTrasladosTabla()">
+                    </div>
+                    <div class="col-auto">
+                        <input type="date" class="form-control form-control-sm" id="trasladosFechaHasta" onchange="skipTraslados=0;cargarTrasladosTabla()">
+                    </div>
+                </div>
                 <div id="trasladosContainer"><div class="text-center py-5"><div class="spinner-border text-info" role="status"></div><p class="mt-2 text-muted">Cargando traslados...</p></div></div>
             </div>
             <div class="tab-pane fade" id="panel-alertas" role="tabpanel">
+                <div class="row mb-2 g-2 justify-content-end">
+                    <div class="col-auto">
+                        <input type="date" class="form-control form-control-sm" id="alertasFechaDesde" onchange="skipAlertas=0;cargarAlertasTabla()">
+                    </div>
+                    <div class="col-auto">
+                        <input type="date" class="form-control form-control-sm" id="alertasFechaHasta" onchange="skipAlertas=0;cargarAlertasTabla()">
+                    </div>
+                </div>
                 <div id="alertasContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando alertas...</p></div></div>
             </div>
             <div class="tab-pane fade" id="panel-tipos-movimiento" role="tabpanel">
@@ -288,30 +328,19 @@ async function loadInventarioModule() {
   }
 
   try {
-    const [movimientos, tiposMov, conteo, traslados] = await Promise.all([
+    const [movimientos, tiposMov] = await Promise.all([
       api.getMovimientosInventario().catch(() => []),
       api.getTiposMovimiento().catch(() => []),
-      api.getInventarioFisico().catch(() => []),
-      api.getTraslados().catch(() => []),
     ]);
 
     movimientosData = movimientos || [];
     tiposMovimientoData = tiposMov || [];
-    inventarioFisicoData = conteo || [];
-    trasladosData = traslados || [];
-
-    try {
-      alertasData = (await api.getAlertasStock()) || [];
-    } catch (error) {
-      console.warn("Error cargando alertas:", error);
-      alertasData = [];
-    }
 
     // ✅ Mostrar resumen de inventario en lugar de movimientos
     renderResumenInventario();
-    renderConteoFisico(inventarioFisicoData);
-    renderTraslados(trasladosData);
-    renderAlertas(alertasData);
+    cargarConteoTabla();
+    cargarTrasladosTabla();
+    cargarAlertasTabla();
     renderTiposMovimiento(tiposMovimientoData);
 
     populateSelectsInventario();
@@ -1456,6 +1485,92 @@ function renderAlertas(alertas) {
     `;
 
   container.innerHTML = html;
+}
+
+// =============================================
+// PAGINACIÓN (server-side) DE CONTEO, TRASLADOS Y ALERTAS
+// =============================================
+function _agregarControlesPaginacionInventario(containerId, onAnterior, onSiguiente, skipActual) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.insertAdjacentHTML(
+    "beforeend",
+    `
+        <div class="d-flex justify-content-between align-items-center mt-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="${onAnterior}" ${skipActual === 0 ? "disabled" : ""}>
+                <i class="fas fa-chevron-left me-1"></i>Anterior
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="${onSiguiente}">
+                Siguiente<i class="fas fa-chevron-right ms-1"></i>
+            </button>
+        </div>
+    `,
+  );
+}
+
+async function cargarConteoTabla() {
+  try {
+    const desde = document.getElementById("conteoFechaDesde")?.value;
+    const hasta = document.getElementById("conteoFechaHasta")?.value;
+    let url = `/inventario-fisico?skip=${skipConteo}&limit=${LIMITE_CONTEO}`;
+    if (desde) url += `&fecha_desde=${desde}`;
+    if (hasta) url += `&fecha_hasta=${hasta}`;
+    inventarioFisicoData = (await api.request(url)) || [];
+    renderConteoFisico(inventarioFisicoData);
+    _agregarControlesPaginacionInventario(
+      "conteoContainer",
+      `skipConteo=Math.max(0,skipConteo-${LIMITE_CONTEO});cargarConteoTabla()`,
+      `skipConteo+=${LIMITE_CONTEO};cargarConteoTabla()`,
+      skipConteo,
+    );
+  } catch (error) {
+    document.getElementById("conteoContainer").innerHTML =
+      `<div class="alert alert-danger">${error.message}</div>`;
+  }
+}
+
+async function cargarTrasladosTabla() {
+  try {
+    const estado = document.getElementById("trasladosFiltroEstado")?.value;
+    const desde = document.getElementById("trasladosFechaDesde")?.value;
+    const hasta = document.getElementById("trasladosFechaHasta")?.value;
+    let url = `/traslados?skip=${skipTraslados}&limit=${LIMITE_TRASLADOS}`;
+    if (estado) url += `&estado=${estado}`;
+    if (desde) url += `&fecha_desde=${desde}`;
+    if (hasta) url += `&fecha_hasta=${hasta}`;
+    trasladosData = (await api.request(url)) || [];
+    renderTraslados(trasladosData);
+    _agregarControlesPaginacionInventario(
+      "trasladosContainer",
+      `skipTraslados=Math.max(0,skipTraslados-${LIMITE_TRASLADOS});cargarTrasladosTabla()`,
+      `skipTraslados+=${LIMITE_TRASLADOS};cargarTrasladosTabla()`,
+      skipTraslados,
+    );
+  } catch (error) {
+    document.getElementById("trasladosContainer").innerHTML =
+      `<div class="alert alert-danger">${error.message}</div>`;
+  }
+}
+
+async function cargarAlertasTabla() {
+  try {
+    const desde = document.getElementById("alertasFechaDesde")?.value;
+    const hasta = document.getElementById("alertasFechaHasta")?.value;
+    let url = `/alertas?skip=${skipAlertas}&limit=${LIMITE_ALERTAS}`;
+    if (desde) url += `&fecha_desde=${desde}`;
+    if (hasta) url += `&fecha_hasta=${hasta}`;
+    alertasData = (await api.request(url).catch(() => [])) || [];
+    renderAlertas(alertasData);
+    _agregarControlesPaginacionInventario(
+      "alertasContainer",
+      `skipAlertas=Math.max(0,skipAlertas-${LIMITE_ALERTAS});cargarAlertasTabla()`,
+      `skipAlertas+=${LIMITE_ALERTAS};cargarAlertasTabla()`,
+      skipAlertas,
+    );
+  } catch (error) {
+    document.getElementById("alertasContainer").innerHTML =
+      `<div class="alert alert-danger">${error.message}</div>`;
+  }
 }
 
 // =============================================

@@ -232,11 +232,22 @@ def crear_tipo_movimiento(datos: TipoMovimientoInventarioCreate, db: Session = D
 # ===================================================================
 
 @router_fisico.get("", response_model=List[InventarioFisicoResponse])
-def listar_conteos(id_producto: Optional[int] = None, db: Session = Depends(get_db)):
+def listar_conteos(
+    id_producto: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    paginacion: PaginationParams = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(InventarioFisico).order_by(InventarioFisico.fecha.desc())
     if id_producto is not None:
         query = query.filter(InventarioFisico.id_producto == id_producto)
-    return query.all()
+    if fecha_desde is not None:
+        query = query.filter(func.date(InventarioFisico.fecha) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(InventarioFisico.fecha) <= fecha_hasta)
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router_fisico.post("", response_model=InventarioFisicoResponse, status_code=201)
@@ -297,9 +308,10 @@ def listar_traslados(
     id_producto: Optional[int] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
-    """Filtra por fecha_desde/fecha_hasta."""
+    """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(TrasladoSucursal).order_by(TrasladoSucursal.fecha.desc())
     if estado is not None:
         query = query.filter(TrasladoSucursal.estado == estado)
@@ -309,7 +321,7 @@ def listar_traslados(
         query = query.filter(func.date(TrasladoSucursal.fecha) >= fecha_desde)
     if fecha_hasta is not None:
         query = query.filter(func.date(TrasladoSucursal.fecha) <= fecha_hasta)
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router_traslado.post("", response_model=TrasladoSucursalResponse, status_code=201)
@@ -357,14 +369,22 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: int, db: Session = 
 def listar_alertas(
     solo_no_leidas: bool = True,
     id_usuario_destino: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
+    """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Alerta).order_by(Alerta.fecha.desc())
     if solo_no_leidas:
         query = query.filter(Alerta.leida == 0)
     if id_usuario_destino is not None:
         query = query.filter(Alerta.id_usuario_destino == id_usuario_destino)
-    return query.all()
+    if fecha_desde is not None:
+        query = query.filter(func.date(Alerta.fecha) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(Alerta.fecha) <= fecha_hasta)
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router_alerta.patch("/{alerta_id}/marcar-leida", response_model=AlertaResponse)

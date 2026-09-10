@@ -1,6 +1,8 @@
+from datetime import date
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -178,14 +180,15 @@ def reactivar_usuario(usuario_id: int, db: Session = Depends(get_db), usuario_ac
 def listar_empleados(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
     buscar: Optional[str] = None,
+    paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ):
-    """buscar: coincidencia en nombre o DPI."""
+    """buscar: coincidencia en nombre o DPI. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = _filtrar_por_estado(db.query(Empleado), Empleado, estado)
     if buscar:
         like = f"%{buscar}%"
         query = query.filter((Empleado.nombre.ilike(like)) | (Empleado.dpi.ilike(like)))
-    return query.all()
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router_empleado.get("/{empleado_id}", response_model=EmpleadoResponse)
@@ -408,11 +411,22 @@ def crear_permiso(datos: PermisoCreate, db: Session = Depends(get_db), usuario_a
 # ===================================================================
 
 @router_pago.get("", response_model=List[HistoricoPagoEmpleadoResponse])
-def listar_pagos(id_empleado: int | None = None, db: Session = Depends(get_db)):
-    query = db.query(HistoricoPagoEmpleado)
+def listar_pagos(
+    id_empleado: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    paginacion: PaginationParams = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Filtra por fecha_desde/fecha_hasta (sobre fecha_pago). Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
+    query = db.query(HistoricoPagoEmpleado).order_by(HistoricoPagoEmpleado.fecha_pago.desc())
     if id_empleado is not None:
         query = query.filter(HistoricoPagoEmpleado.id_empleado == id_empleado)
-    return query.all()
+    if fecha_desde is not None:
+        query = query.filter(func.date(HistoricoPagoEmpleado.fecha_pago) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(HistoricoPagoEmpleado.fecha_pago) <= fecha_hasta)
+    return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router_pago.post("", response_model=HistoricoPagoEmpleadoResponse, status_code=201)

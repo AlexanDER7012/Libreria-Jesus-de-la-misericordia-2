@@ -8,7 +8,11 @@ let turnosData = [];
 let modulosData = [];
 let permisosData = [];
 let rolPermisosData = [];
-let pagosEmpleadoData = [];
+// Paginación (server-side) de las tablas de Empleados y Pagos
+let skipEmpleadosTabla = 0;
+const LIMITE_EMPLEADOS_TABLA = 10;
+let skipPagos = 0;
+const LIMITE_PAGOS = 10;
 
 // ============================================================
 // CARGA DEL MÓDULO
@@ -81,6 +85,13 @@ async function loadUsuariosModule() {
                 <div id="usuariosContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando usuarios...</p></div></div>
             </div>
             <div class="tab-pane fade" id="empleadosTab">
+                <div class="d-flex justify-content-end mb-2">
+                    <select class="form-select form-select-sm" style="max-width: 200px" id="filtroEstadoEmpleados" onchange="skipEmpleadosTabla=0;cargarEmpleadosTabla()">
+                        <option value="activos" selected>Activos</option>
+                        <option value="inactivos">Inactivos</option>
+                        <option value="todos">Todos</option>
+                    </select>
+                </div>
                 <div id="empleadosContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando empleados...</p></div></div>
             </div>
             <div class="tab-pane fade" id="rolesTab">
@@ -88,6 +99,14 @@ async function loadUsuariosModule() {
                 <div id="rolesContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando roles...</p></div></div>
             </div>
             <div class="tab-pane fade" id="pagosTab">
+                <div class="row mb-2 g-2 justify-content-end">
+                    <div class="col-auto">
+                        <input type="date" class="form-control form-control-sm" id="pagosFechaDesde" onchange="skipPagos=0;cargarPagosTabla()">
+                    </div>
+                    <div class="col-auto">
+                        <input type="date" class="form-control form-control-sm" id="pagosFechaHasta" onchange="skipPagos=0;cargarPagosTabla()">
+                    </div>
+                </div>
                 <div id="pagosContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando pagos...</p></div></div>
             </div>
             <div class="tab-pane fade" id="catalogosTab">
@@ -115,7 +134,6 @@ async function cargarDatos() {
       turnos,
       modulos,
       permisos,
-      pagos,
     ] = await Promise.all([
       api.getUsuarios().catch(() => []),
       api.request("/empleados?estado=todos").catch(() => []),
@@ -124,17 +142,15 @@ async function cargarDatos() {
       api.getTurnos().catch(() => []),
       api.getModulos().catch(() => []),
       api.getPermisos().catch(() => []),
-      api.request("/pagos-empleado").catch(() => []),
     ]);
 
     usuariosData = usuarios || [];
-    empleadosData = empleados || [];
+    empleadosData = empleados || []; // se mantiene completa (sin paginar) -- otras partes de la pantalla la usan para cruzar nombres (Pagos, Usuarios, selects)
     rolesData = roles || [];
     puestosData = puestos || [];
     turnosData = turnos || [];
     modulosData = modulos || [];
     permisosData = permisos || [];
-    pagosEmpleadoData = pagos || [];
 
     console.log("✅ Datos cargados:");
     console.log("  - Usuarios:", usuariosData.length);
@@ -142,9 +158,9 @@ async function cargarDatos() {
     console.log("  - Roles:", rolesData.length);
 
     renderUsuarios(usuariosData);
-    renderEmpleados(empleadosData);
+    cargarEmpleadosTabla(); // trae solo la primera página de la tabla (server-side)
     renderRoles(rolesData);
-    renderPagos(pagosEmpleadoData);
+    cargarPagosTabla(); // trae solo la primera página de la tabla (server-side)
     renderCatalogos();
     cargarBitacoraUsuarios();
 
@@ -597,6 +613,65 @@ function renderPagos(pagos) {
     `;
 
   container.innerHTML = html;
+}
+
+// ============================================================
+// PAGINACIÓN (server-side) DE EMPLEADOS Y PAGOS
+// ============================================================
+function _agregarControlesPaginacion(containerId, onAnterior, onSiguiente, skipActual) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.insertAdjacentHTML(
+    "beforeend",
+    `
+        <div class="d-flex justify-content-between align-items-center mt-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="${onAnterior}" ${skipActual === 0 ? "disabled" : ""}>
+                <i class="fas fa-chevron-left me-1"></i>Anterior
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="${onSiguiente}">
+                Siguiente<i class="fas fa-chevron-right ms-1"></i>
+            </button>
+        </div>
+    `,
+  );
+}
+
+async function cargarEmpleadosTabla() {
+  const estado = document.getElementById("filtroEstadoEmpleados")?.value || "activos";
+  try {
+    const empleados = await api.request(
+      `/empleados?estado=${estado}&skip=${skipEmpleadosTabla}&limit=${LIMITE_EMPLEADOS_TABLA}`,
+    );
+    renderEmpleados(empleados);
+    _agregarControlesPaginacion(
+      "empleadosContainer",
+      `skipEmpleadosTabla=Math.max(0,skipEmpleadosTabla-${LIMITE_EMPLEADOS_TABLA});cargarEmpleadosTabla()`,
+      `skipEmpleadosTabla+=${LIMITE_EMPLEADOS_TABLA};cargarEmpleadosTabla()`,
+      skipEmpleadosTabla,
+    );
+  } catch (error) {
+    showToast(error.message || "Error al cargar empleados", "error");
+  }
+}
+
+async function cargarPagosTabla() {
+  const desde = document.getElementById("pagosFechaDesde")?.value;
+  const hasta = document.getElementById("pagosFechaHasta")?.value;
+  try {
+    let url = `/pagos-empleado?skip=${skipPagos}&limit=${LIMITE_PAGOS}`;
+    if (desde) url += `&fecha_desde=${desde}`;
+    if (hasta) url += `&fecha_hasta=${hasta}`;
+    const pagos = await api.request(url);
+    renderPagos(pagos);
+    _agregarControlesPaginacion(
+      "pagosContainer",
+      `skipPagos=Math.max(0,skipPagos-${LIMITE_PAGOS});cargarPagosTabla()`,
+      `skipPagos+=${LIMITE_PAGOS};cargarPagosTabla()`,
+      skipPagos,
+    );
+  } catch (error) {
+    showToast(error.message || "Error al cargar pagos", "error");
+  }
 }
 
 // ============================================================
@@ -2254,4 +2329,6 @@ window.asignarUsuarioARol = asignarUsuarioARol;
 window.quitarUsuarioDeRol = quitarUsuarioDeRol;
 window.reactivarEmpleado = reactivarEmpleado;
 window.filtrarUsuariosTabla = filtrarUsuariosTabla;
+window.cargarEmpleadosTabla = cargarEmpleadosTabla;
+window.cargarPagosTabla = cargarPagosTabla;
 window.actualizarBitacoraUsuarios = actualizarBitacoraUsuarios;
