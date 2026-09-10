@@ -1,0 +1,416 @@
+/* ====================================================
+   NEUMORPHISM - SOLO EFECTOS VISUALES
+   No reemplaza estilos de style.css, solo los mejora
+   ==================================================== */
+
+/* ============================================
+   VARIABLES
+   ============================================ */
+:root {
+  --neu-bg-light: #e8ecf1;
+  --neu-bg-light-shadow: #c8ccd1;
+  --neu-bg-light-highlight: #ffffff;
+
+  --neu-bg-dark: #1a1a32;
+  --neu-bg-dark-shadow: #0e0e22;
+  --neu-bg-dark-highlight: #262642;
+
+  --neu-azul: #1a2a6c;
+  --neu-azul-medio: #2d4373;
+  --neu-naranja: #e67e22;
+  --neu-amarillo: #f39c12;
+
+  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================
+   ANIMACIONES
+   ============================================ */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.main-content > * {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+/* ============================================
+   SIDEBAR - COLORES Y HOVER (sin tocar layout)
+   ============================================ */
+.sidebar {
+  background: linear-gradient(180deg, #1a2a6c 0%, #2d4373 100%) !important;
+  border-right: 1px solid rgba(230, 126, 34, 0.15) !important;
+  box-shadow: 4px 0 20px rgba(26, 42, 108, 0.15) !important;
+}
+
+.sidebar-header {
+  background: rgba(0, 0, 0, 0.2) !important;
+  border-bottom: 1px solid rgba(243, 156, 18, 0.25) !important;
+}
+
+.sidebar-header h5 {
+  color: #f39c12 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Enlaces del sidebar - ALTO CONTRASTE */
+.sidebar-link {
+  color: #e8ecf1 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: var(--transition-smooth);
+  position: relative;
+  overflow: hidden;
+  border-left: 3px solid transparent !important;
+}
+
+/* Íconos naranjas */
+.sidebar-link .sidebar-icon {
+  color: #f39c12 !important;
+  transition: var(--transition-smooth);
+}
+
+/* Hover */
+.sidebar-link:hover {
+  background: rgba(243, 156, 18, 0.15) !important;
+  color: #f39c12 !important;
+  border-left-color: #f39c12 !important;
+  transform: translateX(4px);
+}
+
+.sidebar-link:hover .sidebar-icon {
+  color: #f39c12 !important;
+  transform: scale(1.15) rotate(-5deg);
+}
+
+/* Activo */
+.sidebar-link.active {
+  background: linear-gradient(
+    135deg,
+    rgba(230, 126, 34, 0.95),
+    rgba(243, 156, 18, 0.95)
+  ) !important;
+  color: white !important;
+  border-left-color: white !important;
+  box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4);
+  font-weight: 600;
+}
+
+.sidebar-link.active .sidebar-icon {
+  color: white !important;
+  transform: scale(1.1);
+}
+
+/* ============================================
+   NAVBAR - COLORES
+   ============================================ */
+.navbar.bg-primary {
+  background: linear-gradient(145deg, #1a2a6c, #2d4373) !important;
+  box-shadow: 0 4px 20px rgba(26, 42, 108, 0.25) !important;
+  border-bottom: 2px solid rgba(230, 126, 34, 0.3) !important;
+}
+
+.navbar .btn-outline-light:hover {
+  background: rgba(243, 156, 18, 0.9) !important;
+  border-color: transparent !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
+}
+
+/* ============================================
+   CARDS - NEUMORPH (Modo Claro)
+   ============================================ */
+[data-bs-theme="light"] .card {
+  background: var(--neu-bg-light) !important;
+  border: none !important;
+  border-radius: 20px !important;
+  box-shadow:
+    8px 8px 20px var(--neu-bg-light-shadow),
+    -8px -8px 20px var(--neu-bg-light-highlight) !important;
+  transition: var(--transition-smooth);
+}
+
+[data-bs-theme="light"] .card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    12px 12px 28px var(--neu-bg-light-shadow),
+    -12px -12px 28px var(--neu-bg-light-highlight) !important;
+}
+
+[data-bs-theme="light"] .card-header {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(26, 42, 108, 0.08) !important;
+}
+
+/* ============================================
+   CARDS - NEUMORPH (Modo Oscuro)
+   ============================================ */
+[data-bs-theme="dark"] .card {
+  background: var(--neu-bg-dark) !important;
+  border: none !important;
+  border-radius: 20px !important;
+  box-shadow:
+    8px 8px 20px var(--neu-bg-dark-shadow),
+    -8px -8px 20px var(--neu-bg-dark-highlight) !important;
+  transition: var(--transition-smooth);
+}
+
+[data-bs-theme="dark"] .card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    12px 12px 28px var(--neu-bg-dark-shadow),
+    -12px -12px 28px var(--neu-bg-dark-highlight) !important;
+}
+
+[data-bs-theme="dark"] .card-header {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+/* ============================================
+   CARDS DE RESUMEN - COLORES SUAVES
+   ============================================ */
+[data-bs-theme="light"] .card.bg-success.bg-opacity-10,
+[data-bs-theme="light"] .card.bg-warning.bg-opacity-10,
+[data-bs-theme="light"] .card.bg-info.bg-opacity-10,
+[data-bs-theme="light"] .card.bg-primary.bg-opacity-10 {
+  background: var(--neu-bg-light) !important;
+  box-shadow:
+    8px 8px 20px var(--neu-bg-light-shadow),
+    -8px -8px 20px var(--neu-bg-light-highlight) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+[data-bs-theme="light"] .card.bg-success.bg-opacity-10::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #198754, #20c997);
+}
+
+[data-bs-theme="light"] .card.bg-warning.bg-opacity-10::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ffc107, #f39c12);
+}
+
+[data-bs-theme="light"] .card.bg-info.bg-opacity-10::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #0dcaf0, #2d4373);
+}
+
+[data-bs-theme="light"] .card.bg-primary.bg-opacity-10::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #1a2a6c, #2d4373);
+}
+
+/* ============================================
+   PESTAÑAS (TABS) - NEUMORPH ELEGANTE
+   ============================================ */
+.nav-tabs {
+  border-bottom: none !important;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 16px;
+  margin-bottom: 20px !important;
+}
+
+[data-bs-theme="light"] .nav-tabs {
+  background: var(--neu-bg-light);
+  box-shadow:
+    inset 4px 4px 10px var(--neu-bg-light-shadow),
+    inset -4px -4px 10px var(--neu-bg-light-highlight);
+}
+
+[data-bs-theme="dark"] .nav-tabs {
+  background: var(--neu-bg-dark);
+  box-shadow:
+    inset 4px 4px 10px var(--neu-bg-dark-shadow),
+    inset -4px -4px 10px var(--neu-bg-dark-highlight);
+}
+
+.nav-tabs .nav-link {
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 10px 20px !important;
+  font-weight: 500;
+  transition: var(--transition-smooth);
+  margin-bottom: 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+[data-bs-theme="light"] .nav-tabs .nav-link {
+  color: #6b7280 !important;
+}
+
+[data-bs-theme="dark"] .nav-tabs .nav-link {
+  color: #9ca3af !important;
+}
+
+[data-bs-theme="light"] .nav-tabs .nav-link:hover,
+[data-bs-theme="dark"] .nav-tabs .nav-link:hover {
+  color: #e67e22 !important;
+  transform: translateY(-1px);
+}
+
+/* PESTAÑA ACTIVA */
+[data-bs-theme="light"] .nav-tabs .nav-link.active {
+  background: linear-gradient(135deg, #1a2a6c, #2d4373) !important;
+  color: white !important;
+  font-weight: 600;
+  box-shadow:
+    4px 4px 12px var(--neu-bg-light-shadow),
+    -4px 4px 12px var(--neu-bg-light-highlight);
+}
+
+[data-bs-theme="dark"] .nav-tabs .nav-link.active {
+  background: linear-gradient(135deg, #2d4373, #1a2a6c) !important;
+  color: white !important;
+  font-weight: 600;
+  box-shadow:
+    4px 4px 12px var(--neu-bg-dark-shadow),
+    -4px 4px 12px var(--neu-bg-dark-highlight);
+}
+
+[data-bs-theme="light"] .nav-tabs .nav-link.active::after,
+[data-bs-theme="dark"] .nav-tabs .nav-link.active::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 30px;
+  height: 3px;
+  background: linear-gradient(90deg, #f39c12, #e67e22);
+  border-radius: 4px;
+}
+
+.nav-tabs .nav-item {
+  animation: fadeInUp 0.4s ease-out backwards;
+}
+
+.nav-tabs .nav-item:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.nav-tabs .nav-item:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.nav-tabs .nav-item:nth-child(3) {
+  animation-delay: 0.15s;
+}
+.nav-tabs .nav-item:nth-child(4) {
+  animation-delay: 0.2s;
+}
+.nav-tabs .nav-item:nth-child(5) {
+  animation-delay: 0.25s;
+}
+.nav-tabs .nav-item:nth-child(6) {
+  animation-delay: 0.3s;
+}
+
+/* ============================================
+   BADGES - SUAVIZADOS
+   ============================================ */
+.badge.bg-success {
+  background: linear-gradient(135deg, #198754, #20c997) !important;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+}
+
+.badge.bg-danger {
+  background: linear-gradient(135deg, #dc3545, #f5576c) !important;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+}
+
+.badge.bg-warning {
+  background: linear-gradient(135deg, #ffc107, #f39c12) !important;
+  color: white !important;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+}
+
+.badge.bg-info {
+  background: linear-gradient(135deg, #0dcaf0, #2d4373) !important;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+}
+
+.badge.bg-primary {
+  background: linear-gradient(135deg, #1a2a6c, #2d4373) !important;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+}
+
+/* ============================================
+   BOTÓN FLOTANTE - PULSO
+   ============================================ */
+.btn-floating-sidebar {
+  background: linear-gradient(135deg, #1a2a6c, #2d4373) !important;
+  border: none !important;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.btn-floating-sidebar:hover {
+  background: linear-gradient(135deg, #2d4373, #1a2a6c) !important;
+  animation: none;
+  transform: scale(1.1);
+}
