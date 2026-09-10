@@ -3931,7 +3931,6 @@ window.tiposPagoData = tiposPagoData;
 window.cargarSubCajaBasico = cargarSubCajaBasico;
 window.serviciosAdicionalesData = serviciosAdicionalesData;
 window.cotizacionesData = cotizacionesData;
-window.refrescarSelectUbicacion = refrescarSelectUbicacion;
 window.mostrarModalPago = mostrarModalPago;
 window.registrarPagoVenta = registrarPagoVenta;
 window.buscarClientePorNit = buscarClientePorNit;
