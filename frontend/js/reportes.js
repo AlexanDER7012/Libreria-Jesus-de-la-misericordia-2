@@ -821,6 +821,16 @@ async function actualizarComprasResumen() {
                 <div class="col-md-4"><div class="card bg-warning bg-opacity-10"><div class="card-body text-center"><h6 class="text-muted">Pendiente de Pago</h6><h3 class="text-warning">Q${(data.total_pendiente || 0).toFixed(2)}</h3></div></div></div>
             </div>
             <div class="mt-3 text-muted small"><i class="fas fa-info-circle me-1"></i>Período: ${data.desde} al ${data.hasta}</div>
+
+            <table class="table table-sm table-bordered mt-3">
+                <thead class="table-light"><tr><th>Concepto</th><th>Valor</th></tr></thead>
+                <tbody>
+                    <tr><td>Período</td><td>${data.desde} al ${data.hasta}</td></tr>
+                    <tr><td>Cantidad de Compras</td><td>${data.cantidad_compras || 0}</td></tr>
+                    <tr><td>Total Comprado</td><td>Q${(data.total_comprado || 0).toFixed(2)}</td></tr>
+                    <tr><td>Total Pendiente de Pago</td><td>Q${(data.total_pendiente || 0).toFixed(2)}</td></tr>
+                </tbody>
+            </table>
         `;
   } catch (error) {
     resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
