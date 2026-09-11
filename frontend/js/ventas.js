@@ -1478,6 +1478,7 @@ async function verVenta(id) {
     const pagada = saldo <= 0;
 
     // Llenar datos básicos
+    document.getElementById("verVentaId").value = venta.id || "";
     document.getElementById("verVentaNumero").textContent = venta.id || "";
     document.getElementById("verVentaCliente").textContent = nombreCliente;
     document.getElementById("verVentaFecha").textContent = venta.fecha

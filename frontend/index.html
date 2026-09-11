@@ -848,6 +848,7 @@
         style="max-height: 90vh"
       >
         <div class="modal-content" style="max-height: 90vh">
+          <input type="hidden" id="verVentaId" />
           <div class="modal-header bg-primary text-white sticky-top">
             <h5 class="modal-title">
               <i class="fas fa-receipt me-2"></i>Venta #<span
@@ -857,7 +858,7 @@
             <div>
               <button
                 class="btn btn-sm btn-outline-light me-2"
-                onclick="imprimirVenta()"
+                onclick="imprimirVenta(document.getElementById('verVentaId').value)"
                 title="Imprimir"
               >
                 <i class="fas fa-print"></i>
@@ -1090,7 +1091,7 @@
             <button
               type="button"
               class="btn btn-primary"
-              onclick="imprimirVenta()"
+              onclick="imprimirVenta(document.getElementById('verVentaId').value)"
             >
               <i class="fas fa-print me-2"></i>Imprimir
             </button>
