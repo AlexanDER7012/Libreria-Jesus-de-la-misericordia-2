@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, DECIMAL, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, DECIMAL, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -54,7 +54,8 @@ class DetallePedido(Base):
     id_pedido = Column(Integer, ForeignKey("pedido.id"), nullable=False)
     id_producto = Column(Integer, ForeignKey("producto.id"), nullable=False)
     cantidad_sugerida = Column(DECIMAL(12, 2))
-    cantidad_pedida = Column(DECIMAL(12, 2))  
+    cantidad_pedida = Column(DECIMAL(12, 2)) 
+    precio_compra = Column(Float, nullable=True, default=0) 
     observaciones = Column(Text)
 
     pedido = relationship("Pedido", back_populates="detalles")

@@ -10,6 +10,7 @@ from app.security import get_current_user
 from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
 from app.models.model_usuario import Usuario
+from app.models.model_proveedor import Pedido
 from app.models.model_compra import Compra, DetalleCompra, CompraPago, NotaEntrega, DevolucionCompra
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario
 from app.schemas.schema_compra import (
@@ -19,8 +20,8 @@ from app.schemas.schema_compra import (
     DevolucionCompraCreate, DevolucionCompraResponse,
 )
 
-router = APIRouter()             # /compras
-router_devolucion = APIRouter()  # /devoluciones-compra
+router = APIRouter()             
+router_devolucion = APIRouter()  
 
 
 @router.get("/resumen-totales")
@@ -108,15 +109,32 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
         if not db.query(Producto).filter(Producto.id == d.id_producto).first():
             raise HTTPException(status_code=404, detail=f"Producto id={d.id_producto} no encontrado")
 
+    pedido = None
+    if datos.id_pedido:
+        pedido = db.query(Pedido).filter(Pedido.id == datos.id_pedido).first()
+        if not pedido:
+            raise HTTPException(status_code=404, detail=f"Pedido id={datos.id_pedido} no encontrado")
+        if pedido.estado == "Cancelado":
+            raise HTTPException(status_code=400, detail="No se puede crear compra desde un pedido cancelado")
+        compra_existente = db.query(Compra).filter(Compra.id_pedido == datos.id_pedido).first()
+        if compra_existente:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El pedido #{datos.id_pedido} ya tiene una compra asociada (#{compra_existente.id})",
+            )
+
     subtotal = sum(d.cantidad_comprada * d.costo_unitario for d in datos.detalles)
-    total = round(subtotal + (datos.iva or 0), 2)
+    iva_porcentaje = float(datos.iva or 0)
+    monto_iva = round(subtotal * (iva_porcentaje / 100), 2)
+    total = round(subtotal + monto_iva, 2)
 
     nueva_compra = Compra(
         id_proveedor=datos.id_proveedor,
         id_ubicacion_destino=datos.id_ubicacion_destino,
+        id_pedido=datos.id_pedido,
         numero_factura=datos.numero_factura,
         id_usuario_registra=datos.id_usuario_registra,
-        iva=datos.iva or 0,
+        iva=round(monto_iva, 2),
         subtotal=round(subtotal, 2),
         total=total,
         saldo_pendiente=total,
@@ -137,11 +155,94 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
             subtotal=round(d.cantidad_comprada * d.costo_unitario, 2),
         ))
 
+    if pedido and pedido.estado != "Comprado":
+        pedido.estado = "Comprado"
+
     registrar_actividad(db, usuario_actual.id, "CREAR", "Compra")
     db.commit()
     db.refresh(nueva_compra)
     return nueva_compra
 
+@router.patch("/{compra_id}/cancelar", response_model=CompraResponse)
+def cancelar_compra(compra_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    """Cancela una compra: revierte inventario (si aplica), borra pagos, saldo=0, estado='Cancelada'."""
+    compra = db.query(Compra).filter(Compra.id == compra_id).first()
+    if not compra:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+    if compra.estado == "Cancelada":
+        raise HTTPException(status_code=400, detail="Esta compra ya está cancelada")
+
+    tipo_ajuste = db.query(TipoMovimientoInventario).filter(
+        TipoMovimientoInventario.nombre == "Ajuste"
+    ).first()
+    if not tipo_ajuste:
+        tipo_ajuste = db.query(TipoMovimientoInventario).filter(
+            TipoMovimientoInventario.nombre == "Compra"
+        ).first()
+
+    if tipo_ajuste and compra.detalles:
+        movimiento = MovimientoInventario(
+            id_usuario=usuario_actual.id,
+            id_tipo_movimiento=tipo_ajuste.id,
+            id_ubicacion_destino=compra.id_ubicacion_destino,
+            tabla_referencia="compra",
+            id_referencia=compra.id,
+            referencia=f"Reversión por cancelación de compra #{compra.id}",
+            observaciones=f"Cancelación de compra #{compra.id}",
+        )
+        db.add(movimiento)
+        db.flush()
+
+        for detalle in compra.detalles:
+            db.add(MovimientoInventarioDetalle(
+                id_movimiento_cabecera=movimiento.id,
+                id_producto=detalle.id_producto,
+                cantidad=detalle.cantidad_unidades,
+                costo_unitario=detalle.costo_unitario,
+            ))
+            producto = db.query(Producto).filter(Producto.id == detalle.id_producto).first()
+            if producto:
+                producto.stock_actual = float(producto.stock_actual or 0) - float(detalle.cantidad_unidades)
+
+    db.query(CompraPago).filter(CompraPago.id_compra == compra.id).delete()
+
+    compra.estado = "Cancelada"
+    compra.saldo_pendiente = 0
+
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Compra")
+    db.commit()
+    db.refresh(compra)
+    return compra
+
+
+@router.delete("/{compra_id}/pagos/{pago_id}", status_code=204)
+def eliminar_pago_compra(compra_id: int, pago_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    """Elimina un pago y recalcula el saldo y estado de la compra."""
+    compra = db.query(Compra).filter(Compra.id == compra_id).first()
+    if not compra:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+
+    pago = db.query(CompraPago).filter(
+        CompraPago.id == pago_id, CompraPago.id_compra == compra_id
+    ).first()
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado en esta compra")
+
+    db.delete(pago)
+    db.flush()
+
+    total_pagado = sum(float(p.monto) for p in compra.pagos)
+    compra.saldo_pendiente = round(float(compra.total or 0) - total_pagado, 2)
+
+    if compra.saldo_pendiente <= 0:
+        compra.estado = "Pagada"
+    elif total_pagado > 0:
+        compra.estado = "Parcial"
+    else:
+        compra.estado = "Pendiente"
+
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "CompraPago")
+    db.commit()
 
 @router.post("/{compra_id}/nota-entrega", response_model=NotaEntregaResponse, status_code=201)
 def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
