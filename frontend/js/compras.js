@@ -1,11 +1,11 @@
 // compras.js
-
 // =============================================
 // VARIABLES GLOBALES
 // =============================================
 
 let comprasData = [];
 let compraDetallesTemp = [];
+let pedidoDetallesTemp = [];
 let comprasTiposPagoData = [];
 let proveedoresData = [];
 let tiposProveedorData = [];
@@ -33,11 +33,9 @@ async function registrarMovimientoInventario(
     let idTipo = id_tipo_movimiento;
 
     if (!idTipo) {
-      // Buscar un tipo de movimiento llamado "Compra"
       let tiposMov = [];
       try {
         tiposMov = await api.getTiposMovimiento().catch(() => []);
-        console.log("Tipos de movimiento disponibles:", tiposMov);
       } catch (e) {
         console.warn("No se pudieron obtener tipos de movimiento");
       }
@@ -53,7 +51,6 @@ async function registrarMovimientoInventario(
       if (tipoCompra) {
         idTipo = tipoCompra.id;
       } else {
-        // Si no existe, intentar crear uno
         try {
           const nuevoTipo = await api.request("/tipos-movimiento", "POST", {
             nombre: "Compra",
@@ -61,7 +58,6 @@ async function registrarMovimientoInventario(
             descripcion: "Entrada de mercancía por compra",
           });
           idTipo = nuevoTipo.id;
-          console.log('✅ Tipo de movimiento "Compra" creado:', idTipo);
         } catch (e) {
           console.warn('No se pudo crear tipo de movimiento "Compra"');
           const tipoEntrada = tiposMov.find((t) => t.signo === 0);
@@ -71,22 +67,18 @@ async function registrarMovimientoInventario(
             idTipo = tiposMov[0].id;
           } else {
             throw new Error(
-              "No hay tipos de movimiento disponibles. Crea uno primero en el módulo de Inventario > Tipos de Movimiento.",
+              "No hay tipos de movimiento disponibles. Crea uno primero en Inventario > Tipos de Movimiento.",
             );
           }
         }
       }
     }
 
-    if (!idTipo) {
-      throw new Error("No se pudo determinar el tipo de movimiento");
-    }
+    if (!idTipo) throw new Error("No se pudo determinar el tipo de movimiento");
 
-    // Obtener el usuario actual
     const currentUser = getCurrentUser();
     const id_usuario = currentUser?.id || 1;
 
-    // 📌 FORMATO CORRECTO PARA EL BACKEND
     const data = {
       id_usuario: parseInt(id_usuario),
       id_tipo_movimiento: parseInt(idTipo),
@@ -109,22 +101,10 @@ async function registrarMovimientoInventario(
       ],
     };
 
-    console.log(
-      "📤 Enviando movimiento de inventario:",
-      JSON.stringify(data, null, 2),
-    );
-
     const result = await api.request("/movimientos-inventario", "POST", data);
-    console.log(`✅ Movimiento de inventario registrado: ${result.id}`);
     return result;
   } catch (error) {
     console.error("❌ Error registrando movimiento de inventario:", error);
-    if (error.response && error.response.data) {
-      console.error(
-        "Detalles del error:",
-        JSON.stringify(error.response.data, null, 2),
-      );
-    }
     throw error;
   }
 }
@@ -145,7 +125,6 @@ async function loadComprasModule() {
             </button>
         </div>
 
-        <!-- PESTAÑAS PRINCIPALES -->
         <ul class="nav nav-tabs mb-3" id="comprasTabs" role="tablist">
             <li class="nav-item">
                 <button class="nav-link active" id="tab-compras" data-bs-toggle="tab"
@@ -180,7 +159,6 @@ async function loadComprasModule() {
         </ul>
 
         <div class="tab-content" id="comprasTabContent">
-            <!-- PANEL: COMPRAS -->
             <div class="tab-pane fade show active" id="panel-compras" role="tabpanel">
                 <div id="comprasResumenContainer" class="mb-3"></div>
                 <div id="comprasTableContainer">
@@ -191,7 +169,6 @@ async function loadComprasModule() {
                 </div>
             </div>
 
-            <!-- PANEL: PROVEEDORES -->
             <div class="tab-pane fade" id="panel-proveedores" role="tabpanel">
                 <ul class="nav nav-tabs mb-3" id="proveedoresSubTabs" role="tablist">
                     <li class="nav-item">
@@ -242,7 +219,6 @@ async function loadComprasModule() {
                 </div>
             </div>
 
-            <!-- PANEL: CAJA CHICA -->
             <div class="tab-pane fade" id="panel-caja-chica" role="tabpanel">
                 <div class="row mb-2 g-2 justify-content-end">
                     <div class="col-auto">
@@ -260,7 +236,6 @@ async function loadComprasModule() {
                 </div>
             </div>
 
-            <!-- PANEL: GASTOS -->
             <div class="tab-pane fade" id="panel-gastos" role="tabpanel">
                 <ul class="nav nav-tabs mb-3" id="gastosSubTabs" role="tablist">
                     <li class="nav-item">
@@ -305,7 +280,6 @@ async function loadComprasModule() {
                 </div>
             </div>
 
-            <!-- PANEL: TIPOS DE PAGO -->
             <div class="tab-pane fade" id="panel-tipos-pago" role="tabpanel">
                 <div id="tiposPagoContainer">
                     <div class="text-center py-5">
@@ -465,9 +439,6 @@ function renderComprasTable(compras) {
   container.innerHTML = html;
 }
 
-// =============================================
-// RESUMEN DE TOTALES (Compras)
-// =============================================
 async function cargarResumenCompras() {
   const container = document.getElementById("comprasResumenContainer");
   if (!container) return;
@@ -938,7 +909,12 @@ function renderGastosTab(gastos) {
 // =============================================
 // PAGINACIÓN (server-side) DE CAJA CHICA Y GASTOS
 // =============================================
-function _agregarControlesPaginacionCompras(containerId, onAnterior, onSiguiente, skipActual) {
+function _agregarControlesPaginacionCompras(
+  containerId,
+  onAnterior,
+  onSiguiente,
+  skipActual,
+) {
   const container = document.getElementById(containerId);
   if (!container) return;
   container.insertAdjacentHTML(
@@ -1146,9 +1122,7 @@ function renderTiposPagoCompras(tipos) {
 // =============================================
 function showCreateProveedorModal() {
   const existingModal = document.getElementById("proveedorModal");
-  if (existingModal) {
-    existingModal.remove();
-  }
+  if (existingModal) existingModal.remove();
 
   const html = `
         <div class="modal fade" id="proveedorModal" tabindex="-1" aria-hidden="true">
@@ -1163,56 +1137,46 @@ function showCreateProveedorModal() {
                     <div class="modal-body" style="overflow-y: auto; max-height: calc(90vh - 130px);">
                         <form id="proveedorForm">
                             <input type="hidden" id="proveedorId" value="" />
-                            
-                            <!-- FILA 1: Nombre y Contacto -->
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="proveedorNombre" required placeholder="Nombre del proveedor" />
+                                    <input type="text" class="form-control" id="proveedorNombre" required />
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Contacto</label>
-                                    <input type="text" class="form-control" id="proveedorContacto" placeholder="Persona de contacto" />
+                                    <input type="text" class="form-control" id="proveedorContacto" />
                                 </div>
                             </div>
-
-                            <!-- FILA 2: Teléfono y Email -->
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Teléfono</label>
-                                    <input type="text" class="form-control" id="proveedorTelefono" placeholder="Teléfono" />
+                                    <input type="text" class="form-control" id="proveedorTelefono" />
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Email</label>
-                                    <input type="email" class="form-control" id="proveedorEmail" placeholder="correo@ejemplo.com" />
+                                    <input type="email" class="form-control" id="proveedorEmail" />
                                 </div>
                             </div>
-
-                            <!-- FILA 3: Dirección y NIT -->
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Dirección</label>
-                                    <input type="text" class="form-control" id="proveedorDireccion" placeholder="Dirección" />
+                                    <input type="text" class="form-control" id="proveedorDireccion" />
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">NIT</label>
-                                    <input type="text" class="form-control" id="proveedorNit" placeholder="Número de NIT" />
+                                    <input type="text" class="form-control" id="proveedorNit" />
                                 </div>
                             </div>
-
-                            <!-- FILA 4: Código y Días Crédito -->
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Código Proveedor</label>
-                                    <input type="text" class="form-control" id="proveedorCodigo" placeholder="Código interno" />
+                                    <input type="text" class="form-control" id="proveedorCodigo" />
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Días de Crédito</label>
                                     <input type="number" class="form-control" id="proveedorDiasCredito" placeholder="30" />
                                 </div>
                             </div>
-
-                            <!-- FILA 5: Tipo y Estado -->
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Tipo de Proveedor</label>
@@ -1229,8 +1193,7 @@ function showCreateProveedorModal() {
                                     </select>
                                 </div>
                             </div>
-
-                            <button type="submit" class="btn btn-primary w-100" id="btnGuardarProveedor">
+                            <button type="submit" class="btn btn-primary w-100">
                                 <i class="fas fa-save me-2"></i>Guardar Proveedor
                             </button>
                         </form>
@@ -1241,37 +1204,25 @@ function showCreateProveedorModal() {
     `;
 
   document.body.insertAdjacentHTML("beforeend", html);
-
-  const form = document.getElementById("proveedorForm");
-  form.addEventListener("submit", function (e) {
-    e.preventDefault();
-    saveProveedor(e);
-  });
-
-  const modalInstance = new bootstrap.Modal(
-    document.getElementById("proveedorModal"),
-  );
-  modalInstance.show();
+  document
+    .getElementById("proveedorForm")
+    .addEventListener("submit", saveProveedor);
+  new bootstrap.Modal(document.getElementById("proveedorModal")).show();
 }
 
 async function showEditProveedorModal(id) {
   const proveedor = (window.proveedoresData || []).find((p) => p.id === id);
-  if (!proveedor) {
-    showToast("Proveedor no encontrado", "error");
-    return;
-  }
+  if (!proveedor) return showToast("Proveedor no encontrado", "error");
 
   const existingModal = document.getElementById("proveedorModal");
-  if (existingModal) {
-    existingModal.remove();
-  }
+  if (existingModal) existingModal.remove();
 
   const html = `
         <div class="modal fade" id="proveedorModal" tabindex="-1">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="proveedorModalTitle">Editar Proveedor</h5>
+                        <h5 class="modal-title">Editar Proveedor</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
@@ -1328,7 +1279,7 @@ async function showEditProveedorModal(id) {
                                     <option value="0" ${proveedor.activo === 0 ? "selected" : ""}>Inactivo</option>
                                 </select>
                             </div>
-                            <button type="submit" class="btn btn-primary w-100" id="btnGuardarProveedor">Guardar</button>
+                            <button type="submit" class="btn btn-primary w-100">Guardar</button>
                         </form>
                     </div>
                 </div>
@@ -1337,17 +1288,10 @@ async function showEditProveedorModal(id) {
     `;
 
   document.body.insertAdjacentHTML("beforeend", html);
-
-  const form = document.getElementById("proveedorForm");
-  form.addEventListener("submit", function (e) {
-    e.preventDefault();
-    saveProveedor(e);
-  });
-
-  const modalInstance = new bootstrap.Modal(
-    document.getElementById("proveedorModal"),
-  );
-  modalInstance.show();
+  document
+    .getElementById("proveedorForm")
+    .addEventListener("submit", saveProveedor);
+  new bootstrap.Modal(document.getElementById("proveedorModal")).show();
 }
 
 async function saveProveedor(event) {
@@ -1370,10 +1314,7 @@ async function saveProveedor(event) {
       parseInt(document.getElementById("proveedorTipo").value) || null,
   };
 
-  if (!data.nombre) {
-    showToast("El nombre es obligatorio", "error");
-    return;
-  }
+  if (!data.nombre) return showToast("El nombre es obligatorio", "error");
 
   try {
     if (id) {
@@ -1385,12 +1326,9 @@ async function saveProveedor(event) {
       showToast("Proveedor creado correctamente", "success");
     }
 
-    const modal = document.getElementById("proveedorModal");
-    const modalInstance = bootstrap.Modal.getInstance(modal);
-    if (modalInstance) {
-      modalInstance.hide();
-    }
-
+    bootstrap.Modal.getInstance(
+      document.getElementById("proveedorModal"),
+    ).hide();
     await loadComprasModule();
   } catch (error) {
     showToast(error.message || "Error al guardar proveedor", "error");
@@ -1402,11 +1340,12 @@ async function toggleProveedorEstado(id) {
   if (!proveedor) return;
 
   const accion = proveedor.activo !== 0 ? "inactivar" : "reactivar";
-  const confirmado = confirm(
-    `¿${accion === "inactivar" ? "Inactivar" : "Reactivar"} el proveedor "${proveedor.nombre}"?`,
-  );
-
-  if (!confirmado) return;
+  if (
+    !confirm(
+      `¿${accion === "inactivar" ? "Inactivar" : "Reactivar"} el proveedor "${proveedor.nombre}"?`,
+    )
+  )
+    return;
 
   try {
     if (accion === "inactivar") {
@@ -1424,53 +1363,25 @@ async function toggleProveedorEstado(id) {
   }
 }
 
-function llenarSelectTipoProveedor(selectedId) {
-  const select = document.getElementById("proveedorTipo");
-  if (!select) return;
-
-  select.innerHTML = '<option value="">Seleccionar tipo</option>';
-  (window.tiposProveedorData || []).forEach((t) => {
-    const selected = t.id === selectedId ? "selected" : "";
-    select.innerHTML += `<option value="${t.id}" ${selected}>${t.nombre}</option>`;
-  });
-}
-
 // =============================================
 // FUNCIONES CRUD: TIPOS DE PROVEEDOR
 // =============================================
 
 function showCreateTipoProveedorModal() {
-  const modal = document.getElementById("tipoProveedorModal");
-  if (!modal) {
-    crearModalTipoProveedor();
-    setTimeout(() => showCreateTipoProveedorModal(), 100);
-    return;
-  }
-
+  crearModalTipoProveedor();
   document.getElementById("tipoProveedorModalTitle").textContent =
     "Nuevo Tipo de Proveedor";
   document.getElementById("tipoProveedorForm").reset();
   document.getElementById("tipoProveedorId").value = "";
   document.getElementById("tipoProveedorActivo").value = "1";
-
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+  new bootstrap.Modal(document.getElementById("tipoProveedorModal")).show();
 }
 
-async function showEditTipoProveedorModal(id) {
+function showEditTipoProveedorModal(id) {
   const tipo = (window.tiposProveedorData || []).find((t) => t.id === id);
-  if (!tipo) {
-    showToast("Tipo no encontrado", "error");
-    return;
-  }
+  if (!tipo) return showToast("Tipo no encontrado", "error");
 
-  const modal = document.getElementById("tipoProveedorModal");
-  if (!modal) {
-    crearModalTipoProveedor();
-    setTimeout(() => showEditTipoProveedorModal(id), 100);
-    return;
-  }
-
+  crearModalTipoProveedor();
   document.getElementById("tipoProveedorModalTitle").textContent =
     "Editar Tipo de Proveedor";
   document.getElementById("tipoProveedorId").value = tipo.id;
@@ -1479,9 +1390,7 @@ async function showEditTipoProveedorModal(id) {
     tipo.descripcion || "";
   document.getElementById("tipoProveedorActivo").value =
     tipo.activo !== 0 ? "1" : "0";
-
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+  new bootstrap.Modal(document.getElementById("tipoProveedorModal")).show();
 }
 
 async function saveTipoProveedor(event) {
@@ -1494,10 +1403,7 @@ async function saveTipoProveedor(event) {
       document.getElementById("tipoProveedorDescripcion").value.trim() || null,
   };
 
-  if (!data.nombre) {
-    showToast("El nombre es obligatorio", "error");
-    return;
-  }
+  if (!data.nombre) return showToast("El nombre es obligatorio", "error");
 
   try {
     if (id) {
@@ -1510,7 +1416,6 @@ async function saveTipoProveedor(event) {
       await api.request("/tipos-proveedor", "POST", data);
       showToast("Tipo creado correctamente", "success");
     }
-
     bootstrap.Modal.getInstance(
       document.getElementById("tipoProveedorModal"),
     ).hide();
@@ -1523,23 +1428,19 @@ async function saveTipoProveedor(event) {
 async function toggleTipoProveedorEstado(id) {
   const tipo = (window.tiposProveedorData || []).find((t) => t.id === id);
   if (!tipo) return;
-
-  const accion = tipo.activo !== 0 ? "inactivar" : "activar";
-  const confirmado = confirm(
-    `¿${accion === "inactivar" ? "Inactivar" : "Activar"} el tipo "${tipo.nombre}"?`,
-  );
-
-  if (!confirmado) return;
+  if (
+    !confirm(
+      `¿${tipo.activo !== 0 ? "Inactivar" : "Activar"} el tipo "${tipo.nombre}"?`,
+    )
+  )
+    return;
 
   try {
     await api.request(`/tipos-proveedor/${id}`, "PUT", {
       ...tipo,
       activo: tipo.activo !== 0 ? 0 : 1,
     });
-    showToast(
-      `Tipo ${accion === "inactivar" ? "inactivado" : "activado"} correctamente`,
-      "success",
-    );
+    showToast("Estado actualizado", "success");
     await loadComprasModule();
   } catch (error) {
     showToast(error.message || "Error al cambiar estado", "error");
@@ -1583,14 +1484,18 @@ function crearModalTipoProveedor() {
         </div>
     `;
   document.body.insertAdjacentHTML("beforeend", html);
-  document.getElementById("tipoProveedorForm").onsubmit = saveTipoProveedor;
+  document
+    .getElementById("tipoProveedorForm")
+    .addEventListener("submit", saveTipoProveedor);
 }
 
 // =============================================
-// FUNCIONES CRUD: PEDIDOS
+// FUNCIONES CRUD: PEDIDOS (modal unificado)
 // =============================================
 
 function showCreatePedidoModal() {
+  pedidoDetallesTemp = [];
+
   const proveedores = (window.proveedoresData || []).filter(
     (p) => p.activo !== 0,
   );
@@ -1598,86 +1503,237 @@ function showCreatePedidoModal() {
     showToast("No hay proveedores activos. Crea uno primero.", "warning");
     return;
   }
-
   const options = proveedores
     .map((p) => `<option value="${p.id}">${p.nombre}</option>`)
     .join("");
 
   const html = `
-        <div class="modal fade" id="pedidoModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Nuevo Pedido</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="pedidoForm">
-                            <div class="mb-3">
-                                <label class="form-label">Proveedor *</label>
-                                <select class="form-select" id="pedidoProveedor" required>
-                                    <option value="">Seleccionar proveedor</option>
-                                    ${options}
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Observaciones</label>
-                                <textarea class="form-control" id="pedidoObservaciones" rows="2"></textarea>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">Crear Pedido</button>
-                        </form>
-                    </div>
+    <div class="modal fade" id="pedidoModal" tabindex="-1">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable" style="max-height:90vh;">
+        <div class="modal-content" style="max-height:90vh;">
+          <div class="modal-header bg-primary text-white sticky-top">
+            <h5 class="modal-title"><i class="fas fa-clipboard-list me-2"></i>Nuevo Pedido</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" style="overflow-y:auto; max-height:calc(90vh - 130px);">
+            <form id="pedidoForm">
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Proveedor <span class="text-danger">*</span></label>
+                  <select class="form-select" id="pedidoProveedor" required>
+                    <option value="">Seleccionar proveedor</option>
+                    ${options}
+                  </select>
                 </div>
-            </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label fw-bold">Observaciones</label>
+                <textarea class="form-control" id="pedidoObservaciones" rows="2"></textarea>
+              </div>
+
+              <hr />
+              <h6 class="fw-bold"><i class="fas fa-boxes me-1"></i>Productos del pedido</h6>
+
+              <div class="row g-2 align-items-end mb-2" id="pedidoDetalleRow">
+                <div class="col-md-5">
+                  <label class="form-label small mb-0">Producto</label>
+                  <select class="form-select form-select-sm pedido-detalle-producto"></select>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small mb-0">Cant. pedida</label>
+                  <input type="number" step="0.01" min="0.01" class="form-control form-control-sm pedido-detalle-cantidad" value="1" />
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small mb-0">Cant. sugerida</label>
+                  <input type="number" step="0.01" min="0" class="form-control form-control-sm pedido-detalle-sugerida" value="0" />
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small mb-0">Obs.</label>
+                  <input type="text" class="form-control form-control-sm pedido-detalle-obs" placeholder="Opcional" />
+                </div>
+                <div class="col-md-1">
+                  <button type="button" class="btn btn-sm btn-primary w-100" onclick="agregarDetallePedido(event)">
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div id="pedidoDetallesList" class="mb-3"></div>
+
+              <button type="submit" class="btn btn-primary w-100 mt-3">
+                <i class="fas fa-save me-2"></i>Guardar Pedido
+              </button>
+            </form>
+          </div>
         </div>
-    `;
+      </div>
+    </div>
+  `;
 
   document.body.insertAdjacentHTML("beforeend", html);
-  document.getElementById("pedidoForm").onsubmit = savePedido;
-
-  const modalInstance = new bootstrap.Modal(
-    document.getElementById("pedidoModal"),
-  );
-  modalInstance.show();
+  document
+    .getElementById("pedidoForm")
+    .addEventListener("submit", savePedidoCompleto);
+  llenarSelectProductoPedido();
+  renderDetallesPedido();
+  new bootstrap.Modal(document.getElementById("pedidoModal")).show();
 }
 
-async function savePedido(event) {
+function llenarSelectProductoPedido() {
+  const select = document.querySelector(".pedido-detalle-producto");
+  if (!select) return;
+  select.innerHTML = '<option value="">Seleccionar producto</option>';
+  (window.productosData || []).forEach((p) => {
+    if (p.activo !== 0) {
+      select.innerHTML += `<option value="${p.id}">${p.codigo} - ${p.nombre}</option>`;
+    }
+  });
+}
+
+function agregarDetallePedido(event) {
+  if (event) event.preventDefault();
+
+  const row = document.getElementById("pedidoDetalleRow");
+  const id_producto = parseInt(
+    row.querySelector(".pedido-detalle-producto").value,
+  );
+  const cantidad_pedida =
+    parseFloat(row.querySelector(".pedido-detalle-cantidad").value) || 0;
+  const cantidad_sugerida =
+    parseFloat(row.querySelector(".pedido-detalle-sugerida").value) || 0;
+  const observaciones =
+    row.querySelector(".pedido-detalle-obs").value.trim() || null;
+
+  if (!id_producto) return showToast("Selecciona un producto", "error");
+  if (cantidad_pedida <= 0)
+    return showToast("La cantidad debe ser mayor a 0", "error");
+
+  const producto = (window.productosData || []).find(
+    (p) => p.id === id_producto,
+  );
+
+  pedidoDetallesTemp.push({
+    id_producto,
+    cantidad_pedida,
+    cantidad_sugerida,
+    observaciones,
+    producto,
+  });
+
+  renderDetallesPedido();
+
+  row.querySelector(".pedido-detalle-producto").value = "";
+  row.querySelector(".pedido-detalle-cantidad").value = 1;
+  row.querySelector(".pedido-detalle-sugerida").value = 0;
+  row.querySelector(".pedido-detalle-obs").value = "";
+}
+
+function renderDetallesPedido() {
+  const container = document.getElementById("pedidoDetallesList");
+  if (!container) return;
+  if (pedidoDetallesTemp.length === 0) {
+    container.innerHTML =
+      '<p class="text-muted small">No hay productos agregados</p>';
+    return;
+  }
+  let html = '<ul class="list-group">';
+  pedidoDetallesTemp.forEach((d, i) => {
+    html += `
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div>
+          <strong>${d.producto ? d.producto.nombre : "Producto #" + d.id_producto}</strong>
+          <span class="text-muted small"> · Pedida: ${d.cantidad_pedida} · Sugerida: ${d.cantidad_sugerida || 0}</span>
+          ${d.observaciones ? `<div class="small text-muted">${d.observaciones}</div>` : ""}
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarDetallePedido(${i})">
+          <i class="fas fa-times"></i>
+        </button>
+      </li>`;
+  });
+  html += "</ul>";
+  container.innerHTML = html;
+}
+
+function eliminarDetallePedido(index) {
+  pedidoDetallesTemp.splice(index, 1);
+  renderDetallesPedido();
+}
+
+async function savePedidoCompleto(event) {
   event.preventDefault();
 
   const id_proveedor = parseInt(
     document.getElementById("pedidoProveedor").value,
   );
   const observaciones =
-    document.getElementById("pedidoObservaciones").value || null;
+    document.getElementById("pedidoObservaciones").value.trim() || null;
 
-  if (!id_proveedor) {
-    showToast("Selecciona un proveedor", "error");
-    return;
+  if (!id_proveedor) return showToast("Selecciona un proveedor", "error");
+  if (pedidoDetallesTemp.length === 0)
+    return showToast("Agrega al menos un producto", "error");
+
+  const btn = event.target.querySelector('button[type="submit"]');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
   }
 
-  const data = {
-    id_usuario: getCurrentUser()?.id || 1,
-    id_proveedor: id_proveedor,
-    observaciones: observaciones,
-  };
+  let pedidoCreado = null;
+  let detallesOk = 0;
+  let errores = [];
 
   try {
-    const result = await api.request("/pedidos", "POST", data);
-    showToast(`Pedido #${result.id} creado correctamente`, "success");
+    pedidoCreado = await api.request("/pedidos", "POST", {
+      id_usuario: getCurrentUser()?.id || 1,
+      id_proveedor,
+      observaciones,
+    });
+
+    for (const d of pedidoDetallesTemp) {
+      try {
+        await api.request(`/pedidos/${pedidoCreado.id}/detalles`, "POST", {
+          id_producto: d.id_producto,
+          cantidad_pedida: d.cantidad_pedida,
+          cantidad_sugerida: d.cantidad_sugerida,
+          observaciones: d.observaciones,
+        });
+        detallesOk++;
+      } catch (err) {
+        errores.push(
+          `• ${d.producto?.nombre || "Producto #" + d.id_producto}: ${err.message}`,
+        );
+      }
+    }
+
+    if (errores.length === 0) {
+      showToast(
+        `Pedido #${pedidoCreado.id} creado con ${detallesOk} productos`,
+        "success",
+      );
+    } else {
+      showToast(
+        `Pedido #${pedidoCreado.id} creado, pero ${errores.length} producto(s) fallaron:\n${errores.join("\n")}`,
+        "warning",
+      );
+    }
+
     bootstrap.Modal.getInstance(document.getElementById("pedidoModal")).hide();
     await loadComprasModule();
   } catch (error) {
     showToast(error.message || "Error al crear pedido", "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save me-2"></i>Guardar Pedido';
+    }
   }
 }
 
 async function verPedido(id) {
   try {
     const pedido = await api.request(`/pedidos/${id}`);
-    if (!pedido) {
-      showToast("Pedido no encontrado", "error");
-      return;
-    }
+    if (!pedido) return showToast("Pedido no encontrado", "error");
 
     const proveedor = (window.proveedoresData || []).find(
       (p) => p.id === pedido.id_proveedor,
@@ -1707,20 +1763,12 @@ async function verPedido(id) {
             </div>
             <div class="modal-body">
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Proveedor:</strong> ${nombreProveedor}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Fecha:</strong> ${pedido.fecha ? new Date(pedido.fecha).toLocaleString() : "--"}
-                    </div>
+                    <div class="col-md-6"><strong>Proveedor:</strong> ${nombreProveedor}</div>
+                    <div class="col-md-6"><strong>Fecha:</strong> ${pedido.fecha ? new Date(pedido.fecha).toLocaleString() : "--"}</div>
                 </div>
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Estado:</strong> <span class="badge bg-warning">${pedido.estado || "Pendiente"}</span>
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Usuario:</strong> ${pedido.id_usuario || "--"}
-                    </div>
+                    <div class="col-md-6"><strong>Estado:</strong> <span class="badge bg-warning">${pedido.estado || "Pendiente"}</span></div>
+                    <div class="col-md-6"><strong>Usuario:</strong> ${pedido.id_usuario || "--"}</div>
                 </div>
                 ${pedido.observaciones ? `<div class="mb-3"><strong>Observaciones:</strong> ${pedido.observaciones}</div>` : ""}
 
@@ -1759,10 +1807,7 @@ async function verPedido(id) {
 async function verTotalPedido(id) {
   try {
     const result = await api.request(`/pedidos/${id}/total`);
-    if (!result) {
-      showToast("Error al calcular total", "error");
-      return;
-    }
+    if (!result) return showToast("Error al calcular total", "error");
 
     const estado = result.alcanza_minimo
       ? "✅ Alcanza el mínimo de Q500"
@@ -1793,12 +1838,11 @@ async function cambiarEstadoPedido(id) {
   if (!estadoActual) return;
 
   if (!estados.includes(estadoActual)) {
-    showToast(`Estado inválido. Use: ${estados.join(", ")}`, "error");
-    return;
+    return showToast(`Estado inválido. Use: ${estados.join(", ")}`, "error");
   }
 
   const forzar = confirm(
-    `¿Forzar aprobación aunque no alcance el mínimo de Q500?`,
+    "¿Forzar aprobación aunque no alcance el mínimo de Q500?",
   );
 
   try {
@@ -1814,14 +1858,13 @@ async function cambiarEstadoPedido(id) {
 // =============================================
 // FUNCIONES CRUD: CAJA CHICA
 // =============================================
+
 function showCreateCajaChicaModal() {
   const ubicaciones = (window.ubicacionesData || []).filter(
     (u) => u.activo !== 0,
   );
-  if (ubicaciones.length === 0) {
-    showToast("No hay ubicaciones disponibles", "warning");
-    return;
-  }
+  if (ubicaciones.length === 0)
+    return showToast("No hay ubicaciones disponibles", "warning");
 
   const ubicacionOptions = ubicaciones
     .map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`)
@@ -1863,22 +1906,22 @@ function showCreateCajaChicaModal() {
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Concepto <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="cajaChicaConcepto" required placeholder="Ej: Compra de materiales" />
+                                    <input type="text" class="form-control" id="cajaChicaConcepto" required />
                                 </div>
                             </div>
 
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Referencia</label>
-                                    <input type="text" class="form-control" id="cajaChicaReferencia" placeholder="Número de referencia" />
+                                    <input type="text" class="form-control" id="cajaChicaReferencia" />
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Observaciones</label>
-                                    <textarea class="form-control" id="cajaChicaObservaciones" rows="2" placeholder="Observaciones adicionales"></textarea>
+                                    <textarea class="form-control" id="cajaChicaObservaciones" rows="2"></textarea>
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn btn-success w-100" id="btnGuardarCajaChica">
+                            <button type="submit" class="btn btn-success w-100">
                                 <i class="fas fa-save me-2"></i>Registrar Movimiento
                             </button>
                         </form>
@@ -1889,12 +1932,10 @@ function showCreateCajaChicaModal() {
     `;
 
   document.body.insertAdjacentHTML("beforeend", html);
-  document.getElementById("cajaChicaForm").onsubmit = saveCajaChica;
-
-  const modalInstance = new bootstrap.Modal(
-    document.getElementById("cajaChicaModal"),
-  );
-  modalInstance.show();
+  document
+    .getElementById("cajaChicaForm")
+    .addEventListener("submit", saveCajaChica);
+  new bootstrap.Modal(document.getElementById("cajaChicaModal")).show();
 }
 
 async function saveCajaChica(event) {
@@ -1912,18 +1953,9 @@ async function saveCajaChica(event) {
       document.getElementById("cajaChicaObservaciones").value.trim() || null,
   };
 
-  if (!data.id_ubicacion) {
-    showToast("Selecciona una ubicación", "error");
-    return;
-  }
-  if (!data.concepto) {
-    showToast("El concepto es obligatorio", "error");
-    return;
-  }
-  if (data.monto <= 0) {
-    showToast("El monto debe ser mayor a 0", "error");
-    return;
-  }
+  if (!data.id_ubicacion) return showToast("Selecciona una ubicación", "error");
+  if (!data.concepto) return showToast("El concepto es obligatorio", "error");
+  if (data.monto <= 0) return showToast("El monto debe ser mayor a 0", "error");
 
   try {
     const result = await api.request("/caja-chica", "POST", data);
@@ -1940,10 +1972,7 @@ async function saveCajaChica(event) {
 async function verCajaChica(id) {
   try {
     const movimiento = await api.request(`/caja-chica/${id}`);
-    if (!movimiento) {
-      showToast("Movimiento no encontrado", "error");
-      return;
-    }
+    if (!movimiento) return showToast("Movimiento no encontrado", "error");
 
     const ubicacion = (window.ubicacionesData || []).find(
       (u) => u.id === movimiento.id_ubicacion,
@@ -1957,32 +1986,18 @@ async function verCajaChica(id) {
             </div>
             <div class="modal-body">
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Ubicación:</strong> ${nombreUbicacion}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Fecha:</strong> ${movimiento.fecha ? new Date(movimiento.fecha).toLocaleString() : "--"}
-                    </div>
+                    <div class="col-md-6"><strong>Ubicación:</strong> ${nombreUbicacion}</div>
+                    <div class="col-md-6"><strong>Fecha:</strong> ${movimiento.fecha ? new Date(movimiento.fecha).toLocaleString() : "--"}</div>
                 </div>
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Tipo:</strong> <span class="badge ${movimiento.tipo === "ingreso" ? "bg-success" : "bg-danger"}">${movimiento.tipo === "ingreso" ? "Ingreso" : "Egreso"}</span>
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Monto:</strong> Q${movimiento.monto || 0}
-                    </div>
+                    <div class="col-md-6"><strong>Tipo:</strong> <span class="badge ${movimiento.tipo === "ingreso" ? "bg-success" : "bg-danger"}">${movimiento.tipo === "ingreso" ? "Ingreso" : "Egreso"}</span></div>
+                    <div class="col-md-6"><strong>Monto:</strong> Q${movimiento.monto || 0}</div>
                 </div>
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Saldo:</strong> Q${movimiento.saldo || 0}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Usuario:</strong> ${movimiento.id_usuario || "--"}
-                    </div>
+                    <div class="col-md-6"><strong>Saldo:</strong> Q${movimiento.saldo || 0}</div>
+                    <div class="col-md-6"><strong>Usuario:</strong> ${movimiento.id_usuario || "--"}</div>
                 </div>
-                <div class="mb-3">
-                    <strong>Concepto:</strong> ${movimiento.concepto || "--"}
-                </div>
+                <div class="mb-3"><strong>Concepto:</strong> ${movimiento.concepto || "--"}</div>
                 ${movimiento.referencia ? `<div class="mb-3"><strong>Referencia:</strong> ${movimiento.referencia}</div>` : ""}
                 ${movimiento.observaciones ? `<div class="mb-3"><strong>Observaciones:</strong> ${movimiento.observaciones}</div>` : ""}
             </div>
@@ -1996,10 +2011,7 @@ async function verCajaChica(id) {
     modalDiv.id = "cajaChicaDetalleModal";
     modalDiv.innerHTML = `<div class="modal-dialog"><div class="modal-content">${modalContent}</div></div>`;
     document.body.appendChild(modalDiv);
-
-    const modalInstance = new bootstrap.Modal(modalDiv);
-    modalInstance.show();
-
+    new bootstrap.Modal(modalDiv).show();
     modalDiv.addEventListener("hidden.bs.modal", function () {
       this.remove();
     });
@@ -2016,18 +2028,14 @@ function showCreateGastoModal() {
   const tiposGasto = (window.tiposGastoData || []).filter(
     (t) => t.activo !== 0,
   );
-  if (tiposGasto.length === 0) {
-    showToast("No hay tipos de gasto. Crea uno primero.", "warning");
-    return;
-  }
+  if (tiposGasto.length === 0)
+    return showToast("No hay tipos de gasto. Crea uno primero.", "warning");
 
   const ubicaciones = (window.ubicacionesData || []).filter(
     (u) => u.activo !== 0,
   );
-  if (ubicaciones.length === 0) {
-    showToast("No hay ubicaciones disponibles", "warning");
-    return;
-  }
+  if (ubicaciones.length === 0)
+    return showToast("No hay ubicaciones disponibles", "warning");
 
   const tipoOptions = tiposGasto
     .map((t) => `<option value="${t.id}">${t.nombre}</option>`)
@@ -2048,7 +2056,7 @@ function showCreateGastoModal() {
                         <form id="gastoForm">
                             <div class="mb-3">
                                 <label class="form-label">Tipo de Gasto *</label>
-                                <select class="form-select" id="gastroTipo" required>
+                                <select class="form-select" id="gasto-tipo" required>
                                     <option value="">Seleccionar tipo</option>
                                     ${tipoOptions}
                                 </select>
@@ -2081,19 +2089,15 @@ function showCreateGastoModal() {
     `;
 
   document.body.insertAdjacentHTML("beforeend", html);
-  document.getElementById("gastoForm").onsubmit = saveGasto;
-
-  const modalInstance = new bootstrap.Modal(
-    document.getElementById("gastoModal"),
-  );
-  modalInstance.show();
+  document.getElementById("gastoForm").addEventListener("submit", saveGasto);
+  new bootstrap.Modal(document.getElementById("gastoModal")).show();
 }
 
 async function saveGasto(event) {
   event.preventDefault();
 
   const data = {
-    id_tipo_gasto: parseInt(document.getElementById("gastroTipo").value),
+    id_tipo_gasto: parseInt(document.getElementById("gasto-tipo").value),
     id_ubicacion: parseInt(document.getElementById("gastoUbicacion").value),
     concepto: document.getElementById("gastoConcepto").value.trim(),
     monto: parseFloat(document.getElementById("gastoMonto").value) || 0,
@@ -2102,22 +2106,11 @@ async function saveGasto(event) {
       document.getElementById("gastoObservaciones").value.trim() || null,
   };
 
-  if (!data.id_tipo_gasto) {
-    showToast("Selecciona un tipo de gasto", "error");
-    return;
-  }
-  if (!data.id_ubicacion) {
-    showToast("Selecciona una ubicación", "error");
-    return;
-  }
-  if (!data.concepto) {
-    showToast("El concepto es obligatorio", "error");
-    return;
-  }
-  if (data.monto <= 0) {
-    showToast("El monto debe ser mayor a 0", "error");
-    return;
-  }
+  if (!data.id_tipo_gasto)
+    return showToast("Selecciona un tipo de gasto", "error");
+  if (!data.id_ubicacion) return showToast("Selecciona una ubicación", "error");
+  if (!data.concepto) return showToast("El concepto es obligatorio", "error");
+  if (data.monto <= 0) return showToast("El monto debe ser mayor a 0", "error");
 
   try {
     const result = await api.request("/gastos", "POST", data);
@@ -2132,10 +2125,7 @@ async function saveGasto(event) {
 async function verGasto(id) {
   try {
     const gasto = await api.request(`/gastos/${id}`);
-    if (!gasto) {
-      showToast("Gasto no encontrado", "error");
-      return;
-    }
+    if (!gasto) return showToast("Gasto no encontrado", "error");
 
     const tipoGasto = (window.tiposGastoData || []).find(
       (t) => t.id === gasto.id_tipo_gasto,
@@ -2153,24 +2143,14 @@ async function verGasto(id) {
             </div>
             <div class="modal-body">
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Tipo:</strong> ${nombreTipo}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Ubicación:</strong> ${nombreUbicacion}
-                    </div>
+                    <div class="col-md-6"><strong>Tipo:</strong> ${nombreTipo}</div>
+                    <div class="col-md-6"><strong>Ubicación:</strong> ${nombreUbicacion}</div>
                 </div>
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Fecha:</strong> ${gasto.fecha ? new Date(gasto.fecha).toLocaleString() : "--"}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Monto:</strong> Q${gasto.monto || 0}
-                    </div>
+                    <div class="col-md-6"><strong>Fecha:</strong> ${gasto.fecha ? new Date(gasto.fecha).toLocaleString() : "--"}</div>
+                    <div class="col-md-6"><strong>Monto:</strong> Q${gasto.monto || 0}</div>
                 </div>
-                <div class="mb-3">
-                    <strong>Concepto:</strong> ${gasto.concepto || "--"}
-                </div>
+                <div class="mb-3"><strong>Concepto:</strong> ${gasto.concepto || "--"}</div>
                 ${gasto.observaciones ? `<div class="mb-3"><strong>Observaciones:</strong> ${gasto.observaciones}</div>` : ""}
             </div>
             <div class="modal-footer">
@@ -2183,10 +2163,7 @@ async function verGasto(id) {
     modalDiv.id = "gastoDetalleModal";
     modalDiv.innerHTML = `<div class="modal-dialog"><div class="modal-content">${modalContent}</div></div>`;
     document.body.appendChild(modalDiv);
-
-    const modalInstance = new bootstrap.Modal(modalDiv);
-    modalInstance.show();
-
+    new bootstrap.Modal(modalDiv).show();
     modalDiv.addEventListener("hidden.bs.modal", function () {
       this.remove();
     });
@@ -2200,38 +2177,21 @@ async function verGasto(id) {
 // =============================================
 
 function showCreateTipoGastoModal() {
-  const modal = document.getElementById("tipoGastoModal");
-  if (!modal) {
-    crearModalTipoGasto();
-    setTimeout(() => showCreateTipoGastoModal(), 100);
-    return;
-  }
-
+  crearModalTipoGasto();
   document.getElementById("tipoGastoModalTitle").textContent =
     "Nuevo Tipo de Gasto";
   document.getElementById("tipoGastoForm").reset();
   document.getElementById("tipoGastoId").value = "";
   document.getElementById("tipoGastoActivo").value = "1";
   document.getElementById("tipoGastoEsFijo").value = "0";
-
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+  new bootstrap.Modal(document.getElementById("tipoGastoModal")).show();
 }
 
-async function showEditTipoGastoModal(id) {
+function showEditTipoGastoModal(id) {
   const tipo = (window.tiposGastoData || []).find((t) => t.id === id);
-  if (!tipo) {
-    showToast("Tipo no encontrado", "error");
-    return;
-  }
+  if (!tipo) return showToast("Tipo no encontrado", "error");
 
-  const modal = document.getElementById("tipoGastoModal");
-  if (!modal) {
-    crearModalTipoGasto();
-    setTimeout(() => showEditTipoGastoModal(id), 100);
-    return;
-  }
-
+  crearModalTipoGasto();
   document.getElementById("tipoGastoModalTitle").textContent =
     "Editar Tipo de Gasto";
   document.getElementById("tipoGastoId").value = tipo.id;
@@ -2241,9 +2201,7 @@ async function showEditTipoGastoModal(id) {
   document.getElementById("tipoGastoEsFijo").value = tipo.es_fijo || 0;
   document.getElementById("tipoGastoActivo").value =
     tipo.activo !== 0 ? "1" : "0";
-
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+  new bootstrap.Modal(document.getElementById("tipoGastoModal")).show();
 }
 
 async function saveTipoGasto(event) {
@@ -2257,10 +2215,7 @@ async function saveTipoGasto(event) {
     es_fijo: parseInt(document.getElementById("tipoGastoEsFijo").value) || 0,
   };
 
-  if (!data.nombre) {
-    showToast("El nombre es obligatorio", "error");
-    return;
-  }
+  if (!data.nombre) return showToast("El nombre es obligatorio", "error");
 
   try {
     if (id) {
@@ -2271,7 +2226,6 @@ async function saveTipoGasto(event) {
       await api.request("/tipos-gasto", "POST", data);
       showToast("Tipo creado correctamente", "success");
     }
-
     bootstrap.Modal.getInstance(
       document.getElementById("tipoGastoModal"),
     ).hide();
@@ -2284,23 +2238,19 @@ async function saveTipoGasto(event) {
 async function toggleTipoGastoEstado(id) {
   const tipo = (window.tiposGastoData || []).find((t) => t.id === id);
   if (!tipo) return;
-
-  const accion = tipo.activo !== 0 ? "inactivar" : "activar";
-  const confirmado = confirm(
-    `¿${accion === "inactivar" ? "Inactivar" : "Activar"} el tipo "${tipo.nombre}"?`,
-  );
-
-  if (!confirmado) return;
+  if (
+    !confirm(
+      `¿${tipo.activo !== 0 ? "Inactivar" : "Activar"} el tipo "${tipo.nombre}"?`,
+    )
+  )
+    return;
 
   try {
     await api.request(`/tipos-gasto/${id}`, "PUT", {
       ...tipo,
       activo: tipo.activo !== 0 ? 0 : 1,
     });
-    showToast(
-      `Tipo ${accion === "inactivar" ? "inactivado" : "activado"} correctamente`,
-      "success",
-    );
+    showToast("Estado actualizado", "success");
     await loadComprasModule();
   } catch (error) {
     showToast(error.message || "Error al cambiar estado", "error");
@@ -2351,7 +2301,9 @@ function crearModalTipoGasto() {
         </div>
     `;
   document.body.insertAdjacentHTML("beforeend", html);
-  document.getElementById("tipoGastoForm").onsubmit = saveTipoGasto;
+  document
+    .getElementById("tipoGastoForm")
+    .addEventListener("submit", saveTipoGasto);
 }
 
 // =============================================
@@ -2359,21 +2311,13 @@ function crearModalTipoGasto() {
 // =============================================
 
 function showCreateTipoPagoCompraModal() {
-  const modal = document.getElementById("tipoPagoModal");
-  if (!modal) {
-    crearModalTipoPago();
-    setTimeout(() => showCreateTipoPagoCompraModal(), 100);
-    return;
-  }
-
+  crearModalTipoPago();
   document.getElementById("tipoPagoModalTitle").textContent =
     "Nuevo Tipo de Pago para Compras";
   document.getElementById("tipoPagoForm").reset();
   document.getElementById("tipoPagoCompras").value = "1";
   document.getElementById("tipoPagoVentas").value = "0";
-
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+  new bootstrap.Modal(document.getElementById("tipoPagoModal")).show();
 }
 
 async function saveTipoPagoCompra(event) {
@@ -2385,10 +2329,7 @@ async function saveTipoPagoCompra(event) {
     document.getElementById("tipoPagoCompras").value,
   );
 
-  if (!nombre) {
-    showToast("El nombre es obligatorio", "error");
-    return;
-  }
+  if (!nombre) return showToast("El nombre es obligatorio", "error");
 
   try {
     await api.request("/tipos-pago", "POST", {
@@ -2447,7 +2388,9 @@ function crearModalTipoPago() {
         </div>
     `;
   document.body.insertAdjacentHTML("beforeend", html);
-  document.getElementById("tipoPagoForm").onsubmit = saveTipoPagoCompra;
+  document
+    .getElementById("tipoPagoForm")
+    .addEventListener("submit", saveTipoPagoCompra);
 }
 
 // =============================================
@@ -2467,18 +2410,67 @@ function showCreateCompraModal() {
   document.getElementById("compraIva").value = 0;
   document.getElementById("compraObservaciones").value = "";
 
+  const numPedidoEl = document.getElementById("compraNumeroPedido");
+  if (numPedidoEl) numPedidoEl.value = "";
+  const infoPedidoEl = document.getElementById("compraPedidoInfo");
+  if (infoPedidoEl) infoPedidoEl.textContent = "";
+
   llenarSelectProveedor();
   llenarSelectUbicacionCompra();
   llenarSelectProductoCompra();
 
   document.getElementById("compraDetallesList").innerHTML = "";
 
-  const modalInstance = new bootstrap.Modal(modal);
-  modalInstance.show();
+  new bootstrap.Modal(modal).show();
+}
+
+async function cargarPedidoEnCompra() {
+  const el = document.getElementById("compraNumeroPedido");
+  if (!el) return showToast("No existe el campo Nº Pedido", "error");
+
+  const idPedido = parseInt(el.value);
+  if (!idPedido) return showToast("Ingresa un número de pedido", "error");
+
+  try {
+    const pedido = await api.request(`/pedidos/${idPedido}`);
+    if (!pedido) return showToast("Pedido no encontrado", "error");
+    if (pedido.estado === "Cancelado")
+      return showToast("Ese pedido está cancelado", "error");
+
+    const selProv = document.getElementById("compraProveedor");
+    selProv.value = pedido.id_proveedor || "";
+
+    compraDetallesTemp = (pedido.detalles || []).map((d) => {
+      const producto = (window.productosData || []).find(
+        (p) => p.id === d.id_producto,
+      );
+      return {
+        id_producto: d.id_producto,
+        cantidad_comprada: d.cantidad_pedida || 0,
+        cantidad_unidades: d.cantidad_pedida || 0,
+        costo_unitario: 0,
+        producto: producto || { nombre: `Producto #${d.id_producto}` },
+      };
+    });
+    renderDetallesCompra();
+
+    const info = document.getElementById("compraPedidoInfo");
+    if (info) {
+      info.textContent = `Pedido #${pedido.id} cargado (${compraDetallesTemp.length} productos). Completa los costos.`;
+    }
+
+    showToast(
+      "Pedido cargado. Revisa cantidades y completa costos.",
+      "success",
+    );
+  } catch (error) {
+    showToast(error.message || "Error al cargar pedido", "error");
+  }
 }
 
 function llenarSelectProveedor() {
   const select = document.getElementById("compraProveedor");
+  if (!select) return;
   select.innerHTML = '<option value="">Seleccionar proveedor</option>';
   (window.proveedoresData || []).forEach((p) => {
     if (p.activo !== 0) {
@@ -2489,6 +2481,7 @@ function llenarSelectProveedor() {
 
 function llenarSelectUbicacionCompra() {
   const select = document.getElementById("compraUbicacion");
+  if (!select) return;
   select.innerHTML = '<option value="">Seleccionar ubicación</option>';
   (window.ubicacionesData || []).forEach((u) => {
     if (u.activo !== 0) {
@@ -2521,25 +2514,19 @@ function agregarDetalleCompra(event) {
   const cantidad = parseFloat(cantidadInput.value) || 1;
   const costo_unitario = parseFloat(costoInput.value) || 0;
 
-  if (!id_producto) {
-    showToast("Selecciona un producto", "error");
-    return;
-  }
+  if (!id_producto) return showToast("Selecciona un producto", "error");
 
   const producto = (window.productosData || []).find(
     (p) => p.id === id_producto,
   );
-  if (!producto) {
-    showToast("Producto no encontrado", "error");
-    return;
-  }
+  if (!producto) return showToast("Producto no encontrado", "error");
 
   compraDetallesTemp.push({
-    id_producto: id_producto,
+    id_producto,
     cantidad_comprada: cantidad,
     cantidad_unidades: cantidad,
-    costo_unitario: costo_unitario,
-    producto: producto,
+    costo_unitario,
+    producto,
   });
 
   renderDetallesCompra();
@@ -2550,6 +2537,8 @@ function agregarDetalleCompra(event) {
 
 function renderDetallesCompra() {
   const container = document.getElementById("compraDetallesList");
+  if (!container) return;
+
   if (compraDetallesTemp.length === 0) {
     container.innerHTML =
       '<p class="text-muted small">No hay productos agregados</p>';
@@ -2577,20 +2566,17 @@ function renderDetallesCompra() {
             </li>
         `;
   });
+
+  const ivaInput = document.getElementById("compraIva");
+  const iva = parseFloat(ivaInput?.value) || 0;
+  const totalConIva = total + (total * iva) / 100;
+
   html += `
         <li class="list-group-item fw-bold">
-            Subtotal: Q${total.toFixed(2)}
+            Subtotal: Q${total.toFixed(2)} | IVA: ${iva}% | Total: Q${totalConIva.toFixed(2)}
         </li>
     </ul>`;
   container.innerHTML = html;
-
-  const ivaInput = document.getElementById("compraIva");
-  const iva = parseFloat(ivaInput.value) || 0;
-  const totalConIva = total + (total * iva) / 100;
-  const totalElement = container.querySelector(".list-group-item.fw-bold");
-  if (totalElement) {
-    totalElement.textContent = `Subtotal: Q${total.toFixed(2)} | IVA: ${iva}% | Total: Q${totalConIva.toFixed(2)}`;
-  }
 }
 
 function eliminarDetalleCompra(index) {
@@ -2599,12 +2585,11 @@ function eliminarDetalleCompra(index) {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-  const ivaInput = document.getElementById("compraIva");
-  if (ivaInput) {
-    ivaInput.addEventListener("input", function () {
+  document.addEventListener("input", function (e) {
+    if (e.target && e.target.id === "compraIva") {
       renderDetallesCompra();
-    });
-  }
+    }
+  });
 });
 
 // =============================================
@@ -2624,22 +2609,17 @@ async function saveCompra(event) {
     document.getElementById("compraObservaciones").value || null;
   const id_usuario_registra = getCurrentUser()?.id || 1;
 
-  if (!id_proveedor) {
-    showToast("Selecciona un proveedor", "error");
-    return;
-  }
-  if (compraDetallesTemp.length === 0) {
-    showToast("Agrega al menos un producto", "error");
-    return;
-  }
+  if (!id_proveedor) return showToast("Selecciona un proveedor", "error");
+  if (compraDetallesTemp.length === 0)
+    return showToast("Agrega al menos un producto", "error");
 
   const data = {
-    id_proveedor: id_proveedor,
-    id_ubicacion_destino: id_ubicacion_destino,
-    numero_factura: numero_factura,
-    id_usuario_registra: id_usuario_registra,
-    iva: iva,
-    observaciones: observaciones,
+    id_proveedor,
+    id_ubicacion_destino,
+    numero_factura,
+    id_usuario_registra,
+    iva,
+    observaciones,
     detalles: compraDetallesTemp.map((d) => ({
       id_producto: d.id_producto,
       cantidad_comprada: d.cantidad_comprada,
@@ -2649,11 +2629,9 @@ async function saveCompra(event) {
   };
 
   try {
-    // 1. Crear la compra
     const result = await api.request("/compras", "POST", data);
     showToast(`Compra #${result.id} creada correctamente`, "success");
 
-    // 2. Registrar movimientos de inventario para cada producto
     let movimientosRegistrados = 0;
     let erroresMovimientos = [];
 
@@ -2662,9 +2640,9 @@ async function saveCompra(event) {
         await registrarMovimientoInventario(
           detalle.id_producto,
           detalle.cantidad_comprada,
-          null, // Se buscará automáticamente
+          null,
           `Compra #${result.id} - ${detalle.producto.nombre}`,
-          detalle.costo_unitario, // ✅ Ahora se pasa el costo
+          detalle.costo_unitario,
         );
         movimientosRegistrados++;
       } catch (error) {
@@ -2672,20 +2650,15 @@ async function saveCompra(event) {
           producto: detalle.producto.nombre,
           error: error.message,
         });
-        console.error(
-          `Error al registrar inventario para ${detalle.producto.nombre}:`,
-          error,
-        );
       }
     }
 
     if (movimientosRegistrados > 0) {
       showToast(
-        `✅ Inventario actualizado: ${movimientosRegistrados} productos registrados`,
+        `✅ Inventario actualizado: ${movimientosRegistrados} productos`,
         "success",
       );
     }
-
     if (erroresMovimientos.length > 0) {
       const mensaje = erroresMovimientos
         .map((e) => `• ${e.producto}: ${e.error}`)
@@ -2696,10 +2669,7 @@ async function saveCompra(event) {
       );
     }
 
-    const modalElement = document.getElementById("compraModal");
-    const modalInstance = bootstrap.Modal.getInstance(modalElement);
-    if (modalInstance) modalInstance.hide();
-
+    bootstrap.Modal.getInstance(document.getElementById("compraModal")).hide();
     await loadComprasModule();
   } catch (error) {
     showToast(error.message || "Error al crear compra", "error");
@@ -2713,10 +2683,7 @@ async function saveCompra(event) {
 async function verCompra(id) {
   try {
     const compra = await api.request(`/compras/${id}`);
-    if (!compra) {
-      showToast("Compra no encontrada", "error");
-      return;
-    }
+    if (!compra) return showToast("Compra no encontrada", "error");
 
     const proveedor = (window.proveedoresData || []).find(
       (p) => p.id === compra.id_proveedor,
@@ -2746,36 +2713,20 @@ async function verCompra(id) {
             </div>
             <div class="modal-body">
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Proveedor:</strong> ${nombreProveedor}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Factura:</strong> ${compra.numero_factura || "--"}
-                    </div>
+                    <div class="col-md-6"><strong>Proveedor:</strong> ${nombreProveedor}</div>
+                    <div class="col-md-6"><strong>Factura:</strong> ${compra.numero_factura || "--"}</div>
                 </div>
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Fecha:</strong> ${compra.fecha ? new Date(compra.fecha).toLocaleString() : "--"}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Estado:</strong> <span class="badge bg-success">${compra.estado || "Pendiente"}</span>
-                    </div>
+                    <div class="col-md-6"><strong>Fecha:</strong> ${compra.fecha ? new Date(compra.fecha).toLocaleString() : "--"}</div>
+                    <div class="col-md-6"><strong>Estado:</strong> <span class="badge bg-success">${compra.estado || "Pendiente"}</span></div>
                 </div>
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Subtotal:</strong> Q${compra.subtotal || 0}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Total:</strong> Q${compra.total || 0}
-                    </div>
+                    <div class="col-md-6"><strong>Subtotal:</strong> Q${compra.subtotal || 0}</div>
+                    <div class="col-md-6"><strong>Total:</strong> Q${compra.total || 0}</div>
                 </div>
                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <strong>Saldo Pendiente:</strong> Q${compra.saldo_pendiente || 0}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>Vencimiento:</strong> ${compra.fecha_vencimiento_pago || "--"}
-                    </div>
+                    <div class="col-md-6"><strong>Saldo Pendiente:</strong> Q${compra.saldo_pendiente || 0}</div>
+                    <div class="col-md-6"><strong>Vencimiento:</strong> ${compra.fecha_vencimiento_pago || "--"}</div>
                 </div>
                 ${compra.observaciones ? `<div class="mb-3"><strong>Observaciones:</strong> ${compra.observaciones}</div>` : ""}
 
@@ -2802,10 +2753,7 @@ async function verCompra(id) {
     modalDiv.id = "compraDetalleModal";
     modalDiv.innerHTML = `<div class="modal-dialog modal-lg"><div class="modal-content">${modalContent}</div></div>`;
     document.body.appendChild(modalDiv);
-
-    const modalInstance = new bootstrap.Modal(modalDiv);
-    modalInstance.show();
-
+    new bootstrap.Modal(modalDiv).show();
     modalDiv.addEventListener("hidden.bs.modal", function () {
       this.remove();
     });
@@ -2820,10 +2768,7 @@ async function verCompra(id) {
 async function imprimirCompra(id) {
   try {
     const compra = await api.request(`/compras/${id}`);
-    if (!compra) {
-      showToast("Compra no encontrada", "error");
-      return;
-    }
+    if (!compra) return showToast("Compra no encontrada", "error");
 
     const proveedor = (window.proveedoresData || []).find(
       (p) => p.id === compra.id_proveedor,
@@ -2867,37 +2812,27 @@ async function imprimirCompra(id) {
           .totales div { margin-bottom: 4px; }
           .total-final { font-size: 16px; font-weight: bold; border-top: 2px solid #333; padding-top: 6px; margin-top: 6px; }
           .btn-imprimir { margin-top: 25px; padding: 8px 18px; font-size: 14px; cursor: pointer; }
-          @media print {
-            .btn-imprimir { display: none; }
-          }
+          @media print { .btn-imprimir { display: none; } }
         </style>
       </head>
       <body>
         <h1>Reporte de Compra #${compra.id}</h1>
         <div class="subtitulo">Generado el ${new Date().toLocaleString()}</div>
-
         <div class="datos"><strong>Proveedor:</strong> ${nombreProveedor}</div>
-        <div class="datos"><strong>N&deg; Factura:</strong> ${compra.numero_factura || "--"}</div>
+        <div class="datos"><strong>N° Factura:</strong> ${compra.numero_factura || "--"}</div>
         <div class="datos"><strong>Fecha:</strong> ${fecha}</div>
         <div class="datos"><strong>Estado:</strong> ${compra.estado || "Pendiente"}</div>
         ${compra.observaciones ? `<div class="datos"><strong>Observaciones:</strong> ${compra.observaciones}</div>` : ""}
-
         <table>
-          <thead>
-            <tr><th>Producto</th><th>Cantidad</th><th>Costo Unitario</th><th>Subtotal</th></tr>
-          </thead>
-          <tbody>
-            ${filasDetalle || '<tr><td colspan="4" style="text-align:center">Sin detalles</td></tr>'}
-          </tbody>
+          <thead><tr><th>Producto</th><th>Cantidad</th><th>Costo Unitario</th><th>Subtotal</th></tr></thead>
+          <tbody>${filasDetalle || '<tr><td colspan="4" style="text-align:center">Sin detalles</td></tr>'}</tbody>
         </table>
-
         <div class="totales">
           <div>Subtotal: Q${Number(compra.subtotal || 0).toFixed(2)}</div>
           <div>IVA: Q${Number(compra.iva || 0).toFixed(2)}</div>
           <div class="total-final">Total: Q${Number(compra.total || 0).toFixed(2)}</div>
           <div>Saldo Pendiente: Q${Number(compra.saldo_pendiente || 0).toFixed(2)}</div>
         </div>
-
         <button class="btn-imprimir" onclick="window.print()">Imprimir</button>
       </body>
       </html>
@@ -2905,16 +2840,15 @@ async function imprimirCompra(id) {
 
     const ventanaImpresion = window.open("", "_blank");
     if (!ventanaImpresion) {
-      showToast(
-        "El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes para este sitio.",
+      return showToast(
+        "El navegador bloqueó la ventana de impresión.",
         "warning",
       );
-      return;
     }
     ventanaImpresion.document.write(html);
     ventanaImpresion.document.close();
   } catch (error) {
-    showToast(error.message || "Error al generar el reporte de la compra", "error");
+    showToast(error.message || "Error al generar el reporte", "error");
   }
 }
 
@@ -2924,7 +2858,7 @@ async function registrarNotaEntrega(id) {
 
   const conforme = confirm("¿El receptor está conforme?");
   const data = {
-    numero_nota: numero_nota,
+    numero_nota,
     id_usuario_receptor: getCurrentUser()?.id || 1,
     conforme: conforme ? 1 : 0,
     observaciones: prompt("Observaciones (opcional):") || null,
@@ -2941,10 +2875,8 @@ async function registrarNotaEntrega(id) {
 
 async function registrarPagoCompra(id) {
   const tiposPago = await api.getTiposPago();
-  if (!tiposPago || tiposPago.length === 0) {
-    showToast("No hay tipos de pago disponibles", "error");
-    return;
-  }
+  if (!tiposPago || tiposPago.length === 0)
+    return showToast("No hay tipos de pago disponibles", "error");
 
   const tipoOptions = tiposPago
     .filter((t) => t.para_compras === 1)
@@ -2957,10 +2889,8 @@ async function registrarPagoCompra(id) {
   if (!tipoId) return;
 
   const monto = prompt("Ingrese el monto del pago:");
-  if (!monto || isNaN(parseFloat(monto))) {
-    showToast("Monto inválido", "error");
-    return;
-  }
+  if (!monto || isNaN(parseFloat(monto)))
+    return showToast("Monto inválido", "error");
 
   const data = {
     id_tipo_pago: parseInt(tipoId),
@@ -2997,7 +2927,6 @@ window.showCreateProveedorModal = showCreateProveedorModal;
 window.showEditProveedorModal = showEditProveedorModal;
 window.saveProveedor = saveProveedor;
 window.toggleProveedorEstado = toggleProveedorEstado;
-window.llenarSelectTipoProveedor = llenarSelectTipoProveedor;
 
 // Tipos de Proveedor
 window.renderTiposProveedorTab = renderTiposProveedorTab;
@@ -3009,10 +2938,12 @@ window.toggleTipoProveedorEstado = toggleTipoProveedorEstado;
 // Pedidos
 window.renderPedidosTab = renderPedidosTab;
 window.showCreatePedidoModal = showCreatePedidoModal;
-window.savePedido = savePedido;
 window.verPedido = verPedido;
 window.verTotalPedido = verTotalPedido;
 window.cambiarEstadoPedido = cambiarEstadoPedido;
+window.agregarDetallePedido = agregarDetallePedido;
+window.eliminarDetallePedido = eliminarDetallePedido;
+window.renderDetallesPedido = renderDetallesPedido;
 
 // Caja Chica
 window.renderCajaChicaTab = renderCajaChicaTab;
@@ -3040,7 +2971,8 @@ window.renderTiposPagoCompras = renderTiposPagoCompras;
 window.showCreateTipoPagoCompraModal = showCreateTipoPagoCompraModal;
 window.saveTipoPagoCompra = saveTipoPagoCompra;
 
-// Funciones auxiliares
+// Compras (auxiliares)
+window.cargarPedidoEnCompra = cargarPedidoEnCompra;
 window.llenarSelectProveedor = llenarSelectProveedor;
 window.llenarSelectUbicacionCompra = llenarSelectUbicacionCompra;
 window.llenarSelectProductoCompra = llenarSelectProductoCompra;

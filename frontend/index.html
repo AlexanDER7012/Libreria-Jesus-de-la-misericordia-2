@@ -858,7 +858,9 @@
             <div>
               <button
                 class="btn btn-sm btn-outline-light me-2"
-                onclick="imprimirVenta(document.getElementById('verVentaId').value)"
+                onclick="
+                  imprimirVenta(document.getElementById('verVentaId').value)
+                "
                 title="Imprimir"
               >
                 <i class="fas fa-print"></i>
@@ -1091,7 +1093,9 @@
             <button
               type="button"
               class="btn btn-primary"
-              onclick="imprimirVenta(document.getElementById('verVentaId').value)"
+              onclick="
+                imprimirVenta(document.getElementById('verVentaId').value)
+              "
             >
               <i class="fas fa-print me-2"></i>Imprimir
             </button>
@@ -1169,6 +1173,31 @@
           >
             <form id="compraForm">
               <input type="hidden" id="compraId" />
+
+              <!-- Nº Pedido: cargar pedido en compra -->
+              <div class="row g-2 mb-3 align-items-end">
+                <div class="col-md-3">
+                  <label class="form-label fw-bold">Nº Pedido (opcional)</label>
+                  <input
+                    type="number"
+                    class="form-control"
+                    id="compraNumeroPedido"
+                    placeholder="Ej: 12"
+                  />
+                </div>
+                <div class="col-md-3">
+                  <button
+                    type="button"
+                    class="btn btn-outline-primary w-100"
+                    onclick="cargarPedidoEnCompra()"
+                  >
+                    <i class="fas fa-download me-1"></i>Cargar Pedido
+                  </button>
+                </div>
+                <div class="col-md-6">
+                  <small class="text-muted" id="compraPedidoInfo"></small>
+                </div>
+              </div>
 
               <div class="row g-3 mb-3">
                 <div class="col-md-6">
