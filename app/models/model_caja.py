@@ -18,7 +18,8 @@ class TipoPago(Base):
     nombre = Column(String(50))  # Efectivo, Transferencia, Cheque, Deposito, Zigi
     descripcion = Column(Text)
     para_ventas = Column(Integer, default=1)  
-    para_compras = Column(Integer, default=1)  
+    para_compras = Column(Integer, default=1)
+    activo = Column(Integer, default=1)  
 
 
 class TipoGasto(Base):
@@ -27,7 +28,8 @@ class TipoGasto(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     nombre = Column(String(100))  
     descripcion = Column(Text)
-    es_fijo = Column(Integer) 
+    es_fijo = Column(Integer)
+    activo = Column(Integer, default=1) 
 
     gastos = relationship("Gasto", back_populates="tipo_gasto")
 

@@ -1,5 +1,5 @@
 // api.js
-const API_BASE_URL = window.location.origin; 
+const API_BASE_URL = window.location.origin;
 
 class ApiClient {
   constructor() {
@@ -358,6 +358,15 @@ class ApiClient {
 
   async getMetasFinancieras() {
     return this.request("/metas-financieras");
+  }
+
+  async verificarAdmin(nombre_usuario, password) {
+    return this.request(
+      "/login/verificar-admin",
+      "POST",
+      { nombre_usuario, password },
+      false,
+    );
   }
 }
 

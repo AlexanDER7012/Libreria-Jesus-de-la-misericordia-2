@@ -7,6 +7,7 @@ class TipoPagoBase(BaseModel):
     descripcion: Optional[str] = None
     para_ventas: Optional[int] = 1
     para_compras: Optional[int] = 1
+    activo: Optional[int] = 1  # NUEVO
 
 
 class TipoPagoCreate(TipoPagoBase):
@@ -23,6 +24,7 @@ class TipoPagoResponse(TipoPagoBase):
 class TipoGastoBase(BaseModel):
     descripcion: Optional[str] = None
     es_fijo: Optional[int] = 0
+    activo: Optional[int] = 1  # NUEVO
 
 
 class TipoGastoCreate(TipoGastoBase):
@@ -87,9 +89,11 @@ class CajaTurnoResponse(BaseModel):
     denominaciones: List[CajaDenominacionResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
+
 class CajaTurnoCerrar(BaseModel):
     denominaciones: List[CajaDenominacionCreate]
     observaciones: Optional[str] = None
+
 
 # ===================== CajaChicaMovimiento =====================
 

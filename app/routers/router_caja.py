@@ -19,6 +19,14 @@ from app.schemas.schema_caja import (
     TipoPagoCreate, TipoPagoResponse,
 )
 
+ROLES_ADMIN = ("Administrador", "Dueña")
+
+
+def _es_admin(usuario: Usuario) -> bool:
+    if not usuario or not usuario.rol:
+        return False
+    return usuario.rol.nombre in ROLES_ADMIN
+
 router = APIRouter()               
 router_caja_chica = APIRouter()    
 router_gasto = APIRouter()        
@@ -251,3 +259,68 @@ def crear_tipo_pago(datos: TipoPagoCreate, db: Session = Depends(get_db), usuari
     db.commit()
     db.refresh(nuevo)
     return nuevo
+
+# ===================================================================
+# ELIMINAR GASTO
+# ===================================================================
+
+@router_gasto.delete("/{gasto_id}", status_code=204)
+def eliminar_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    if not _es_admin(usuario_actual):
+        raise HTTPException(status_code=403, detail="Solo Administrador o Dueña pueden eliminar gastos")
+    gasto = db.query(Gasto).filter(Gasto.id == gasto_id).first()
+    if not gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    db.delete(gasto)
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Gasto")
+    db.commit()
+
+
+# ===================================================================
+# ELIMINAR MOVIMIENTO CAJA CHICA
+# ===================================================================
+
+@router_caja_chica.delete("/{movimiento_id}", status_code=204)
+def eliminar_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    if not _es_admin(usuario_actual):
+        raise HTTPException(status_code=403, detail="Solo Administrador o Dueña pueden eliminar movimientos")
+    mov = db.query(CajaChicaMovimiento).filter(CajaChicaMovimiento.id == movimiento_id).first()
+    if not mov:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    db.delete(mov)
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "CajaChica")
+    db.commit()
+
+
+# ===================================================================
+# EDITAR TIPO_GASTO
+# ===================================================================
+
+@router_tipo_gasto.put("/{tipo_id}", response_model=TipoGastoResponse)
+def actualizar_tipo_gasto(tipo_id: int, datos: TipoGastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    tipo = db.query(TipoGasto).filter(TipoGasto.id == tipo_id).first()
+    if not tipo:
+        raise HTTPException(status_code=404, detail="Tipo de gasto no encontrado")
+    for campo, valor in datos.model_dump(exclude_unset=True).items():
+        setattr(tipo, campo, valor)
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "TipoGasto")
+    db.commit()
+    db.refresh(tipo)
+    return tipo
+
+
+# ===================================================================
+# EDITAR TIPO_PAGO
+# ===================================================================
+
+@router_tipo_pago.put("/{tipo_id}", response_model=TipoPagoResponse)
+def actualizar_tipo_pago(tipo_id: int, datos: TipoPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    tipo = db.query(TipoPago).filter(TipoPago.id == tipo_id).first()
+    if not tipo:
+        raise HTTPException(status_code=404, detail="Tipo de pago no encontrado")
+    for campo, valor in datos.model_dump(exclude_unset=True).items():
+        setattr(tipo, campo, valor)
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "TipoPago")
+    db.commit()
+    db.refresh(tipo)
+    return tipo

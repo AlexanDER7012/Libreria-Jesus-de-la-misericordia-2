@@ -11,3 +11,7 @@ class TokenResponse(BaseModel):
     usuario_id: int
     nombre_usuario: str
     rol: Optional[str] = None
+
+class VerificarAdminResponse(BaseModel):
+    autorizado: bool
+    mensaje: str
