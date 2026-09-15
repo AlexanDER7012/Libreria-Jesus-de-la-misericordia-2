@@ -19,11 +19,11 @@ from app.schemas.schema_caja import (
     TipoPagoCreate, TipoPagoResponse,
 )
 
-router = APIRouter()               # /caja-turno
-router_caja_chica = APIRouter()    # /caja-chica
-router_gasto = APIRouter()         # /gastos
-router_tipo_gasto = APIRouter()    # /tipos-gasto
-router_tipo_pago = APIRouter()     # /tipos-pago
+router = APIRouter()               
+router_caja_chica = APIRouter()    
+router_gasto = APIRouter()        
+router_tipo_gasto = APIRouter()   
+router_tipo_pago = APIRouter()     
 
 
 # ===================================================================
@@ -137,9 +137,18 @@ def listar_movimientos_caja_chica(
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
+@router_caja_chica.get("/{movimiento_id}", response_model=CajaChicaMovimientoResponse)
+def obtener_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get_db)):
+    movimiento = db.query(CajaChicaMovimiento).filter(CajaChicaMovimiento.id == movimiento_id).first()
+    if not movimiento:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    return movimiento
+
+
 @router_caja_chica.post("", response_model=CajaChicaMovimientoResponse, status_code=201)
 def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
-    """Registra un movimiento y calcula el saldo corriente de esa sucursal."""
+    """Registra un movimiento y calcula el saldo corriente de esa sucursal.
+    Ingreso suma al saldo; egreso resta."""
     ultimo = (
         db.query(CajaChicaMovimiento)
         .filter(CajaChicaMovimiento.id_ubicacion == datos.id_ubicacion)
@@ -147,7 +156,9 @@ def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Sessio
         .first()
     )
     saldo_anterior = float(ultimo.saldo) if ultimo else 0.0
-    nuevo_saldo = round(saldo_anterior + datos.monto, 2)
+
+    signo = -1 if datos.tipo == "egreso" else 1
+    nuevo_saldo = round(saldo_anterior + (signo * float(datos.monto)), 2)
 
     nuevo = CajaChicaMovimiento(**datos.model_dump(), saldo=nuevo_saldo)
     db.add(nuevo)
@@ -184,6 +195,14 @@ def listar_gastos(
     if fecha_hasta is not None:
         query = query.filter(func.date(Gasto.fecha) <= fecha_hasta)
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
+
+
+@router_gasto.get("/{gasto_id}", response_model=GastoResponse)
+def obtener_gasto(gasto_id: int, db: Session = Depends(get_db)):
+    gasto = db.query(Gasto).filter(Gasto.id == gasto_id).first()
+    if not gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    return gasto
 
 
 @router_gasto.post("", response_model=GastoResponse, status_code=201)

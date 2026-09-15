@@ -20,11 +20,28 @@ class DetalleCompraResponse(DetalleCompraCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ===================== CompraPago (debe ir ANTES de Compra) =====================
+
+class CompraPagoCreate(BaseModel):
+    id_tipo_pago: Optional[int] = None
+    monto: float
+    referencia: Optional[str] = None
+    observaciones: Optional[str] = None
+
+
+class CompraPagoResponse(CompraPagoCreate):
+    id: int
+    id_compra: int
+    fecha_pago: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ===================== Compra =====================
 
 class CompraCreate(BaseModel):
     id_proveedor: int
     id_ubicacion_destino: Optional[int] = None
+    id_pedido: Optional[int] = None
     numero_factura: Optional[str] = None
     id_usuario_registra: Optional[int] = None
     iva: Optional[float] = 0
@@ -37,6 +54,7 @@ class CompraResponse(BaseModel):
     id: int
     id_proveedor: Optional[int] = None
     id_ubicacion_destino: Optional[int] = None
+    id_pedido: Optional[int] = None
     numero_factura: Optional[str] = None
     fecha: Optional[datetime] = None
     subtotal: Optional[float] = None
@@ -49,6 +67,7 @@ class CompraResponse(BaseModel):
     fecha_vencimiento_pago: Optional[date] = None
     saldo_pendiente: Optional[float] = None
     detalles: List[DetalleCompraResponse] = []
+    pagos: List[CompraPagoResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -65,22 +84,6 @@ class NotaEntregaResponse(NotaEntregaCreate):
     id: int
     id_compra: int
     fecha_recepcion: Optional[datetime] = None
-    model_config = ConfigDict(from_attributes=True)
-
-
-# ===================== CompraPago =====================
-
-class CompraPagoCreate(BaseModel):
-    id_tipo_pago: Optional[int] = None
-    monto: float
-    referencia: Optional[str] = None
-    observaciones: Optional[str] = None
-
-
-class CompraPagoResponse(CompraPagoCreate):
-    id: int
-    id_compra: int
-    fecha_pago: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
 
