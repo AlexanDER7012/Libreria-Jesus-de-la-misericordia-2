@@ -12,7 +12,6 @@ let tiposProveedorData = [];
 let pedidosData = [];
 let tiposGastoData = [];
 
-// Paginación (server-side) de Caja Chica y Gastos
 let skipCajaChica = 0;
 const LIMITE_CAJA_CHICA = 10;
 let skipGastos = 0;
@@ -301,6 +300,7 @@ async function loadComprasModule() {
       tiposPago,
       productos,
       ubicaciones,
+      usuarios,
     ] = await Promise.all([
       api.getCompras().catch(() => []),
       api.getProveedores().catch(() => []),
@@ -310,6 +310,7 @@ async function loadComprasModule() {
       api.getTiposPago().catch(() => []),
       api.getProductos().catch(() => []),
       api.request("/ubicaciones").catch(() => []),
+      api.getUsuarios().catch(() => []),
     ]);
 
     comprasData = compras || [];
@@ -318,6 +319,7 @@ async function loadComprasModule() {
     pedidosData = pedidos || [];
     tiposGastoData = tiposGasto || [];
     comprasTiposPagoData = tiposPago || [];
+    window.usuariosData = usuarios || [];
 
     window.proveedoresData = proveedores || [];
     window.productosData = productos || [];
@@ -345,13 +347,78 @@ async function loadComprasModule() {
 // =============================================
 // PANEL: COMPRAS
 // =============================================
-
 function renderComprasTable(compras) {
   const container = document.getElementById("comprasTableContainer");
   if (!container) return;
 
+  const proveedoresOptions = (window.proveedoresData || [])
+    .map((p) => `<option value="${p.id}">${p.nombre}</option>`)
+    .join("");
+
+  let html = `
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Listado de Compras</h6>
+            <button class="btn btn-info btn-sm" onclick="showCreateCompraModal()">
+                <i class="fas fa-plus me-2"></i>Nueva Compra
+            </button>
+        </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-md-3">
+                <label class="form-label small mb-0">Proveedor</label>
+                <select class="form-select form-select-sm" id="filtroCompraProveedor">
+                    <option value="">Todos</option>
+                    ${proveedoresOptions}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Desde</label>
+                <input type="date" class="form-control form-control-sm" id="filtroCompraDesde" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Hasta</label>
+                <input type="date" class="form-control form-control-sm" id="filtroCompraHasta" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Estado</label>
+                <select class="form-select form-select-sm" id="filtroCompraEstado">
+                    <option value="">Todos</option>
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="Recibida">Recibida</option>
+                    <option value="Parcial">Parcial</option>
+                    <option value="Pagada">Pagada</option>
+                    <option value="Cancelada">Cancelada</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end gap-1">
+                <button class="btn btn-sm btn-primary w-100" onclick="filtrarCompras()">
+                    <i class="fas fa-search me-1"></i>Filtrar
+                </button>
+                <button class="btn btn-sm btn-outline-secondary w-100" onclick="limpiarFiltrosCompras()">
+                    <i class="fas fa-times me-1"></i>Limpiar
+                </button>
+            </div>
+        </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-md-6">
+                <label class="form-label small mb-0">Buscar por N° Factura</label>
+                <div class="input-group input-group-sm">
+                    <input type="text" class="form-control form-control-sm" id="filtroCompraBuscar"
+                           placeholder="Número de factura..."
+                           onkeyup="if(event.key==='Enter') filtrarCompras()" />
+                    <button class="btn btn-outline-primary" onclick="filtrarCompras()">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="comprasListadoContainer">
+  `;
+
   if (!compras || compras.length === 0) {
-    container.innerHTML = `
+    html += `
             <div class="text-center py-5">
                 <i class="fas fa-truck fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay compras registradas</p>
@@ -359,11 +426,13 @@ function renderComprasTable(compras) {
                     <i class="fas fa-plus me-2"></i>Registrar Compra
                 </button>
             </div>
-        `;
+        </div>
+    `;
+    container.innerHTML = html;
     return;
   }
 
-  let html = `
+  html += `
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -381,7 +450,7 @@ function renderComprasTable(compras) {
                     </tr>
                 </thead>
                 <tbody>
-    `;
+  `;
 
   compras.forEach((c) => {
     const proveedor = (window.proveedoresData || []).find(
@@ -395,8 +464,14 @@ function renderComprasTable(compras) {
         : estado === "Pendiente"
           ? "bg-warning"
           : estado === "Pagada"
-            ? "bg-info"
-            : "bg-secondary";
+            ? "bg-success"
+            : estado === "Parcial"
+              ? "bg-warning text-dark"
+              : estado === "Recibida"
+                ? "bg-info"
+                : estado === "Cancelada"
+                  ? "bg-danger"
+                  : "bg-secondary";
 
     html += `
             <tr>
@@ -416,12 +491,19 @@ function renderComprasTable(compras) {
                     <button class="btn btn-sm btn-outline-secondary" onclick="imprimirCompra(${c.id})" title="Imprimir reporte">
                         <i class="fas fa-print"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="registrarNotaEntrega(${c.id})">
+                    <button class="btn btn-sm btn-outline-success" onclick="registrarNotaEntrega(${c.id})" title="Nota de entrega">
                         <i class="fas fa-file-signature"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-warning" onclick="registrarPagoCompra(${c.id})">
+                    <button class="btn btn-sm btn-outline-warning" onclick="registrarPagoCompra(${c.id})" title="Registrar pago">
                         <i class="fas fa-money-bill-wave"></i>
                     </button>
+                    ${
+                      c.estado !== "Cancelada"
+                        ? `<button class="btn btn-sm btn-outline-danger" onclick="cancelarCompra(${c.id})" title="Cancelar compra">
+                          <i class="fas fa-ban"></i>
+                         </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -434,6 +516,7 @@ function renderComprasTable(compras) {
         <div class="text-end">
             <small class="text-muted">Total: ${compras.length} compras</small>
         </div>
+    </div>
     `;
 
   container.innerHTML = html;
@@ -644,22 +727,17 @@ function renderTiposProveedorTab(tipos) {
   container.innerHTML = html;
 }
 
+// =============================================
+// PANEL: PEDIDOS (con filtros)
+// =============================================
+
 function renderPedidosTab(pedidos) {
   const container = document.getElementById("pedidosContainer");
   if (!container) return;
 
-  if (!pedidos || pedidos.length === 0) {
-    container.innerHTML = `
-            <div class="text-center py-5">
-                <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No hay pedidos registrados</p>
-                <button class="btn btn-primary btn-sm" onclick="showCreatePedidoModal()">
-                    <i class="fas fa-plus me-2"></i>Nuevo Pedido
-                </button>
-            </div>
-        `;
-    return;
-  }
+  const proveedoresOptions = (window.proveedoresData || [])
+    .map((p) => `<option value="${p.id}">${p.nombre}</option>`)
+    .join("");
 
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -668,6 +746,63 @@ function renderPedidosTab(pedidos) {
                 <i class="fas fa-plus me-2"></i>Nuevo Pedido
             </button>
         </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-md-3">
+                <label class="form-label small mb-0">Proveedor</label>
+                <select class="form-select form-select-sm" id="filtroPedidoProveedor">
+                    <option value="">Todos</option>
+                    ${proveedoresOptions}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Desde</label>
+                <input type="date" class="form-control form-control-sm" id="filtroPedidoDesde" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Hasta</label>
+                <input type="date" class="form-control form-control-sm" id="filtroPedidoHasta" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Estado</label>
+                <select class="form-select form-select-sm" id="filtroPedidoEstado">
+                    <option value="">Todos</option>
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="Cotizado">Cotizado</option>
+                    <option value="Aprobado">Aprobado</option>
+                    <option value="Comprado">Comprado</option>
+                    <option value="Cancelado">Cancelado</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end gap-1">
+                <button class="btn btn-sm btn-primary w-100" onclick="filtrarPedidos()">
+                    <i class="fas fa-search me-1"></i>Filtrar
+                </button>
+                <button class="btn btn-sm btn-outline-secondary w-100" onclick="limpiarFiltrosPedidos()">
+                    <i class="fas fa-times me-1"></i>Limpiar
+                </button>
+            </div>
+        </div>
+
+        <div id="pedidosListadoContainer">
+  `;
+
+  if (!pedidos || pedidos.length === 0) {
+    html += `
+            <div class="text-center py-5">
+                <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No hay pedidos registrados</p>
+                <button class="btn btn-primary btn-sm" onclick="showCreatePedidoModal()">
+                    <i class="fas fa-plus me-2"></i>Nuevo Pedido
+                </button>
+            </div>
+        </div>
+    `;
+    container.innerHTML = html;
+    return;
+  }
+
+  html += `
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -675,13 +810,13 @@ function renderPedidosTab(pedidos) {
                         <th>ID</th>
                         <th>Proveedor</th>
                         <th>Fecha</th>
-                        <th>Total</th>
+                        <th>Productos</th>
                         <th>Estado</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
-    `;
+  `;
 
   pedidos.forEach((p) => {
     const proveedor = (window.proveedoresData || []).find(
@@ -701,24 +836,33 @@ function renderPedidosTab(pedidos) {
               : estado === "Cancelado"
                 ? "bg-danger"
                 : "bg-secondary";
+    const numProductos = (p.detalles || []).length;
 
     html += `
             <tr>
                 <td>${p.id}</td>
                 <td>${nombreProveedor}</td>
                 <td>${p.fecha ? new Date(p.fecha).toLocaleDateString() : "--"}</td>
-                <td><strong>Q${p.total || 0}</strong></td>
+                <td>${numProductos}</td>
                 <td><span class="badge ${estadoBadge}">${estado}</span></td>
                 <td>
-                    <button class="btn btn-sm btn-outline-info" onclick="verPedido(${p.id})">
+                    <button class="btn btn-sm btn-outline-info" onclick="verPedido(${p.id})" title="Ver detalle">
                         <i class="fas fa-eye"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="cambiarEstadoPedido(${p.id})">
+                    <button class="btn btn-sm btn-outline-success" onclick="cambiarEstadoPedido(${p.id})" title="Cambiar estado">
                         <i class="fas fa-sync"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-warning" onclick="verTotalPedido(${p.id})">
+                    <button class="btn btn-sm btn-outline-warning" onclick="verTotalPedido(${p.id})" title="Verificar mínimo">
                         <i class="fas fa-calculator"></i>
                     </button>
+                    ${
+                      estado !== "Cancelado"
+                        ? `
+                    <button class="btn btn-sm btn-outline-danger" onclick="cancelarPedido(${p.id})" title="Cancelar pedido">
+                        <i class="fas fa-ban"></i>
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -731,9 +875,80 @@ function renderPedidosTab(pedidos) {
         <div class="text-end">
             <small class="text-muted">Total: ${pedidos.length} pedidos</small>
         </div>
+    </div>
     `;
 
   container.innerHTML = html;
+}
+
+async function filtrarPedidos() {
+  const id_proveedor = document.getElementById("filtroPedidoProveedor").value;
+  const fecha_desde = document.getElementById("filtroPedidoDesde").value;
+  const fecha_hasta = document.getElementById("filtroPedidoHasta").value;
+  const estado = document.getElementById("filtroPedidoEstado").value;
+
+  let url = "/pedidos?skip=0&limit=200";
+  if (id_proveedor) url += `&id_proveedor=${id_proveedor}`;
+  if (fecha_desde) url += `&fecha_desde=${fecha_desde}`;
+  if (fecha_hasta) url += `&fecha_hasta=${fecha_hasta}`;
+  if (estado) url += `&estado=${estado}`;
+
+  try {
+    const pedidos = await api.request(url);
+    pedidosData = pedidos || [];
+    renderPedidosTab(pedidosData);
+  } catch (error) {
+    showToast(error.message || "Error al filtrar pedidos", "error");
+  }
+}
+
+function limpiarFiltrosPedidos() {
+  const prov = document.getElementById("filtroPedidoProveedor");
+  const desde = document.getElementById("filtroPedidoDesde");
+  const hasta = document.getElementById("filtroPedidoHasta");
+  const estado = document.getElementById("filtroPedidoEstado");
+  if (prov) prov.value = "";
+  if (desde) desde.value = "";
+  if (hasta) hasta.value = "";
+  if (estado) estado.value = "";
+  filtrarPedidos();
+}
+
+async function filtrarCompras() {
+  const id_proveedor = document.getElementById("filtroCompraProveedor").value;
+  const fecha_desde = document.getElementById("filtroCompraDesde").value;
+  const fecha_hasta = document.getElementById("filtroCompraHasta").value;
+  const estado = document.getElementById("filtroCompraEstado").value;
+  const buscar = document.getElementById("filtroCompraBuscar").value.trim();
+
+  let url = "/compras?skip=0&limit=200";
+  if (id_proveedor) url += `&id_proveedor=${id_proveedor}`;
+  if (fecha_desde) url += `&fecha_desde=${fecha_desde}`;
+  if (fecha_hasta) url += `&fecha_hasta=${fecha_hasta}`;
+  if (estado) url += `&estado=${estado}`;
+  if (buscar) url += `&buscar=${encodeURIComponent(buscar)}`;
+
+  try {
+    const compras = await api.request(url);
+    comprasData = compras || [];
+    renderComprasTable(comprasData);
+  } catch (error) {
+    showToast(error.message || "Error al filtrar compras", "error");
+  }
+}
+
+function limpiarFiltrosCompras() {
+  const prov = document.getElementById("filtroCompraProveedor");
+  const desde = document.getElementById("filtroCompraDesde");
+  const hasta = document.getElementById("filtroCompraHasta");
+  const estado = document.getElementById("filtroCompraEstado");
+  const buscar = document.getElementById("filtroCompraBuscar");
+  if (prov) prov.value = "";
+  if (desde) desde.value = "";
+  if (hasta) hasta.value = "";
+  if (estado) estado.value = "";
+  if (buscar) buscar.value = "";
+  filtrarCompras();
 }
 
 // =============================================
@@ -799,7 +1014,14 @@ function renderCajaChicaTab(movimientos) {
                 <td><strong>Q${m.monto || 0}</strong></td>
                 <td>Q${m.saldo || 0}</td>
                 <td>${m.concepto || "--"}</td>
-                <td>${m.id_usuario || "--"}</td>
+                <td>${(() => {
+                  const u = (window.usuariosData || []).find(
+                    (x) => x.id === m.id_usuario,
+                  );
+                  return u
+                    ? u.nombre || u.username || u.email
+                    : m.id_usuario || "--";
+                })()}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-info" onclick="verCajaChica(${m.id})">
                         <i class="fas fa-eye"></i>
@@ -884,7 +1106,14 @@ function renderGastosTab(gastos) {
                 <td>${g.concepto || "--"}</td>
                 <td><strong>Q${g.monto || 0}</strong></td>
                 <td>${nombreUbicacion}</td>
-                <td>${g.id_usuario_registra || "--"}</td>
+                <td>${(() => {
+                  const u = (window.usuariosData || []).find(
+                    (x) => x.id === g.id_usuario_registra,
+                  );
+                  return u
+                    ? u.nombre || u.username || u.email
+                    : g.id_usuario_registra || "--";
+                })()}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-info" onclick="verGasto(${g.id})">
                         <i class="fas fa-eye"></i>
@@ -1129,7 +1358,7 @@ function showCreateProveedorModal() {
             <div class="modal-dialog modal-lg modal-dialog-scrollable" style="max-height: 90vh;">
                 <div class="modal-content" style="max-height: 90vh;">
                     <div class="modal-header bg-primary text-white sticky-top">
-                        <h5 class="modal-title" id="proveedorModalTitle">
+                        <h5 class="modal-title">
                             <i class="fas fa-building me-2"></i>Nuevo Proveedor
                         </h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -1490,7 +1719,7 @@ function crearModalTipoProveedor() {
 }
 
 // =============================================
-// FUNCIONES CRUD: PEDIDOS (modal unificado)
+// FUNCIONES CRUD: PEDIDOS
 // =============================================
 
 function showCreatePedidoModal() {
@@ -1536,21 +1765,21 @@ function showCreatePedidoModal() {
               <h6 class="fw-bold"><i class="fas fa-boxes me-1"></i>Productos del pedido</h6>
 
               <div class="row g-2 align-items-end mb-2" id="pedidoDetalleRow">
-                <div class="col-md-5">
+                <div class="col-md-4">
                   <label class="form-label small mb-0">Producto</label>
-                  <select class="form-select form-select-sm pedido-detalle-producto"></select>
+                  <select class="form-select form-select-sm pedido-detalle-producto" onchange="actualizarCostoPedido()"></select>
                 </div>
                 <div class="col-md-2">
                   <label class="form-label small mb-0">Cant. pedida</label>
-                  <input type="number" step="0.01" min="0.01" class="form-control form-control-sm pedido-detalle-cantidad" value="1" />
+                  <input type="number" step="0.01" min="0.01" class="form-control form-control-sm pedido-detalle-cantidad" value="1" oninput="actualizarSubtotalPedido()" />
                 </div>
                 <div class="col-md-2">
-                  <label class="form-label small mb-0">Cant. sugerida</label>
-                  <input type="number" step="0.01" min="0" class="form-control form-control-sm pedido-detalle-sugerida" value="0" />
+                  <label class="form-label small mb-0">Costo est. (Q)</label>
+                  <input type="number" step="0.01" min="0" class="form-control form-control-sm pedido-detalle-costo" value="0" oninput="actualizarSubtotalPedido()" />
                 </div>
                 <div class="col-md-2">
-                  <label class="form-label small mb-0">Obs.</label>
-                  <input type="text" class="form-control form-control-sm pedido-detalle-obs" placeholder="Opcional" />
+                  <label class="form-label small mb-0">Subtotal</label>
+                  <input type="text" class="form-control form-control-sm pedido-detalle-subtotal" value="Q0.00" readonly />
                 </div>
                 <div class="col-md-1">
                   <button type="button" class="btn btn-sm btn-primary w-100" onclick="agregarDetallePedido(event)">
@@ -1561,7 +1790,17 @@ function showCreatePedidoModal() {
 
               <div id="pedidoDetallesList" class="mb-3"></div>
 
-              <button type="submit" class="btn btn-primary w-100 mt-3">
+              <div class="alert alert-info py-2 d-flex justify-content-between align-items-center mb-2">
+                <div>
+                  <i class="fas fa-info-circle me-1"></i>
+                  Total: <strong id="pedidoTotalPreview">Q0.00</strong>
+                </div>
+                <div id="pedidoMinimoPreview">
+                  <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i>Faltan Q500.00</span>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary w-100 mt-2">
                 <i class="fas fa-save me-2"></i>Guardar Pedido
               </button>
             </form>
@@ -1577,6 +1816,7 @@ function showCreatePedidoModal() {
     .addEventListener("submit", savePedidoCompleto);
   llenarSelectProductoPedido();
   renderDetallesPedido();
+  actualizarTotalesPedidoPreview();
   new bootstrap.Modal(document.getElementById("pedidoModal")).show();
 }
 
@@ -1591,6 +1831,60 @@ function llenarSelectProductoPedido() {
   });
 }
 
+function actualizarCostoPedido() {
+  const row = document.getElementById("pedidoDetalleRow");
+  if (!row) return;
+  const id_producto = parseInt(
+    row.querySelector(".pedido-detalle-producto").value,
+  );
+  if (!id_producto) return;
+
+  const producto = (window.productosData || []).find(
+    (p) => p.id === id_producto,
+  );
+  if (!producto) return;
+
+  const costo =
+    producto.precio_compra || producto.costo || producto.precio_costo || 0;
+  const costoInput = row.querySelector(".pedido-detalle-costo");
+  if (costoInput && (!costoInput.value || parseFloat(costoInput.value) === 0)) {
+    costoInput.value = costo;
+  }
+
+  actualizarSubtotalPedido();
+}
+
+function actualizarSubtotalPedido() {
+  const row = document.getElementById("pedidoDetalleRow");
+  if (!row) return;
+  const cantidad =
+    parseFloat(row.querySelector(".pedido-detalle-cantidad").value) || 0;
+  const costo =
+    parseFloat(row.querySelector(".pedido-detalle-costo").value) || 0;
+  const subtotalEl = row.querySelector(".pedido-detalle-subtotal");
+  if (subtotalEl) subtotalEl.value = `Q${(cantidad * costo).toFixed(2)}`;
+}
+
+function actualizarTotalesPedidoPreview() {
+  let total = 0;
+  pedidoDetallesTemp.forEach((d) => {
+    total += (d.cantidad_pedida || 0) * (d.costo_estimado || 0);
+  });
+
+  const totalEl = document.getElementById("pedidoTotalPreview");
+  if (totalEl) totalEl.textContent = `Q${total.toFixed(2)}`;
+
+  const minEl = document.getElementById("pedidoMinimoPreview");
+  if (minEl) {
+    if (total >= 500) {
+      minEl.innerHTML =
+        '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Alcanza mínimo Q500</span>';
+    } else {
+      minEl.innerHTML = `<span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i>Faltan Q${(500 - total).toFixed(2)}</span>`;
+    }
+  }
+}
+
 function agregarDetallePedido(event) {
   if (event) event.preventDefault();
 
@@ -1600,14 +1894,14 @@ function agregarDetallePedido(event) {
   );
   const cantidad_pedida =
     parseFloat(row.querySelector(".pedido-detalle-cantidad").value) || 0;
-  const cantidad_sugerida =
-    parseFloat(row.querySelector(".pedido-detalle-sugerida").value) || 0;
-  const observaciones =
-    row.querySelector(".pedido-detalle-obs").value.trim() || null;
+  const costo_estimado =
+    parseFloat(row.querySelector(".pedido-detalle-costo").value) || 0;
 
   if (!id_producto) return showToast("Selecciona un producto", "error");
   if (cantidad_pedida <= 0)
     return showToast("La cantidad debe ser mayor a 0", "error");
+  if (costo_estimado <= 0)
+    return showToast("El costo debe ser mayor a 0", "error");
 
   const producto = (window.productosData || []).find(
     (p) => p.id === id_producto,
@@ -1616,17 +1910,19 @@ function agregarDetallePedido(event) {
   pedidoDetallesTemp.push({
     id_producto,
     cantidad_pedida,
-    cantidad_sugerida,
-    observaciones,
+    cantidad_sugerida: 0,
+    costo_estimado,
+    observaciones: null,
     producto,
   });
 
   renderDetallesPedido();
+  actualizarTotalesPedidoPreview();
 
   row.querySelector(".pedido-detalle-producto").value = "";
   row.querySelector(".pedido-detalle-cantidad").value = 1;
-  row.querySelector(".pedido-detalle-sugerida").value = 0;
-  row.querySelector(".pedido-detalle-obs").value = "";
+  row.querySelector(".pedido-detalle-costo").value = 0;
+  row.querySelector(".pedido-detalle-subtotal").value = "Q0.00";
 }
 
 function renderDetallesPedido() {
@@ -1637,27 +1933,77 @@ function renderDetallesPedido() {
       '<p class="text-muted small">No hay productos agregados</p>';
     return;
   }
-  let html = '<ul class="list-group">';
+
+  let html = `
+    <div class="table-responsive">
+      <table class="table table-sm table-hover">
+        <thead class="table-light">
+          <tr>
+            <th>Producto</th>
+            <th class="text-end">Cant.</th>
+            <th class="text-end" style="width:120px">Costo est.</th>
+            <th class="text-end">Subtotal</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  let total = 0;
   pedidoDetallesTemp.forEach((d, i) => {
+    const subtotal = (d.cantidad_pedida || 0) * (d.costo_estimado || 0);
+    total += subtotal;
     html += `
-      <li class="list-group-item d-flex justify-content-between align-items-center">
-        <div>
-          <strong>${d.producto ? d.producto.nombre : "Producto #" + d.id_producto}</strong>
-          <span class="text-muted small"> · Pedida: ${d.cantidad_pedida} · Sugerida: ${d.cantidad_sugerida || 0}</span>
-          ${d.observaciones ? `<div class="small text-muted">${d.observaciones}</div>` : ""}
-        </div>
-        <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarDetallePedido(${i})">
-          <i class="fas fa-times"></i>
-        </button>
-      </li>`;
+      <tr>
+        <td>${d.producto ? d.producto.nombre : "Producto #" + d.id_producto}</td>
+        <td class="text-end">${d.cantidad_pedida}</td>
+        <td class="text-end">
+          <input type="number" step="0.01" min="0"
+                 class="form-control form-control-sm text-end"
+                 value="${d.costo_estimado}"
+                 onchange="editarCostoDetallePedido(${i}, this.value)" />
+        </td>
+        <td class="text-end fw-bold">Q${subtotal.toFixed(2)}</td>
+        <td class="text-end">
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarDetallePedido(${i})">
+            <i class="fas fa-times"></i>
+          </button>
+        </td>
+      </tr>
+    `;
   });
-  html += "</ul>";
+
+  html += `
+        </tbody>
+        <tfoot>
+          <tr class="table-light">
+            <td colspan="3" class="text-end fw-bold">TOTAL:</td>
+            <td class="text-end fw-bold">Q${total.toFixed(2)}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  `;
   container.innerHTML = html;
+}
+
+function editarCostoDetallePedido(index, nuevoCosto) {
+  const costo = parseFloat(nuevoCosto) || 0;
+  if (costo <= 0) {
+    showToast("El costo debe ser mayor a 0", "error");
+    renderDetallesPedido();
+    return;
+  }
+  pedidoDetallesTemp[index].costo_estimado = costo;
+  renderDetallesPedido();
+  actualizarTotalesPedidoPreview();
 }
 
 function eliminarDetallePedido(index) {
   pedidoDetallesTemp.splice(index, 1);
   renderDetallesPedido();
+  actualizarTotalesPedidoPreview();
 }
 
 async function savePedidoCompleto(event) {
@@ -1672,6 +2018,17 @@ async function savePedidoCompleto(event) {
   if (!id_proveedor) return showToast("Selecciona un proveedor", "error");
   if (pedidoDetallesTemp.length === 0)
     return showToast("Agrega al menos un producto", "error");
+
+  const total = pedidoDetallesTemp.reduce(
+    (s, d) => s + (d.cantidad_pedida || 0) * (d.costo_estimado || 0),
+    0,
+  );
+  if (total < 500) {
+    const ok = confirm(
+      `El pedido suma Q${total.toFixed(2)}, no alcanza el mínimo de Q500.\n\n¿Continuar de todas formas?\n(El pedido quedará como Pendiente)`,
+    );
+    if (!ok) return;
+  }
 
   const btn = event.target.querySelector('button[type="submit"]');
   if (btn) {
@@ -1695,8 +2052,9 @@ async function savePedidoCompleto(event) {
         await api.request(`/pedidos/${pedidoCreado.id}/detalles`, "POST", {
           id_producto: d.id_producto,
           cantidad_pedida: d.cantidad_pedida,
-          cantidad_sugerida: d.cantidad_sugerida,
+          cantidad_sugerida: d.cantidad_sugerida || 0,
           observaciones: d.observaciones,
+          precio_compra: d.costo_estimado, // OJO: solo si backend lo acepta
         });
         detallesOk++;
       } catch (err) {
@@ -1708,7 +2066,7 @@ async function savePedidoCompleto(event) {
 
     if (errores.length === 0) {
       showToast(
-        `Pedido #${pedidoCreado.id} creado con ${detallesOk} productos`,
+        `Pedido #${pedidoCreado.id} creado con ${detallesOk} productos (Q${total.toFixed(2)})`,
         "success",
       );
     } else {
@@ -1732,7 +2090,13 @@ async function savePedidoCompleto(event) {
 
 async function verPedido(id) {
   try {
-    const pedido = await api.request(`/pedidos/${id}`);
+    const [pedido, totalData] = await Promise.all([
+      api.request(`/pedidos/${id}`),
+      api
+        .request(`/pedidos/${id}/total`)
+        .catch(() => ({ total: 0, alcanza_minimo: false })),
+    ]);
+
     if (!pedido) return showToast("Pedido no encontrado", "error");
 
     const proveedor = (window.proveedoresData || []).find(
@@ -1745,16 +2109,34 @@ async function verPedido(id) {
         const producto = (window.productosData || []).find(
           (p) => p.id === d.id_producto,
         );
+        const precio = d.precio_compra || d.costo_estimado || 0;
+        const subtotal = (d.cantidad_pedida || 0) * precio;
         return `
                     <tr>
                         <td>${producto ? producto.nombre : "--"}</td>
-                        <td>${d.cantidad_pedida || 0}</td>
-                        <td>${d.cantidad_sugerida || 0}</td>
-                        <td>${d.observaciones || "--"}</td>
+                        <td class="text-end">${d.cantidad_pedida || 0}</td>
+                        <td class="text-end">Q${Number(precio).toFixed(2)}</td>
+                        <td class="text-end">Q${subtotal.toFixed(2)}</td>
                     </tr>
                 `;
       })
       .join("");
+
+    const total = totalData.total || 0;
+    const minimoBadge = totalData.alcanza_minimo
+      ? '<span class="badge bg-success">Alcanza mínimo Q500</span>'
+      : `<span class="badge bg-warning text-dark">Faltan Q${(500 - total).toFixed(2)}</span>`;
+
+    const estadoBadge =
+      pedido.estado === "Cancelado"
+        ? "bg-danger"
+        : pedido.estado === "Comprado"
+          ? "bg-primary"
+          : pedido.estado === "Aprobado"
+            ? "bg-info"
+            : pedido.estado === "Cotizado"
+              ? "bg-warning"
+              : "bg-secondary";
 
     const modalContent = `
             <div class="modal-header">
@@ -1767,8 +2149,8 @@ async function verPedido(id) {
                     <div class="col-md-6"><strong>Fecha:</strong> ${pedido.fecha ? new Date(pedido.fecha).toLocaleString() : "--"}</div>
                 </div>
                 <div class="row mb-3">
-                    <div class="col-md-6"><strong>Estado:</strong> <span class="badge bg-warning">${pedido.estado || "Pendiente"}</span></div>
-                    <div class="col-md-6"><strong>Usuario:</strong> ${pedido.id_usuario || "--"}</div>
+                    <div class="col-md-6"><strong>Estado:</strong> <span class="badge ${estadoBadge}">${pedido.estado || "Pendiente"}</span></div>
+                    <div class="col-md-6"><strong>Total:</strong> Q${total.toFixed(2)} ${minimoBadge}</div>
                 </div>
                 ${pedido.observaciones ? `<div class="mb-3"><strong>Observaciones:</strong> ${pedido.observaciones}</div>` : ""}
 
@@ -1776,9 +2158,20 @@ async function verPedido(id) {
                 <div class="table-responsive">
                     <table class="table table-sm">
                         <thead>
-                            <tr><th>Producto</th><th>Cant. Pedida</th><th>Cant. Sugerida</th><th>Observaciones</th></tr>
+                            <tr>
+                                <th>Producto</th>
+                                <th class="text-end">Cantidad</th>
+                                <th class="text-end">Costo est.</th>
+                                <th class="text-end">Subtotal</th>
+                            </tr>
                         </thead>
                         <tbody>${detallesHtml || '<tr><td colspan="4" class="text-center">Sin detalles</td></tr>'}</tbody>
+                        <tfoot>
+                            <tr class="table-light fw-bold">
+                                <td colspan="3" class="text-end">TOTAL:</td>
+                                <td class="text-end">Q${total.toFixed(2)}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -1792,10 +2185,7 @@ async function verPedido(id) {
     modalDiv.id = "pedidoDetalleModal";
     modalDiv.innerHTML = `<div class="modal-dialog modal-lg"><div class="modal-content">${modalContent}</div></div>`;
     document.body.appendChild(modalDiv);
-
-    const modalInstance = new bootstrap.Modal(modalDiv);
-    modalInstance.show();
-
+    new bootstrap.Modal(modalDiv).show();
     modalDiv.addEventListener("hidden.bs.modal", function () {
       this.remove();
     });
@@ -2402,9 +2792,12 @@ function showCreateCompraModal() {
 
   const modal = document.getElementById("compraModal");
   const form = document.getElementById("compraForm");
-  const title = document.getElementById("compraModalTitle");
 
-  title.textContent = "Nueva Compra";
+  if (!modal || !form) {
+    return showToast("No se encontró el modal de compras en el HTML.", "error");
+  }
+
+  document.getElementById("compraModalTitle").textContent = "Nueva Compra";
   form.reset();
   document.getElementById("compraId").value = "";
   document.getElementById("compraIva").value = 0;
@@ -2419,7 +2812,8 @@ function showCreateCompraModal() {
   llenarSelectUbicacionCompra();
   llenarSelectProductoCompra();
 
-  document.getElementById("compraDetallesList").innerHTML = "";
+  const lista = document.getElementById("compraDetallesList");
+  if (lista) lista.innerHTML = "";
 
   new bootstrap.Modal(modal).show();
 }
@@ -2434,21 +2828,30 @@ async function cargarPedidoEnCompra() {
   try {
     const pedido = await api.request(`/pedidos/${idPedido}`);
     if (!pedido) return showToast("Pedido no encontrado", "error");
-    if (pedido.estado === "Cancelado")
+
+    if (pedido.estado === "Cancelado") {
       return showToast("Ese pedido está cancelado", "error");
+    }
+    if (pedido.estado === "Comprado") {
+      return showToast(
+        "Ese pedido ya fue cargado en una compra anterior",
+        "warning",
+      );
+    }
 
     const selProv = document.getElementById("compraProveedor");
-    selProv.value = pedido.id_proveedor || "";
+    if (selProv) selProv.value = pedido.id_proveedor || "";
 
     compraDetallesTemp = (pedido.detalles || []).map((d) => {
       const producto = (window.productosData || []).find(
         (p) => p.id === d.id_producto,
       );
+      const costoEstimado = d.precio_compra || d.costo_estimado || 0;
       return {
         id_producto: d.id_producto,
         cantidad_comprada: d.cantidad_pedida || 0,
         cantidad_unidades: d.cantidad_pedida || 0,
-        costo_unitario: 0,
+        costo_unitario: costoEstimado,
         producto: producto || { nombre: `Producto #${d.id_producto}` },
       };
     });
@@ -2456,13 +2859,22 @@ async function cargarPedidoEnCompra() {
 
     const info = document.getElementById("compraPedidoInfo");
     if (info) {
-      info.textContent = `Pedido #${pedido.id} cargado (${compraDetallesTemp.length} productos). Completa los costos.`;
+      info.textContent = `Pedido #${pedido.id} cargado (${compraDetallesTemp.length} productos). Revisa costos.`;
     }
 
-    showToast(
-      "Pedido cargado. Revisa cantidades y completa costos.",
-      "success",
-    );
+    // Cambiar estado del pedido a "Comprado"
+    try {
+      await api.request(
+        `/pedidos/${idPedido}/estado?nuevo_estado=Comprado&forzar=true`,
+        "PATCH",
+      );
+      showToast(`Pedido #${idPedido} marcado como Comprado`, "success");
+    } catch (err) {
+      showToast(
+        `Pedido cargado, pero no se pudo cambiar su estado: ${err.message}`,
+        "warning",
+      );
+    }
   } catch (error) {
     showToast(error.message || "Error al cargar pedido", "error");
   }
@@ -2506,6 +2918,8 @@ function agregarDetalleCompra(event) {
   event.preventDefault();
 
   const row = document.getElementById("compraDetalleRow");
+  if (!row) return;
+
   const productSelect = row.querySelector(".compra-detalle-producto");
   const cantidadInput = row.querySelector(".compra-detalle-cantidad");
   const costoInput = row.querySelector(".compra-detalle-costo");
@@ -2608,6 +3022,8 @@ async function saveCompra(event) {
   const observaciones =
     document.getElementById("compraObservaciones").value || null;
   const id_usuario_registra = getCurrentUser()?.id || 1;
+  const id_pedido =
+    parseInt(document.getElementById("compraNumeroPedido")?.value) || null;
 
   if (!id_proveedor) return showToast("Selecciona un proveedor", "error");
   if (compraDetallesTemp.length === 0)
@@ -2620,6 +3036,7 @@ async function saveCompra(event) {
     id_usuario_registra,
     iva,
     observaciones,
+    id_pedido, // OJO: solo si tu backend lo acepta
     detalles: compraDetallesTemp.map((d) => ({
       id_producto: d.id_producto,
       cantidad_comprada: d.cantidad_comprada,
@@ -2698,13 +3115,50 @@ async function verCompra(id) {
         return `
                     <tr>
                         <td>${producto ? producto.nombre : "--"}</td>
-                        <td>${d.cantidad_comprada || 0}</td>
-                        <td>Q${d.costo_unitario || 0}</td>
-                        <td>Q${d.subtotal || 0}</td>
+                        <td class="text-end">${d.cantidad_comprada || 0}</td>
+                        <td class="text-end">Q${d.costo_unitario || 0}</td>
+                        <td class="text-end">Q${d.subtotal || 0}</td>
                     </tr>
                 `;
       })
       .join("");
+
+    // --- Pagos ---
+    const pagosHtml =
+      (compra.pagos || []).length === 0
+        ? '<tr><td colspan="5" class="text-center">Sin pagos registrados</td></tr>'
+        : (compra.pagos || [])
+            .map((p) => {
+              const tipo = (window.tiposPagoData || []).find(
+                (t) => t.id === p.id_tipo_pago,
+              );
+              return `
+            <tr>
+              <td>${tipo ? tipo.nombre : "--"}</td>
+              <td class="text-end">Q${p.monto || 0}</td>
+              <td>${p.referencia || "--"}</td>
+              <td>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleDateString() : "--"}</td>
+              <td class="text-end">
+                <button class="btn btn-sm btn-outline-danger"
+                        onclick="eliminarPagoCompra(${compra.id}, ${p.id})">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+            })
+            .join("");
+
+    const estadoBadge =
+      compra.estado === "Cancelada"
+        ? "bg-danger"
+        : compra.estado === "Pagada"
+          ? "bg-success"
+          : compra.estado === "Parcial"
+            ? "bg-warning text-dark"
+            : compra.estado === "Recibida"
+              ? "bg-info"
+              : "bg-secondary";
 
     const modalContent = `
             <div class="modal-header">
@@ -2718,7 +3172,7 @@ async function verCompra(id) {
                 </div>
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Fecha:</strong> ${compra.fecha ? new Date(compra.fecha).toLocaleString() : "--"}</div>
-                    <div class="col-md-6"><strong>Estado:</strong> <span class="badge bg-success">${compra.estado || "Pendiente"}</span></div>
+                    <div class="col-md-6"><strong>Estado:</strong> <span class="badge ${estadoBadge}">${compra.estado || "Pendiente"}</span></div>
                 </div>
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Subtotal:</strong> Q${compra.subtotal || 0}</div>
@@ -2734,9 +3188,25 @@ async function verCompra(id) {
                 <div class="table-responsive">
                     <table class="table table-sm">
                         <thead>
-                            <tr><th>Producto</th><th>Cantidad</th><th>Costo Unitario</th><th>Subtotal</th></tr>
+                            <tr><th>Producto</th><th class="text-end">Cantidad</th><th class="text-end">Costo Unitario</th><th class="text-end">Subtotal</th></tr>
                         </thead>
                         <tbody>${detallesHtml || '<tr><td colspan="4" class="text-center">Sin detalles</td></tr>'}</tbody>
+                    </table>
+                </div>
+
+                <h6 class="fw-bold mt-4">Pagos</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th class="text-end">Monto</th>
+                                <th>Referencia</th>
+                                <th>Fecha</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>${pagosHtml}</tbody>
                     </table>
                 </div>
             </div>
@@ -2909,6 +3379,60 @@ async function registrarPagoCompra(id) {
 }
 
 // =============================================
+// CANCELAR COMPRA Y PEDIDO
+// =============================================
+
+async function cancelarCompra(id) {
+  const motivo = prompt("Motivo de cancelación:");
+  if (!motivo) return;
+
+  if (
+    !confirm(
+      "¿Cancelar esta compra?\n\n" +
+        "• Se revertirá el inventario\n" +
+        "• Se eliminarán los pagos registrados\n" +
+        "• El saldo quedará en 0\n\n" +
+        "Esta acción no se puede deshacer.",
+    )
+  )
+    return;
+
+  try {
+    await api.request(`/compras/${id}/cancelar`, "PATCH", { motivo });
+    showToast("Compra cancelada correctamente", "success");
+    await loadComprasModule();
+  } catch (error) {
+    showToast(error.message || "Error al cancelar compra", "error");
+  }
+}
+
+async function cancelarPedido(id) {
+  if (!confirm("¿Cancelar este pedido?")) return;
+  try {
+    await api.request(
+      `/pedidos/${id}/estado?nuevo_estado=Cancelado&forzar=true`,
+      "PATCH",
+    );
+    showToast("Pedido cancelado", "success");
+    await loadComprasModule();
+  } catch (error) {
+    showToast(error.message || "Error al cancelar pedido", "error");
+  }
+}
+
+async function eliminarPagoCompra(compraId, pagoId) {
+  if (!confirm("¿Eliminar este pago? El saldo de la compra se recalculará."))
+    return;
+  try {
+    await api.request(`/compras/${compraId}/pagos/${pagoId}`, "DELETE");
+    showToast("Pago eliminado", "success");
+    verCompra(compraId);
+  } catch (error) {
+    showToast(error.message || "Error al eliminar pago", "error");
+  }
+}
+
+// =============================================
 // FUNCIONES GLOBALES
 // =============================================
 
@@ -2944,6 +3468,12 @@ window.cambiarEstadoPedido = cambiarEstadoPedido;
 window.agregarDetallePedido = agregarDetallePedido;
 window.eliminarDetallePedido = eliminarDetallePedido;
 window.renderDetallesPedido = renderDetallesPedido;
+window.editarCostoDetallePedido = editarCostoDetallePedido;
+window.actualizarCostoPedido = actualizarCostoPedido;
+window.actualizarSubtotalPedido = actualizarSubtotalPedido;
+window.actualizarTotalesPedidoPreview = actualizarTotalesPedidoPreview;
+window.filtrarPedidos = filtrarPedidos;
+window.limpiarFiltrosPedidos = limpiarFiltrosPedidos;
 
 // Caja Chica
 window.renderCajaChicaTab = renderCajaChicaTab;
@@ -2979,3 +3509,8 @@ window.llenarSelectProductoCompra = llenarSelectProductoCompra;
 window.agregarDetalleCompra = agregarDetalleCompra;
 window.eliminarDetalleCompra = eliminarDetalleCompra;
 window.renderDetallesCompra = renderDetallesCompra;
+window.cancelarCompra = cancelarCompra;
+window.cancelarPedido = cancelarPedido;
+window.eliminarPagoCompra = eliminarPagoCompra;
+window.filtrarCompras = filtrarCompras;
+window.limpiarFiltrosCompras = limpiarFiltrosCompras;
