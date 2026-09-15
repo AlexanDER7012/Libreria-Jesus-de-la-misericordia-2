@@ -954,7 +954,6 @@ function limpiarFiltrosCompras() {
 // =============================================
 // PANEL: CAJA CHICA
 // =============================================
-
 function renderCajaChicaTab(movimientos) {
   const container = document.getElementById("cajaChicaContainer");
   if (!container) return;
@@ -1023,8 +1022,11 @@ function renderCajaChicaTab(movimientos) {
                     : m.id_usuario || "--";
                 })()}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-info" onclick="verCajaChica(${m.id})">
+                    <button class="btn btn-sm btn-outline-info" onclick="verCajaChica(${m.id})" title="Ver">
                         <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarCajaChica(${m.id})" title="Eliminar">
+                        <i class="fas fa-trash"></i>
                     </button>
                 </td>
             </tr>
@@ -1046,7 +1048,6 @@ function renderCajaChicaTab(movimientos) {
 // =============================================
 // PANEL: GASTOS
 // =============================================
-
 function renderGastosTab(gastos) {
   const container = document.getElementById("gastosContainer");
   if (!container) return;
@@ -1115,8 +1116,11 @@ function renderGastosTab(gastos) {
                     : g.id_usuario_registra || "--";
                 })()}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-info" onclick="verGasto(${g.id})">
+                    <button class="btn btn-sm btn-outline-info" onclick="verGasto(${g.id})" title="Ver">
                         <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarGasto(${g.id})" title="Eliminar">
+                        <i class="fas fa-trash"></i>
                     </button>
                 </td>
             </tr>
@@ -1283,7 +1287,6 @@ function renderTiposGastoTab(tipos) {
 // =============================================
 // PANEL: TIPOS DE PAGO
 // =============================================
-
 function renderTiposPagoCompras(tipos) {
   const container = document.getElementById("tiposPagoContainer");
   if (!container) return;
@@ -1318,18 +1321,31 @@ function renderTiposPagoCompras(tipos) {
                         <th>Nombre</th>
                         <th>Para Ventas</th>
                         <th>Para Compras</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
 
   tiposCompra.forEach((t) => {
+    const activo = t.activo !== 0;
     html += `
             <tr>
                 <td>${t.id}</td>
                 <td><strong>${t.nombre}</strong></td>
                 <td><span class="badge ${t.para_ventas === 1 ? "bg-success" : "bg-secondary"}">${t.para_ventas === 1 ? "Sí" : "No"}</span></td>
                 <td><span class="badge bg-success">Sí</span></td>
+                <td>
+                    <span class="badge ${activo ? "bg-success" : "bg-danger"}">
+                        ${activo ? "Activo" : "Inactivo"}
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleTipoPagoEstado(${t.id})" title="${activo ? "Inactivar" : "Activar"}">
+                        <i class="fas fa-${activo ? "times" : "check"}"></i>
+                    </button>
+                </td>
             </tr>
         `;
   });
@@ -3433,6 +3449,213 @@ async function eliminarPagoCompra(compraId, pagoId) {
 }
 
 // =============================================
+// CONFIRMACIÓN CON AUTORIZACIÓN ADMIN
+// =============================================
+
+async function confirmarAdmin(mensaje) {
+  return new Promise((resolve) => {
+    const existing = document.getElementById("adminAuthModal");
+    if (existing) existing.remove();
+
+    const html = `
+      <div class="modal fade" id="adminAuthModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+          <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+              <h5 class="modal-title">
+                <i class="fas fa-shield-alt me-2"></i>Autorización
+              </h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <p class="text-danger fw-bold mb-3">
+                <i class="fas fa-exclamation-triangle me-1"></i>${mensaje}
+              </p>
+              <p class="small text-muted mb-3">
+                Un Administrador o Dueña debe autorizar esta acción.
+              </p>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Usuario</label>
+                <input type="text" class="form-control form-control-sm" id="adminAuthUsuario" autocomplete="off" />
+              </div>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Contraseña</label>
+                <input type="password" class="form-control form-control-sm" id="adminAuthPassword" autocomplete="off" />
+              </div>
+              <div class="text-danger small mt-2" id="adminAuthError" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="button" class="btn btn-sm btn-danger" id="adminAuthConfirmar">
+                <i class="fas fa-check me-1"></i>Autorizar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML("beforeend", html);
+
+    const modalEl = document.getElementById("adminAuthModal");
+    const modalInstance = new bootstrap.Modal(modalEl);
+
+    let resolved = false;
+
+    const cerrar = (resultado) => {
+      if (resolved) return;
+      resolved = true;
+      resolve(resultado);
+      modalInstance.hide();
+    };
+
+    modalEl.addEventListener("hidden.bs.modal", () => {
+      if (!resolved) {
+        resolved = true;
+        resolve(false);
+      }
+      modalEl.remove();
+    });
+
+    document.getElementById("adminAuthConfirmar").onclick = async () => {
+      const usuario = document.getElementById("adminAuthUsuario").value.trim();
+      const pass = document.getElementById("adminAuthPassword").value;
+      const errEl = document.getElementById("adminAuthError");
+      errEl.style.display = "none";
+
+      if (!usuario || !pass) {
+        errEl.textContent = "Ingresa usuario y contraseña";
+        errEl.style.display = "block";
+        return;
+      }
+
+      try {
+        await api.verificarAdmin(usuario, pass);
+        cerrar(true);
+      } catch (error) {
+        errEl.textContent = error.message || "Credenciales inválidas";
+        errEl.style.display = "block";
+      }
+    };
+
+    modalEl.addEventListener("keyup", (e) => {
+      if (e.key === "Enter")
+        document.getElementById("adminAuthConfirmar").click();
+    });
+
+    modalInstance.show();
+  });
+}
+
+// =============================================
+// ELIMINAR GASTO
+// =============================================
+
+async function eliminarGasto(id) {
+  const ok = confirm("¿Está seguro de eliminar este gasto?");
+  if (!ok) return;
+
+  const autorizado = await confirmarAdmin(
+    "Se eliminará permanentemente el gasto #" + id,
+  );
+  if (!autorizado) return;
+
+  try {
+    await api.request(`/gastos/${id}`, "DELETE");
+    showToast("Gasto eliminado", "success");
+    cargarGastosTabla();
+  } catch (error) {
+    showToast(error.message || "Error al eliminar gasto", "error");
+  }
+}
+
+// =============================================
+// ELIMINAR MOVIMIENTO DE CAJA CHICA
+// =============================================
+
+async function eliminarCajaChica(id) {
+  const ok = confirm("¿Está seguro de eliminar este movimiento?");
+  if (!ok) return;
+
+  const autorizado = await confirmarAdmin(
+    "Se eliminará permanentemente el movimiento #" + id,
+  );
+  if (!autorizado) return;
+
+  try {
+    await api.request(`/caja-chica/${id}`, "DELETE");
+    showToast("Movimiento eliminado", "success");
+    cargarCajaChicaTabla();
+  } catch (error) {
+    showToast(error.message || "Error al eliminar movimiento", "error");
+  }
+}
+
+// =============================================
+// INACTIVAR TIPO DE PAGO
+// =============================================
+
+async function toggleTipoPagoEstado(id) {
+  const tipo = (window.tiposPagoData || []).find((t) => t.id === id);
+  if (!tipo) return;
+
+  const nuevo = tipo.activo === 1 ? 0 : 1;
+  const accion = nuevo === 1 ? "activar" : "inactivar";
+  const ok = confirm(
+    `¿Está seguro de ${accion} el tipo de pago "${tipo.nombre}"?`,
+  );
+  if (!ok) return;
+
+  try {
+    await api.request(`/tipos-pago/${id}`, "PUT", {
+      nombre: tipo.nombre,
+      descripcion: tipo.descripcion,
+      para_ventas: tipo.para_ventas,
+      para_compras: tipo.para_compras,
+      activo: nuevo,
+    });
+    showToast(
+      `Tipo de pago ${accion === "activar" ? "activado" : "inactivado"}`,
+      "success",
+    );
+    await loadComprasModule();
+  } catch (error) {
+    showToast(error.message || "Error al cambiar estado", "error");
+  }
+}
+
+// =============================================
+// INACTIVAR TIPO DE GASTO
+// =============================================
+
+async function toggleTipoGastoEstado(id) {
+  const tipo = (window.tiposGastoData || []).find((t) => t.id === id);
+  if (!tipo) return;
+
+  const nuevo = tipo.activo === 1 ? 0 : 1;
+  const accion = nuevo === 1 ? "activar" : "inactivar";
+  const ok = confirm(
+    `¿Está seguro de ${accion} el tipo de gasto "${tipo.nombre}"?`,
+  );
+  if (!ok) return;
+
+  try {
+    await api.request(`/tipos-gasto/${id}`, "PUT", {
+      nombre: tipo.nombre,
+      descripcion: tipo.descripcion,
+      es_fijo: tipo.es_fijo,
+      activo: nuevo,
+    });
+    showToast(
+      `Tipo de gasto ${accion === "activar" ? "activado" : "inactivado"}`,
+      "success",
+    );
+    await loadComprasModule();
+  } catch (error) {
+    showToast(error.message || "Error al cambiar estado", "error");
+  }
+}
+
+// =============================================
 // FUNCIONES GLOBALES
 // =============================================
 
@@ -3514,3 +3737,12 @@ window.cancelarPedido = cancelarPedido;
 window.eliminarPagoCompra = eliminarPagoCompra;
 window.filtrarCompras = filtrarCompras;
 window.limpiarFiltrosCompras = limpiarFiltrosCompras;
+
+// Exponer globalmente
+window.eliminarGasto = eliminarGasto;
+window.eliminarCajaChica = eliminarCajaChica;
+window.toggleTipoPagoEstado = toggleTipoPagoEstado;
+window.toggleTipoGastoEstado = toggleTipoGastoEstado;
+
+// Confirmar Admin
+window.confirmarAdmin = confirmarAdmin;
