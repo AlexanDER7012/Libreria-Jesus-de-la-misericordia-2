@@ -1693,19 +1693,21 @@ async function saveTipoProveedor(event) {
 async function toggleTipoProveedorEstado(id) {
   const tipo = (window.tiposProveedorData || []).find((t) => t.id === id);
   if (!tipo) return;
-  if (
-    !confirm(
-      `¿${tipo.activo !== 0 ? "Inactivar" : "Activar"} el tipo "${tipo.nombre}"?`,
-    )
-  )
-    return;
+
+  const nuevo = tipo.activo === 0 ? 1 : 0;
+  const accion = nuevo === 1 ? "activar" : "inactivar";
+  if (!confirm(`¿Está seguro de ${accion} el tipo "${tipo.nombre}"?`)) return;
 
   try {
     await api.request(`/tipos-proveedor/${id}`, "PUT", {
-      ...tipo,
-      activo: tipo.activo !== 0 ? 0 : 1,
+      nombre: tipo.nombre,
+      descripcion: tipo.descripcion,
+      activo: nuevo,
     });
-    showToast("Estado actualizado", "success");
+    showToast(
+      `Tipo ${accion === "activar" ? "activado" : "inactivado"}`,
+      "success",
+    );
     await loadComprasModule();
   } catch (error) {
     showToast(error.message || "Error al cambiar estado", "error");
