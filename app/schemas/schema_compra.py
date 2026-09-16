@@ -8,8 +8,8 @@ from pydantic import BaseModel, ConfigDict
 
 class DetalleCompraCreate(BaseModel):
     id_producto: int
-    cantidad_comprada: float
-    cantidad_unidades: float
+    cantidad_comprada: int
+    cantidad_unidades: int
     costo_unitario: float
 
 
@@ -44,7 +44,8 @@ class CompraCreate(BaseModel):
     id_pedido: Optional[int] = None
     numero_factura: Optional[str] = None
     id_usuario_registra: Optional[int] = None
-    iva: Optional[float] = 0
+    iva: Optional[float] = 12  # % por defecto, se usa para extraer IVA incluido
+    monto_exento: Optional[float] = 0  # NUEVO: monto de productos exentos
     fecha_vencimiento_pago: Optional[date] = None
     observaciones: Optional[str] = None
     detalles: List[DetalleCompraCreate]

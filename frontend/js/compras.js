@@ -1018,7 +1018,7 @@ function renderCajaChicaTab(movimientos) {
                     (x) => x.id === m.id_usuario,
                   );
                   return u
-                    ? u.nombre || u.username || u.email
+                    ? u.nombre_usuario || u.nombre || u.username || u.email
                     : m.id_usuario || "--";
                 })()}</td>
                 <td>
@@ -1112,7 +1112,7 @@ function renderGastosTab(gastos) {
                     (x) => x.id === g.id_usuario_registra,
                   );
                   return u
-                    ? u.nombre || u.username || u.email
+                    ? u.nombre_usuario || u.nombre || u.username || u.email
                     : g.id_usuario_registra || "--";
                 })()}</td>
                 <td>
@@ -2838,7 +2838,8 @@ function showCreateCompraModal() {
   document.getElementById("compraModalTitle").textContent = "Nueva Compra";
   form.reset();
   document.getElementById("compraId").value = "";
-  document.getElementById("compraIva").value = 0;
+  const montoExentoEl = document.getElementById("compraMontoExento");
+  if (montoExentoEl) montoExentoEl.value = 0;
   document.getElementById("compraObservaciones").value = "";
 
   const numPedidoEl = document.getElementById("compraNumeroPedido");
@@ -2847,7 +2848,6 @@ function showCreateCompraModal() {
   if (infoPedidoEl) infoPedidoEl.textContent = "";
 
   llenarSelectProveedor();
-  llenarSelectUbicacionCompra();
   llenarSelectProductoCompra();
 
   const lista = document.getElementById("compraDetallesList");
@@ -2885,10 +2885,14 @@ async function cargarPedidoEnCompra() {
         (p) => p.id === d.id_producto,
       );
       const costoEstimado = d.precio_compra || d.costo_estimado || 0;
+      const cantidad = Math.max(
+        1,
+        Math.round(parseFloat(d.cantidad_pedida) || 1),
+      );
       return {
         id_producto: d.id_producto,
-        cantidad_comprada: d.cantidad_pedida || 0,
-        cantidad_unidades: d.cantidad_pedida || 0,
+        cantidad_comprada: cantidad,
+        cantidad_unidades: cantidad,
         costo_unitario: costoEstimado,
         producto: producto || { nombre: `Producto #${d.id_producto}` },
       };
@@ -2929,17 +2933,6 @@ function llenarSelectProveedor() {
   });
 }
 
-function llenarSelectUbicacionCompra() {
-  const select = document.getElementById("compraUbicacion");
-  if (!select) return;
-  select.innerHTML = '<option value="">Seleccionar ubicación</option>';
-  (window.ubicacionesData || []).forEach((u) => {
-    if (u.activo !== 0) {
-      select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
-    }
-  });
-}
-
 function llenarSelectProductoCompra() {
   const selects = document.querySelectorAll(".compra-detalle-producto");
   selects.forEach((select) => {
@@ -2963,7 +2956,11 @@ function agregarDetalleCompra(event) {
   const costoInput = row.querySelector(".compra-detalle-costo");
 
   const id_producto = parseInt(productSelect.value);
-  const cantidad = parseFloat(cantidadInput.value) || 1;
+  const cantidad = parseInt(cantidadInput.value) || 1;
+  if (cantidad <= 0) {
+    showToast("La cantidad debe ser mayor a 0", "error");
+    return;
+  }
   const costo_unitario = parseFloat(costoInput.value) || 0;
 
   if (!id_producto) return showToast("Selecciona un producto", "error");
@@ -2998,10 +2995,10 @@ function renderDetallesCompra() {
   }
 
   let html = '<ul class="list-group">';
-  let total = 0;
+  let totalFactura = 0;
   compraDetallesTemp.forEach((d, index) => {
     const subtotal = d.cantidad_comprada * d.costo_unitario;
-    total += subtotal;
+    totalFactura += subtotal;
     html += `
             <li class="list-group-item d-flex justify-content-between align-items-center">
                 <div>
@@ -3019,13 +3016,34 @@ function renderDetallesCompra() {
         `;
   });
 
-  const ivaInput = document.getElementById("compraIva");
-  const iva = parseFloat(ivaInput?.value) || 0;
-  const totalConIva = total + (total * iva) / 100;
+  // IVA incluido (Guatemala): se extrae del gravado
+  const montoExentoEl = document.getElementById("compraMontoExento");
+  let exento = parseFloat(montoExentoEl?.value) || 0;
+  if (exento < 0) exento = 0;
+  if (exento > totalFactura) exento = totalFactura;
+
+  const gravado = totalFactura - exento;
+  const montoIva = gravado > 0 ? gravado * (12 / 112) : 0;
+  const subtotalSinIva = totalFactura - montoIva;
 
   html += `
-        <li class="list-group-item fw-bold">
-            Subtotal: Q${total.toFixed(2)} | IVA: ${iva}% | Total: Q${totalConIva.toFixed(2)}
+        <li class="list-group-item">
+            <div class="d-flex justify-content-between">
+                <span>Subtotal (sin IVA):</span>
+                <span>Q${subtotalSinIva.toFixed(2)}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>Exento:</span>
+                <span>Q${exento.toFixed(2)}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>IVA (12% incluido):</span>
+                <span>Q${montoIva.toFixed(2)}</span>
+            </div>
+            <div class="d-flex justify-content-between fw-bold border-top pt-2 mt-2">
+                <span>TOTAL FACTURA:</span>
+                <span>Q${totalFactura.toFixed(2)}</span>
+            </div>
         </li>
     </ul>`;
   container.innerHTML = html;
@@ -3038,7 +3056,7 @@ function eliminarDetalleCompra(index) {
 
 document.addEventListener("DOMContentLoaded", function () {
   document.addEventListener("input", function (e) {
-    if (e.target && e.target.id === "compraIva") {
+    if (e.target && e.target.id === "compraMontoExento") {
       renderDetallesCompra();
     }
   });
@@ -3053,10 +3071,9 @@ async function saveCompra(event) {
   const id_proveedor = parseInt(
     document.getElementById("compraProveedor").value,
   );
-  const id_ubicacion_destino =
-    parseInt(document.getElementById("compraUbicacion").value) || null;
   const numero_factura = document.getElementById("compraFactura").value || null;
-  const iva = parseFloat(document.getElementById("compraIva").value) || 0;
+  const monto_exento =
+    parseFloat(document.getElementById("compraMontoExento").value) || 0;
   const observaciones =
     document.getElementById("compraObservaciones").value || null;
   const id_usuario_registra = getCurrentUser()?.id || 1;
@@ -3067,14 +3084,42 @@ async function saveCompra(event) {
   if (compraDetallesTemp.length === 0)
     return showToast("Agrega al menos un producto", "error");
 
+  // ✅ UBICACIÓN DESDE CONFIGURACIÓN (igual que ventas)
+  let id_ubicacion_destino = null;
+  try {
+    const config = await api.request("/configuracion").catch(() => ({}));
+    id_ubicacion_destino = config.id_ubicacion || null;
+    if (!id_ubicacion_destino) {
+      showToast(
+        "No hay ubicación configurada. Contacta al administrador.",
+        "error",
+      );
+      return;
+    }
+  } catch (error) {
+    showToast("Error al obtener configuración", "error");
+    return;
+  }
+
+  // Validar que todas las cantidades sean enteras positivas
+  for (const d of compraDetallesTemp) {
+    if (!Number.isInteger(d.cantidad_comprada) || d.cantidad_comprada <= 0) {
+      return showToast(
+        `Cantidad inválida en "${d.producto.nombre}". Debe ser un entero mayor a 0.`,
+        "error",
+      );
+    }
+  }
+
   const data = {
     id_proveedor,
     id_ubicacion_destino,
     numero_factura,
     id_usuario_registra,
-    iva,
+    iva: 12,
+    monto_exento,
     observaciones,
-    id_pedido, // OJO: solo si tu backend lo acepta
+    id_pedido,
     detalles: compraDetallesTemp.map((d) => ({
       id_producto: d.id_producto,
       cantidad_comprada: d.cantidad_comprada,
@@ -3386,8 +3431,15 @@ async function registrarPagoCompra(id) {
   if (!tiposPago || tiposPago.length === 0)
     return showToast("No hay tipos de pago disponibles", "error");
 
-  const tipoOptions = tiposPago
-    .filter((t) => t.para_compras === 1)
+  const tiposValidos = tiposPago.filter(
+    (t) => t.para_compras === 1 && t.activo !== 0,
+  );
+
+  if (tiposValidos.length === 0) {
+    return showToast("No hay tipos de pago activos para compras", "warning");
+  }
+
+  const tipoOptions = tiposValidos
     .map((t) => `${t.id} - ${t.nombre}`)
     .join("\n");
 
@@ -3751,7 +3803,6 @@ window.saveTipoPagoCompra = saveTipoPagoCompra;
 // Compras (auxiliares)
 window.cargarPedidoEnCompra = cargarPedidoEnCompra;
 window.llenarSelectProveedor = llenarSelectProveedor;
-window.llenarSelectUbicacionCompra = llenarSelectUbicacionCompra;
 window.llenarSelectProductoCompra = llenarSelectProductoCompra;
 window.agregarDetalleCompra = agregarDetalleCompra;
 window.eliminarDetalleCompra = eliminarDetalleCompra;
