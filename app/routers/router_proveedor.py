@@ -139,6 +139,17 @@ def crear_tipo_proveedor(datos: TipoProveedorCreate, db: Session = Depends(get_d
     db.refresh(nuevo)
     return nuevo
 
+@router_tipo.put("/{tipo_id}", response_model=TipoProveedorResponse)
+def actualizar_tipo_proveedor(tipo_id: int, datos: TipoProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    tipo = db.query(TipoProveedor).filter(TipoProveedor.id == tipo_id).first()
+    if not tipo:
+        raise HTTPException(status_code=404, detail="Tipo de proveedor no encontrado")
+    for campo, valor in datos.model_dump(exclude_unset=True).items():
+        setattr(tipo, campo, valor)
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "TipoProveedor")
+    db.commit()
+    db.refresh(tipo)
+    return tipo
 
 # ===================================================================
 # PEDIDO (+ detalle_pedido)

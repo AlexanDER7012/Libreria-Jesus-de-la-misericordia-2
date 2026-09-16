@@ -8,8 +8,9 @@ class TipoProveedor(Base):
     __tablename__ = "tipo_proveedor"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nombre = Column(String(100))  # ej. Mayorista, Especializado, Nacional, Importador
+    nombre = Column(String(100))
     descripcion = Column(Text)
+    activo = Column(Integer, default=1)
 
     proveedores = relationship("Proveedor", back_populates="tipo_proveedor")
 

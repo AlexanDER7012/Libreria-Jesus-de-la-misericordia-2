@@ -8,6 +8,7 @@ from app.schemas.validators import TelefonoValidatorMixin
 
 class TipoProveedorBase(BaseModel):
     descripcion: Optional[str] = None
+    activo: Optional[int] = 1 
 
 
 class TipoProveedorCreate(TipoProveedorBase):
