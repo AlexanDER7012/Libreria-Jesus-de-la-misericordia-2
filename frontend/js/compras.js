@@ -3419,21 +3419,23 @@ async function registrarPagoCompra(id) {
 // =============================================
 // CANCELAR COMPRA Y PEDIDO
 // =============================================
-
 async function cancelarCompra(id) {
   const motivo = prompt("Motivo de cancelación:");
   if (!motivo) return;
 
-  if (
-    !confirm(
-      "¿Cancelar esta compra?\n\n" +
-        "• Se revertirá el inventario\n" +
-        "• Se eliminarán los pagos registrados\n" +
-        "• El saldo quedará en 0\n\n" +
-        "Esta acción no se puede deshacer.",
-    )
-  )
-    return;
+  const ok = confirm(
+    "¿Cancelar esta compra?\n\n" +
+      "• Se revertirá el inventario\n" +
+      "• Se eliminarán los pagos registrados\n" +
+      "• El saldo quedará en 0\n\n" +
+      "Esta acción no se puede deshacer.",
+  );
+  if (!ok) return;
+
+  const autorizado = await confirmarAdmin(
+    "Se cancelará la compra #" + id + ". Motivo: " + motivo,
+  );
+  if (!autorizado) return;
 
   try {
     await api.request(`/compras/${id}/cancelar`, "PATCH", { motivo });
