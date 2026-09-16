@@ -123,10 +123,33 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
                 detail=f"El pedido #{datos.id_pedido} ya tiene una compra asociada (#{compra_existente.id})",
             )
 
-    subtotal = sum(d.cantidad_comprada * d.costo_unitario for d in datos.detalles)
-    iva_porcentaje = float(datos.iva or 0)
-    monto_iva = round(subtotal * (iva_porcentaje / 100), 2)
-    total = round(subtotal + monto_iva, 2)
+    # ============================================================
+    # CÁLCULO DE TOTALES (IVA INCLUIDO EN GUATEMALA)
+    # ============================================================
+    # El total de la factura = suma de cantidad * costo (ya trae IVA incluido)
+    total_factura = round(
+        sum(d.cantidad_comprada * d.costo_unitario for d in datos.detalles), 2
+    )
+
+    # El usuario ingresa cuánto de ese total es exento
+    exento = float(datos.monto_exento or 0)
+    if exento < 0:
+        exento = 0
+    if exento > total_factura:
+        exento = total_factura
+
+    # Gravado = total - exento
+    gravado = round(total_factura - exento, 2)
+
+    # El IVA se EXTRAE del gravado (no se suma)
+    iva_porcentaje = float(datos.iva or 12)
+    if iva_porcentaje <= 0:
+        monto_iva = 0
+    else:
+        monto_iva = round(gravado * (iva_porcentaje / (100 + iva_porcentaje)), 2)
+
+    # Subtotal sin IVA
+    subtotal_sin_iva = round(total_factura - monto_iva, 2)
 
     nueva_compra = Compra(
         id_proveedor=datos.id_proveedor,
@@ -134,10 +157,10 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
         id_pedido=datos.id_pedido,
         numero_factura=datos.numero_factura,
         id_usuario_registra=datos.id_usuario_registra,
-        iva=round(monto_iva, 2),
-        subtotal=round(subtotal, 2),
-        total=total,
-        saldo_pendiente=total,
+        iva=monto_iva,
+        subtotal=subtotal_sin_iva,
+        total=total_factura,
+        saldo_pendiente=total_factura,
         estado="Pendiente",
         fecha_vencimiento_pago=datos.fecha_vencimiento_pago,
         observaciones=datos.observaciones,
@@ -162,6 +185,7 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
     db.commit()
     db.refresh(nueva_compra)
     return nueva_compra
+
 
 @router.patch("/{compra_id}/cancelar", response_model=CompraResponse)
 def cancelar_compra(compra_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
@@ -243,6 +267,7 @@ def eliminar_pago_compra(compra_id: int, pago_id: int, db: Session = Depends(get
 
     registrar_actividad(db, usuario_actual.id, "ELIMINAR", "CompraPago")
     db.commit()
+
 
 @router.post("/{compra_id}/nota-entrega", response_model=NotaEntregaResponse, status_code=201)
 def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):

@@ -1168,7 +1168,7 @@
             <form id="compraForm">
               <input type="hidden" id="compraId" />
 
-              <!-- Nº Pedido + Proveedor + N° Factura en una sola fila -->
+              <!-- Nº Pedido + Proveedor + N° Factura -->
               <div class="row g-2 mb-2 align-items-end">
                 <div class="col-md-2">
                   <label class="form-label fw-bold mb-1">Nº Pedido</label>
@@ -1214,37 +1214,33 @@
                 <small class="text-muted" id="compraPedidoInfo"></small>
               </div>
 
-              <!-- Ubicación + IVA -->
+              <!-- Monto Exento + Observaciones -->
               <div class="row g-2 mb-2">
-                <div class="col-md-6">
+                <div class="col-md-4">
                   <label class="form-label fw-bold mb-1"
-                    >Ubicación Destino</label
+                    >Monto Exento (sin IVA)</label
                   >
-                  <select
-                    class="form-select form-select-sm"
-                    id="compraUbicacion"
-                  ></select>
+                  <div class="input-group input-group-sm">
+                    <span class="input-group-text">Q</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      class="form-control form-control-sm"
+                      id="compraMontoExento"
+                      value="0"
+                    />
+                  </div>
+                  <small class="text-muted">Deje 0 si todo lleva IVA</small>
                 </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-bold mb-1">IVA %</label>
+                <div class="col-md-8">
+                  <label class="form-label fw-bold mb-1">Observaciones</label>
                   <input
-                    type="number"
-                    step="0.01"
+                    type="text"
                     class="form-control form-control-sm"
-                    id="compraIva"
-                    value="0"
+                    id="compraObservaciones"
                   />
                 </div>
-              </div>
-
-              <!-- Observaciones -->
-              <div class="mb-2">
-                <label class="form-label fw-bold mb-1">Observaciones</label>
-                <textarea
-                  class="form-control form-control-sm"
-                  id="compraObservaciones"
-                  rows="2"
-                ></textarea>
               </div>
 
               <hr class="my-2" />
@@ -1264,7 +1260,8 @@
                     <label class="form-label mb-1">Cantidad</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
+                      min="1"
                       class="form-control form-control-sm compra-detalle-cantidad"
                       value="1"
                     />
