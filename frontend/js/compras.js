@@ -1463,68 +1463,88 @@ async function showEditProveedorModal(id) {
   if (existingModal) existingModal.remove();
 
   const html = `
-        <div class="modal fade" id="proveedorModal" tabindex="-1">
-            <div class="modal-dialog">
+        <div class="modal fade" id="proveedorModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
                 <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Editar Proveedor</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-building me-2"></i>Editar Proveedor
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <form id="proveedorForm">
                             <input type="hidden" id="proveedorId" value="${proveedor.id}" />
-                            <div class="mb-3">
-                                <label class="form-label">Nombre *</label>
-                                <input type="text" class="form-control" id="proveedorNombre" value="${proveedor.nombre || ""}" required />
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="proveedorNombre" value="${proveedor.nombre || ""}" required />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Contacto</label>
+                                    <input type="text" class="form-control" id="proveedorContacto" value="${proveedor.contacto || ""}" />
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Contacto</label>
-                                <input type="text" class="form-control" id="proveedorContacto" value="${proveedor.contacto || ""}" />
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Teléfono</label>
+                                    <input type="text" class="form-control" id="proveedorTelefono" value="${proveedor.telefono || ""}" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Email</label>
+                                    <input type="email" class="form-control" id="proveedorEmail" value="${proveedor.email || ""}" />
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Teléfono</label>
-                                <input type="text" class="form-control" id="proveedorTelefono" value="${proveedor.telefono || ""}" />
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Dirección</label>
+                                    <input type="text" class="form-control" id="proveedorDireccion" value="${proveedor.direccion || ""}" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">NIT</label>
+                                    <input type="text" class="form-control" id="proveedorNit" value="${proveedor.nit || ""}" />
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Email</label>
-                                <input type="email" class="form-control" id="proveedorEmail" value="${proveedor.email || ""}" />
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Código Proveedor</label>
+                                    <input type="text" class="form-control" id="proveedorCodigo" value="${proveedor.codigo_proveedor || ""}" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Días de Crédito</label>
+                                    <input type="number" class="form-control" id="proveedorDiasCredito" value="${proveedor.dias_credito || ""}" />
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Dirección</label>
-                                <input type="text" class="form-control" id="proveedorDireccion" value="${proveedor.direccion || ""}" />
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Tipo de Proveedor</label>
+                                    <select class="form-select" id="proveedorTipo">
+                                        <option value="">Seleccionar tipo</option>
+                                        ${(window.tiposProveedorData || [])
+                                          .map(
+                                            (t) =>
+                                              `<option value="${t.id}" ${t.id === proveedor.id_tipo_proveedor ? "selected" : ""}>${t.nombre}</option>`,
+                                          )
+                                          .join("")}
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Estado</label>
+                                    <select class="form-select" id="proveedorActivo">
+                                        <option value="1" ${proveedor.activo !== 0 ? "selected" : ""}>Activo</option>
+                                        <option value="0" ${proveedor.activo === 0 ? "selected" : ""}>Inactivo</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">NIT</label>
-                                <input type="text" class="form-control" id="proveedorNit" value="${proveedor.nit || ""}" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Código Proveedor</label>
-                                <input type="text" class="form-control" id="proveedorCodigo" value="${proveedor.codigo_proveedor || ""}" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Días de Crédito</label>
-                                <input type="number" class="form-control" id="proveedorDiasCredito" value="${proveedor.dias_credito || ""}" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Tipo de Proveedor</label>
-                                <select class="form-select" id="proveedorTipo">
-                                    <option value="">Seleccionar tipo</option>
-                                    ${(window.tiposProveedorData || [])
-                                      .map(
-                                        (t) =>
-                                          `<option value="${t.id}" ${t.id === proveedor.id_tipo_proveedor ? "selected" : ""}>${t.nombre}</option>`,
-                                      )
-                                      .join("")}
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Estado</label>
-                                <select class="form-select" id="proveedorActivo">
-                                    <option value="1" ${proveedor.activo !== 0 ? "selected" : ""}>Activo</option>
-                                    <option value="0" ${proveedor.activo === 0 ? "selected" : ""}>Inactivo</option>
-                                </select>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">Guardar</button>
+
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-save me-2"></i>Guardar Proveedor
+                            </button>
                         </form>
                     </div>
                 </div>
