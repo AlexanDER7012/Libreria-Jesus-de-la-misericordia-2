@@ -1,5 +1,5 @@
 // api.js
-const API_BASE_URL = window.location.origin;
+const API_BASE_URL = "http://localhost:8000"; // Cambia esto según tu configuración
 
 class ApiClient {
   constructor() {
@@ -29,7 +29,19 @@ class ApiClient {
       if (response.status === 401) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
-        window.location.href = "login.html";
+        localStorage.removeItem("user_permisos");
+        if (window.showToast) {
+          window.showToast(
+            "Tu sesión expiró. Vas a ser redirigido al inicio de sesión.",
+            "warning",
+            3000,
+          );
+          setTimeout(() => {
+            window.location.href = "login.html";
+          }, 1500);
+        } else {
+          window.location.href = "login.html";
+        }
         throw new Error("Sesión expirada");
       }
 
@@ -114,6 +126,35 @@ class ApiClient {
   // ✅ Obtener permisos del usuario actual
   async getMisPermisos() {
     return this.request("/usuarios/mis-permisos");
+  }
+
+  // ✅ Renovar el token mientras el usuario sigue activo (sin pedir contraseña)
+  async renovarToken() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/login/renovar`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.token}`,
+        },
+      });
+      if (!response.ok) return false;
+      const data = await response.json();
+      this.token = data.access_token;
+      localStorage.setItem("token", data.access_token);
+      // Actualizamos también los datos guardados de "user" por si acaso
+      const userActual = this.getUser();
+      if (userActual) {
+        localStorage.setItem(
+          "user",
+          JSON.stringify({ ...userActual, access_token: data.access_token }),
+        );
+      }
+      return true;
+    } catch (e) {
+      console.error("Error renovando token:", e);
+      return false;
+    }
   }
 
   // =============================================

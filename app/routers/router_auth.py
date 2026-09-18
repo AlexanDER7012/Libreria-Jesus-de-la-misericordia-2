@@ -55,6 +55,31 @@ def login(datos: LoginRequest, db: Session = Depends(get_db)):
         rol=usuario.rol.nombre if usuario.rol else None,
     )
 
+
+@router.post("/renovar", response_model=TokenResponse)
+def renovar_token(usuario_actual: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Emite un token nuevo para el usuario actual, siempre que el token que
+    manda en el header Authorization todavía sea válido (get_current_user
+    ya lo valida y lanza 401 si expiró o es inválido).
+
+    Se usa desde el frontend cuando detecta que el usuario sigue activo
+    (moviendo el mouse, escribiendo, haciendo clic) y quiere extender la
+    sesión sin pedirle la contraseña de nuevo. No genera ningún registro
+    en bitácora porque no es una acción del usuario, es mantenimiento
+    de sesión.
+    """
+    token = create_access_token(
+        data={"sub": str(usuario_actual.id), "nombre_usuario": usuario_actual.nombre_usuario}
+    )
+    return TokenResponse(
+        access_token=token,
+        usuario_id=usuario_actual.id,
+        nombre_usuario=usuario_actual.nombre_usuario,
+        rol=usuario_actual.rol.nombre if usuario_actual.rol else None,
+    )
+
+
 ROLES_ADMIN = ("Administrador", "Dueña")
 
 
