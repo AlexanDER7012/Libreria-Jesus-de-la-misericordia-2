@@ -12,7 +12,6 @@ let tiposProveedorData = [];
 let pedidosData = [];
 let tiposGastoData = [];
 
-// Paginación (server-side) de Caja Chica y Gastos
 let skipCajaChica = 0;
 const LIMITE_CAJA_CHICA = 10;
 let skipGastos = 0;
@@ -301,6 +300,7 @@ async function loadComprasModule() {
       tiposPago,
       productos,
       ubicaciones,
+      usuarios,
     ] = await Promise.all([
       api.getCompras().catch(() => []),
       api.getProveedores().catch(() => []),
@@ -310,6 +310,7 @@ async function loadComprasModule() {
       api.getTiposPago().catch(() => []),
       api.getProductos().catch(() => []),
       api.request("/ubicaciones").catch(() => []),
+      api.getUsuarios().catch(() => []),
     ]);
 
     comprasData = compras || [];
@@ -318,6 +319,7 @@ async function loadComprasModule() {
     pedidosData = pedidos || [];
     tiposGastoData = tiposGasto || [];
     comprasTiposPagoData = tiposPago || [];
+    window.usuariosData = usuarios || [];
 
     window.proveedoresData = proveedores || [];
     window.productosData = productos || [];
@@ -345,13 +347,78 @@ async function loadComprasModule() {
 // =============================================
 // PANEL: COMPRAS
 // =============================================
-
 function renderComprasTable(compras) {
   const container = document.getElementById("comprasTableContainer");
   if (!container) return;
 
+  const proveedoresOptions = (window.proveedoresData || [])
+    .map((p) => `<option value="${p.id}">${p.nombre}</option>`)
+    .join("");
+
+  let html = `
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Listado de Compras</h6>
+            <button class="btn btn-info btn-sm" onclick="showCreateCompraModal()">
+                <i class="fas fa-plus me-2"></i>Nueva Compra
+            </button>
+        </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-md-3">
+                <label class="form-label small mb-0">Proveedor</label>
+                <select class="form-select form-select-sm" id="filtroCompraProveedor">
+                    <option value="">Todos</option>
+                    ${proveedoresOptions}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Desde</label>
+                <input type="date" class="form-control form-control-sm" id="filtroCompraDesde" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Hasta</label>
+                <input type="date" class="form-control form-control-sm" id="filtroCompraHasta" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Estado</label>
+                <select class="form-select form-select-sm" id="filtroCompraEstado">
+                    <option value="">Todos</option>
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="Recibida">Recibida</option>
+                    <option value="Parcial">Parcial</option>
+                    <option value="Pagada">Pagada</option>
+                    <option value="Cancelada">Cancelada</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end gap-1">
+                <button class="btn btn-sm btn-primary w-100" onclick="filtrarCompras()">
+                    <i class="fas fa-search me-1"></i>Filtrar
+                </button>
+                <button class="btn btn-sm btn-outline-secondary w-100" onclick="limpiarFiltrosCompras()">
+                    <i class="fas fa-times me-1"></i>Limpiar
+                </button>
+            </div>
+        </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-md-6">
+                <label class="form-label small mb-0">Buscar por N° Factura</label>
+                <div class="input-group input-group-sm">
+                    <input type="text" class="form-control form-control-sm" id="filtroCompraBuscar"
+                           placeholder="Número de factura..."
+                           onkeyup="if(event.key==='Enter') filtrarCompras()" />
+                    <button class="btn btn-outline-primary" onclick="filtrarCompras()">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="comprasListadoContainer">
+  `;
+
   if (!compras || compras.length === 0) {
-    container.innerHTML = `
+    html += `
             <div class="text-center py-5">
                 <i class="fas fa-truck fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay compras registradas</p>
@@ -359,11 +426,13 @@ function renderComprasTable(compras) {
                     <i class="fas fa-plus me-2"></i>Registrar Compra
                 </button>
             </div>
-        `;
+        </div>
+    `;
+    container.innerHTML = html;
     return;
   }
 
-  let html = `
+  html += `
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -381,7 +450,7 @@ function renderComprasTable(compras) {
                     </tr>
                 </thead>
                 <tbody>
-    `;
+  `;
 
   compras.forEach((c) => {
     const proveedor = (window.proveedoresData || []).find(
@@ -395,8 +464,14 @@ function renderComprasTable(compras) {
         : estado === "Pendiente"
           ? "bg-warning"
           : estado === "Pagada"
-            ? "bg-info"
-            : "bg-secondary";
+            ? "bg-success"
+            : estado === "Parcial"
+              ? "bg-warning text-dark"
+              : estado === "Recibida"
+                ? "bg-info"
+                : estado === "Cancelada"
+                  ? "bg-danger"
+                  : "bg-secondary";
 
     html += `
             <tr>
@@ -416,12 +491,19 @@ function renderComprasTable(compras) {
                     <button class="btn btn-sm btn-outline-secondary" onclick="imprimirCompra(${c.id})" title="Imprimir reporte">
                         <i class="fas fa-print"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="registrarNotaEntrega(${c.id})">
+                    <button class="btn btn-sm btn-outline-success" onclick="registrarNotaEntrega(${c.id})" title="Nota de entrega">
                         <i class="fas fa-file-signature"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-warning" onclick="registrarPagoCompra(${c.id})">
+                    <button class="btn btn-sm btn-outline-warning" onclick="registrarPagoCompra(${c.id})" title="Registrar pago">
                         <i class="fas fa-money-bill-wave"></i>
                     </button>
+                    ${
+                      c.estado !== "Cancelada"
+                        ? `<button class="btn btn-sm btn-outline-danger" onclick="cancelarCompra(${c.id})" title="Cancelar compra">
+                          <i class="fas fa-ban"></i>
+                         </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -434,6 +516,7 @@ function renderComprasTable(compras) {
         <div class="text-end">
             <small class="text-muted">Total: ${compras.length} compras</small>
         </div>
+    </div>
     `;
 
   container.innerHTML = html;
@@ -644,22 +727,17 @@ function renderTiposProveedorTab(tipos) {
   container.innerHTML = html;
 }
 
+// =============================================
+// PANEL: PEDIDOS (con filtros)
+// =============================================
+
 function renderPedidosTab(pedidos) {
   const container = document.getElementById("pedidosContainer");
   if (!container) return;
 
-  if (!pedidos || pedidos.length === 0) {
-    container.innerHTML = `
-            <div class="text-center py-5">
-                <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No hay pedidos registrados</p>
-                <button class="btn btn-primary btn-sm" onclick="showCreatePedidoModal()">
-                    <i class="fas fa-plus me-2"></i>Nuevo Pedido
-                </button>
-            </div>
-        `;
-    return;
-  }
+  const proveedoresOptions = (window.proveedoresData || [])
+    .map((p) => `<option value="${p.id}">${p.nombre}</option>`)
+    .join("");
 
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -668,6 +746,63 @@ function renderPedidosTab(pedidos) {
                 <i class="fas fa-plus me-2"></i>Nuevo Pedido
             </button>
         </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-md-3">
+                <label class="form-label small mb-0">Proveedor</label>
+                <select class="form-select form-select-sm" id="filtroPedidoProveedor">
+                    <option value="">Todos</option>
+                    ${proveedoresOptions}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Desde</label>
+                <input type="date" class="form-control form-control-sm" id="filtroPedidoDesde" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Hasta</label>
+                <input type="date" class="form-control form-control-sm" id="filtroPedidoHasta" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Estado</label>
+                <select class="form-select form-select-sm" id="filtroPedidoEstado">
+                    <option value="">Todos</option>
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="Cotizado">Cotizado</option>
+                    <option value="Aprobado">Aprobado</option>
+                    <option value="Comprado">Comprado</option>
+                    <option value="Cancelado">Cancelado</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end gap-1">
+                <button class="btn btn-sm btn-primary w-100" onclick="filtrarPedidos()">
+                    <i class="fas fa-search me-1"></i>Filtrar
+                </button>
+                <button class="btn btn-sm btn-outline-secondary w-100" onclick="limpiarFiltrosPedidos()">
+                    <i class="fas fa-times me-1"></i>Limpiar
+                </button>
+            </div>
+        </div>
+
+        <div id="pedidosListadoContainer">
+  `;
+
+  if (!pedidos || pedidos.length === 0) {
+    html += `
+            <div class="text-center py-5">
+                <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No hay pedidos registrados</p>
+                <button class="btn btn-primary btn-sm" onclick="showCreatePedidoModal()">
+                    <i class="fas fa-plus me-2"></i>Nuevo Pedido
+                </button>
+            </div>
+        </div>
+    `;
+    container.innerHTML = html;
+    return;
+  }
+
+  html += `
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -675,13 +810,13 @@ function renderPedidosTab(pedidos) {
                         <th>ID</th>
                         <th>Proveedor</th>
                         <th>Fecha</th>
-                        <th>Total</th>
+                        <th>Productos</th>
                         <th>Estado</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
-    `;
+  `;
 
   pedidos.forEach((p) => {
     const proveedor = (window.proveedoresData || []).find(
@@ -701,24 +836,33 @@ function renderPedidosTab(pedidos) {
               : estado === "Cancelado"
                 ? "bg-danger"
                 : "bg-secondary";
+    const numProductos = (p.detalles || []).length;
 
     html += `
             <tr>
                 <td>${p.id}</td>
                 <td>${nombreProveedor}</td>
                 <td>${p.fecha ? new Date(p.fecha).toLocaleDateString() : "--"}</td>
-                <td><strong>Q${p.total || 0}</strong></td>
+                <td>${numProductos}</td>
                 <td><span class="badge ${estadoBadge}">${estado}</span></td>
                 <td>
-                    <button class="btn btn-sm btn-outline-info" onclick="verPedido(${p.id})">
+                    <button class="btn btn-sm btn-outline-info" onclick="verPedido(${p.id})" title="Ver detalle">
                         <i class="fas fa-eye"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="cambiarEstadoPedido(${p.id})">
+                    <button class="btn btn-sm btn-outline-success" onclick="cambiarEstadoPedido(${p.id})" title="Cambiar estado">
                         <i class="fas fa-sync"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-warning" onclick="verTotalPedido(${p.id})">
+                    <button class="btn btn-sm btn-outline-warning" onclick="verTotalPedido(${p.id})" title="Verificar mínimo">
                         <i class="fas fa-calculator"></i>
                     </button>
+                    ${
+                      estado !== "Cancelado"
+                        ? `
+                    <button class="btn btn-sm btn-outline-danger" onclick="cancelarPedido(${p.id})" title="Cancelar pedido">
+                        <i class="fas fa-ban"></i>
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -731,15 +875,85 @@ function renderPedidosTab(pedidos) {
         <div class="text-end">
             <small class="text-muted">Total: ${pedidos.length} pedidos</small>
         </div>
+    </div>
     `;
 
   container.innerHTML = html;
 }
 
+async function filtrarPedidos() {
+  const id_proveedor = document.getElementById("filtroPedidoProveedor").value;
+  const fecha_desde = document.getElementById("filtroPedidoDesde").value;
+  const fecha_hasta = document.getElementById("filtroPedidoHasta").value;
+  const estado = document.getElementById("filtroPedidoEstado").value;
+
+  let url = "/pedidos?skip=0&limit=200";
+  if (id_proveedor) url += `&id_proveedor=${id_proveedor}`;
+  if (fecha_desde) url += `&fecha_desde=${fecha_desde}`;
+  if (fecha_hasta) url += `&fecha_hasta=${fecha_hasta}`;
+  if (estado) url += `&estado=${estado}`;
+
+  try {
+    const pedidos = await api.request(url);
+    pedidosData = pedidos || [];
+    renderPedidosTab(pedidosData);
+  } catch (error) {
+    showToast(error.message || "Error al filtrar pedidos", "error");
+  }
+}
+
+function limpiarFiltrosPedidos() {
+  const prov = document.getElementById("filtroPedidoProveedor");
+  const desde = document.getElementById("filtroPedidoDesde");
+  const hasta = document.getElementById("filtroPedidoHasta");
+  const estado = document.getElementById("filtroPedidoEstado");
+  if (prov) prov.value = "";
+  if (desde) desde.value = "";
+  if (hasta) hasta.value = "";
+  if (estado) estado.value = "";
+  filtrarPedidos();
+}
+
+async function filtrarCompras() {
+  const id_proveedor = document.getElementById("filtroCompraProveedor").value;
+  const fecha_desde = document.getElementById("filtroCompraDesde").value;
+  const fecha_hasta = document.getElementById("filtroCompraHasta").value;
+  const estado = document.getElementById("filtroCompraEstado").value;
+  const buscar = document.getElementById("filtroCompraBuscar").value.trim();
+
+  let url = "/compras?skip=0&limit=200";
+  if (id_proveedor) url += `&id_proveedor=${id_proveedor}`;
+  if (fecha_desde) url += `&fecha_desde=${fecha_desde}`;
+  if (fecha_hasta) url += `&fecha_hasta=${fecha_hasta}`;
+  if (estado) url += `&estado=${estado}`;
+  if (buscar) url += `&buscar=${encodeURIComponent(buscar)}`;
+
+  try {
+    const compras = await api.request(url);
+    comprasData = compras || [];
+    renderComprasTable(comprasData);
+  } catch (error) {
+    showToast(error.message || "Error al filtrar compras", "error");
+  }
+}
+
+function limpiarFiltrosCompras() {
+  const prov = document.getElementById("filtroCompraProveedor");
+  const desde = document.getElementById("filtroCompraDesde");
+  const hasta = document.getElementById("filtroCompraHasta");
+  const estado = document.getElementById("filtroCompraEstado");
+  const buscar = document.getElementById("filtroCompraBuscar");
+  if (prov) prov.value = "";
+  if (desde) desde.value = "";
+  if (hasta) hasta.value = "";
+  if (estado) estado.value = "";
+  if (buscar) buscar.value = "";
+  filtrarCompras();
+}
+
 // =============================================
 // PANEL: CAJA CHICA
 // =============================================
-
 function renderCajaChicaTab(movimientos) {
   const container = document.getElementById("cajaChicaContainer");
   if (!container) return;
@@ -799,10 +1013,20 @@ function renderCajaChicaTab(movimientos) {
                 <td><strong>Q${m.monto || 0}</strong></td>
                 <td>Q${m.saldo || 0}</td>
                 <td>${m.concepto || "--"}</td>
-                <td>${m.id_usuario || "--"}</td>
+                <td>${(() => {
+                  const u = (window.usuariosData || []).find(
+                    (x) => x.id === m.id_usuario,
+                  );
+                  return u
+                    ? u.nombre_usuario || u.nombre || u.username || u.email
+                    : m.id_usuario || "--";
+                })()}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-info" onclick="verCajaChica(${m.id})">
+                    <button class="btn btn-sm btn-outline-info" onclick="verCajaChica(${m.id})" title="Ver">
                         <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarCajaChica(${m.id})" title="Eliminar">
+                        <i class="fas fa-trash"></i>
                     </button>
                 </td>
             </tr>
@@ -824,7 +1048,6 @@ function renderCajaChicaTab(movimientos) {
 // =============================================
 // PANEL: GASTOS
 // =============================================
-
 function renderGastosTab(gastos) {
   const container = document.getElementById("gastosContainer");
   if (!container) return;
@@ -884,10 +1107,20 @@ function renderGastosTab(gastos) {
                 <td>${g.concepto || "--"}</td>
                 <td><strong>Q${g.monto || 0}</strong></td>
                 <td>${nombreUbicacion}</td>
-                <td>${g.id_usuario_registra || "--"}</td>
+                <td>${(() => {
+                  const u = (window.usuariosData || []).find(
+                    (x) => x.id === g.id_usuario_registra,
+                  );
+                  return u
+                    ? u.nombre_usuario || u.nombre || u.username || u.email
+                    : g.id_usuario_registra || "--";
+                })()}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-info" onclick="verGasto(${g.id})">
+                    <button class="btn btn-sm btn-outline-info" onclick="verGasto(${g.id})" title="Ver">
                         <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarGasto(${g.id})" title="Eliminar">
+                        <i class="fas fa-trash"></i>
                     </button>
                 </td>
             </tr>
@@ -1054,7 +1287,6 @@ function renderTiposGastoTab(tipos) {
 // =============================================
 // PANEL: TIPOS DE PAGO
 // =============================================
-
 function renderTiposPagoCompras(tipos) {
   const container = document.getElementById("tiposPagoContainer");
   if (!container) return;
@@ -1089,18 +1321,31 @@ function renderTiposPagoCompras(tipos) {
                         <th>Nombre</th>
                         <th>Para Ventas</th>
                         <th>Para Compras</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
 
   tiposCompra.forEach((t) => {
+    const activo = t.activo !== 0;
     html += `
             <tr>
                 <td>${t.id}</td>
                 <td><strong>${t.nombre}</strong></td>
                 <td><span class="badge ${t.para_ventas === 1 ? "bg-success" : "bg-secondary"}">${t.para_ventas === 1 ? "Sí" : "No"}</span></td>
                 <td><span class="badge bg-success">Sí</span></td>
+                <td>
+                    <span class="badge ${activo ? "bg-success" : "bg-danger"}">
+                        ${activo ? "Activo" : "Inactivo"}
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleTipoPagoEstado(${t.id})" title="${activo ? "Inactivar" : "Activar"}">
+                        <i class="fas fa-${activo ? "times" : "check"}"></i>
+                    </button>
+                </td>
             </tr>
         `;
   });
@@ -1129,7 +1374,7 @@ function showCreateProveedorModal() {
             <div class="modal-dialog modal-lg modal-dialog-scrollable" style="max-height: 90vh;">
                 <div class="modal-content" style="max-height: 90vh;">
                     <div class="modal-header bg-primary text-white sticky-top">
-                        <h5 class="modal-title" id="proveedorModalTitle">
+                        <h5 class="modal-title">
                             <i class="fas fa-building me-2"></i>Nuevo Proveedor
                         </h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -1218,68 +1463,88 @@ async function showEditProveedorModal(id) {
   if (existingModal) existingModal.remove();
 
   const html = `
-        <div class="modal fade" id="proveedorModal" tabindex="-1">
-            <div class="modal-dialog">
+        <div class="modal fade" id="proveedorModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
                 <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Editar Proveedor</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-building me-2"></i>Editar Proveedor
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <form id="proveedorForm">
                             <input type="hidden" id="proveedorId" value="${proveedor.id}" />
-                            <div class="mb-3">
-                                <label class="form-label">Nombre *</label>
-                                <input type="text" class="form-control" id="proveedorNombre" value="${proveedor.nombre || ""}" required />
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="proveedorNombre" value="${proveedor.nombre || ""}" required />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Contacto</label>
+                                    <input type="text" class="form-control" id="proveedorContacto" value="${proveedor.contacto || ""}" />
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Contacto</label>
-                                <input type="text" class="form-control" id="proveedorContacto" value="${proveedor.contacto || ""}" />
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Teléfono</label>
+                                    <input type="text" class="form-control" id="proveedorTelefono" value="${proveedor.telefono || ""}" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Email</label>
+                                    <input type="email" class="form-control" id="proveedorEmail" value="${proveedor.email || ""}" />
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Teléfono</label>
-                                <input type="text" class="form-control" id="proveedorTelefono" value="${proveedor.telefono || ""}" />
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Dirección</label>
+                                    <input type="text" class="form-control" id="proveedorDireccion" value="${proveedor.direccion || ""}" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">NIT</label>
+                                    <input type="text" class="form-control" id="proveedorNit" value="${proveedor.nit || ""}" />
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Email</label>
-                                <input type="email" class="form-control" id="proveedorEmail" value="${proveedor.email || ""}" />
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Código Proveedor</label>
+                                    <input type="text" class="form-control" id="proveedorCodigo" value="${proveedor.codigo_proveedor || ""}" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Días de Crédito</label>
+                                    <input type="number" class="form-control" id="proveedorDiasCredito" value="${proveedor.dias_credito || ""}" />
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Dirección</label>
-                                <input type="text" class="form-control" id="proveedorDireccion" value="${proveedor.direccion || ""}" />
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Tipo de Proveedor</label>
+                                    <select class="form-select" id="proveedorTipo">
+                                        <option value="">Seleccionar tipo</option>
+                                        ${(window.tiposProveedorData || [])
+                                          .map(
+                                            (t) =>
+                                              `<option value="${t.id}" ${t.id === proveedor.id_tipo_proveedor ? "selected" : ""}>${t.nombre}</option>`,
+                                          )
+                                          .join("")}
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Estado</label>
+                                    <select class="form-select" id="proveedorActivo">
+                                        <option value="1" ${proveedor.activo !== 0 ? "selected" : ""}>Activo</option>
+                                        <option value="0" ${proveedor.activo === 0 ? "selected" : ""}>Inactivo</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">NIT</label>
-                                <input type="text" class="form-control" id="proveedorNit" value="${proveedor.nit || ""}" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Código Proveedor</label>
-                                <input type="text" class="form-control" id="proveedorCodigo" value="${proveedor.codigo_proveedor || ""}" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Días de Crédito</label>
-                                <input type="number" class="form-control" id="proveedorDiasCredito" value="${proveedor.dias_credito || ""}" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Tipo de Proveedor</label>
-                                <select class="form-select" id="proveedorTipo">
-                                    <option value="">Seleccionar tipo</option>
-                                    ${(window.tiposProveedorData || [])
-                                      .map(
-                                        (t) =>
-                                          `<option value="${t.id}" ${t.id === proveedor.id_tipo_proveedor ? "selected" : ""}>${t.nombre}</option>`,
-                                      )
-                                      .join("")}
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Estado</label>
-                                <select class="form-select" id="proveedorActivo">
-                                    <option value="1" ${proveedor.activo !== 0 ? "selected" : ""}>Activo</option>
-                                    <option value="0" ${proveedor.activo === 0 ? "selected" : ""}>Inactivo</option>
-                                </select>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">Guardar</button>
+
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-save me-2"></i>Guardar Proveedor
+                            </button>
                         </form>
                     </div>
                 </div>
@@ -1428,19 +1693,21 @@ async function saveTipoProveedor(event) {
 async function toggleTipoProveedorEstado(id) {
   const tipo = (window.tiposProveedorData || []).find((t) => t.id === id);
   if (!tipo) return;
-  if (
-    !confirm(
-      `¿${tipo.activo !== 0 ? "Inactivar" : "Activar"} el tipo "${tipo.nombre}"?`,
-    )
-  )
-    return;
+
+  const nuevo = tipo.activo === 0 ? 1 : 0;
+  const accion = nuevo === 1 ? "activar" : "inactivar";
+  if (!confirm(`¿Está seguro de ${accion} el tipo "${tipo.nombre}"?`)) return;
 
   try {
     await api.request(`/tipos-proveedor/${id}`, "PUT", {
-      ...tipo,
-      activo: tipo.activo !== 0 ? 0 : 1,
+      nombre: tipo.nombre,
+      descripcion: tipo.descripcion,
+      activo: nuevo,
     });
-    showToast("Estado actualizado", "success");
+    showToast(
+      `Tipo ${accion === "activar" ? "activado" : "inactivado"}`,
+      "success",
+    );
     await loadComprasModule();
   } catch (error) {
     showToast(error.message || "Error al cambiar estado", "error");
@@ -1490,7 +1757,7 @@ function crearModalTipoProveedor() {
 }
 
 // =============================================
-// FUNCIONES CRUD: PEDIDOS (modal unificado)
+// FUNCIONES CRUD: PEDIDOS
 // =============================================
 
 function showCreatePedidoModal() {
@@ -1536,21 +1803,21 @@ function showCreatePedidoModal() {
               <h6 class="fw-bold"><i class="fas fa-boxes me-1"></i>Productos del pedido</h6>
 
               <div class="row g-2 align-items-end mb-2" id="pedidoDetalleRow">
-                <div class="col-md-5">
+                <div class="col-md-4">
                   <label class="form-label small mb-0">Producto</label>
-                  <select class="form-select form-select-sm pedido-detalle-producto"></select>
+                  <select class="form-select form-select-sm pedido-detalle-producto" onchange="actualizarCostoPedido()"></select>
                 </div>
                 <div class="col-md-2">
                   <label class="form-label small mb-0">Cant. pedida</label>
-                  <input type="number" step="0.01" min="0.01" class="form-control form-control-sm pedido-detalle-cantidad" value="1" />
+                  <input type="number" step="0.01" min="0.01" class="form-control form-control-sm pedido-detalle-cantidad" value="1" oninput="actualizarSubtotalPedido()" />
                 </div>
                 <div class="col-md-2">
-                  <label class="form-label small mb-0">Cant. sugerida</label>
-                  <input type="number" step="0.01" min="0" class="form-control form-control-sm pedido-detalle-sugerida" value="0" />
+                  <label class="form-label small mb-0">Costo est. (Q)</label>
+                  <input type="number" step="0.01" min="0" class="form-control form-control-sm pedido-detalle-costo" value="0" oninput="actualizarSubtotalPedido()" />
                 </div>
                 <div class="col-md-2">
-                  <label class="form-label small mb-0">Obs.</label>
-                  <input type="text" class="form-control form-control-sm pedido-detalle-obs" placeholder="Opcional" />
+                  <label class="form-label small mb-0">Subtotal</label>
+                  <input type="text" class="form-control form-control-sm pedido-detalle-subtotal" value="Q0.00" readonly />
                 </div>
                 <div class="col-md-1">
                   <button type="button" class="btn btn-sm btn-primary w-100" onclick="agregarDetallePedido(event)">
@@ -1561,7 +1828,17 @@ function showCreatePedidoModal() {
 
               <div id="pedidoDetallesList" class="mb-3"></div>
 
-              <button type="submit" class="btn btn-primary w-100 mt-3">
+              <div class="alert alert-info py-2 d-flex justify-content-between align-items-center mb-2">
+                <div>
+                  <i class="fas fa-info-circle me-1"></i>
+                  Total: <strong id="pedidoTotalPreview">Q0.00</strong>
+                </div>
+                <div id="pedidoMinimoPreview">
+                  <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i>Faltan Q500.00</span>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary w-100 mt-2">
                 <i class="fas fa-save me-2"></i>Guardar Pedido
               </button>
             </form>
@@ -1577,6 +1854,7 @@ function showCreatePedidoModal() {
     .addEventListener("submit", savePedidoCompleto);
   llenarSelectProductoPedido();
   renderDetallesPedido();
+  actualizarTotalesPedidoPreview();
   new bootstrap.Modal(document.getElementById("pedidoModal")).show();
 }
 
@@ -1591,6 +1869,60 @@ function llenarSelectProductoPedido() {
   });
 }
 
+function actualizarCostoPedido() {
+  const row = document.getElementById("pedidoDetalleRow");
+  if (!row) return;
+  const id_producto = parseInt(
+    row.querySelector(".pedido-detalle-producto").value,
+  );
+  if (!id_producto) return;
+
+  const producto = (window.productosData || []).find(
+    (p) => p.id === id_producto,
+  );
+  if (!producto) return;
+
+  const costo =
+    producto.precio_compra || producto.costo || producto.precio_costo || 0;
+  const costoInput = row.querySelector(".pedido-detalle-costo");
+  if (costoInput && (!costoInput.value || parseFloat(costoInput.value) === 0)) {
+    costoInput.value = costo;
+  }
+
+  actualizarSubtotalPedido();
+}
+
+function actualizarSubtotalPedido() {
+  const row = document.getElementById("pedidoDetalleRow");
+  if (!row) return;
+  const cantidad =
+    parseFloat(row.querySelector(".pedido-detalle-cantidad").value) || 0;
+  const costo =
+    parseFloat(row.querySelector(".pedido-detalle-costo").value) || 0;
+  const subtotalEl = row.querySelector(".pedido-detalle-subtotal");
+  if (subtotalEl) subtotalEl.value = `Q${(cantidad * costo).toFixed(2)}`;
+}
+
+function actualizarTotalesPedidoPreview() {
+  let total = 0;
+  pedidoDetallesTemp.forEach((d) => {
+    total += (d.cantidad_pedida || 0) * (d.costo_estimado || 0);
+  });
+
+  const totalEl = document.getElementById("pedidoTotalPreview");
+  if (totalEl) totalEl.textContent = `Q${total.toFixed(2)}`;
+
+  const minEl = document.getElementById("pedidoMinimoPreview");
+  if (minEl) {
+    if (total >= 500) {
+      minEl.innerHTML =
+        '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Alcanza mínimo Q500</span>';
+    } else {
+      minEl.innerHTML = `<span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i>Faltan Q${(500 - total).toFixed(2)}</span>`;
+    }
+  }
+}
+
 function agregarDetallePedido(event) {
   if (event) event.preventDefault();
 
@@ -1600,14 +1932,14 @@ function agregarDetallePedido(event) {
   );
   const cantidad_pedida =
     parseFloat(row.querySelector(".pedido-detalle-cantidad").value) || 0;
-  const cantidad_sugerida =
-    parseFloat(row.querySelector(".pedido-detalle-sugerida").value) || 0;
-  const observaciones =
-    row.querySelector(".pedido-detalle-obs").value.trim() || null;
+  const costo_estimado =
+    parseFloat(row.querySelector(".pedido-detalle-costo").value) || 0;
 
   if (!id_producto) return showToast("Selecciona un producto", "error");
   if (cantidad_pedida <= 0)
     return showToast("La cantidad debe ser mayor a 0", "error");
+  if (costo_estimado <= 0)
+    return showToast("El costo debe ser mayor a 0", "error");
 
   const producto = (window.productosData || []).find(
     (p) => p.id === id_producto,
@@ -1616,17 +1948,19 @@ function agregarDetallePedido(event) {
   pedidoDetallesTemp.push({
     id_producto,
     cantidad_pedida,
-    cantidad_sugerida,
-    observaciones,
+    cantidad_sugerida: 0,
+    costo_estimado,
+    observaciones: null,
     producto,
   });
 
   renderDetallesPedido();
+  actualizarTotalesPedidoPreview();
 
   row.querySelector(".pedido-detalle-producto").value = "";
   row.querySelector(".pedido-detalle-cantidad").value = 1;
-  row.querySelector(".pedido-detalle-sugerida").value = 0;
-  row.querySelector(".pedido-detalle-obs").value = "";
+  row.querySelector(".pedido-detalle-costo").value = 0;
+  row.querySelector(".pedido-detalle-subtotal").value = "Q0.00";
 }
 
 function renderDetallesPedido() {
@@ -1637,27 +1971,77 @@ function renderDetallesPedido() {
       '<p class="text-muted small">No hay productos agregados</p>';
     return;
   }
-  let html = '<ul class="list-group">';
+
+  let html = `
+    <div class="table-responsive">
+      <table class="table table-sm table-hover">
+        <thead class="table-light">
+          <tr>
+            <th>Producto</th>
+            <th class="text-end">Cant.</th>
+            <th class="text-end" style="width:120px">Costo est.</th>
+            <th class="text-end">Subtotal</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  let total = 0;
   pedidoDetallesTemp.forEach((d, i) => {
+    const subtotal = (d.cantidad_pedida || 0) * (d.costo_estimado || 0);
+    total += subtotal;
     html += `
-      <li class="list-group-item d-flex justify-content-between align-items-center">
-        <div>
-          <strong>${d.producto ? d.producto.nombre : "Producto #" + d.id_producto}</strong>
-          <span class="text-muted small"> · Pedida: ${d.cantidad_pedida} · Sugerida: ${d.cantidad_sugerida || 0}</span>
-          ${d.observaciones ? `<div class="small text-muted">${d.observaciones}</div>` : ""}
-        </div>
-        <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarDetallePedido(${i})">
-          <i class="fas fa-times"></i>
-        </button>
-      </li>`;
+      <tr>
+        <td>${d.producto ? d.producto.nombre : "Producto #" + d.id_producto}</td>
+        <td class="text-end">${d.cantidad_pedida}</td>
+        <td class="text-end">
+          <input type="number" step="0.01" min="0"
+                 class="form-control form-control-sm text-end"
+                 value="${d.costo_estimado}"
+                 onchange="editarCostoDetallePedido(${i}, this.value)" />
+        </td>
+        <td class="text-end fw-bold">Q${subtotal.toFixed(2)}</td>
+        <td class="text-end">
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarDetallePedido(${i})">
+            <i class="fas fa-times"></i>
+          </button>
+        </td>
+      </tr>
+    `;
   });
-  html += "</ul>";
+
+  html += `
+        </tbody>
+        <tfoot>
+          <tr class="table-light">
+            <td colspan="3" class="text-end fw-bold">TOTAL:</td>
+            <td class="text-end fw-bold">Q${total.toFixed(2)}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  `;
   container.innerHTML = html;
+}
+
+function editarCostoDetallePedido(index, nuevoCosto) {
+  const costo = parseFloat(nuevoCosto) || 0;
+  if (costo <= 0) {
+    showToast("El costo debe ser mayor a 0", "error");
+    renderDetallesPedido();
+    return;
+  }
+  pedidoDetallesTemp[index].costo_estimado = costo;
+  renderDetallesPedido();
+  actualizarTotalesPedidoPreview();
 }
 
 function eliminarDetallePedido(index) {
   pedidoDetallesTemp.splice(index, 1);
   renderDetallesPedido();
+  actualizarTotalesPedidoPreview();
 }
 
 async function savePedidoCompleto(event) {
@@ -1672,6 +2056,17 @@ async function savePedidoCompleto(event) {
   if (!id_proveedor) return showToast("Selecciona un proveedor", "error");
   if (pedidoDetallesTemp.length === 0)
     return showToast("Agrega al menos un producto", "error");
+
+  const total = pedidoDetallesTemp.reduce(
+    (s, d) => s + (d.cantidad_pedida || 0) * (d.costo_estimado || 0),
+    0,
+  );
+  if (total < 500) {
+    const ok = confirm(
+      `El pedido suma Q${total.toFixed(2)}, no alcanza el mínimo de Q500.\n\n¿Continuar de todas formas?\n(El pedido quedará como Pendiente)`,
+    );
+    if (!ok) return;
+  }
 
   const btn = event.target.querySelector('button[type="submit"]');
   if (btn) {
@@ -1695,8 +2090,9 @@ async function savePedidoCompleto(event) {
         await api.request(`/pedidos/${pedidoCreado.id}/detalles`, "POST", {
           id_producto: d.id_producto,
           cantidad_pedida: d.cantidad_pedida,
-          cantidad_sugerida: d.cantidad_sugerida,
+          cantidad_sugerida: d.cantidad_sugerida || 0,
           observaciones: d.observaciones,
+          precio_compra: d.costo_estimado, // OJO: solo si backend lo acepta
         });
         detallesOk++;
       } catch (err) {
@@ -1708,7 +2104,7 @@ async function savePedidoCompleto(event) {
 
     if (errores.length === 0) {
       showToast(
-        `Pedido #${pedidoCreado.id} creado con ${detallesOk} productos`,
+        `Pedido #${pedidoCreado.id} creado con ${detallesOk} productos (Q${total.toFixed(2)})`,
         "success",
       );
     } else {
@@ -1732,7 +2128,13 @@ async function savePedidoCompleto(event) {
 
 async function verPedido(id) {
   try {
-    const pedido = await api.request(`/pedidos/${id}`);
+    const [pedido, totalData] = await Promise.all([
+      api.request(`/pedidos/${id}`),
+      api
+        .request(`/pedidos/${id}/total`)
+        .catch(() => ({ total: 0, alcanza_minimo: false })),
+    ]);
+
     if (!pedido) return showToast("Pedido no encontrado", "error");
 
     const proveedor = (window.proveedoresData || []).find(
@@ -1745,16 +2147,34 @@ async function verPedido(id) {
         const producto = (window.productosData || []).find(
           (p) => p.id === d.id_producto,
         );
+        const precio = d.precio_compra || d.costo_estimado || 0;
+        const subtotal = (d.cantidad_pedida || 0) * precio;
         return `
                     <tr>
                         <td>${producto ? producto.nombre : "--"}</td>
-                        <td>${d.cantidad_pedida || 0}</td>
-                        <td>${d.cantidad_sugerida || 0}</td>
-                        <td>${d.observaciones || "--"}</td>
+                        <td class="text-end">${d.cantidad_pedida || 0}</td>
+                        <td class="text-end">Q${Number(precio).toFixed(2)}</td>
+                        <td class="text-end">Q${subtotal.toFixed(2)}</td>
                     </tr>
                 `;
       })
       .join("");
+
+    const total = totalData.total || 0;
+    const minimoBadge = totalData.alcanza_minimo
+      ? '<span class="badge bg-success">Alcanza mínimo Q500</span>'
+      : `<span class="badge bg-warning text-dark">Faltan Q${(500 - total).toFixed(2)}</span>`;
+
+    const estadoBadge =
+      pedido.estado === "Cancelado"
+        ? "bg-danger"
+        : pedido.estado === "Comprado"
+          ? "bg-primary"
+          : pedido.estado === "Aprobado"
+            ? "bg-info"
+            : pedido.estado === "Cotizado"
+              ? "bg-warning"
+              : "bg-secondary";
 
     const modalContent = `
             <div class="modal-header">
@@ -1767,8 +2187,8 @@ async function verPedido(id) {
                     <div class="col-md-6"><strong>Fecha:</strong> ${pedido.fecha ? new Date(pedido.fecha).toLocaleString() : "--"}</div>
                 </div>
                 <div class="row mb-3">
-                    <div class="col-md-6"><strong>Estado:</strong> <span class="badge bg-warning">${pedido.estado || "Pendiente"}</span></div>
-                    <div class="col-md-6"><strong>Usuario:</strong> ${pedido.id_usuario || "--"}</div>
+                    <div class="col-md-6"><strong>Estado:</strong> <span class="badge ${estadoBadge}">${pedido.estado || "Pendiente"}</span></div>
+                    <div class="col-md-6"><strong>Total:</strong> Q${total.toFixed(2)} ${minimoBadge}</div>
                 </div>
                 ${pedido.observaciones ? `<div class="mb-3"><strong>Observaciones:</strong> ${pedido.observaciones}</div>` : ""}
 
@@ -1776,9 +2196,20 @@ async function verPedido(id) {
                 <div class="table-responsive">
                     <table class="table table-sm">
                         <thead>
-                            <tr><th>Producto</th><th>Cant. Pedida</th><th>Cant. Sugerida</th><th>Observaciones</th></tr>
+                            <tr>
+                                <th>Producto</th>
+                                <th class="text-end">Cantidad</th>
+                                <th class="text-end">Costo est.</th>
+                                <th class="text-end">Subtotal</th>
+                            </tr>
                         </thead>
                         <tbody>${detallesHtml || '<tr><td colspan="4" class="text-center">Sin detalles</td></tr>'}</tbody>
+                        <tfoot>
+                            <tr class="table-light fw-bold">
+                                <td colspan="3" class="text-end">TOTAL:</td>
+                                <td class="text-end">Q${total.toFixed(2)}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -1792,10 +2223,7 @@ async function verPedido(id) {
     modalDiv.id = "pedidoDetalleModal";
     modalDiv.innerHTML = `<div class="modal-dialog modal-lg"><div class="modal-content">${modalContent}</div></div>`;
     document.body.appendChild(modalDiv);
-
-    const modalInstance = new bootstrap.Modal(modalDiv);
-    modalInstance.show();
-
+    new bootstrap.Modal(modalDiv).show();
     modalDiv.addEventListener("hidden.bs.modal", function () {
       this.remove();
     });
@@ -2402,12 +2830,16 @@ function showCreateCompraModal() {
 
   const modal = document.getElementById("compraModal");
   const form = document.getElementById("compraForm");
-  const title = document.getElementById("compraModalTitle");
 
-  title.textContent = "Nueva Compra";
+  if (!modal || !form) {
+    return showToast("No se encontró el modal de compras en el HTML.", "error");
+  }
+
+  document.getElementById("compraModalTitle").textContent = "Nueva Compra";
   form.reset();
   document.getElementById("compraId").value = "";
-  document.getElementById("compraIva").value = 0;
+  const montoExentoEl = document.getElementById("compraMontoExento");
+  if (montoExentoEl) montoExentoEl.value = 0;
   document.getElementById("compraObservaciones").value = "";
 
   const numPedidoEl = document.getElementById("compraNumeroPedido");
@@ -2416,10 +2848,10 @@ function showCreateCompraModal() {
   if (infoPedidoEl) infoPedidoEl.textContent = "";
 
   llenarSelectProveedor();
-  llenarSelectUbicacionCompra();
   llenarSelectProductoCompra();
 
-  document.getElementById("compraDetallesList").innerHTML = "";
+  const lista = document.getElementById("compraDetallesList");
+  if (lista) lista.innerHTML = "";
 
   new bootstrap.Modal(modal).show();
 }
@@ -2434,21 +2866,34 @@ async function cargarPedidoEnCompra() {
   try {
     const pedido = await api.request(`/pedidos/${idPedido}`);
     if (!pedido) return showToast("Pedido no encontrado", "error");
-    if (pedido.estado === "Cancelado")
+
+    if (pedido.estado === "Cancelado") {
       return showToast("Ese pedido está cancelado", "error");
+    }
+    if (pedido.estado === "Comprado") {
+      return showToast(
+        "Ese pedido ya fue cargado en una compra anterior",
+        "warning",
+      );
+    }
 
     const selProv = document.getElementById("compraProveedor");
-    selProv.value = pedido.id_proveedor || "";
+    if (selProv) selProv.value = pedido.id_proveedor || "";
 
     compraDetallesTemp = (pedido.detalles || []).map((d) => {
       const producto = (window.productosData || []).find(
         (p) => p.id === d.id_producto,
       );
+      const costoEstimado = d.precio_compra || d.costo_estimado || 0;
+      const cantidad = Math.max(
+        1,
+        Math.round(parseFloat(d.cantidad_pedida) || 1),
+      );
       return {
         id_producto: d.id_producto,
-        cantidad_comprada: d.cantidad_pedida || 0,
-        cantidad_unidades: d.cantidad_pedida || 0,
-        costo_unitario: 0,
+        cantidad_comprada: cantidad,
+        cantidad_unidades: cantidad,
+        costo_unitario: costoEstimado,
         producto: producto || { nombre: `Producto #${d.id_producto}` },
       };
     });
@@ -2456,13 +2901,22 @@ async function cargarPedidoEnCompra() {
 
     const info = document.getElementById("compraPedidoInfo");
     if (info) {
-      info.textContent = `Pedido #${pedido.id} cargado (${compraDetallesTemp.length} productos). Completa los costos.`;
+      info.textContent = `Pedido #${pedido.id} cargado (${compraDetallesTemp.length} productos). Revisa costos.`;
     }
 
-    showToast(
-      "Pedido cargado. Revisa cantidades y completa costos.",
-      "success",
-    );
+    // Cambiar estado del pedido a "Comprado"
+    try {
+      await api.request(
+        `/pedidos/${idPedido}/estado?nuevo_estado=Comprado&forzar=true`,
+        "PATCH",
+      );
+      showToast(`Pedido #${idPedido} marcado como Comprado`, "success");
+    } catch (err) {
+      showToast(
+        `Pedido cargado, pero no se pudo cambiar su estado: ${err.message}`,
+        "warning",
+      );
+    }
   } catch (error) {
     showToast(error.message || "Error al cargar pedido", "error");
   }
@@ -2475,17 +2929,6 @@ function llenarSelectProveedor() {
   (window.proveedoresData || []).forEach((p) => {
     if (p.activo !== 0) {
       select.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
-    }
-  });
-}
-
-function llenarSelectUbicacionCompra() {
-  const select = document.getElementById("compraUbicacion");
-  if (!select) return;
-  select.innerHTML = '<option value="">Seleccionar ubicación</option>';
-  (window.ubicacionesData || []).forEach((u) => {
-    if (u.activo !== 0) {
-      select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
     }
   });
 }
@@ -2506,12 +2949,18 @@ function agregarDetalleCompra(event) {
   event.preventDefault();
 
   const row = document.getElementById("compraDetalleRow");
+  if (!row) return;
+
   const productSelect = row.querySelector(".compra-detalle-producto");
   const cantidadInput = row.querySelector(".compra-detalle-cantidad");
   const costoInput = row.querySelector(".compra-detalle-costo");
 
   const id_producto = parseInt(productSelect.value);
-  const cantidad = parseFloat(cantidadInput.value) || 1;
+  const cantidad = parseInt(cantidadInput.value) || 1;
+  if (cantidad <= 0) {
+    showToast("La cantidad debe ser mayor a 0", "error");
+    return;
+  }
   const costo_unitario = parseFloat(costoInput.value) || 0;
 
   if (!id_producto) return showToast("Selecciona un producto", "error");
@@ -2546,10 +2995,10 @@ function renderDetallesCompra() {
   }
 
   let html = '<ul class="list-group">';
-  let total = 0;
+  let totalFactura = 0;
   compraDetallesTemp.forEach((d, index) => {
     const subtotal = d.cantidad_comprada * d.costo_unitario;
-    total += subtotal;
+    totalFactura += subtotal;
     html += `
             <li class="list-group-item d-flex justify-content-between align-items-center">
                 <div>
@@ -2567,13 +3016,34 @@ function renderDetallesCompra() {
         `;
   });
 
-  const ivaInput = document.getElementById("compraIva");
-  const iva = parseFloat(ivaInput?.value) || 0;
-  const totalConIva = total + (total * iva) / 100;
+  // IVA incluido (Guatemala): se extrae del gravado
+  const montoExentoEl = document.getElementById("compraMontoExento");
+  let exento = parseFloat(montoExentoEl?.value) || 0;
+  if (exento < 0) exento = 0;
+  if (exento > totalFactura) exento = totalFactura;
+
+  const gravado = totalFactura - exento;
+  const montoIva = gravado > 0 ? gravado * (12 / 112) : 0;
+  const subtotalSinIva = totalFactura - montoIva;
 
   html += `
-        <li class="list-group-item fw-bold">
-            Subtotal: Q${total.toFixed(2)} | IVA: ${iva}% | Total: Q${totalConIva.toFixed(2)}
+        <li class="list-group-item">
+            <div class="d-flex justify-content-between">
+                <span>Subtotal (sin IVA):</span>
+                <span>Q${subtotalSinIva.toFixed(2)}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>Exento:</span>
+                <span>Q${exento.toFixed(2)}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>IVA (12% incluido):</span>
+                <span>Q${montoIva.toFixed(2)}</span>
+            </div>
+            <div class="d-flex justify-content-between fw-bold border-top pt-2 mt-2">
+                <span>TOTAL FACTURA:</span>
+                <span>Q${totalFactura.toFixed(2)}</span>
+            </div>
         </li>
     </ul>`;
   container.innerHTML = html;
@@ -2586,7 +3056,7 @@ function eliminarDetalleCompra(index) {
 
 document.addEventListener("DOMContentLoaded", function () {
   document.addEventListener("input", function (e) {
-    if (e.target && e.target.id === "compraIva") {
+    if (e.target && e.target.id === "compraMontoExento") {
       renderDetallesCompra();
     }
   });
@@ -2601,25 +3071,55 @@ async function saveCompra(event) {
   const id_proveedor = parseInt(
     document.getElementById("compraProveedor").value,
   );
-  const id_ubicacion_destino =
-    parseInt(document.getElementById("compraUbicacion").value) || null;
   const numero_factura = document.getElementById("compraFactura").value || null;
-  const iva = parseFloat(document.getElementById("compraIva").value) || 0;
+  const monto_exento =
+    parseFloat(document.getElementById("compraMontoExento").value) || 0;
   const observaciones =
     document.getElementById("compraObservaciones").value || null;
   const id_usuario_registra = getCurrentUser()?.id || 1;
+  const id_pedido =
+    parseInt(document.getElementById("compraNumeroPedido")?.value) || null;
 
   if (!id_proveedor) return showToast("Selecciona un proveedor", "error");
   if (compraDetallesTemp.length === 0)
     return showToast("Agrega al menos un producto", "error");
+
+  // ✅ UBICACIÓN DESDE CONFIGURACIÓN (igual que ventas)
+  let id_ubicacion_destino = null;
+  try {
+    const config = await api.request("/configuracion").catch(() => ({}));
+    id_ubicacion_destino = config.id_ubicacion || null;
+    if (!id_ubicacion_destino) {
+      showToast(
+        "No hay ubicación configurada. Contacta al administrador.",
+        "error",
+      );
+      return;
+    }
+  } catch (error) {
+    showToast("Error al obtener configuración", "error");
+    return;
+  }
+
+  // Validar que todas las cantidades sean enteras positivas
+  for (const d of compraDetallesTemp) {
+    if (!Number.isInteger(d.cantidad_comprada) || d.cantidad_comprada <= 0) {
+      return showToast(
+        `Cantidad inválida en "${d.producto.nombre}". Debe ser un entero mayor a 0.`,
+        "error",
+      );
+    }
+  }
 
   const data = {
     id_proveedor,
     id_ubicacion_destino,
     numero_factura,
     id_usuario_registra,
-    iva,
+    iva: 12,
+    monto_exento,
     observaciones,
+    id_pedido,
     detalles: compraDetallesTemp.map((d) => ({
       id_producto: d.id_producto,
       cantidad_comprada: d.cantidad_comprada,
@@ -2698,13 +3198,50 @@ async function verCompra(id) {
         return `
                     <tr>
                         <td>${producto ? producto.nombre : "--"}</td>
-                        <td>${d.cantidad_comprada || 0}</td>
-                        <td>Q${d.costo_unitario || 0}</td>
-                        <td>Q${d.subtotal || 0}</td>
+                        <td class="text-end">${d.cantidad_comprada || 0}</td>
+                        <td class="text-end">Q${d.costo_unitario || 0}</td>
+                        <td class="text-end">Q${d.subtotal || 0}</td>
                     </tr>
                 `;
       })
       .join("");
+
+    // --- Pagos ---
+    const pagosHtml =
+      (compra.pagos || []).length === 0
+        ? '<tr><td colspan="5" class="text-center">Sin pagos registrados</td></tr>'
+        : (compra.pagos || [])
+            .map((p) => {
+              const tipo = (window.tiposPagoData || []).find(
+                (t) => t.id === p.id_tipo_pago,
+              );
+              return `
+            <tr>
+              <td>${tipo ? tipo.nombre : "--"}</td>
+              <td class="text-end">Q${p.monto || 0}</td>
+              <td>${p.referencia || "--"}</td>
+              <td>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleDateString() : "--"}</td>
+              <td class="text-end">
+                <button class="btn btn-sm btn-outline-danger"
+                        onclick="eliminarPagoCompra(${compra.id}, ${p.id})">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+            })
+            .join("");
+
+    const estadoBadge =
+      compra.estado === "Cancelada"
+        ? "bg-danger"
+        : compra.estado === "Pagada"
+          ? "bg-success"
+          : compra.estado === "Parcial"
+            ? "bg-warning text-dark"
+            : compra.estado === "Recibida"
+              ? "bg-info"
+              : "bg-secondary";
 
     const modalContent = `
             <div class="modal-header">
@@ -2718,7 +3255,7 @@ async function verCompra(id) {
                 </div>
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Fecha:</strong> ${compra.fecha ? new Date(compra.fecha).toLocaleString() : "--"}</div>
-                    <div class="col-md-6"><strong>Estado:</strong> <span class="badge bg-success">${compra.estado || "Pendiente"}</span></div>
+                    <div class="col-md-6"><strong>Estado:</strong> <span class="badge ${estadoBadge}">${compra.estado || "Pendiente"}</span></div>
                 </div>
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Subtotal:</strong> Q${compra.subtotal || 0}</div>
@@ -2734,9 +3271,25 @@ async function verCompra(id) {
                 <div class="table-responsive">
                     <table class="table table-sm">
                         <thead>
-                            <tr><th>Producto</th><th>Cantidad</th><th>Costo Unitario</th><th>Subtotal</th></tr>
+                            <tr><th>Producto</th><th class="text-end">Cantidad</th><th class="text-end">Costo Unitario</th><th class="text-end">Subtotal</th></tr>
                         </thead>
                         <tbody>${detallesHtml || '<tr><td colspan="4" class="text-center">Sin detalles</td></tr>'}</tbody>
+                    </table>
+                </div>
+
+                <h6 class="fw-bold mt-4">Pagos</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th class="text-end">Monto</th>
+                                <th>Referencia</th>
+                                <th>Fecha</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>${pagosHtml}</tbody>
                     </table>
                 </div>
             </div>
@@ -2878,8 +3431,15 @@ async function registrarPagoCompra(id) {
   if (!tiposPago || tiposPago.length === 0)
     return showToast("No hay tipos de pago disponibles", "error");
 
-  const tipoOptions = tiposPago
-    .filter((t) => t.para_compras === 1)
+  const tiposValidos = tiposPago.filter(
+    (t) => t.para_compras === 1 && t.activo !== 0,
+  );
+
+  if (tiposValidos.length === 0) {
+    return showToast("No hay tipos de pago activos para compras", "warning");
+  }
+
+  const tipoOptions = tiposValidos
     .map((t) => `${t.id} - ${t.nombre}`)
     .join("\n");
 
@@ -2905,6 +3465,269 @@ async function registrarPagoCompra(id) {
     await loadComprasModule();
   } catch (error) {
     showToast(error.message || "Error al registrar pago", "error");
+  }
+}
+
+// =============================================
+// CANCELAR COMPRA Y PEDIDO
+// =============================================
+async function cancelarCompra(id) {
+  const motivo = prompt("Motivo de cancelación:");
+  if (!motivo) return;
+
+  const ok = confirm(
+    "¿Cancelar esta compra?\n\n" +
+      "• Se revertirá el inventario\n" +
+      "• Se eliminarán los pagos registrados\n" +
+      "• El saldo quedará en 0\n\n" +
+      "Esta acción no se puede deshacer.",
+  );
+  if (!ok) return;
+
+  const autorizado = await confirmarAdmin(
+    "Se cancelará la compra #" + id + ". Motivo: " + motivo,
+  );
+  if (!autorizado) return;
+
+  try {
+    await api.request(`/compras/${id}/cancelar`, "PATCH", { motivo });
+    showToast("Compra cancelada correctamente", "success");
+    await loadComprasModule();
+  } catch (error) {
+    showToast(error.message || "Error al cancelar compra", "error");
+  }
+}
+
+async function cancelarPedido(id) {
+  if (!confirm("¿Cancelar este pedido?")) return;
+  try {
+    await api.request(
+      `/pedidos/${id}/estado?nuevo_estado=Cancelado&forzar=true`,
+      "PATCH",
+    );
+    showToast("Pedido cancelado", "success");
+    await loadComprasModule();
+  } catch (error) {
+    showToast(error.message || "Error al cancelar pedido", "error");
+  }
+}
+
+async function eliminarPagoCompra(compraId, pagoId) {
+  if (!confirm("¿Eliminar este pago? El saldo de la compra se recalculará."))
+    return;
+  try {
+    await api.request(`/compras/${compraId}/pagos/${pagoId}`, "DELETE");
+    showToast("Pago eliminado", "success");
+    verCompra(compraId);
+  } catch (error) {
+    showToast(error.message || "Error al eliminar pago", "error");
+  }
+}
+
+// =============================================
+// CONFIRMACIÓN CON AUTORIZACIÓN ADMIN
+// =============================================
+
+async function confirmarAdmin(mensaje) {
+  return new Promise((resolve) => {
+    const existing = document.getElementById("adminAuthModal");
+    if (existing) existing.remove();
+
+    const html = `
+      <div class="modal fade" id="adminAuthModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+          <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+              <h5 class="modal-title">
+                <i class="fas fa-shield-alt me-2"></i>Autorización
+              </h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <p class="text-danger fw-bold mb-3">
+                <i class="fas fa-exclamation-triangle me-1"></i>${mensaje}
+              </p>
+              <p class="small text-muted mb-3">
+                Un Administrador o Dueña debe autorizar esta acción.
+              </p>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Usuario</label>
+                <input type="text" class="form-control form-control-sm" id="adminAuthUsuario" autocomplete="off" />
+              </div>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Contraseña</label>
+                <input type="password" class="form-control form-control-sm" id="adminAuthPassword" autocomplete="off" />
+              </div>
+              <div class="text-danger small mt-2" id="adminAuthError" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="button" class="btn btn-sm btn-danger" id="adminAuthConfirmar">
+                <i class="fas fa-check me-1"></i>Autorizar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML("beforeend", html);
+
+    const modalEl = document.getElementById("adminAuthModal");
+    const modalInstance = new bootstrap.Modal(modalEl);
+
+    let resolved = false;
+
+    const cerrar = (resultado) => {
+      if (resolved) return;
+      resolved = true;
+      resolve(resultado);
+      modalInstance.hide();
+    };
+
+    modalEl.addEventListener("hidden.bs.modal", () => {
+      if (!resolved) {
+        resolved = true;
+        resolve(false);
+      }
+      modalEl.remove();
+    });
+
+    document.getElementById("adminAuthConfirmar").onclick = async () => {
+      const usuario = document.getElementById("adminAuthUsuario").value.trim();
+      const pass = document.getElementById("adminAuthPassword").value;
+      const errEl = document.getElementById("adminAuthError");
+      errEl.style.display = "none";
+
+      if (!usuario || !pass) {
+        errEl.textContent = "Ingresa usuario y contraseña";
+        errEl.style.display = "block";
+        return;
+      }
+
+      try {
+        await api.verificarAdmin(usuario, pass);
+        cerrar(true);
+      } catch (error) {
+        errEl.textContent = error.message || "Credenciales inválidas";
+        errEl.style.display = "block";
+      }
+    };
+
+    modalEl.addEventListener("keyup", (e) => {
+      if (e.key === "Enter")
+        document.getElementById("adminAuthConfirmar").click();
+    });
+
+    modalInstance.show();
+  });
+}
+
+// =============================================
+// ELIMINAR GASTO
+// =============================================
+
+async function eliminarGasto(id) {
+  const ok = confirm("¿Está seguro de eliminar este gasto?");
+  if (!ok) return;
+
+  const autorizado = await confirmarAdmin(
+    "Se eliminará permanentemente el gasto #" + id,
+  );
+  if (!autorizado) return;
+
+  try {
+    await api.request(`/gastos/${id}`, "DELETE");
+    showToast("Gasto eliminado", "success");
+    cargarGastosTabla();
+  } catch (error) {
+    showToast(error.message || "Error al eliminar gasto", "error");
+  }
+}
+
+// =============================================
+// ELIMINAR MOVIMIENTO DE CAJA CHICA
+// =============================================
+
+async function eliminarCajaChica(id) {
+  const ok = confirm("¿Está seguro de eliminar este movimiento?");
+  if (!ok) return;
+
+  const autorizado = await confirmarAdmin(
+    "Se eliminará permanentemente el movimiento #" + id,
+  );
+  if (!autorizado) return;
+
+  try {
+    await api.request(`/caja-chica/${id}`, "DELETE");
+    showToast("Movimiento eliminado", "success");
+    cargarCajaChicaTabla();
+  } catch (error) {
+    showToast(error.message || "Error al eliminar movimiento", "error");
+  }
+}
+
+// =============================================
+// INACTIVAR TIPO DE PAGO
+// =============================================
+
+async function toggleTipoPagoEstado(id) {
+  const tipo = (window.tiposPagoData || []).find((t) => t.id === id);
+  if (!tipo) return;
+
+  const nuevo = tipo.activo === 1 ? 0 : 1;
+  const accion = nuevo === 1 ? "activar" : "inactivar";
+  const ok = confirm(
+    `¿Está seguro de ${accion} el tipo de pago "${tipo.nombre}"?`,
+  );
+  if (!ok) return;
+
+  try {
+    await api.request(`/tipos-pago/${id}`, "PUT", {
+      nombre: tipo.nombre,
+      descripcion: tipo.descripcion,
+      para_ventas: tipo.para_ventas,
+      para_compras: tipo.para_compras,
+      activo: nuevo,
+    });
+    showToast(
+      `Tipo de pago ${accion === "activar" ? "activado" : "inactivado"}`,
+      "success",
+    );
+    await loadComprasModule();
+  } catch (error) {
+    showToast(error.message || "Error al cambiar estado", "error");
+  }
+}
+
+// =============================================
+// INACTIVAR TIPO DE GASTO
+// =============================================
+
+async function toggleTipoGastoEstado(id) {
+  const tipo = (window.tiposGastoData || []).find((t) => t.id === id);
+  if (!tipo) return;
+
+  const nuevo = tipo.activo === 1 ? 0 : 1;
+  const accion = nuevo === 1 ? "activar" : "inactivar";
+  const ok = confirm(
+    `¿Está seguro de ${accion} el tipo de gasto "${tipo.nombre}"?`,
+  );
+  if (!ok) return;
+
+  try {
+    await api.request(`/tipos-gasto/${id}`, "PUT", {
+      nombre: tipo.nombre,
+      descripcion: tipo.descripcion,
+      es_fijo: tipo.es_fijo,
+      activo: nuevo,
+    });
+    showToast(
+      `Tipo de gasto ${accion === "activar" ? "activado" : "inactivado"}`,
+      "success",
+    );
+    await loadComprasModule();
+  } catch (error) {
+    showToast(error.message || "Error al cambiar estado", "error");
   }
 }
 
@@ -2944,6 +3767,12 @@ window.cambiarEstadoPedido = cambiarEstadoPedido;
 window.agregarDetallePedido = agregarDetallePedido;
 window.eliminarDetallePedido = eliminarDetallePedido;
 window.renderDetallesPedido = renderDetallesPedido;
+window.editarCostoDetallePedido = editarCostoDetallePedido;
+window.actualizarCostoPedido = actualizarCostoPedido;
+window.actualizarSubtotalPedido = actualizarSubtotalPedido;
+window.actualizarTotalesPedidoPreview = actualizarTotalesPedidoPreview;
+window.filtrarPedidos = filtrarPedidos;
+window.limpiarFiltrosPedidos = limpiarFiltrosPedidos;
 
 // Caja Chica
 window.renderCajaChicaTab = renderCajaChicaTab;
@@ -2974,8 +3803,21 @@ window.saveTipoPagoCompra = saveTipoPagoCompra;
 // Compras (auxiliares)
 window.cargarPedidoEnCompra = cargarPedidoEnCompra;
 window.llenarSelectProveedor = llenarSelectProveedor;
-window.llenarSelectUbicacionCompra = llenarSelectUbicacionCompra;
 window.llenarSelectProductoCompra = llenarSelectProductoCompra;
 window.agregarDetalleCompra = agregarDetalleCompra;
 window.eliminarDetalleCompra = eliminarDetalleCompra;
 window.renderDetallesCompra = renderDetallesCompra;
+window.cancelarCompra = cancelarCompra;
+window.cancelarPedido = cancelarPedido;
+window.eliminarPagoCompra = eliminarPagoCompra;
+window.filtrarCompras = filtrarCompras;
+window.limpiarFiltrosCompras = limpiarFiltrosCompras;
+
+// Exponer globalmente
+window.eliminarGasto = eliminarGasto;
+window.eliminarCajaChica = eliminarCajaChica;
+window.toggleTipoPagoEstado = toggleTipoPagoEstado;
+window.toggleTipoGastoEstado = toggleTipoGastoEstado;
+
+// Confirmar Admin
+window.confirmarAdmin = confirmarAdmin;

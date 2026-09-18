@@ -10,6 +10,7 @@ class Compra(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_proveedor = Column(Integer, ForeignKey("proveedor.id"))
     id_ubicacion_destino = Column(Integer, ForeignKey("ubicacion.id"))  # sucursal que recibe
+    id_pedido = Column(Integer, ForeignKey("pedido.id"), nullable=True)  # <-- NUEVO
     numero_factura = Column(String(50))
     fecha = Column(DateTime, server_default=func.now())
     subtotal = Column(DECIMAL(12, 2))
@@ -23,6 +24,7 @@ class Compra(Base):
     saldo_pendiente = Column(DECIMAL(12, 2))
 
     proveedor = relationship("Proveedor")
+    pedido = relationship("Pedido")  # <-- NUEVO
     detalles = relationship("DetalleCompra", back_populates="compra", cascade="all, delete-orphan")
     pagos = relationship("CompraPago", back_populates="compra")
     notas_entrega = relationship("NotaEntrega", back_populates="compra")
