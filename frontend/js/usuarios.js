@@ -75,7 +75,11 @@ async function loadUsuariosModule() {
 
         <div class="tab-content">
             <div class="tab-pane fade show active" id="usuariosTab">
-                <div class="d-flex justify-content-end mb-2">
+                <div class="d-flex justify-content-end mb-2 gap-2">
+                    <div class="input-group input-group-sm" style="max-width: 260px">
+                        <span class="input-group-text bg-white"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" id="buscarUsuarios" placeholder="Buscar por usuario..." oninput="debounceBuscarUsuarios()">
+                    </div>
                     <select class="form-select form-select-sm" style="max-width: 200px" id="filtroEstadoUsuarios" onchange="filtrarUsuariosTabla()">
                         <option value="activos" selected>Activos</option>
                         <option value="inactivos">Inactivos</option>
@@ -85,7 +89,11 @@ async function loadUsuariosModule() {
                 <div id="usuariosContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando usuarios...</p></div></div>
             </div>
             <div class="tab-pane fade" id="empleadosTab">
-                <div class="d-flex justify-content-end mb-2">
+                <div class="d-flex justify-content-end mb-2 gap-2">
+                    <div class="input-group input-group-sm" style="max-width: 260px">
+                        <span class="input-group-text bg-white"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" id="buscarEmpleados" placeholder="Buscar por nombre o DPI..." oninput="debounceBuscarEmpleados()">
+                    </div>
                     <select class="form-select form-select-sm" style="max-width: 200px" id="filtroEstadoEmpleados" onchange="skipEmpleadosTabla=0;cargarEmpleadosTabla()">
                         <option value="activos" selected>Activos</option>
                         <option value="inactivos">Inactivos</option>
@@ -305,12 +313,24 @@ function renderUsuarios(usuarios) {
 // esta tabla podría alterar sin querer lo que se ve en Roles.
 async function filtrarUsuariosTabla() {
   const estado = document.getElementById("filtroEstadoUsuarios")?.value || "activos";
+  const buscar = document.getElementById("buscarUsuarios")?.value?.trim() || "";
   try {
-    const usuarios = await api.request(`/usuarios?estado=${estado}`);
+    const query = buscar
+      ? `/usuarios?estado=${estado}&buscar=${encodeURIComponent(buscar)}`
+      : `/usuarios?estado=${estado}`;
+    const usuarios = await api.request(query);
     renderUsuarios(usuarios);
   } catch (error) {
     showToast(error.message || "Error al filtrar usuarios", "error");
   }
+}
+
+// Espera un momento antes de disparar la búsqueda para no mandar una
+// petición por cada tecla presionada.
+let _timeoutBuscarUsuarios = null;
+function debounceBuscarUsuarios() {
+  clearTimeout(_timeoutBuscarUsuarios);
+  _timeoutBuscarUsuarios = setTimeout(() => filtrarUsuariosTabla(), 350);
 }
 
 // ============================================================
@@ -490,9 +510,15 @@ function renderRoles(roles) {
                                 <div class="ms-3 mt-1">${htmlPermisos}</div>
                             </div>
                         </div>
-                        <div class="card-footer bg-transparent">
+                        <div class="card-footer bg-transparent d-flex flex-wrap gap-1">
                             <button class="btn btn-sm btn-outline-primary" onclick="verPermisosRol(${r.id})">
                                 <i class="fas fa-key me-1"></i>Gestionar Permisos
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="showEditRolModal(${r.id})" title="Editar rol">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="eliminarRol(${r.id})" title="Eliminar rol">
+                                <i class="fas fa-trash"></i>
                             </button>
                         </div>
                     </div>
@@ -638,10 +664,11 @@ function _agregarControlesPaginacion(containerId, onAnterior, onSiguiente, skipA
 
 async function cargarEmpleadosTabla() {
   const estado = document.getElementById("filtroEstadoEmpleados")?.value || "activos";
+  const buscar = document.getElementById("buscarEmpleados")?.value?.trim() || "";
   try {
-    const empleados = await api.request(
-      `/empleados?estado=${estado}&skip=${skipEmpleadosTabla}&limit=${LIMITE_EMPLEADOS_TABLA}`,
-    );
+    let query = `/empleados?estado=${estado}&skip=${skipEmpleadosTabla}&limit=${LIMITE_EMPLEADOS_TABLA}`;
+    if (buscar) query += `&buscar=${encodeURIComponent(buscar)}`;
+    const empleados = await api.request(query);
     renderEmpleados(empleados);
     _agregarControlesPaginacion(
       "empleadosContainer",
@@ -652,6 +679,18 @@ async function cargarEmpleadosTabla() {
   } catch (error) {
     showToast(error.message || "Error al cargar empleados", "error");
   }
+}
+
+// Espera un momento antes de disparar la búsqueda para no mandar una
+// petición por cada tecla presionada. Reinicia la paginación a la primera
+// página, porque el resultado filtrado puede tener menos páginas.
+let _timeoutBuscarEmpleados = null;
+function debounceBuscarEmpleados() {
+  clearTimeout(_timeoutBuscarEmpleados);
+  _timeoutBuscarEmpleados = setTimeout(() => {
+    skipEmpleadosTabla = 0;
+    cargarEmpleadosTabla();
+  }, 350);
 }
 
 async function cargarPagosTabla() {
@@ -1339,12 +1378,52 @@ function showCreateRolModal() {
   }
 }
 
+function showEditRolModal(id) {
+  const rol = rolesData.find((r) => r.id === id);
+  if (!rol) {
+    showToast("Rol no encontrado", "error");
+    return;
+  }
+
+  let modal = document.getElementById("rolModal");
+  if (!modal) {
+    crearModalRol();
+    setTimeout(() => showEditRolModal(id), 150);
+    return;
+  }
+
+  const title = document.getElementById("rolModalTitle");
+  if (title) title.textContent = "Editar Rol";
+
+  const idInput = document.getElementById("rolId");
+  if (idInput) idInput.value = rol.id;
+
+  const nombreInput = document.getElementById("rolNombre");
+  if (nombreInput) nombreInput.value = rol.nombre || "";
+
+  const descripcionInput = document.getElementById("rolDescripcion");
+  if (descripcionInput) descripcionInput.value = rol.descripcion || "";
+
+  const nivelInput = document.getElementById("rolNivel");
+  if (nivelInput) nivelInput.value = rol.nivel ?? 0;
+
+  try {
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+  } catch (error) {
+    console.error("Error al mostrar modal:", error);
+    modal.remove();
+    setTimeout(() => showEditRolModal(id), 200);
+  }
+}
+
 async function saveRol(event) {
   if (event) {
     event.preventDefault();
     event.stopPropagation();
   }
 
+  const id = document.getElementById("rolId")?.value || "";
   const nombre = document.getElementById("rolNombre")?.value?.trim() || "";
   const descripcion =
     document.getElementById("rolDescripcion")?.value?.trim() || null;
@@ -1362,8 +1441,13 @@ async function saveRol(event) {
   }
 
   try {
-    await api.request("/roles", "POST", { nombre, descripcion, nivel });
-    showToast("Rol creado correctamente", "success");
+    if (id) {
+      await api.request(`/roles/${id}`, "PUT", { nombre, descripcion, nivel });
+      showToast("Rol actualizado correctamente", "success");
+    } else {
+      await api.request("/roles", "POST", { nombre, descripcion, nivel });
+      showToast("Rol creado correctamente", "success");
+    }
 
     const modal = document.getElementById("rolModal");
     if (modal) {
@@ -1380,11 +1464,40 @@ async function saveRol(event) {
     }
   } catch (error) {
     console.error("Error en saveRol:", error);
-    showToast(error.message || "Error al crear rol", "error");
+    showToast(error.message || "Error al guardar rol", "error");
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = "Guardar";
     }
+  }
+}
+
+async function eliminarRol(id) {
+  const rol = rolesData.find((r) => r.id === id);
+  const usuariosConEsteRol = (usuariosData || []).filter((u) => u.id_rol === id);
+
+  if (usuariosConEsteRol.length > 0) {
+    showToast(
+      `No se puede eliminar: hay ${usuariosConEsteRol.length} usuario(s) con este rol. Reasígnalos primero.`,
+      "error",
+    );
+    return;
+  }
+
+  const confirmado = await mostrarConfirmacion(
+    "Eliminar rol",
+    `¿Eliminar el rol "${rol ? rol.nombre : ""}"? Esta acción no se puede deshacer y también se quitarán los permisos asignados a este rol.`,
+    "Eliminar",
+  );
+  if (!confirmado) return;
+
+  try {
+    await api.request(`/roles/${id}`, "DELETE");
+    showToast("Rol eliminado correctamente", "success");
+    await cargarDatos();
+    llenarSelectRol();
+  } catch (error) {
+    showToast(error.message || "Error al eliminar rol", "error");
   }
 }
 
@@ -1788,7 +1901,7 @@ async function verPermisosRol(idRol) {
                                         <input class="form-check-input" type="checkbox"
                                                id="permiso_${p.id}"
                                                ${permisosIds.includes(p.id) ? "checked" : ""}
-                                               onchange="togglePermiso(${idRol}, ${p.id}, ${permisosRol.find((rp) => rp.id_permiso === p.id)?.id || "null"})">
+                                               onchange="togglePermiso(${idRol}, ${p.id}, ${permisosRol.find((rp) => rp.id_permiso === p.id)?.id || "null"}, this)">
                                         <label class="form-check-label" for="permiso_${p.id}">
                                             ${p.nombre}
                                             ${p.descripcion ? `<br><small class="text-muted">${p.descripcion}</small>` : ""}
@@ -1826,7 +1939,7 @@ async function verPermisosRol(idRol) {
                                             <input class="form-check-input" type="checkbox"
                                                    id="permiso_${p.id}"
                                                    ${p.tienePermiso ? "checked" : ""}
-                                                   onchange="togglePermiso(${idRol}, ${p.id}, ${p.rolPermisoId || "null"})">
+                                                   onchange="togglePermiso(${idRol}, ${p.id}, ${p.rolPermisoId || "null"}, this)">
                                             <label class="form-check-label" for="permiso_${p.id}">
                                                 ${p.nombre}
                                                 ${p.descripcion ? `<br><small class="text-muted">${p.descripcion}</small>` : ""}
@@ -1888,21 +2001,64 @@ async function verPermisosRol(idRol) {
   }
 }
 
-async function togglePermiso(idRol, idPermiso, rolPermisoId) {
+// Antes, cada click en el checkbox llamaba a verPermisosRol() al final, que
+// vuelve a construir TODO el modal desde cero. Si el usuario hacía click muy
+// rápido en el mismo checkbox (o en varios), una petición todavía en curso
+// terminaba y reconstruía el modal con datos viejos, pisando el cambio que
+// se acababa de hacer -- por eso a veces el permiso "se volvía a activar"
+// solo. La solución: bloquear ese permiso mientras su petición está en
+// curso (para que un segundo click no dispare otra petición encima), y
+// actualizar solo el 'onchange' del checkbox afectado en vez de recargar
+// todo el modal.
+const permisosEnProceso = new Set(); // ids de permiso con una petición en curso
+
+async function togglePermiso(idRol, idPermiso, rolPermisoId, checkboxEl) {
+  if (permisosEnProceso.has(idPermiso)) {
+    // Ya hay una petición en curso para este permiso: se ignora este click
+    // extra y se revierte el checkbox a como estaba antes de este click.
+    if (checkboxEl) checkboxEl.checked = !checkboxEl.checked;
+    return;
+  }
+  permisosEnProceso.add(idPermiso);
+  if (checkboxEl) checkboxEl.disabled = true;
+
   try {
     if (rolPermisoId) {
       await api.request(`/roles/permisos/${rolPermisoId}`, "DELETE");
+      if (checkboxEl) {
+        checkboxEl.setAttribute("onchange", `togglePermiso(${idRol}, ${idPermiso}, null, this)`);
+      }
+      rolPermisosData = rolPermisosData.filter(
+        (p) => !(p.id_rol === idRol && p.id_permiso === idPermiso),
+      );
       showToast("Permiso removido", "success");
     } else {
-      await api.request("/roles/permisos", "POST", {
+      const nuevo = await api.request("/roles/permisos", "POST", {
         id_rol: idRol,
         id_permiso: idPermiso,
       });
+      let nuevoId = nuevo?.id;
+      if (!nuevoId) {
+        // Por si la API no devolviera el id creado, se busca de nuevo.
+        const permisosDelRol = await api.request(`/roles/${idRol}/permisos`).catch(() => []);
+        const encontrado = (permisosDelRol || []).find((rp) => rp.id_permiso === idPermiso);
+        nuevoId = encontrado?.id || null;
+      }
+      if (checkboxEl) {
+        checkboxEl.setAttribute("onchange", `togglePermiso(${idRol}, ${idPermiso}, ${nuevoId}, this)`);
+      }
+      const permisoInfo = permisosData.find((p) => p.id === idPermiso);
+      if (permisoInfo) {
+        rolPermisosData.push({ ...permisoInfo, id_rol: idRol, id_permiso: idPermiso, id: nuevoId });
+      }
       showToast("Permiso asignado", "success");
     }
-    await verPermisosRol(idRol);
   } catch (error) {
+    if (checkboxEl) checkboxEl.checked = !checkboxEl.checked;
     showToast(error.message || "Error al cambiar permiso", "error");
+  } finally {
+    permisosEnProceso.delete(idPermiso);
+    if (checkboxEl) checkboxEl.disabled = false;
   }
 }
 
