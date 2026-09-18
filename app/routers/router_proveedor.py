@@ -18,11 +18,11 @@ from app.schemas.schema_proveedor import (
     PedidoTotalResponse,
 )
 
-MONTO_MINIMO_PEDIDO = 500.00  # Q500, la regla de acumulación del Proceso A
+MONTO_MINIMO_PEDIDO = 500.00 
 
-router = APIRouter()           # /proveedores
-router_tipo = APIRouter()      # /tipos-proveedor
-router_pedido = APIRouter()    # /pedidos
+router = APIRouter()           
+router_tipo = APIRouter()    
+router_pedido = APIRouter()  
 
 ESTADOS_PEDIDO = ["Pendiente", "Cotizado", "Aprobado", "Comprado", "Cancelado"]
 
@@ -30,8 +30,12 @@ ESTADOS_PEDIDO = ["Pendiente", "Cotizado", "Aprobado", "Comprado", "Cancelado"]
 def _calcular_total_pedido(db: Session, pedido: Pedido) -> float:
     total = 0.0
     for detalle in pedido.detalles:
-        producto = db.query(Producto).filter(Producto.id == detalle.id_producto).first()
-        precio = float(producto.precio_compra) if producto and producto.precio_compra else 0.0
+        precio = float(detalle.precio_compra) if detalle.precio_compra else 0.0
+
+        if not precio:
+            producto = db.query(Producto).filter(Producto.id == detalle.id_producto).first()
+            precio = float(producto.precio_compra) if producto and producto.precio_compra else 0.0
+
         total += float(detalle.cantidad_pedida) * precio
     return round(total, 2)
 
@@ -135,6 +139,17 @@ def crear_tipo_proveedor(datos: TipoProveedorCreate, db: Session = Depends(get_d
     db.refresh(nuevo)
     return nuevo
 
+@router_tipo.put("/{tipo_id}", response_model=TipoProveedorResponse)
+def actualizar_tipo_proveedor(tipo_id: int, datos: TipoProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    tipo = db.query(TipoProveedor).filter(TipoProveedor.id == tipo_id).first()
+    if not tipo:
+        raise HTTPException(status_code=404, detail="Tipo de proveedor no encontrado")
+    for campo, valor in datos.model_dump(exclude_unset=True).items():
+        setattr(tipo, campo, valor)
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "TipoProveedor")
+    db.commit()
+    db.refresh(tipo)
+    return tipo
 
 # ===================================================================
 # PEDIDO (+ detalle_pedido)
@@ -200,7 +215,20 @@ def agregar_producto_a_pedido(pedido_id: int, datos: DetallePedidoCreate, db: Se
     if not db.query(Producto).filter(Producto.id == datos.id_producto).first():
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    nuevo_detalle = DetallePedido(id_pedido=pedido_id, **datos.model_dump())
+    # Si no mandan precio_compra, usar el del producto
+    precio = datos.precio_compra
+    if precio is None or precio == 0:
+        producto = db.query(Producto).filter(Producto.id == datos.id_producto).first()
+        precio = float(producto.precio_compra) if producto and producto.precio_compra else 0.0
+
+    nuevo_detalle = DetallePedido(
+        id_pedido=pedido_id,
+        id_producto=datos.id_producto,
+        cantidad_pedida=datos.cantidad_pedida,
+        cantidad_sugerida=datos.cantidad_sugerida,
+        observaciones=datos.observaciones,
+        precio_compra=precio,
+    )
     db.add(nuevo_detalle)
     registrar_actividad(db, usuario_actual.id, "EDITAR", "Pedido")
     db.commit()

@@ -8,6 +8,8 @@ from app.security import verify_password, create_access_token, get_current_user 
 from app.models.model_usuario import Usuario, LogActividad
 from app.schemas.schema_auth import LoginRequest, TokenResponse
 
+from app.schemas.schema_auth import VerificarAdminResponse
+
 router = APIRouter()
 
 MAX_INTENTOS_FALLIDOS = 5
@@ -52,3 +54,27 @@ def login(datos: LoginRequest, db: Session = Depends(get_db)):
         nombre_usuario=usuario.nombre_usuario,
         rol=usuario.rol.nombre if usuario.rol else None,
     )
+
+ROLES_ADMIN = ("Administrador", "Dueña")
+
+
+def _es_admin(usuario: Usuario) -> bool:
+    if not usuario or not usuario.rol:
+        return False
+    return usuario.rol.nombre in ROLES_ADMIN
+
+
+@router.post("/verificar-admin", response_model=VerificarAdminResponse)
+def verificar_admin(datos: LoginRequest, db: Session = Depends(get_db)):
+    """Verifica credenciales de un usuario y confirma que sea Administrador o Dueña.
+    NO genera token; solo valida. Se usa para autorizar acciones sensibles (ej. eliminar)."""
+    usuario = db.query(Usuario).filter(Usuario.nombre_usuario == datos.nombre_usuario).first()
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+    if usuario.activo == 0:
+        raise HTTPException(status_code=403, detail="Usuario inactivo")
+    if not verify_password(datos.password, usuario.password):
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+    if not _es_admin(usuario):
+        raise HTTPException(status_code=403, detail="El usuario no tiene rol de Administrador")
+    return VerificarAdminResponse(autorizado=True, mensaje=f"Autorizado por {usuario.nombre_usuario}")

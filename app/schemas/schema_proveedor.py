@@ -1,14 +1,6 @@
-"""
-app/schemas/schema_proveedor.py
-----------------------------------
-Formas del JSON que entra y sale de la API para el módulo proveedor.
-"""
-
 from datetime import datetime
 from typing import List, Optional
-
 from pydantic import BaseModel, ConfigDict
-
 from app.schemas.validators import TelefonoValidatorMixin
 
 
@@ -16,6 +8,7 @@ from app.schemas.validators import TelefonoValidatorMixin
 
 class TipoProveedorBase(BaseModel):
     descripcion: Optional[str] = None
+    activo: Optional[int] = 1 
 
 
 class TipoProveedorCreate(TipoProveedorBase):
@@ -65,6 +58,7 @@ class DetallePedidoCreate(BaseModel):
     cantidad_pedida: float
     cantidad_sugerida: Optional[float] = None
     observaciones: Optional[str] = None
+    precio_compra: Optional[float] = 0
 
 
 class DetallePedidoResponse(DetallePedidoCreate):
