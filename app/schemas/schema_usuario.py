@@ -58,6 +58,10 @@ class RolCreate(RolBase):
     nombre: str
 
 
+class RolUpdate(RolBase):
+    nombre: Optional[str] = None
+
+
 class RolResponse(RolBase):
     id: int
     nombre: Optional[str] = None

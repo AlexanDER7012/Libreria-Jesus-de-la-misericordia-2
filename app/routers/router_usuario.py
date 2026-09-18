@@ -16,7 +16,7 @@ from app.models.model_usuario import (
 from app.schemas.schema_usuario import (
     UsuarioCreate, UsuarioUpdate, UsuarioResponse,
     EmpleadoCreate, EmpleadoUpdate, EmpleadoResponse,
-    RolCreate, RolResponse, RolPermisoCreate, RolPermisoResponse,
+    RolCreate, RolUpdate, RolResponse, RolPermisoCreate, RolPermisoResponse,
     PuestoCreate, PuestoResponse,
     TurnoCreate, TurnoResponse,
     ModuloCreate, ModuloResponse,
@@ -274,6 +274,56 @@ def crear_rol(datos: RolCreate, db: Session = Depends(get_db), usuario_actual: U
     db.commit()
     db.refresh(nuevo)
     return nuevo
+
+
+@router_rol.put("/{rol_id}", response_model=RolResponse)
+def actualizar_rol(rol_id: int, datos: RolUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    """Edita nombre/descripcion/nivel de un rol existente."""
+    rol = db.query(Rol).filter(Rol.id == rol_id).first()
+    if not rol:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+
+    datos_dict = datos.model_dump(exclude_unset=True)
+    if datos_dict.get("nombre"):
+        existente = db.query(Rol).filter(
+            Rol.nombre == datos_dict["nombre"], Rol.id != rol_id
+        ).first()
+        if existente:
+            raise HTTPException(status_code=400, detail="Ya existe otro rol con este nombre")
+
+    for campo, valor in datos_dict.items():
+        setattr(rol, campo, valor)
+
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Rol")
+    db.commit()
+    db.refresh(rol)
+    return rol
+
+
+@router_rol.delete("/{rol_id}", status_code=204)
+def eliminar_rol(rol_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    """
+    Elimina un rol de forma DEFINITIVA (Rol es un catálogo simple, sin baja
+    lógica). No se permite si todavía hay usuarios con este rol asignado --
+    hay que reasignarlos o quitarles el rol primero. Borra en cascada los
+    permisos asignados a este rol (RolPermiso), ya que sin el rol esas
+    filas no tienen sentido.
+    """
+    rol = db.query(Rol).filter(Rol.id == rol_id).first()
+    if not rol:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+
+    usuarios_con_este_rol = db.query(Usuario).filter(Usuario.id_rol == rol_id).count()
+    if usuarios_con_este_rol > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se puede eliminar: hay {usuarios_con_este_rol} usuario(s) con este rol asignado. Reasígnalos o quítales el rol primero.",
+        )
+
+    db.query(RolPermiso).filter(RolPermiso.id_rol == rol_id).delete()
+    db.delete(rol)
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Rol")
+    db.commit()
 
 
 @router_rol.get("/{rol_id}/permisos", response_model=List[RolPermisoResponse])
