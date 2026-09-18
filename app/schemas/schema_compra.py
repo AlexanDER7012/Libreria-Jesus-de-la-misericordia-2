@@ -33,6 +33,7 @@ class CompraPagoResponse(CompraPagoCreate):
     id: int
     id_compra: int
     fecha_pago: Optional[datetime] = None
+    anulado: Optional[int] = 0
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -45,10 +46,14 @@ class CompraCreate(BaseModel):
     numero_factura: Optional[str] = None
     id_usuario_registra: Optional[int] = None
     iva: Optional[float] = 12  # % por defecto, se usa para extraer IVA incluido
-    monto_exento: Optional[float] = 0  # NUEVO: monto de productos exentos
+    monto_exento: Optional[float] = 0
     fecha_vencimiento_pago: Optional[date] = None
     observaciones: Optional[str] = None
     detalles: List[DetalleCompraCreate]
+
+
+class CompraCancelar(BaseModel):
+    motivo: Optional[str] = None
 
 
 class CompraResponse(BaseModel):
@@ -67,6 +72,7 @@ class CompraResponse(BaseModel):
     observaciones: Optional[str] = None
     fecha_vencimiento_pago: Optional[date] = None
     saldo_pendiente: Optional[float] = None
+    motivo_cancelacion: Optional[str] = None
     detalles: List[DetalleCompraResponse] = []
     pagos: List[CompraPagoResponse] = []
     model_config = ConfigDict(from_attributes=True)

@@ -14,7 +14,7 @@ from app.models.model_proveedor import Pedido
 from app.models.model_compra import Compra, DetalleCompra, CompraPago, NotaEntrega, DevolucionCompra
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario
 from app.schemas.schema_compra import (
-    CompraCreate, CompraResponse,
+    CompraCreate, CompraResponse, CompraCancelar,
     NotaEntregaCreate, NotaEntregaResponse,
     CompraPagoCreate, CompraPagoResponse,
     DevolucionCompraCreate, DevolucionCompraResponse,
@@ -37,12 +37,17 @@ def resumen_totales_compras(
     TODAS las compras que cumplan el filtro (sin paginar, a diferencia de
     GET /compras que sí pagina). Pensado para la tarjeta de totales en la
     pestaña de Compras.
+    Por defecto EXCLUYE las compras Canceladas (no deben sumar a los totales
+    de compras/pagos/pendiente). Si se pide un estado explícito (incluyendo
+    "Cancelada"), se respeta ese filtro en vez de la exclusión automática.
     IMPORTANTE: esta ruta debe declararse ANTES de '/{compra_id}' -- si no,
     FastAPI intentaría interpretar 'resumen-totales' como si fuera un compra_id.
     """
     query = db.query(Compra)
     if estado is not None:
         query = query.filter(Compra.estado == estado)
+    else:
+        query = query.filter(Compra.estado != "Cancelada")
     if id_proveedor is not None:
         query = query.filter(Compra.id_proveedor == id_proveedor)
     if fecha_desde is not None:
@@ -126,29 +131,24 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
     # ============================================================
     # CÁLCULO DE TOTALES (IVA INCLUIDO EN GUATEMALA)
     # ============================================================
-    # El total de la factura = suma de cantidad * costo (ya trae IVA incluido)
     total_factura = round(
         sum(d.cantidad_comprada * d.costo_unitario for d in datos.detalles), 2
     )
 
-    # El usuario ingresa cuánto de ese total es exento
     exento = float(datos.monto_exento or 0)
     if exento < 0:
         exento = 0
     if exento > total_factura:
         exento = total_factura
 
-    # Gravado = total - exento
     gravado = round(total_factura - exento, 2)
 
-    # El IVA se EXTRAE del gravado (no se suma)
     iva_porcentaje = float(datos.iva or 12)
     if iva_porcentaje <= 0:
         monto_iva = 0
     else:
         monto_iva = round(gravado * (iva_porcentaje / (100 + iva_porcentaje)), 2)
 
-    # Subtotal sin IVA
     subtotal_sin_iva = round(total_factura - monto_iva, 2)
 
     nueva_compra = Compra(
@@ -188,8 +188,12 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
 
 
 @router.patch("/{compra_id}/cancelar", response_model=CompraResponse)
-def cancelar_compra(compra_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
-    """Cancela una compra: revierte inventario (si aplica), borra pagos, saldo=0, estado='Cancelada'."""
+def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    """
+    Cancela una compra: revierte inventario (si aplica), ANULA los pagos
+    (nunca los borra -- quedan en la tabla marcados con anulado=1 para
+    auditoría), saldo=0, estado='Cancelada'. Guarda el motivo si se envía.
+    """
     compra = db.query(Compra).filter(Compra.id == compra_id).first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
@@ -228,10 +232,15 @@ def cancelar_compra(compra_id: int, db: Session = Depends(get_db), usuario_actua
             if producto:
                 producto.stock_actual = float(producto.stock_actual or 0) - float(detalle.cantidad_unidades)
 
-    db.query(CompraPago).filter(CompraPago.id_compra == compra.id).delete()
+    # Anular pagos SIN borrarlos -- quedan como constancia de que el dinero
+    # sí salió, pero ya no cuentan para saldo/estado de la compra.
+    for pago in compra.pagos:
+        pago.anulado = 1
 
     compra.estado = "Cancelada"
     compra.saldo_pendiente = 0
+    if datos.motivo:
+        compra.motivo_cancelacion = datos.motivo
 
     registrar_actividad(db, usuario_actual.id, "EDITAR", "Compra")
     db.commit()
@@ -255,7 +264,7 @@ def eliminar_pago_compra(compra_id: int, pago_id: int, db: Session = Depends(get
     db.delete(pago)
     db.flush()
 
-    total_pagado = sum(float(p.monto) for p in compra.pagos)
+    total_pagado = sum(float(p.monto) for p in compra.pagos if not p.anulado)
     compra.saldo_pendiente = round(float(compra.total or 0) - total_pagado, 2)
 
     if compra.saldo_pendiente <= 0:
@@ -274,6 +283,16 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
     compra = db.query(Compra).filter(Compra.id == compra_id).first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
+
+    if datos.conforme == 1:
+        ya_recibida = db.query(NotaEntrega).filter(
+            NotaEntrega.id_compra == compra_id, NotaEntrega.conforme == 1
+        ).first()
+        if ya_recibida:
+            raise HTTPException(
+                status_code=400,
+                detail="Ya existe una nota de entrega conforme registrada para esta compra. No se puede volver a sumar el inventario.",
+            )
 
     nueva_nota = NotaEntrega(id_compra=compra_id, **datos.model_dump())
     db.add(nueva_nota)
@@ -310,7 +329,8 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
             producto = db.query(Producto).filter(Producto.id == detalle.id_producto).first()
             producto.stock_actual = float(producto.stock_actual or 0) + float(detalle.cantidad_unidades)
 
-        compra.estado = "Recibida"
+        if compra.estado == "Pendiente":
+            compra.estado = "Recibida"
 
     registrar_actividad(db, usuario_actual.id, "EDITAR", "Compra")
     db.commit()
@@ -324,11 +344,13 @@ def registrar_pago_compra(compra_id: int, datos: CompraPagoCreate, db: Session =
     compra = db.query(Compra).filter(Compra.id == compra_id).first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
+    if compra.estado == "Cancelada":
+        raise HTTPException(status_code=400, detail="No se pueden registrar pagos a una compra cancelada")
 
     nuevo_pago = CompraPago(id_compra=compra_id, **datos.model_dump())
     db.add(nuevo_pago)
 
-    total_pagado = sum(float(p.monto) for p in compra.pagos) + float(datos.monto)
+    total_pagado = sum(float(p.monto) for p in compra.pagos if not p.anulado) + float(datos.monto)
     compra.saldo_pendiente = round(float(compra.total or 0) - total_pagado, 2)
 
     if compra.saldo_pendiente <= 0:
