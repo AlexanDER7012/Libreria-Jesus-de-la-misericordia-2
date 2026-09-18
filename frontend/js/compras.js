@@ -3207,30 +3207,35 @@ async function verCompra(id) {
       .join("");
 
     // --- Pagos ---
-    const pagosHtml =
-      (compra.pagos || []).length === 0
-        ? '<tr><td colspan="5" class="text-center">Sin pagos registrados</td></tr>'
-        : (compra.pagos || [])
-            .map((p) => {
-              const tipo = (window.tiposPagoData || []).find(
-                (t) => t.id === p.id_tipo_pago,
-              );
-              return `
-            <tr>
-              <td>${tipo ? tipo.nombre : "--"}</td>
-              <td class="text-end">Q${p.monto || 0}</td>
-              <td>${p.referencia || "--"}</td>
-              <td>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleDateString() : "--"}</td>
-              <td class="text-end">
-                <button class="btn btn-sm btn-outline-danger"
-                        onclick="eliminarPagoCompra(${compra.id}, ${p.id})">
-                  <i class="fas fa-trash"></i>
-                </button>
-              </td>
-            </tr>
-          `;
-            })
-            .join("");
+const pagosHtml =
+  (compra.pagos || []).length === 0
+    ? '<tr><td colspan="5" class="text-center">Sin pagos registrados</td></tr>'
+    : (compra.pagos || [])
+        .map((p) => {
+          const tipo = (window.tiposPagoData || []).find(
+            (t) => t.id === p.id_tipo_pago,
+          );
+          const anulado = p.anulado === 1;
+          return `
+        <tr class="${anulado ? "text-muted" : ""}">
+          <td>${tipo ? tipo.nombre : "--"} ${anulado ? '<span class="badge bg-secondary ms-1">Anulado</span>' : ""}</td>
+          <td class="text-end" style="${anulado ? "text-decoration: line-through;" : ""}">Q${p.monto || 0}</td>
+          <td>${p.referencia || "--"}</td>
+          <td>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleDateString() : "--"}</td>
+          <td class="text-end">
+            ${
+              anulado
+                ? ""
+                : `<button class="btn btn-sm btn-outline-danger"
+                    onclick="eliminarPagoCompra(${compra.id}, ${p.id})">
+              <i class="fas fa-trash"></i>
+            </button>`
+            }
+          </td>
+        </tr>
+      `;
+        })
+        .join("");
 
     const estadoBadge =
       compra.estado === "Cancelada"
@@ -3266,6 +3271,7 @@ async function verCompra(id) {
                     <div class="col-md-6"><strong>Vencimiento:</strong> ${compra.fecha_vencimiento_pago || "--"}</div>
                 </div>
                 ${compra.observaciones ? `<div class="mb-3"><strong>Observaciones:</strong> ${compra.observaciones}</div>` : ""}
+                ${compra.estado === "Cancelada" && compra.motivo_cancelacion ? `<div class="mb-3 text-danger"><strong>Motivo de cancelación:</strong> ${compra.motivo_cancelacion}</div>` : ""}
 
                 <h6 class="fw-bold mt-3">Detalles</h6>
                 <div class="table-responsive">
@@ -3376,6 +3382,7 @@ async function imprimirCompra(id) {
         <div class="datos"><strong>Fecha:</strong> ${fecha}</div>
         <div class="datos"><strong>Estado:</strong> ${compra.estado || "Pendiente"}</div>
         ${compra.observaciones ? `<div class="datos"><strong>Observaciones:</strong> ${compra.observaciones}</div>` : ""}
+        ${compra.estado === "Cancelada" && compra.motivo_cancelacion ? `<div class="datos"><strong>Motivo de cancelación:</strong> ${compra.motivo_cancelacion}</div>` : ""}
         <table>
           <thead><tr><th>Producto</th><th>Cantidad</th><th>Costo Unitario</th><th>Subtotal</th></tr></thead>
           <tbody>${filasDetalle || '<tr><td colspan="4" style="text-align:center">Sin detalles</td></tr>'}</tbody>
@@ -3406,24 +3413,84 @@ async function imprimirCompra(id) {
 }
 
 async function registrarNotaEntrega(id) {
-  const numero_nota = prompt("Ingrese el número de nota de entrega:");
-  if (!numero_nota) return;
+  const existing = document.getElementById("registrarNotaEntregaModal");
+  if (existing) existing.remove();
 
-  const conforme = confirm("¿El receptor está conforme?");
-  const data = {
-    numero_nota,
-    id_usuario_receptor: getCurrentUser()?.id || 1,
-    conforme: conforme ? 1 : 0,
-    observaciones: prompt("Observaciones (opcional):") || null,
-  };
+  const html = `
+    <div class="modal fade" id="registrarNotaEntregaModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header bg-success text-white">
+            <h5 class="modal-title"><i class="fas fa-file-signature me-2"></i>Nota de Entrega</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="registrarNotaEntregaForm">
+              <div class="mb-3">
+                <label class="form-label fw-bold">Número de Nota <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="notaEntregaNumero" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">¿El receptor está conforme?</label>
+                <select class="form-select" id="notaEntregaConforme">
+                  <option value="1">Sí, conforme</option>
+                  <option value="0">No conforme</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Observaciones</label>
+                <textarea class="form-control" id="notaEntregaObservaciones" rows="2" placeholder="Opcional"></textarea>
+              </div>
+              <button type="submit" class="btn btn-success w-100">
+                <i class="fas fa-save me-2"></i>Registrar Nota
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML("beforeend", html);
 
-  try {
-    await api.request(`/compras/${id}/nota-entrega`, "POST", data);
-    showToast("Nota de entrega registrada correctamente", "success");
-    await loadComprasModule();
-  } catch (error) {
-    showToast(error.message || "Error al registrar nota de entrega", "error");
-  }
+  const modalEl = document.getElementById("registrarNotaEntregaModal");
+  const modalInstance = new bootstrap.Modal(modalEl);
+  modalEl.addEventListener("hidden.bs.modal", () => modalEl.remove());
+
+  document
+    .getElementById("registrarNotaEntregaForm")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const numero_nota = document
+        .getElementById("notaEntregaNumero")
+        .value.trim();
+      const conforme = parseInt(
+        document.getElementById("notaEntregaConforme").value,
+      );
+      const observaciones =
+        document.getElementById("notaEntregaObservaciones").value.trim() ||
+        null;
+
+      if (!numero_nota)
+        return showToast("El número de nota es obligatorio", "error");
+
+      const data = {
+        numero_nota,
+        id_usuario_receptor: getCurrentUser()?.id || 1,
+        conforme,
+        observaciones,
+      };
+
+      try {
+        await api.request(`/compras/${id}/nota-entrega`, "POST", data);
+        showToast("Nota de entrega registrada correctamente", "success");
+        modalInstance.hide();
+        await loadComprasModule();
+      } catch (error) {
+        showToast(error.message || "Error al registrar nota de entrega", "error");
+      }
+    });
+
+  modalInstance.show();
 }
 
 async function registrarPagoCompra(id) {
@@ -3439,48 +3506,159 @@ async function registrarPagoCompra(id) {
     return showToast("No hay tipos de pago activos para compras", "warning");
   }
 
-  const tipoOptions = tiposValidos
-    .map((t) => `${t.id} - ${t.nombre}`)
-    .join("\n");
+  const existing = document.getElementById("registrarPagoCompraModal");
+  if (existing) existing.remove();
 
-  const tipoId = prompt(
-    `Tipos de pago disponibles:\n${tipoOptions}\n\nIngrese el ID del tipo de pago:`,
-  );
-  if (!tipoId) return;
+  const opcionesTipo = tiposValidos
+    .map((t) => `<option value="${t.id}">${t.nombre}</option>`)
+    .join("");
 
-  const monto = prompt("Ingrese el monto del pago:");
-  if (!monto || isNaN(parseFloat(monto)))
-    return showToast("Monto inválido", "error");
+  const html = `
+    <div class="modal fade" id="registrarPagoCompraModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header bg-warning">
+            <h5 class="modal-title"><i class="fas fa-money-bill-wave me-2"></i>Registrar Pago</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="registrarPagoCompraForm">
+              <div class="mb-3">
+                <label class="form-label fw-bold">Tipo de Pago <span class="text-danger">*</span></label>
+                <select class="form-select" id="pagoCompraTipo" required>
+                  <option value="">Seleccionar...</option>
+                  ${opcionesTipo}
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Monto <span class="text-danger">*</span></label>
+                <input type="number" step="0.01" min="0.01" class="form-control" id="pagoCompraMonto" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Referencia</label>
+                <input type="text" class="form-control" id="pagoCompraReferencia" placeholder="Opcional (No. de recibo, transferencia, etc.)" />
+              </div>
+              <button type="submit" class="btn btn-warning w-100">
+                <i class="fas fa-save me-2"></i>Registrar Pago
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML("beforeend", html);
 
-  const data = {
-    id_tipo_pago: parseInt(tipoId),
-    monto: parseFloat(monto),
-    referencia: prompt("Referencia (opcional):") || null,
-    observaciones: prompt("Observaciones (opcional):") || null,
-  };
+  const modalEl = document.getElementById("registrarPagoCompraModal");
+  const modalInstance = new bootstrap.Modal(modalEl);
+  modalEl.addEventListener("hidden.bs.modal", () => modalEl.remove());
 
-  try {
-    await api.request(`/compras/${id}/pagos`, "POST", data);
-    showToast("Pago registrado correctamente", "success");
-    await loadComprasModule();
-  } catch (error) {
-    showToast(error.message || "Error al registrar pago", "error");
-  }
+  document
+    .getElementById("registrarPagoCompraForm")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const id_tipo_pago = parseInt(
+        document.getElementById("pagoCompraTipo").value,
+      );
+      const monto = parseFloat(document.getElementById("pagoCompraMonto").value);
+      const referencia =
+        document.getElementById("pagoCompraReferencia").value.trim() || null;
+
+      if (!id_tipo_pago) return showToast("Selecciona un tipo de pago", "error");
+      if (!monto || monto <= 0) return showToast("Monto inválido", "error");
+
+      try {
+        await api.request(`/compras/${id}/pagos`, "POST", {
+          id_tipo_pago,
+          monto,
+          referencia,
+        });
+        showToast("Pago registrado correctamente", "success");
+        modalInstance.hide();
+        await loadComprasModule();
+      } catch (error) {
+        showToast(error.message || "Error al registrar pago", "error");
+      }
+    });
+
+  modalInstance.show();
 }
 
 // =============================================
 // CANCELAR COMPRA Y PEDIDO
 // =============================================
-async function cancelarCompra(id) {
-  const motivo = prompt("Motivo de cancelación:");
-  if (!motivo) return;
+function pedirMotivoCancelacion() {
+  return new Promise((resolve) => {
+    const existing = document.getElementById("motivoCancelacionModal");
+    if (existing) existing.remove();
 
-  const ok = confirm(
-    "¿Cancelar esta compra?\n\n" +
-      "• Se revertirá el inventario\n" +
-      "• Se eliminarán los pagos registrados\n" +
-      "• El saldo quedará en 0\n\n" +
-      "Esta acción no se puede deshacer.",
+    const html = `
+      <div class="modal fade" id="motivoCancelacionModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+              <h5 class="modal-title"><i class="fas fa-ban me-2"></i>Cancelar Compra</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <p class="small text-muted mb-3">
+                Al cancelar: se revertirá el inventario si la compra ya fue recibida,
+                y los pagos registrados quedarán <strong>anulados</strong> (no se
+                eliminan, pero ya no cuentan para el saldo). Esta acción no se puede deshacer.
+              </p>
+              <label class="form-label fw-bold">Motivo de cancelación <span class="text-danger">*</span></label>
+              <textarea class="form-control" id="motivoCancelacionTexto" rows="3" placeholder="Ej: proveedor no entregó la mercadería"></textarea>
+              <div class="text-danger small mt-1" id="motivoCancelacionError" style="display:none;">
+                El motivo es obligatorio.
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Volver</button>
+              <button type="button" class="btn btn-sm btn-danger" id="motivoCancelacionContinuar">
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML("beforeend", html);
+
+    const modalEl = document.getElementById("motivoCancelacionModal");
+    const modalInstance = new bootstrap.Modal(modalEl);
+    let resolved = false;
+
+    modalEl.addEventListener("hidden.bs.modal", () => {
+      if (!resolved) {
+        resolved = true;
+        resolve(null);
+      }
+      modalEl.remove();
+    });
+
+    document.getElementById("motivoCancelacionContinuar").onclick = () => {
+      const texto = document.getElementById("motivoCancelacionTexto").value.trim();
+      if (!texto) {
+        document.getElementById("motivoCancelacionError").style.display = "block";
+        return;
+      }
+      resolved = true;
+      resolve(texto);
+      modalInstance.hide();
+    };
+
+    modalInstance.show();
+  });
+}
+
+async function cancelarCompra(id) {
+  const motivo = await pedirMotivoCancelacion();
+  if (motivo === null) return; // el usuario cerró el modal sin escribir motivo
+
+  const ok = await mostrarConfirmacion(
+    "Cancelar Compra",
+    "¿Confirmas que deseas cancelar esta compra? Esta acción no se puede deshacer.",
+    "Cancelar Compra",
   );
   if (!ok) return;
 
