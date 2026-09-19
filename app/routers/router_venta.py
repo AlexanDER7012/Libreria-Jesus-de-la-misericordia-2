@@ -5,7 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user
+from app.security import get_current_user, requiere_permiso
 from app.bitacora import registrar_actividad
 from app.models.model_cliente import Cliente
 from app.models.model_producto import Producto
@@ -51,6 +51,7 @@ def listar_ventas(
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
 ):
     query = db.query(Venta).order_by(Venta.fecha.desc())
     if estado is not None:
@@ -67,7 +68,7 @@ def listar_ventas(
 
 
 @router.get("/{venta_id}", response_model=VentaResponse)
-def obtener_venta(venta_id: int, db: Session = Depends(get_db)):
+def obtener_venta(venta_id: int, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
@@ -75,7 +76,7 @@ def obtener_venta(venta_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=VentaResponse, status_code=201)
-def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Crear"))):
     turno = db.query(CajaTurno).filter(CajaTurno.id == datos.id_caja_turno).first()
     if not turno:
         raise HTTPException(status_code=404, detail="Turno de caja no encontrado")
@@ -185,7 +186,7 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
 
 
 @router.patch("/{venta_id}/cancelar", response_model=VentaResponse)
-def cancelar_venta(venta_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def cancelar_venta(venta_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Editar"))):
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
@@ -210,7 +211,7 @@ def cancelar_venta(venta_id: int, db: Session = Depends(get_db), usuario_actual:
 
 
 @router.put("/{venta_id}", response_model=VentaResponse)
-def actualizar_venta(venta_id: int, datos: VentaUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def actualizar_venta(venta_id: int, datos: VentaUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Editar"))):
     """
     Actualiza una venta existente. A propósito, solo permite cambiar
     'observaciones' (ver VentaUpdate para el porqué). Para cancelar una
@@ -231,7 +232,7 @@ def actualizar_venta(venta_id: int, datos: VentaUpdate, db: Session = Depends(ge
 
 
 @router.post("/{venta_id}/pagos", status_code=201)
-def registrar_pago_venta(venta_id: int, pago_data: MetodoPagoVentaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def registrar_pago_venta(venta_id: int, pago_data: MetodoPagoVentaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Editar"))):
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
@@ -250,7 +251,7 @@ def registrar_pago_venta(venta_id: int, pago_data: MetodoPagoVentaCreate, db: Se
 
 
 @router.delete("/{venta_id}/pagos/{pago_id}", status_code=204)
-def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Eliminar"))):
     """
     Elimina un pago de la venta. Por defecto, NO deja eliminar un pago si
     eso hace que los pagos restantes ya no cuadren con el total de la
@@ -300,6 +301,7 @@ def listar_servicios(
     id_cliente: Optional[int] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
 ):
     """
     Paginado: ?skip=0&limit=50 (default), máximo 200 por página.
@@ -314,7 +316,7 @@ def listar_servicios(
 
 
 @router_servicio.post("", response_model=ServicioAdicionalResponse, status_code=201)
-def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Crear"))):
     """
     Si vienen 'detalles' (materiales usados), monto_material SIEMPRE se
     calcula desde ahí -- no se confía en lo que mande el cliente (mismo
@@ -357,7 +359,7 @@ def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get
 
 
 @router_servicio.delete("/{servicio_id}", status_code=204)
-def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Eliminar"))):
     servicio = db.query(ServicioAdicional).filter(ServicioAdicional.id == servicio_id).first()
     if not servicio:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")

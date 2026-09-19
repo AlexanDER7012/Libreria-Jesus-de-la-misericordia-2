@@ -29,15 +29,15 @@
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h4><i class="fas fa-cash-register me-2 text-primary"></i>Caja</h4>
                 <div>
-                    <button class="btn btn-primary btn-sm me-2" onclick="window.abrirModalTurno()">
+                    ${tienePermiso("Caja", "Crear") ? `<button class="btn btn-primary btn-sm me-2" onclick="window.abrirModalTurno()">
                         <i class="fas fa-play me-1"></i>Abrir Turno
-                    </button>
-                    <button class="btn btn-warning btn-sm me-2" onclick="window.showCerrarTurnoModal()">
+                    </button>` : ""}
+                    ${tienePermiso("Caja", "Editar") ? `<button class="btn btn-warning btn-sm me-2" onclick="window.showCerrarTurnoModal()">
                         <i class="fas fa-stop me-1"></i>Cerrar Turno
-                    </button>
-                    <button class="btn btn-success btn-sm" onclick="window.showRegistrarGastoModal()">
+                    </button>` : ""}
+                    ${(tienePermiso("Compras", "Crear") || tienePermiso("Caja", "Crear")) ? `<button class="btn btn-success btn-sm" onclick="window.showRegistrarGastoModal()">
                         <i class="fas fa-plus me-1"></i>Registrar Gasto
-                    </button>
+                    </button>` : ""}
                 </div>
             </div>
 
@@ -91,9 +91,9 @@
                 <div class="tab-pane fade" id="cajaChicaTab">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h6 class="mb-0">Movimientos de Caja Chica</h6>
-                        <button class="btn btn-sm btn-outline-success" onclick="window.showRegistrarCajaChicaModal()">
+                        ${(tienePermiso("Compras", "Crear") || tienePermiso("Caja", "Crear")) ? `<button class="btn btn-sm btn-outline-success" onclick="window.showRegistrarCajaChicaModal()">
                             <i class="fas fa-plus me-1"></i>Registrar Movimiento
-                        </button>
+                        </button>` : ""}
                     </div>
                     <div id="cajaChicaContainer">
                         <div class="text-center py-5">
@@ -119,9 +119,9 @@
                                     <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
                                 </div>
                             </div>
-                            <button class="btn btn-sm btn-outline-primary mt-2" onclick="window.showCrearTipoGastoModal()">
+                            ${(tienePermiso("Compras", "Crear") || tienePermiso("Caja", "Crear")) ? `<button class="btn btn-sm btn-outline-primary mt-2" onclick="window.showCrearTipoGastoModal()">
                                 <i class="fas fa-plus me-1"></i>Nuevo Tipo
-                            </button>
+                            </button>` : ""}
                         </div>
                         <div class="col-md-6">
                             <h6 class="fw-bold">Tipos de Pago</h6>
@@ -130,9 +130,9 @@
                                     <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
                                 </div>
                             </div>
-                            <button class="btn btn-sm btn-outline-primary mt-2" onclick="window.showCrearTipoPagoModal()">
+                            ${(tienePermiso("Compras", "Crear") || tienePermiso("Ventas", "Crear") || tienePermiso("Caja", "Crear")) ? `<button class="btn btn-sm btn-outline-primary mt-2" onclick="window.showCrearTipoPagoModal()">
                                 <i class="fas fa-plus me-1"></i>Nuevo Tipo
-                            </button>
+                            </button>` : ""}
                         </div>
                     </div>
                 </div>
@@ -244,11 +244,17 @@
               </div>
               <div class="card-body">
                 <div class="d-flex gap-2 mb-3">
-                  <button class="btn btn-sm btn-success" onclick="window.abrirModalTurno()">
-                    <i class="fas fa-play me-1"></i>Abrir Turno
-                  </button>
                   ${
-                    abiertos.length > 0
+                    tienePermiso("Caja", "Crear")
+                      ? `
+                    <button class="btn btn-sm btn-success" onclick="window.abrirModalTurno()">
+                      <i class="fas fa-play me-1"></i>Abrir Turno
+                    </button>
+                  `
+                      : ""
+                  }
+                  ${
+                    abiertos.length > 0 && tienePermiso("Caja", "Editar")
                       ? `
                     <button class="btn btn-sm btn-danger" onclick="window.showCerrarTurnoModal()">
                       <i class="fas fa-stop me-1"></i>Cerrar Turno
@@ -286,9 +292,9 @@
                           .join("")
                   }
                 </div>
-                <button class="btn btn-sm btn-outline-primary" onclick="window.showCrearTipoPagoModal()">
+                ${(tienePermiso("Compras", "Crear") || tienePermiso("Ventas", "Crear") || tienePermiso("Caja", "Crear")) ? `<button class="btn btn-sm btn-outline-primary" onclick="window.showCrearTipoPagoModal()">
                   <i class="fas fa-plus me-1"></i>Nuevo Tipo Pago
-                </button>
+                </button>` : ""}
                 <hr>
                 <div class="text-muted small">
                   <i class="fas fa-info-circle me-1"></i>

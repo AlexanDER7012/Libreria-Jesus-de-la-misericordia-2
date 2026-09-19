@@ -15,6 +15,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -71,3 +72,107 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if not usuario or usuario.activo == 0:
         raise HTTPException(status_code=401, detail="Usuario no válido o inactivo")
     return usuario
+
+
+def requiere_permiso(modulo: str, accion: str):
+    """
+    Fábrica de dependencias de FastAPI: exige que el usuario logueado tenga
+    asignado, a través de su rol, el permiso "<accion>" del módulo
+    "<modulo>" (tal como aparecen en Modulo.nombre y Permiso.nombre).
+
+    Uso (reemplaza a get_current_user en cualquier endpoint que deba
+    respetar los permisos configurados en Usuarios > Roles y Permisos):
+
+        @router.post("", response_model=ProductoResponse)
+        def crear_producto(
+            datos: ProductoCreate,
+            db: Session = Depends(get_db),
+            usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear")),
+        ):
+            ...
+
+    Si el usuario no tiene rol, o su rol no tiene ese permiso exacto
+    asignado, se corta la petición con 403 ANTES de que el endpoint corra
+    ninguna lógica -- así que aunque alguien llame al endpoint directo
+    (Postman, curl, etc.) sin pasar por el frontend, igual queda bloqueado.
+    """
+
+    def _dependencia(
+        usuario_actual=Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ):
+        from app.models.model_usuario import RolPermiso, Permiso, Modulo
+
+        if not usuario_actual.id_rol:
+            raise HTTPException(
+                status_code=403,
+                detail=f"No tienes permiso para '{accion}' en '{modulo}'",
+            )
+
+        tiene_permiso = (
+            db.query(RolPermiso)
+            .join(Permiso, RolPermiso.id_permiso == Permiso.id)
+            .join(Modulo, Permiso.id_modulo == Modulo.id)
+            .filter(
+                RolPermiso.id_rol == usuario_actual.id_rol,
+                # Comparacion sin distinguir mayusculas/minusculas: en la
+                # base de datos los nombres de modulo/permiso estan en
+                # minuscula, pero los routers llaman a esta funcion con
+                # nombres capitalizados como "Productos"/"Crear".
+                func.lower(Modulo.nombre) == modulo.lower(),
+                func.lower(Permiso.nombre) == accion.lower(),
+            )
+            .first()
+        )
+        if not tiene_permiso:
+            raise HTTPException(
+                status_code=403,
+                detail=f"No tienes permiso para '{accion}' en '{modulo}'",
+            )
+        return usuario_actual
+
+    return _dependencia
+
+def requiere_permiso_alguno(pares: list):
+    """
+    Variante de requiere_permiso() para permisos compartidos entre dos
+    o mas modulos (ej. "Tipos de Pago", que se gestiona tanto desde
+    Compras como desde Ventas sobre el mismo catalogo). Da acceso si
+    el usuario tiene AL MENOS UNO de los pares (modulo, accion).
+
+    Uso:
+        usuario_actual: Usuario = Depends(requiere_permiso_alguno([
+            ("Compras", "Crear"),
+            ("Ventas", "Crear"),
+        ])),
+    """
+
+    def _dependencia(
+        usuario_actual=Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ):
+        from app.models.model_usuario import RolPermiso, Permiso, Modulo
+
+        detalle = " o ".join(f"'{accion}' en '{modulo}'" for modulo, accion in pares)
+
+        if not usuario_actual.id_rol:
+            raise HTTPException(status_code=403, detail=f"No tienes permiso para {detalle}")
+
+        for modulo, accion in pares:
+            tiene_permiso = (
+                db.query(RolPermiso)
+                .join(Permiso, RolPermiso.id_permiso == Permiso.id)
+                .join(Modulo, Permiso.id_modulo == Modulo.id)
+                .filter(
+                    RolPermiso.id_rol == usuario_actual.id_rol,
+                    func.lower(Modulo.nombre) == modulo.lower(),
+                    func.lower(Permiso.nombre) == accion.lower(),
+                )
+                .first()
+            )
+            if tiene_permiso:
+                return usuario_actual
+
+        raise HTTPException(status_code=403, detail=f"No tienes permiso para {detalle}")
+
+    return _dependencia

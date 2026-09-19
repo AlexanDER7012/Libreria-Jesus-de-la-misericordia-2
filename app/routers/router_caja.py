@@ -5,7 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user
+from app.security import get_current_user, requiere_permiso, requiere_permiso_alguno
 from app.bitacora import registrar_actividad
 from app.models.model_usuario import Usuario
 from app.models.model_caja import (
@@ -46,6 +46,7 @@ def listar_turnos(
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
 ):
     """Filtra por fecha_desde/fecha_hasta (sobre fecha_apertura). Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(CajaTurno).order_by(CajaTurno.fecha_apertura.desc())
@@ -61,7 +62,7 @@ def listar_turnos(
 
 
 @router.get("/{turno_id}", response_model=CajaTurnoResponse)
-def obtener_turno(turno_id: int, db: Session = Depends(get_db)):
+def obtener_turno(turno_id: int, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     turno = db.query(CajaTurno).filter(CajaTurno.id == turno_id).first()
     if not turno:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
@@ -69,7 +70,7 @@ def obtener_turno(turno_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/abrir", response_model=CajaTurnoResponse, status_code=201)
-def abrir_turno(datos: CajaTurnoAbrir, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def abrir_turno(datos: CajaTurnoAbrir, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Caja", "Crear"))):
     """Abre un nuevo turno de caja. No permite dos turnos abiertos a la vez en la misma sucursal."""
     turno_abierto = db.query(CajaTurno).filter(
         CajaTurno.id_ubicacion == datos.id_ubicacion, CajaTurno.estado == "Abierto"
@@ -89,7 +90,7 @@ def abrir_turno(datos: CajaTurnoAbrir, db: Session = Depends(get_db), usuario_ac
 
 
 @router.patch("/{turno_id}/cerrar", response_model=CajaTurnoResponse)
-def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Caja", "Editar"))):
     turno = db.query(CajaTurno).filter(CajaTurno.id == turno_id).first()
     if not turno:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
@@ -133,6 +134,7 @@ def listar_movimientos_caja_chica(
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
 ):
     """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(CajaChicaMovimiento).order_by(CajaChicaMovimiento.fecha.desc())
@@ -146,7 +148,7 @@ def listar_movimientos_caja_chica(
 
 
 @router_caja_chica.get("/{movimiento_id}", response_model=CajaChicaMovimientoResponse)
-def obtener_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get_db)):
+def obtener_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     movimiento = db.query(CajaChicaMovimiento).filter(CajaChicaMovimiento.id == movimiento_id).first()
     if not movimiento:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
@@ -154,7 +156,7 @@ def obtener_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get_
 
 
 @router_caja_chica.post("", response_model=CajaChicaMovimientoResponse, status_code=201)
-def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Crear"), ("Caja", "Crear")]))):
     """Registra un movimiento y calcula el saldo corriente de esa sucursal.
     Ingreso suma al saldo; egreso resta."""
     ultimo = (
@@ -189,6 +191,7 @@ def listar_gastos(
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
 ):
     """buscar: coincidencia en el concepto del gasto. Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Gasto).order_by(Gasto.fecha.desc())
@@ -206,7 +209,7 @@ def listar_gastos(
 
 
 @router_gasto.get("/{gasto_id}", response_model=GastoResponse)
-def obtener_gasto(gasto_id: int, db: Session = Depends(get_db)):
+def obtener_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     gasto = db.query(Gasto).filter(Gasto.id == gasto_id).first()
     if not gasto:
         raise HTTPException(status_code=404, detail="Gasto no encontrado")
@@ -214,7 +217,7 @@ def obtener_gasto(gasto_id: int, db: Session = Depends(get_db)):
 
 
 @router_gasto.post("", response_model=GastoResponse, status_code=201)
-def registrar_gasto(datos: GastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def registrar_gasto(datos: GastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Crear"), ("Caja", "Crear")]))):
     nuevo = Gasto(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(db, usuario_actual.id, "CREAR", "Gasto")
@@ -228,12 +231,12 @@ def registrar_gasto(datos: GastoCreate, db: Session = Depends(get_db), usuario_a
 # ===================================================================
 
 @router_tipo_gasto.get("", response_model=List[TipoGastoResponse])
-def listar_tipos_gasto(db: Session = Depends(get_db)):
+def listar_tipos_gasto(db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     return db.query(TipoGasto).all()
 
 
 @router_tipo_gasto.post("", response_model=TipoGastoResponse, status_code=201)
-def crear_tipo_gasto(datos: TipoGastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_tipo_gasto(datos: TipoGastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Crear"), ("Caja", "Crear")]))):
     nuevo = TipoGasto(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(db, usuario_actual.id, "CREAR", "TipoGasto")
@@ -247,12 +250,12 @@ def crear_tipo_gasto(datos: TipoGastoCreate, db: Session = Depends(get_db), usua
 # ===================================================================
 
 @router_tipo_pago.get("", response_model=List[TipoPagoResponse])
-def listar_tipos_pago(db: Session = Depends(get_db)):
+def listar_tipos_pago(db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     return db.query(TipoPago).all()
 
 
 @router_tipo_pago.post("", response_model=TipoPagoResponse, status_code=201)
-def crear_tipo_pago(datos: TipoPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_tipo_pago(datos: TipoPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Crear"), ("Ventas", "Crear"), ("Caja", "Crear")]))):
     nuevo = TipoPago(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(db, usuario_actual.id, "CREAR", "TipoPago")
@@ -265,7 +268,7 @@ def crear_tipo_pago(datos: TipoPagoCreate, db: Session = Depends(get_db), usuari
 # ===================================================================
 
 @router_gasto.delete("/{gasto_id}", status_code=204)
-def eliminar_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def eliminar_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Eliminar"), ("Caja", "Eliminar")]))):
     if not _es_admin(usuario_actual):
         raise HTTPException(status_code=403, detail="Solo Administrador o Dueña pueden eliminar gastos")
     gasto = db.query(Gasto).filter(Gasto.id == gasto_id).first()
@@ -281,7 +284,7 @@ def eliminar_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual:
 # ===================================================================
 
 @router_caja_chica.delete("/{movimiento_id}", status_code=204)
-def eliminar_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def eliminar_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Eliminar"), ("Caja", "Eliminar")]))):
     if not _es_admin(usuario_actual):
         raise HTTPException(status_code=403, detail="Solo Administrador o Dueña pueden eliminar movimientos")
     mov = db.query(CajaChicaMovimiento).filter(CajaChicaMovimiento.id == movimiento_id).first()
@@ -297,7 +300,7 @@ def eliminar_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get
 # ===================================================================
 
 @router_tipo_gasto.put("/{tipo_id}", response_model=TipoGastoResponse)
-def actualizar_tipo_gasto(tipo_id: int, datos: TipoGastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def actualizar_tipo_gasto(tipo_id: int, datos: TipoGastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Editar"), ("Caja", "Editar")]))):
     tipo = db.query(TipoGasto).filter(TipoGasto.id == tipo_id).first()
     if not tipo:
         raise HTTPException(status_code=404, detail="Tipo de gasto no encontrado")
@@ -314,7 +317,7 @@ def actualizar_tipo_gasto(tipo_id: int, datos: TipoGastoCreate, db: Session = De
 # ===================================================================
 
 @router_tipo_pago.put("/{tipo_id}", response_model=TipoPagoResponse)
-def actualizar_tipo_pago(tipo_id: int, datos: TipoPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def actualizar_tipo_pago(tipo_id: int, datos: TipoPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Editar"), ("Ventas", "Editar"), ("Caja", "Editar")]))):
     tipo = db.query(TipoPago).filter(TipoPago.id == tipo_id).first()
     if not tipo:
         raise HTTPException(status_code=404, detail="Tipo de pago no encontrado")

@@ -5,7 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user
+from app.security import get_current_user, requiere_permiso
 from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
 from app.models.model_usuario import Usuario
@@ -91,6 +91,7 @@ def listar_movimientos(
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(get_current_user),
 ):
     """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(MovimientoInventario).order_by(MovimientoInventario.fecha.desc())
@@ -115,7 +116,7 @@ def listar_movimientos(
 
 
 @router.get("/{movimiento_id}", response_model=MovimientoInventarioResponse)
-def obtener_movimiento(movimiento_id: int, db: Session = Depends(get_db)):
+def obtener_movimiento(movimiento_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     movimiento = db.query(MovimientoInventario).filter(MovimientoInventario.id == movimiento_id).first()
     if not movimiento:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
@@ -123,7 +124,7 @@ def obtener_movimiento(movimiento_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=MovimientoInventarioResponse, status_code=201)
-def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Crear"))):
     """
     Crea un movimiento con sus detalles, y ACTUALIZA el stock_actual de
     cada producto involucrado según el signo del tipo de movimiento.
@@ -213,12 +214,12 @@ def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(ge
 # ===================================================================
 
 @router_tipo.get("", response_model=List[TipoMovimientoInventarioResponse])
-def listar_tipos_movimiento(db: Session = Depends(get_db)):
+def listar_tipos_movimiento(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     return db.query(TipoMovimientoInventario).all()
 
 
 @router_tipo.post("", response_model=TipoMovimientoInventarioResponse, status_code=201)
-def crear_tipo_movimiento(datos: TipoMovimientoInventarioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_tipo_movimiento(datos: TipoMovimientoInventarioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Crear"))):
     nuevo = TipoMovimientoInventario(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(db, usuario_actual.id, "CREAR", "TipoMovimientoInventario")
@@ -238,6 +239,7 @@ def listar_conteos(
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(get_current_user),
 ):
     """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(InventarioFisico).order_by(InventarioFisico.fecha.desc())
@@ -251,7 +253,7 @@ def listar_conteos(
 
 
 @router_fisico.post("", response_model=InventarioFisicoResponse, status_code=201)
-def registrar_conteo(datos: InventarioFisicoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def registrar_conteo(datos: InventarioFisicoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Crear"))):
     """
     Registra un conteo físico, comparando contra el stock_sistema actual.
     NO ajusta el stock todavía -- eso se hace aparte con /aplicar-ajuste,
@@ -278,7 +280,7 @@ def registrar_conteo(datos: InventarioFisicoCreate, db: Session = Depends(get_db
 
 
 @router_fisico.patch("/{conteo_id}/aplicar-ajuste", response_model=InventarioFisicoResponse)
-def aplicar_ajuste(conteo_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def aplicar_ajuste(conteo_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar"))):
     """Corrige producto.stock_actual para que coincida con lo contado físicamente."""
     conteo = db.query(InventarioFisico).filter(InventarioFisico.id == conteo_id).first()
     if not conteo:
@@ -310,6 +312,7 @@ def listar_traslados(
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(get_current_user),
 ):
     """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(TrasladoSucursal).order_by(TrasladoSucursal.fecha.desc())
@@ -325,7 +328,7 @@ def listar_traslados(
 
 
 @router_traslado.post("", response_model=TrasladoSucursalResponse, status_code=201)
-def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Crear"))):
     """
     Registra la salida de producto de una sucursal hacia otra, a precio de
     costo. No cambia producto.stock_actual (es un total global: el traslado
@@ -343,7 +346,7 @@ def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db),
 
 
 @router_traslado.patch("/{traslado_id}/confirmar-recepcion", response_model=TrasladoSucursalResponse)
-def confirmar_recepcion(traslado_id: int, id_usuario_recibe: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def confirmar_recepcion(traslado_id: int, id_usuario_recibe: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar"))):
     """La sucursal destino confirma que ya le llegó el producto."""
     traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).first()
     if not traslado:
@@ -373,6 +376,7 @@ def listar_alertas(
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(get_current_user),
 ):
     """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Alerta).order_by(Alerta.fecha.desc())
@@ -388,7 +392,7 @@ def listar_alertas(
 
 
 @router_alerta.patch("/{alerta_id}/marcar-leida", response_model=AlertaResponse)
-def marcar_leida(alerta_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def marcar_leida(alerta_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar"))):
     alerta = db.query(Alerta).filter(Alerta.id == alerta_id).first()
     if not alerta:
         raise HTTPException(status_code=404, detail="Alerta no encontrada")

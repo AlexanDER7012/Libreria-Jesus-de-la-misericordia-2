@@ -62,9 +62,9 @@ async function loadConfiguracionModule() {
             <div class="tab-pane fade" id="metasTab">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6 class="mb-0">Metas Financieras</h6>
-                    <button class="btn btn-sm btn-outline-primary" onclick="showCreateMetaModal()">
+                    ${tienePermiso("Configuracion", "Crear") ? `<button class="btn btn-sm btn-outline-primary" onclick="showCreateMetaModal()">
                         <i class="fas fa-plus me-1"></i>Nueva Meta
-                    </button>
+                    </button>` : ""}
                 </div>
                 <div id="metasContainer">
                     <div class="text-center py-5">
@@ -120,9 +120,9 @@ function renderConfiguracion(config) {
             <div class="text-center py-4 text-muted">
                 <i class="fas fa-cog fa-3x mb-3"></i>
                 <p>No hay configuración registrada</p>
-                <button class="btn btn-dark btn-sm" onclick="showEditConfigModal()">
+                ${tienePermiso("Configuracion", "Editar") ? `<button class="btn btn-dark btn-sm" onclick="showEditConfigModal()">
                     <i class="fas fa-plus me-2"></i>Configurar
-                </button>
+                </button>` : ""}
             </div>
         `;
     return;
@@ -133,9 +133,9 @@ function renderConfiguracion(config) {
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0 fw-bold">Configuración General</h6>
-                    <button class="btn btn-sm btn-outline-dark" onclick="showEditConfigModal()">
+                    ${tienePermiso("Configuracion", "Editar") ? `<button class="btn btn-sm btn-outline-dark" onclick="showEditConfigModal()">
                         <i class="fas fa-edit me-1"></i>Editar
-                    </button>
+                    </button>` : ""}
                 </div>
             </div>
             <div class="card-body">
@@ -280,9 +280,9 @@ function renderMetas(metas) {
             <div class="text-center py-4 text-muted">
                 <i class="fas fa-bullseye fa-3x mb-3"></i>
                 <p>No hay metas financieras registradas</p>
-                <button class="btn btn-sm btn-outline-primary" onclick="showCreateMetaModal()">
+                ${tienePermiso("Configuracion", "Crear") ? `<button class="btn btn-sm btn-outline-primary" onclick="showCreateMetaModal()">
                     <i class="fas fa-plus me-2"></i>Nueva Meta
-                </button>
+                </button>` : ""}
             </div>
         `;
     return;
@@ -330,9 +330,9 @@ function renderMetas(metas) {
                 <td>Q${m.meta_gastos || 0}</td>
                 <td>${m.fecha_registro ? new Date(m.fecha_registro).toLocaleDateString() : "--"}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteMeta(${m.id})">
+                    ${tienePermiso("Configuracion", "Eliminar") ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteMeta(${m.id})">
                         <i class="fas fa-trash"></i>
-                    </button>
+                    </button>` : ""}
                 </td>
             </tr>
         `;
@@ -604,9 +604,9 @@ function renderUbicaciones(ubicaciones) {
       <div class="text-center py-4 text-muted">
         <i class="fas fa-map-marker-alt fa-3x mb-3"></i>
         <p>No hay ubicaciones registradas</p>
-        <button class="btn btn-primary btn-sm" onclick="showCreateUbicacionModal()">
+        ${tienePermiso("Configuracion", "Crear") ? `<button class="btn btn-primary btn-sm" onclick="showCreateUbicacionModal()">
           <i class="fas fa-plus me-1"></i>Nueva Ubicación
-        </button>
+        </button>` : ""}
       </div>
     `;
     return;
@@ -615,9 +615,9 @@ function renderUbicaciones(ubicaciones) {
   let html = `
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h6 class="mb-0">Listado de Ubicaciones</h6>
-      <button class="btn btn-primary btn-sm" onclick="showCreateUbicacionModal()">
+      ${tienePermiso("Configuracion", "Crear") ? `<button class="btn btn-primary btn-sm" onclick="showCreateUbicacionModal()">
         <i class="fas fa-plus me-1"></i>Nueva Ubicación
-      </button>
+      </button>` : ""}
     </div>
     <div class="table-responsive">
       <table class="table table-hover table-striped">
@@ -648,12 +648,12 @@ function renderUbicaciones(ubicaciones) {
           </span>
         </td>
         <td>
-          <button class="btn btn-sm btn-outline-primary" onclick="showEditUbicacionModal(${u.id})">
+          ${tienePermiso("Configuracion", "Editar") ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditUbicacionModal(${u.id})">
             <i class="fas fa-edit"></i>
           </button>
           <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleUbicacionEstado(${u.id})">
             <i class="fas fa-${activo ? "times" : "check"}"></i>
-          </button>
+          </button>` : ""}
         </td>
       </tr>
     `;

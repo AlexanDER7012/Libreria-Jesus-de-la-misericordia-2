@@ -25,18 +25,18 @@ async function loadUsuariosModule() {
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4><i class="fas fa-user-shield me-2 text-danger"></i>Usuarios</h4>
             <div>
-                <button class="btn btn-danger btn-sm me-2" onclick="showCreateUsuarioModal()">
+                ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-danger btn-sm me-2" onclick="showCreateUsuarioModal()">
                     <i class="fas fa-plus me-2"></i>Usuario
-                </button>
-                <button class="btn btn-outline-danger btn-sm me-2" onclick="showCreateEmpleadoModal()">
+                </button>` : ""}
+                ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-outline-danger btn-sm me-2" onclick="showCreateEmpleadoModal()">
                     <i class="fas fa-user-plus me-1"></i>Empleado
-                </button>
-                <button class="btn btn-outline-primary btn-sm me-2" onclick="showCreateRolModal()">
+                </button>` : ""}
+                ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-outline-primary btn-sm me-2" onclick="showCreateRolModal()">
                     <i class="fas fa-user-tag me-1"></i>Rol
-                </button>
-                <button class="btn btn-outline-success btn-sm" onclick="showCreatePagoEmpleadoModal()">
+                </button>` : ""}
+                ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-outline-success btn-sm" onclick="showCreatePagoEmpleadoModal()">
                     <i class="fas fa-money-bill-wave me-1"></i>Pago
-                </button>
+                </button>` : ""}
             </div>
         </div>
 
@@ -228,9 +228,9 @@ function renderUsuarios(usuarios) {
             <div class="text-center py-4 text-muted">
                 <i class="fas fa-users fa-3x mb-3"></i>
                 <p>No hay usuarios registrados</p>
-                <button class="btn btn-danger btn-sm" onclick="showCreateUsuarioModal()">
+                ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-danger btn-sm" onclick="showCreateUsuarioModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Usuario
-                </button>
+                </button>` : ""}
             </div>
         `;
     return;
@@ -273,21 +273,21 @@ function renderUsuarios(usuarios) {
                     </span>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="showEditUsuarioModal(${u.id})" title="Editar">
+                    ${tienePermiso("Usuarios", "Editar") ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditUsuarioModal(${u.id})" title="Editar">
                         <i class="fas fa-edit"></i>
-                    </button>
+                    </button>` : ""}
                     ${
                       activo
-                        ? `
+                        ? (tienePermiso("Usuarios", "Eliminar") ? `
                         <button class="btn btn-sm btn-outline-danger" onclick="deleteUsuario(${u.id})" title="Desactivar">
                             <i class="fas fa-times"></i>
                         </button>
-                    `
-                        : `
+                    ` : "")
+                        : (tienePermiso("Usuarios", "Eliminar") ? `
                         <button class="btn btn-sm btn-outline-success" onclick="reactivarUsuario(${u.id})" title="Reactivar">
                             <i class="fas fa-check"></i>
                         </button>
-                    `
+                    ` : "")
                     }
                 </td>
             </tr>
@@ -345,9 +345,9 @@ function renderEmpleados(empleados) {
             <div class="text-center py-4 text-muted">
                 <i class="fas fa-user-tie fa-3x mb-3"></i>
                 <p>No hay empleados registrados</p>
-                <button class="btn btn-danger btn-sm" onclick="showCreateEmpleadoModal()">
+                ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-danger btn-sm" onclick="showCreateEmpleadoModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Empleado
-                </button>
+                </button>` : ""}
             </div>
         `;
     return;
@@ -392,17 +392,17 @@ function renderEmpleados(empleados) {
                     </span>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="showEditEmpleadoModal(${e.id})" title="Editar">
+                    ${tienePermiso("Usuarios", "Editar") ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditEmpleadoModal(${e.id})" title="Editar">
                         <i class="fas fa-edit"></i>
-                    </button>
+                    </button>` : ""}
                     ${
                       activo
-                        ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteEmpleado(${e.id})" title="Desactivar">
+                        ? (tienePermiso("Usuarios", "Eliminar") ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteEmpleado(${e.id})" title="Desactivar">
                              <i class="fas fa-trash"></i>
-                           </button>`
-                        : `<button class="btn btn-sm btn-outline-success" onclick="reactivarEmpleado(${e.id})" title="Reactivar">
+                           </button>` : "")
+                        : (tienePermiso("Usuarios", "Eliminar") ? `<button class="btn btn-sm btn-outline-success" onclick="reactivarEmpleado(${e.id})" title="Reactivar">
                              <i class="fas fa-check"></i>
-                           </button>`
+                           </button>` : "")
                     }
                 </td>
             </tr>
@@ -427,9 +427,9 @@ function renderRoles(roles) {
             <div class="text-center py-4 text-muted">
                 <i class="fas fa-user-tag fa-3x mb-3"></i>
                 <p>No hay roles registrados</p>
-                <button class="btn btn-primary btn-sm" onclick="showCreateRolModal()">
+                ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-primary btn-sm" onclick="showCreateRolModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Rol
-                </button>
+                </button>` : ""}
             </div>
         `;
     return;
@@ -473,7 +473,7 @@ function renderRoles(roles) {
                         (u) => `
                         <span class="badge bg-light text-dark border me-1 mb-1">
                           ${u.nombre_usuario}
-                          <i class="fas fa-times ms-1 text-danger" style="cursor:pointer" onclick="quitarUsuarioDeRol(${u.id})" title="Quitar de este rol"></i>
+                          ${tienePermiso("Usuarios", "Editar") ? `<i class="fas fa-times ms-1 text-danger" style="cursor:pointer" onclick="quitarUsuarioDeRol(${u.id})" title="Quitar de este rol"></i>` : ""}
                         </span>`,
                       )
                       .join("")
@@ -483,7 +483,7 @@ function renderRoles(roles) {
                 // que hoy NO tenga ya este mismo rol -- puede venir de otro
                 // rol distinto, o de ningún rol).
                 const usuariosDisponibles = (usuariosData || []).filter((u) => u.id_rol !== r.id);
-                const htmlSelectorAgregar = usuariosDisponibles.length
+                const htmlSelectorAgregar = (usuariosDisponibles.length && tienePermiso("Usuarios", "Editar"))
                   ? `<select class="form-select form-select-sm mt-1" onchange="asignarUsuarioARol(this, ${r.id})">
                        <option value="">+ Agregar usuario a este rol...</option>
                        ${usuariosDisponibles.map((u) => `<option value="${u.id}">${u.nombre_usuario}</option>`).join("")}
@@ -511,15 +511,15 @@ function renderRoles(roles) {
                             </div>
                         </div>
                         <div class="card-footer bg-transparent d-flex flex-wrap gap-1">
-                            <button class="btn btn-sm btn-outline-primary" onclick="verPermisosRol(${r.id})">
+                            ${tienePermiso("Usuarios", "Editar") ? `<button class="btn btn-sm btn-outline-primary" onclick="verPermisosRol(${r.id})">
                                 <i class="fas fa-key me-1"></i>Gestionar Permisos
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="showEditRolModal(${r.id})" title="Editar rol">
+                            </button>` : ""}
+                            ${tienePermiso("Usuarios", "Editar") ? `<button class="btn btn-sm btn-outline-secondary" onclick="showEditRolModal(${r.id})" title="Editar rol">
                                 <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="eliminarRol(${r.id})" title="Eliminar rol">
+                            </button>` : ""}
+                            ${tienePermiso("Usuarios", "Eliminar") ? `<button class="btn btn-sm btn-outline-danger" onclick="eliminarRol(${r.id})" title="Eliminar rol">
                                 <i class="fas fa-trash"></i>
-                            </button>
+                            </button>` : ""}
                         </div>
                     </div>
                 </div>
@@ -528,9 +528,9 @@ function renderRoles(roles) {
               .join("")}
         </div>
         <div class="mt-3">
-            <button class="btn btn-primary btn-sm" onclick="showCreateRolModal()">
+            ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-primary btn-sm" onclick="showCreateRolModal()">
                 <i class="fas fa-plus me-2"></i>Nuevo Rol
-            </button>
+            </button>` : ""}
         </div>
     `;
 
@@ -585,9 +585,9 @@ function renderPagos(pagos) {
             <div class="text-center py-4 text-muted">
                 <i class="fas fa-money-bill-wave fa-3x mb-3"></i>
                 <p>No hay pagos registrados</p>
-                <button class="btn btn-success btn-sm" onclick="showCreatePagoEmpleadoModal()">
+                ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-success btn-sm" onclick="showCreatePagoEmpleadoModal()">
                     <i class="fas fa-plus me-2"></i>Registrar Pago
-                </button>
+                </button>` : ""}
             </div>
         `;
     return;
@@ -596,9 +596,9 @@ function renderPagos(pagos) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Historial de Pagos</h6>
-            <button class="btn btn-success btn-sm" onclick="showCreatePagoEmpleadoModal()">
+            ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-success btn-sm" onclick="showCreatePagoEmpleadoModal()">
                 <i class="fas fa-plus me-2"></i>Nuevo Pago
-            </button>
+            </button>` : ""}
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -743,9 +743,9 @@ function renderCatalogos() {
                         </ul>
                     </div>
                     <div class="card-footer">
-                        <button class="btn btn-sm btn-primary" onclick="showCreatePuestoModal()">
+                        ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-sm btn-primary" onclick="showCreatePuestoModal()">
                             <i class="fas fa-plus me-1"></i>Nuevo Puesto
-                        </button>
+                        </button>` : ""}
                     </div>
                 </div>
             </div>
@@ -771,9 +771,9 @@ function renderCatalogos() {
                         </ul>
                     </div>
                     <div class="card-footer">
-                        <button class="btn btn-sm btn-success" onclick="showCreateTurnoModal()">
+                        ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-sm btn-success" onclick="showCreateTurnoModal()">
                             <i class="fas fa-plus me-1"></i>Nuevo Turno
-                        </button>
+                        </button>` : ""}
                     </div>
                 </div>
             </div>
@@ -799,9 +799,9 @@ function renderCatalogos() {
                         </ul>
                     </div>
                     <div class="card-footer">
-                        <button class="btn btn-sm btn-info" onclick="showCreateModuloModal()">
+                        ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-sm btn-info" onclick="showCreateModuloModal()">
                             <i class="fas fa-plus me-1"></i>Nuevo Módulo
-                        </button>
+                        </button>` : ""}
                     </div>
                 </div>
             </div>

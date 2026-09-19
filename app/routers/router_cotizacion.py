@@ -5,7 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user
+from app.security import get_current_user, requiere_permiso
 from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
 from app.models.model_usuario import Usuario
@@ -39,6 +39,7 @@ def listar_cotizaciones(
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
 ):
     """buscar: coincidencia en número de expediente (ej. '2026-014'). Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Cotizacion).order_by(Cotizacion.fecha.desc())
@@ -56,7 +57,7 @@ def listar_cotizaciones(
 
 
 @router.get("/{cotizacion_id}", response_model=CotizacionResponse)
-def obtener_cotizacion(cotizacion_id: int, db: Session = Depends(get_db)):
+def obtener_cotizacion(cotizacion_id: int, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
     if not cotizacion:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
@@ -64,7 +65,7 @@ def obtener_cotizacion(cotizacion_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/expediente/{numero_expediente}", response_model=CotizacionResponse)
-def buscar_por_expediente(numero_expediente: str, db: Session = Depends(get_db)):
+def buscar_por_expediente(numero_expediente: str, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     """Búsqueda por el correlativo (ej. '2026-014'), igual a como se archiva físicamente en el folder."""
     cotizacion = db.query(Cotizacion).filter(Cotizacion.numero_expediente == numero_expediente).first()
     if not cotizacion:
@@ -73,7 +74,7 @@ def buscar_por_expediente(numero_expediente: str, db: Session = Depends(get_db))
 
 
 @router.post("", response_model=CotizacionResponse, status_code=201)
-def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Crear"))):
     if not datos.detalles:
         raise HTTPException(status_code=400, detail="La cotización debe incluir al menos un producto")
 
@@ -112,7 +113,7 @@ def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db), usu
 
 
 @router.patch("/{cotizacion_id}/estado", response_model=CotizacionResponse)
-def cambiar_estado_cotizacion(cotizacion_id: int, nuevo_estado: str, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def cambiar_estado_cotizacion(cotizacion_id: int, nuevo_estado: str, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Editar"))):
     if nuevo_estado not in ("Pendiente", "Aceptada", "Rechazada"):
         raise HTTPException(status_code=400, detail="Estado inválido. Debe ser Pendiente, Aceptada o Rechazada")
 
@@ -128,7 +129,7 @@ def cambiar_estado_cotizacion(cotizacion_id: int, nuevo_estado: str, db: Session
 
 
 @router.get("/{cotizacion_id}/para-venta", response_model=CotizacionParaVentaResponse)
-def cotizacion_para_venta(cotizacion_id: int, db: Session = Depends(get_db)):
+def cotizacion_para_venta(cotizacion_id: int, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
     if not cotizacion:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")

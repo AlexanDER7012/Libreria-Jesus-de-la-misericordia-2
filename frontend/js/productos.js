@@ -17,9 +17,13 @@ async function loadProductosModule() {
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4><i class="fas fa-box me-2 text-success"></i>Productos</h4>
             <div>
-                <button class="btn btn-success btn-sm" onclick="showCreateProductoModal()">
+                ${
+                  tienePermiso("Productos", "Crear")
+                    ? `<button class="btn btn-success btn-sm" onclick="showCreateProductoModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Producto
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         </div>
 
@@ -461,9 +465,13 @@ function renderProductosTable(productos) {
             <div class="text-center py-5">
                 <i class="fas fa-box fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay productos registrados</p>
-                <button class="btn btn-success btn-sm" onclick="showCreateProductoModal()">
+                ${
+                  tienePermiso("Productos", "Crear")
+                    ? `<button class="btn btn-success btn-sm" onclick="showCreateProductoModal()">
                     <i class="fas fa-plus me-2"></i>Agregar Producto
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         `;
     return;
@@ -516,12 +524,20 @@ function renderProductosTable(productos) {
                     </span>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="showEditProductoModal(${producto.id})">
+                    ${
+                      tienePermiso("Productos", "Editar")
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditProductoModal(${producto.id})">
                         <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleProductoEstado(${producto.id})">
+                    </button>`
+                        : ""
+                    }
+                    ${
+                      tienePermiso("Productos", "Eliminar")
+                        ? `<button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleProductoEstado(${producto.id})">
                         <i class="fas fa-${activo ? "times" : "check"}"></i>
-                    </button>
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -790,9 +806,13 @@ function renderCategoriasTable(categorias) {
             <div class="text-center py-5">
                 <i class="fas fa-tags fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay categorías registradas</p>
-                <button class="btn btn-primary btn-sm" onclick="showCreateCategoriaModal()">
+                ${
+                  tienePermiso("Productos", "Crear")
+                    ? `<button class="btn btn-primary btn-sm" onclick="showCreateCategoriaModal()">
                     <i class="fas fa-plus me-2"></i>Nueva Categoría
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         `;
     return;
@@ -801,9 +821,13 @@ function renderCategoriasTable(categorias) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Categorías</h6>
-            <button class="btn btn-primary btn-sm" onclick="showCreateCategoriaModal()">
+            ${
+              tienePermiso("Productos", "Crear")
+                ? `<button class="btn btn-primary btn-sm" onclick="showCreateCategoriaModal()">
                 <i class="fas fa-plus me-2"></i>Nueva Categoría
-            </button>
+            </button>`
+                : ""
+            }
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -830,12 +854,20 @@ function renderCategoriasTable(categorias) {
                     </span>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="showEditCategoriaModal(${c.id})">
+                    ${
+                      tienePermiso("Productos", "Editar")
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditCategoriaModal(${c.id})">
                         <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleCategoriaEstado(${c.id})">
+                    </button>`
+                        : ""
+                    }
+                    ${
+                      tienePermiso("Productos", "Eliminar")
+                        ? `<button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleCategoriaEstado(${c.id})">
                         <i class="fas fa-${activo ? "times" : "check"}"></i>
-                    </button>
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -977,9 +1009,13 @@ function renderMarcasTable(marcas) {
             <div class="text-center py-5">
                 <i class="fas fa-copyright fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay marcas registradas</p>
-                <button class="btn btn-info btn-sm" onclick="showCreateMarcaModal()">
+                ${
+                  tienePermiso("Productos", "Crear")
+                    ? `<button class="btn btn-info btn-sm" onclick="showCreateMarcaModal()">
                     <i class="fas fa-plus me-2"></i>Nueva Marca
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         `;
     return;
@@ -988,9 +1024,13 @@ function renderMarcasTable(marcas) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Marcas</h6>
-            <button class="btn btn-info btn-sm" onclick="showCreateMarcaModal()">
+            ${
+              tienePermiso("Productos", "Crear")
+                ? `<button class="btn btn-info btn-sm" onclick="showCreateMarcaModal()">
                 <i class="fas fa-plus me-2"></i>Nueva Marca
-            </button>
+            </button>`
+                : ""
+            }
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -1017,12 +1057,20 @@ function renderMarcasTable(marcas) {
                     </span>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="showEditMarcaModal(${m.id})">
+                    ${
+                      tienePermiso("Productos", "Editar")
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditMarcaModal(${m.id})">
                         <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleMarcaEstado(${m.id})">
+                    </button>`
+                        : ""
+                    }
+                    ${
+                      tienePermiso("Productos", "Eliminar")
+                        ? `<button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleMarcaEstado(${m.id})">
                         <i class="fas fa-${activo ? "times" : "check"}"></i>
-                    </button>
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -1162,9 +1210,13 @@ function renderUnidadesTable(unidades) {
             <div class="text-center py-5">
                 <i class="fas fa-ruler fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay unidades registradas</p>
-                <button class="btn btn-warning btn-sm" onclick="showCreateUnidadModal()">
+                ${
+                  tienePermiso("Productos", "Crear")
+                    ? `<button class="btn btn-warning btn-sm" onclick="showCreateUnidadModal()">
                     <i class="fas fa-plus me-2"></i>Nueva Unidad
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         `;
     return;
@@ -1173,9 +1225,13 @@ function renderUnidadesTable(unidades) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Unidades de Medida</h6>
-            <button class="btn btn-warning btn-sm" onclick="showCreateUnidadModal()">
+            ${
+              tienePermiso("Productos", "Crear")
+                ? `<button class="btn btn-warning btn-sm" onclick="showCreateUnidadModal()">
                 <i class="fas fa-plus me-2"></i>Nueva Unidad
-            </button>
+            </button>`
+                : ""
+            }
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -1204,12 +1260,20 @@ function renderUnidadesTable(unidades) {
                     </span>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="showEditUnidadModal(${u.id})">
+                    ${
+                      tienePermiso("Productos", "Editar")
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditUnidadModal(${u.id})">
                         <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleUnidadEstado(${u.id})">
+                    </button>`
+                        : ""
+                    }
+                    ${
+                      tienePermiso("Productos", "Eliminar")
+                        ? `<button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleUnidadEstado(${u.id})">
                         <i class="fas fa-${activo ? "times" : "check"}"></i>
-                    </button>
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
