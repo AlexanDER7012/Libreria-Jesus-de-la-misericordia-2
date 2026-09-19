@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user
+from app.security import get_current_user, requiere_permiso
 from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto, Categoria, Marca, UnidadMedida, HistoricoPrecio
 from app.models.model_usuario import Usuario
@@ -54,6 +54,7 @@ def listar_productos(
     buscar: Optional[str] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
 ):
     query = db.query(Producto)
     if estado == "activos":
@@ -71,7 +72,11 @@ def listar_productos(
 
 
 @router.get("/buscar-codigo/{codigo}", response_model=ProductoResponse)
-def buscar_por_codigo(codigo: str, db: Session = Depends(get_db)):
+def buscar_por_codigo(
+    codigo: str,
+    db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
+):
     """
     Búsqueda exacta por código de barras — pensado para cuando el lector
     USB/Bluetooth 'escribe' el código completo y se dispara la búsqueda.
@@ -83,7 +88,11 @@ def buscar_por_codigo(codigo: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{producto_id}", response_model=ProductoResponse)
-def obtener_producto(producto_id: int, db: Session = Depends(get_db)):
+def obtener_producto(
+    producto_id: int,
+    db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
+):
     producto = db.query(Producto).filter(Producto.id == producto_id).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -91,7 +100,11 @@ def obtener_producto(producto_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{producto_id}/historico-precios", response_model=List[HistoricoPrecioResponse])
-def historico_precios_de_producto(producto_id: int, db: Session = Depends(get_db)):
+def historico_precios_de_producto(
+    producto_id: int,
+    db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
+):
     if not db.query(Producto).filter(Producto.id == producto_id).first():
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     return (
@@ -103,7 +116,7 @@ def historico_precios_de_producto(producto_id: int, db: Session = Depends(get_db
 
 
 @router.post("", response_model=ProductoResponse, status_code=201)
-def crear_producto(datos: ProductoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_producto(datos: ProductoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
     if db.query(Producto).filter(Producto.codigo == datos.codigo).first():
         raise HTTPException(status_code=400, detail="Ya existe un producto con ese código")
 
@@ -132,7 +145,7 @@ def crear_producto(datos: ProductoCreate, db: Session = Depends(get_db), usuario
 
 
 @router.put("/{producto_id}", response_model=ProductoResponse)
-def actualizar_producto(producto_id: int, datos: ProductoUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def actualizar_producto(producto_id: int, datos: ProductoUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Editar"))):
     producto = db.query(Producto).filter(Producto.id == producto_id).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -163,7 +176,7 @@ def actualizar_producto(producto_id: int, datos: ProductoUpdate, db: Session = D
 
 
 @router.delete("/{producto_id}", response_model=ProductoResponse)
-def eliminar_producto(producto_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def eliminar_producto(producto_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Eliminar"))):
     """Baja lógica: activo pasa de 1 a 0 (el producto deja de ofrecerse, pero conserva su historial)."""
     producto = db.query(Producto).filter(Producto.id == producto_id).first()
     if not producto:
@@ -176,7 +189,7 @@ def eliminar_producto(producto_id: int, db: Session = Depends(get_db), usuario_a
 
 
 @router.patch("/{producto_id}/reactivar", response_model=ProductoResponse)
-def reactivar_producto(producto_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def reactivar_producto(producto_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Eliminar"))):
     producto = db.query(Producto).filter(Producto.id == producto_id).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -192,7 +205,11 @@ def reactivar_producto(producto_id: int, db: Session = Depends(get_db), usuario_
 # ===================================================================
 
 @router_categoria.get("", response_model=List[CategoriaResponse])
-def listar_categorias(buscar: Optional[str] = None, db: Session = Depends(get_db)):
+def listar_categorias(
+    buscar: Optional[str] = None,
+    db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
+):
     query = db.query(Categoria)
     if buscar:
         query = query.filter(Categoria.nombre.ilike(f"%{buscar}%"))
@@ -200,7 +217,7 @@ def listar_categorias(buscar: Optional[str] = None, db: Session = Depends(get_db
 
 
 @router_categoria.post("", response_model=CategoriaResponse, status_code=201)
-def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
     nueva = Categoria(**datos.model_dump())
     db.add(nueva)
     registrar_actividad(db, usuario_actual.id, "CREAR", "Categoria")
@@ -214,7 +231,11 @@ def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db), usuar
 # ===================================================================
 
 @router_marca.get("", response_model=List[MarcaResponse])
-def listar_marcas(buscar: Optional[str] = None, db: Session = Depends(get_db)):
+def listar_marcas(
+    buscar: Optional[str] = None,
+    db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
+):
     query = db.query(Marca)
     if buscar:
         query = query.filter(Marca.nombre.ilike(f"%{buscar}%"))
@@ -222,7 +243,7 @@ def listar_marcas(buscar: Optional[str] = None, db: Session = Depends(get_db)):
 
 
 @router_marca.post("", response_model=MarcaResponse, status_code=201)
-def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
     nueva = Marca(**datos.model_dump())
     db.add(nueva)
     registrar_actividad(db, usuario_actual.id, "CREAR", "Marca")
@@ -236,7 +257,11 @@ def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db), usuario_actua
 # ===================================================================
 
 @router_unidad.get("", response_model=List[UnidadMedidaResponse])
-def listar_unidades_medida(buscar: Optional[str] = None, db: Session = Depends(get_db)):
+def listar_unidades_medida(
+    buscar: Optional[str] = None,
+    db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
+):
     query = db.query(UnidadMedida)
     if buscar:
         query = query.filter(UnidadMedida.nombre.ilike(f"%{buscar}%"))
@@ -244,7 +269,7 @@ def listar_unidades_medida(buscar: Optional[str] = None, db: Session = Depends(g
 
 
 @router_unidad.post("", response_model=UnidadMedidaResponse, status_code=201)
-def crear_unidad_medida(datos: UnidadMedidaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_unidad_medida(datos: UnidadMedidaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
     nueva = UnidadMedida(**datos.model_dump())
     db.add(nueva)
     registrar_actividad(db, usuario_actual.id, "CREAR", "UnidadMedida")

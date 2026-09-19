@@ -5,7 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user
+from app.security import get_current_user, requiere_permiso
 from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
 from app.models.model_usuario import Usuario
@@ -50,6 +50,7 @@ def listar_proveedores(
     buscar: Optional[str] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
 ):
     """buscar: coincidencia en nombre, nit o contacto. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Proveedor)
@@ -66,7 +67,7 @@ def listar_proveedores(
 
 
 @router.get("/{proveedor_id}", response_model=ProveedorResponse)
-def obtener_proveedor(proveedor_id: int, db: Session = Depends(get_db)):
+def obtener_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
@@ -74,7 +75,7 @@ def obtener_proveedor(proveedor_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=ProveedorResponse, status_code=201)
-def crear_proveedor(datos: ProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_proveedor(datos: ProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
     nuevo = Proveedor(**datos.model_dump(), activo=1)
     db.add(nuevo)
     registrar_actividad(db, usuario_actual.id, "CREAR", "Proveedor")
@@ -84,7 +85,7 @@ def crear_proveedor(datos: ProveedorCreate, db: Session = Depends(get_db), usuar
 
 
 @router.put("/{proveedor_id}", response_model=ProveedorResponse)
-def actualizar_proveedor(proveedor_id: int, datos: ProveedorUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def actualizar_proveedor(proveedor_id: int, datos: ProveedorUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar"))):
     proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
@@ -97,7 +98,7 @@ def actualizar_proveedor(proveedor_id: int, datos: ProveedorUpdate, db: Session 
 
 
 @router.delete("/{proveedor_id}", response_model=ProveedorResponse)
-def eliminar_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def eliminar_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Eliminar"))):
     """Baja lógica: activo pasa de 1 a 0."""
     proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
     if not proveedor:
@@ -110,7 +111,7 @@ def eliminar_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuario
 
 
 @router.patch("/{proveedor_id}/reactivar", response_model=ProveedorResponse)
-def reactivar_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def reactivar_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Eliminar"))):
     proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
@@ -126,12 +127,12 @@ def reactivar_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuari
 # ===================================================================
 
 @router_tipo.get("", response_model=List[TipoProveedorResponse])
-def listar_tipos_proveedor(db: Session = Depends(get_db)):
+def listar_tipos_proveedor(db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     return db.query(TipoProveedor).all()
 
 
 @router_tipo.post("", response_model=TipoProveedorResponse, status_code=201)
-def crear_tipo_proveedor(datos: TipoProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_tipo_proveedor(datos: TipoProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
     nuevo = TipoProveedor(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(db, usuario_actual.id, "CREAR", "TipoProveedor")
@@ -140,7 +141,7 @@ def crear_tipo_proveedor(datos: TipoProveedorCreate, db: Session = Depends(get_d
     return nuevo
 
 @router_tipo.put("/{tipo_id}", response_model=TipoProveedorResponse)
-def actualizar_tipo_proveedor(tipo_id: int, datos: TipoProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def actualizar_tipo_proveedor(tipo_id: int, datos: TipoProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar"))):
     tipo = db.query(TipoProveedor).filter(TipoProveedor.id == tipo_id).first()
     if not tipo:
         raise HTTPException(status_code=404, detail="Tipo de proveedor no encontrado")
@@ -163,6 +164,7 @@ def listar_pedidos(
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
 ):
     """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Pedido).order_by(Pedido.fecha.desc())
@@ -178,7 +180,7 @@ def listar_pedidos(
 
 
 @router_pedido.get("/{pedido_id}", response_model=PedidoResponse)
-def obtener_pedido(pedido_id: int, db: Session = Depends(get_db)):
+def obtener_pedido(pedido_id: int, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
@@ -186,7 +188,7 @@ def obtener_pedido(pedido_id: int, db: Session = Depends(get_db)):
 
 
 @router_pedido.get("/{pedido_id}/total", response_model=PedidoTotalResponse)
-def calcular_total_pedido(pedido_id: int, db: Session = Depends(get_db)):
+def calcular_total_pedido(pedido_id: int, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     """Suma cantidad_pedida * precio_compra de todos los detalles, y dice si ya alcanza el mínimo de Q500."""
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:
@@ -196,7 +198,7 @@ def calcular_total_pedido(pedido_id: int, db: Session = Depends(get_db)):
 
 
 @router_pedido.post("", response_model=PedidoResponse, status_code=201)
-def crear_pedido(datos: PedidoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_pedido(datos: PedidoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
     nuevo = Pedido(**datos.model_dump(), estado="Pendiente")
     db.add(nuevo)
     registrar_actividad(db, usuario_actual.id, "CREAR", "Pedido")
@@ -206,7 +208,7 @@ def crear_pedido(datos: PedidoCreate, db: Session = Depends(get_db), usuario_act
 
 
 @router_pedido.post("/{pedido_id}/detalles", response_model=DetallePedidoResponse, status_code=201)
-def agregar_producto_a_pedido(pedido_id: int, datos: DetallePedidoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def agregar_producto_a_pedido(pedido_id: int, datos: DetallePedidoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar"))):
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
@@ -237,7 +239,7 @@ def agregar_producto_a_pedido(pedido_id: int, datos: DetallePedidoCreate, db: Se
 
 
 @router_pedido.delete("/{pedido_id}/detalles/{detalle_id}", status_code=204)
-def quitar_producto_de_pedido(pedido_id: int, detalle_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def quitar_producto_de_pedido(pedido_id: int, detalle_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar"))):
     detalle = db.query(DetallePedido).filter(
         DetallePedido.id == detalle_id, DetallePedido.id_pedido == pedido_id
     ).first()
@@ -254,7 +256,7 @@ def cambiar_estado_pedido(
     nuevo_estado: str = Query(..., description=f"Uno de: {', '.join(ESTADOS_PEDIDO)}"),
     forzar: bool = Query(False, description="Forzar aprobación aunque no alcance el mínimo de Q500"),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar")),
 ):
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:

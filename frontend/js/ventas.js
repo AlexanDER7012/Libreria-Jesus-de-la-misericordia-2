@@ -26,9 +26,13 @@ async function loadVentasModule() {
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4><i class="fas fa-shopping-cart me-2 text-warning"></i>Ventas</h4>
             <div>
-                <button class="btn btn-warning btn-sm" onclick="showCreateVentaModal()">
+                ${
+                  tienePermiso("Ventas", "Crear")
+                    ? `<button class="btn btn-warning btn-sm" onclick="showCreateVentaModal()">
                     <i class="fas fa-plus me-2"></i>Nueva Venta
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         </div>
 
@@ -209,9 +213,13 @@ function renderVentasTable(ventas) {
         <button class="btn btn-danger btn-sm" onclick="exportarVentasPDF()">
           <i class="fas fa-file-pdf me-1"></i>PDF
         </button>
-        <button class="btn btn-warning btn-sm" onclick="showCreateVentaModal()">
+        ${
+          tienePermiso("Ventas", "Crear")
+            ? `<button class="btn btn-warning btn-sm" onclick="showCreateVentaModal()">
           <i class="fas fa-plus me-2"></i>Nueva Venta
-        </button>
+        </button>`
+            : ""
+        }
       </div>
     </div>
   `;
@@ -351,10 +359,14 @@ function renderVentasTable(ventas) {
                     <button class="btn btn-sm btn-outline-success" onclick="imprimirVenta(${v.id})" title="Imprimir venta">
                         <i class="fas fa-print"></i>
                     </button>
-                    ${!pagada ? `<button class="btn btn-sm btn-outline-success" onclick="mostrarModalPago(${v.id})" title="Registrar pago"><i class="fas fa-money-bill-wave"></i></button>` : ""}
-                    <button class="btn btn-sm btn-outline-danger" onclick="anularVenta(${v.id})">
+                    ${!pagada && tienePermiso("Ventas", "Editar") ? `<button class="btn btn-sm btn-outline-success" onclick="mostrarModalPago(${v.id})" title="Registrar pago"><i class="fas fa-money-bill-wave"></i></button>` : ""}
+                    ${
+                      tienePermiso("Ventas", "Editar")
+                        ? `<button class="btn btn-sm btn-outline-danger" onclick="anularVenta(${v.id})">
                         <i class="fas fa-times"></i>
-                    </button>
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -1827,9 +1839,13 @@ async function cargarSubClientes() {
           </div>
         </div>
         <div class="col-md-6 text-end">
-          <button class="btn btn-primary btn-sm" onclick="showCreateClienteSubModal()">
+          ${
+            tienePermiso("Ventas", "Crear")
+              ? `<button class="btn btn-primary btn-sm" onclick="showCreateClienteSubModal()">
             <i class="fas fa-plus me-2"></i>Nuevo Cliente
-          </button>
+          </button>`
+              : ""
+          }
         </div>
       </div>
     `;
@@ -1887,14 +1903,22 @@ async function cargarSubClientes() {
             </span>
           </td>
           <td>
-            <button class="btn btn-sm btn-outline-primary" onclick="showEditClienteSubModal(${c.id})">
-              <i class="fas fa-edit"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-danger" onclick="deleteClienteSub(${c.id})">
-              <i class="fas fa-trash"></i>
-            </button>
             ${
-              !activo
+              tienePermiso("Ventas", "Editar")
+                ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditClienteSubModal(${c.id})">
+              <i class="fas fa-edit"></i>
+            </button>`
+                : ""
+            }
+            ${
+              tienePermiso("Ventas", "Eliminar")
+                ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteClienteSub(${c.id})">
+              <i class="fas fa-trash"></i>
+            </button>`
+                : ""
+            }
+            ${
+              !activo && tienePermiso("Ventas", "Eliminar")
                 ? `
               <button class="btn btn-sm btn-outline-success" onclick="reactivarCliente(${c.id})">
                 <i class="fas fa-undo"></i>
@@ -2008,9 +2032,13 @@ async function cargarSubCotizaciones() {
           </div>
         </div>
         <div class="col-md-6 text-end">
-          <button class="btn btn-success btn-sm" onclick="showCreateCotizacionModal()">
+          ${
+            tienePermiso("Ventas", "Crear")
+              ? `<button class="btn btn-success btn-sm" onclick="showCreateCotizacionModal()">
             <i class="fas fa-plus me-2"></i>Nueva Cotización
-          </button>
+          </button>`
+              : ""
+          }
         </div>
       </div>
     `;
@@ -2093,7 +2121,7 @@ async function cargarSubCotizaciones() {
                       <i class="fas fa-eye"></i>
                     </button>
                     ${
-                      c.estado === "Pendiente"
+                      c.estado === "Pendiente" && tienePermiso("Ventas", "Editar")
                         ? `
                       <button class="btn btn-sm btn-outline-success" onclick="aprobarCotizacion(${c.id})">
                         <i class="fas fa-check"></i>
@@ -2497,7 +2525,7 @@ async function verCotizacion(id) {
       <div class="modal-footer">
         <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
         ${
-          cotizacion.estado === "Pendiente"
+          cotizacion.estado === "Pendiente" && tienePermiso("Ventas", "Editar")
             ? `
           <button class="btn btn-success" onclick="aprobarCotizacion(${cotizacion.id})">Aprobar</button>
           <button class="btn btn-danger" onclick="rechazarCotizacion(${cotizacion.id})">Rechazar</button>
@@ -2505,7 +2533,7 @@ async function verCotizacion(id) {
             : ""
         }
         ${
-          cotizacion.estado === "Aprobada"
+          cotizacion.estado === "Aprobada" && tienePermiso("Ventas", "Crear")
             ? `
           <button class="btn btn-warning" onclick="crearVentaDesdeCotizacion(${cotizacion.id})">
             <i class="fas fa-shopping-cart me-1"></i>Convertir en Venta
@@ -2601,9 +2629,13 @@ async function cargarSubServicios() {
         <div class="text-center py-5">
           <i class="fas fa-tools fa-3x text-muted mb-3"></i>
           <p class="text-muted">No hay servicios adicionales registrados</p>
-          <button class="btn btn-info btn-sm" onclick="showCreateServicioModal()">
+          ${
+            tienePermiso("Ventas", "Crear")
+              ? `<button class="btn btn-info btn-sm" onclick="showCreateServicioModal()">
             <i class="fas fa-plus me-2"></i>Registrar Servicio
-          </button>
+          </button>`
+              : ""
+          }
         </div>
       `;
       return;
@@ -2612,9 +2644,13 @@ async function cargarSubServicios() {
     let html = `
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h6 class="mb-0">Listado de Servicios Adicionales</h6>
-        <button class="btn btn-info btn-sm" onclick="showCreateServicioModal()">
+        ${
+          tienePermiso("Ventas", "Crear")
+            ? `<button class="btn btn-info btn-sm" onclick="showCreateServicioModal()">
           <i class="fas fa-plus me-2"></i>Nuevo Servicio
-        </button>
+        </button>`
+            : ""
+        }
       </div>
       <div class="row mb-3">
         <div class="col-md-4">
@@ -2756,13 +2792,15 @@ function renderServiciosRows(servicios) {
         <td>
           <div class="btn-group btn-group-sm">
             ${
-              !estaPagado
+              !estaPagado && tienePermiso("Ventas", "Editar")
                 ? `
               <button class="btn btn-outline-success" onclick="pagarServicio(${s.id})" title="Pagar servicio">
                 <i class="fas fa-money-bill-wave"></i>
               </button>
             `
-                : `
+                : !estaPagado
+                  ? ""
+                  : `
               <button class="btn btn-outline-secondary" disabled title="Ya pagado">
                 <i class="fas fa-check"></i>
               </button>
@@ -2777,9 +2815,13 @@ function renderServiciosRows(servicios) {
             `
                 : ""
             }
-            <button class="btn btn-outline-danger" onclick="eliminarServicio(${s.id})" title="Eliminar">
+            ${
+              tienePermiso("Ventas", "Eliminar")
+                ? `<button class="btn btn-outline-danger" onclick="eliminarServicio(${s.id})" title="Eliminar">
               <i class="fas fa-times"></i>
-            </button>
+            </button>`
+                : ""
+            }
           </div>
         </td>
       </tr>

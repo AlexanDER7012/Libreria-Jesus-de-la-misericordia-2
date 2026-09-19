@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user
+from app.security import get_current_user, requiere_permiso
 from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
 from app.models.model_usuario import Usuario
@@ -31,6 +31,7 @@ def resumen_totales_compras(
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
 ):
     """
     Suma el total en compras, lo ya pagado, y el saldo pendiente -- sobre
@@ -81,6 +82,7 @@ def listar_compras(
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
 ):
     """buscar: coincidencia en número de factura. Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Compra).order_by(Compra.fecha.desc())
@@ -98,7 +100,7 @@ def listar_compras(
 
 
 @router.get("/{compra_id}", response_model=CompraResponse)
-def obtener_compra(compra_id: int, db: Session = Depends(get_db)):
+def obtener_compra(compra_id: int, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     compra = db.query(Compra).filter(Compra.id == compra_id).first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
@@ -106,7 +108,7 @@ def obtener_compra(compra_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=CompraResponse, status_code=201)
-def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
     if not datos.detalles:
         raise HTTPException(status_code=400, detail="La compra debe incluir al menos un producto")
 
@@ -188,7 +190,7 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
 
 
 @router.patch("/{compra_id}/cancelar", response_model=CompraResponse)
-def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar"))):
     """
     Cancela una compra: revierte inventario (si aplica), ANULA los pagos
     (nunca los borra -- quedan en la tabla marcados con anulado=1 para
@@ -249,7 +251,7 @@ def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db
 
 
 @router.delete("/{compra_id}/pagos/{pago_id}", status_code=204)
-def eliminar_pago_compra(compra_id: int, pago_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def eliminar_pago_compra(compra_id: int, pago_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Eliminar"))):
     """Elimina un pago y recalcula el saldo y estado de la compra."""
     compra = db.query(Compra).filter(Compra.id == compra_id).first()
     if not compra:
@@ -279,7 +281,7 @@ def eliminar_pago_compra(compra_id: int, pago_id: int, db: Session = Depends(get
 
 
 @router.post("/{compra_id}/nota-entrega", response_model=NotaEntregaResponse, status_code=201)
-def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar"))):
     compra = db.query(Compra).filter(Compra.id == compra_id).first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
@@ -339,7 +341,7 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
 
 
 @router.post("/{compra_id}/pagos", response_model=CompraPagoResponse, status_code=201)
-def registrar_pago_compra(compra_id: int, datos: CompraPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def registrar_pago_compra(compra_id: int, datos: CompraPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar"))):
     """Registra un pago a proveedor y recalcula saldo_pendiente y el estado de la compra."""
     compra = db.query(Compra).filter(Compra.id == compra_id).first()
     if not compra:
@@ -375,6 +377,7 @@ def listar_devoluciones(
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
 ):
     """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(DevolucionCompra).order_by(DevolucionCompra.fecha.desc())
@@ -388,7 +391,7 @@ def listar_devoluciones(
 
 
 @router_devolucion.post("", response_model=DevolucionCompraResponse, status_code=201)
-def registrar_devolucion(datos: DevolucionCompraCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def registrar_devolucion(datos: DevolucionCompraCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
     nueva = DevolucionCompra(**datos.model_dump())
     db.add(nueva)
     registrar_actividad(db, usuario_actual.id, "CREAR", "DevolucionCompra")

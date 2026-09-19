@@ -44,6 +44,10 @@ class PermisoCreate(PermisoBase):
 class PermisoResponse(PermisoBase):
     id: int
     nombre: Optional[str] = None
+    # Se llena a mano en el endpoint (no es una columna de la tabla permiso)
+    # para que el frontend pueda comparar "modulo + accion" sin tener que
+    # cruzar por separado contra la lista de modulos.
+    modulo_nombre: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 

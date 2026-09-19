@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user
+from app.security import get_current_user, requiere_permiso
 from app.bitacora import registrar_actividad
 from app.models.model_cliente import Cliente
 from app.models.model_usuario import Usuario
@@ -26,6 +26,7 @@ def listar_clientes(
     buscar: Optional[str] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
 ):
     """
     Lista clientes según su estado:
@@ -53,7 +54,7 @@ def listar_clientes(
 
 
 @router.get("/{cliente_id}", response_model=ClienteResponse)
-def obtener_cliente(cliente_id: int, db: Session = Depends(get_db)):
+def obtener_cliente(cliente_id: int, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
     """Obtiene un cliente por su id (activo o no)."""
     cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
     if not cliente:
@@ -62,7 +63,7 @@ def obtener_cliente(cliente_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=ClienteResponse, status_code=201)
-def crear_cliente(datos: ClienteCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_cliente(datos: ClienteCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Crear"))):
     """Crea un nuevo cliente (siempre queda activo=1)."""
     nuevo_cliente = Cliente(**datos.model_dump(), activo=1)
     db.add(nuevo_cliente)
@@ -73,7 +74,7 @@ def crear_cliente(datos: ClienteCreate, db: Session = Depends(get_db), usuario_a
 
 
 @router.put("/{cliente_id}", response_model=ClienteResponse)
-def actualizar_cliente(cliente_id: int, datos: ClienteUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def actualizar_cliente(cliente_id: int, datos: ClienteUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Editar"))):
     """Actualiza uno o varios campos de un cliente existente."""
     cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
     if not cliente:
@@ -89,7 +90,7 @@ def actualizar_cliente(cliente_id: int, datos: ClienteUpdate, db: Session = Depe
 
 
 @router.delete("/{cliente_id}", response_model=ClienteResponse)
-def eliminar_cliente(cliente_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def eliminar_cliente(cliente_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Eliminar"))):
     cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
@@ -102,7 +103,7 @@ def eliminar_cliente(cliente_id: int, db: Session = Depends(get_db), usuario_act
 
 
 @router.patch("/{cliente_id}/reactivar", response_model=ClienteResponse)
-def reactivar_cliente(cliente_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def reactivar_cliente(cliente_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Eliminar"))):
     """Reactiva un cliente dado de baja (activo de 0 a 1)."""
     cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
     if not cliente:

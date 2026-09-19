@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user
+from app.security import get_current_user, requiere_permiso
 from app.bitacora import registrar_actividad
 from app.models.model_usuario import Usuario
 from app.models.model_ubicacion import Ubicacion, Sububicacion
@@ -44,6 +44,7 @@ def listar_ubicaciones(
     buscar: Optional[str] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(get_current_user),
 ):
     """Lista sucursales. Por defecto solo las activas. buscar: coincidencia en nombre. Paginado: ?skip=0&limit=50."""
     query = db.query(Ubicacion)
@@ -57,7 +58,7 @@ def listar_ubicaciones(
 
 
 @router.get("/{ubicacion_id}", response_model=UbicacionConSububicaciones)
-def obtener_ubicacion(ubicacion_id: int, db: Session = Depends(get_db)):
+def obtener_ubicacion(ubicacion_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Obtiene una sucursal por su id, incluyendo sus sububicaciones."""
     ubicacion = db.query(Ubicacion).filter(Ubicacion.id == ubicacion_id).first()
     if not ubicacion:
@@ -66,7 +67,7 @@ def obtener_ubicacion(ubicacion_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=UbicacionResponse, status_code=201)
-def crear_ubicacion(datos: UbicacionCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_ubicacion(datos: UbicacionCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Crear"))):
     """Crea una nueva sucursal."""
     nueva = Ubicacion(**datos.model_dump(), activo=1)
     db.add(nueva)
@@ -77,7 +78,7 @@ def crear_ubicacion(datos: UbicacionCreate, db: Session = Depends(get_db), usuar
 
 
 @router.put("/{ubicacion_id}", response_model=UbicacionResponse)
-def actualizar_ubicacion(ubicacion_id: int, datos: UbicacionUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def actualizar_ubicacion(ubicacion_id: int, datos: UbicacionUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Editar"))):
     """Actualiza uno o varios campos de una sucursal existente."""
     ubicacion = db.query(Ubicacion).filter(Ubicacion.id == ubicacion_id).first()
     if not ubicacion:
@@ -93,7 +94,7 @@ def actualizar_ubicacion(ubicacion_id: int, datos: UbicacionUpdate, db: Session 
 
 
 @router.delete("/{ubicacion_id}", response_model=UbicacionResponse)
-def eliminar_ubicacion(ubicacion_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def eliminar_ubicacion(ubicacion_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Eliminar"))):
     """Baja lógica: activo pasa de 1 a 0."""
     ubicacion = db.query(Ubicacion).filter(Ubicacion.id == ubicacion_id).first()
     if not ubicacion:
@@ -107,7 +108,7 @@ def eliminar_ubicacion(ubicacion_id: int, db: Session = Depends(get_db), usuario
 
 
 @router.get("/{ubicacion_id}/sububicaciones", response_model=List[SububicacionResponse])
-def listar_sububicaciones_de_ubicacion(ubicacion_id: int, db: Session = Depends(get_db)):
+def listar_sububicaciones_de_ubicacion(ubicacion_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Lista las sububicaciones (estantes/bodega) de una sucursal específica."""
     ubicacion = db.query(Ubicacion).filter(Ubicacion.id == ubicacion_id).first()
     if not ubicacion:
@@ -125,6 +126,7 @@ def listar_sububicaciones(
     buscar: Optional[str] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(get_current_user),
 ):
     """Lista todas las sububicaciones (de cualquier sucursal). Por defecto solo activas. Paginado: ?skip=0&limit=50."""
     query = db.query(Sububicacion)
@@ -138,7 +140,7 @@ def listar_sububicaciones(
 
 
 @sub_router.get("/{sububicacion_id}", response_model=SububicacionResponse)
-def obtener_sububicacion(sububicacion_id: int, db: Session = Depends(get_db)):
+def obtener_sububicacion(sububicacion_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     sub = db.query(Sububicacion).filter(Sububicacion.id == sububicacion_id).first()
     if not sub:
         raise HTTPException(status_code=404, detail="Sububicación no encontrada")
@@ -146,7 +148,7 @@ def obtener_sububicacion(sububicacion_id: int, db: Session = Depends(get_db)):
 
 
 @sub_router.post("", response_model=SububicacionResponse, status_code=201)
-def crear_sububicacion(datos: SububicacionCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def crear_sububicacion(datos: SububicacionCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Crear"))):
     """Crea una nueva sububicación. Debe indicar a qué ubicacion (sucursal) pertenece."""
     ubicacion = db.query(Ubicacion).filter(Ubicacion.id == datos.id_ubicacion).first()
     if not ubicacion:
@@ -161,7 +163,7 @@ def crear_sububicacion(datos: SububicacionCreate, db: Session = Depends(get_db),
 
 
 @sub_router.put("/{sububicacion_id}", response_model=SububicacionResponse)
-def actualizar_sububicacion(sububicacion_id: int, datos: SububicacionUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def actualizar_sububicacion(sububicacion_id: int, datos: SububicacionUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Editar"))):
     sub = db.query(Sububicacion).filter(Sububicacion.id == sububicacion_id).first()
     if not sub:
         raise HTTPException(status_code=404, detail="Sububicación no encontrada")
@@ -176,7 +178,7 @@ def actualizar_sububicacion(sububicacion_id: int, datos: SububicacionUpdate, db:
 
 
 @sub_router.delete("/{sububicacion_id}", response_model=SububicacionResponse)
-def eliminar_sububicacion(sububicacion_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def eliminar_sububicacion(sububicacion_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Eliminar"))):
     """Baja lógica: activo pasa de 1 a 0."""
     sub = db.query(Sububicacion).filter(Sububicacion.id == sububicacion_id).first()
     if not sub:

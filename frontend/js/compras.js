@@ -119,9 +119,13 @@ async function loadComprasModule() {
   container.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4><i class="fas fa-truck me-2 text-info"></i>Compras</h4>
-            <button class="btn btn-info btn-sm" onclick="showCreateCompraModal()">
+            ${
+              tienePermiso("Compras", "Crear")
+                ? `<button class="btn btn-info btn-sm" onclick="showCreateCompraModal()">
                 <i class="fas fa-plus me-2"></i>Nueva Compra
-            </button>
+            </button>`
+                : ""
+            }
         </div>
 
         <ul class="nav nav-tabs mb-3" id="comprasTabs" role="tablist">
@@ -358,9 +362,13 @@ function renderComprasTable(compras) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Compras</h6>
-            <button class="btn btn-info btn-sm" onclick="showCreateCompraModal()">
+            ${
+              tienePermiso("Compras", "Crear")
+                ? `<button class="btn btn-info btn-sm" onclick="showCreateCompraModal()">
                 <i class="fas fa-plus me-2"></i>Nueva Compra
-            </button>
+            </button>`
+                : ""
+            }
         </div>
 
         <div class="row g-2 mb-3">
@@ -422,9 +430,13 @@ function renderComprasTable(compras) {
             <div class="text-center py-5">
                 <i class="fas fa-truck fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay compras registradas</p>
-                <button class="btn btn-info btn-sm" onclick="showCreateCompraModal()">
+                ${
+                  tienePermiso("Compras", "Crear")
+                    ? `<button class="btn btn-info btn-sm" onclick="showCreateCompraModal()">
                     <i class="fas fa-plus me-2"></i>Registrar Compra
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         </div>
     `;
@@ -491,14 +503,18 @@ function renderComprasTable(compras) {
                     <button class="btn btn-sm btn-outline-secondary" onclick="imprimirCompra(${c.id})" title="Imprimir reporte">
                         <i class="fas fa-print"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="registrarNotaEntrega(${c.id})" title="Nota de entrega">
+                    ${
+                      tienePermiso("Compras", "Editar")
+                        ? `<button class="btn btn-sm btn-outline-success" onclick="registrarNotaEntrega(${c.id})" title="Nota de entrega">
                         <i class="fas fa-file-signature"></i>
                     </button>
                     <button class="btn btn-sm btn-outline-warning" onclick="registrarPagoCompra(${c.id})" title="Registrar pago">
                         <i class="fas fa-money-bill-wave"></i>
-                    </button>
+                    </button>`
+                        : ""
+                    }
                     ${
-                      c.estado !== "Cancelada"
+                      c.estado !== "Cancelada" && tienePermiso("Compras", "Editar")
                         ? `<button class="btn btn-sm btn-outline-danger" onclick="cancelarCompra(${c.id})" title="Cancelar compra">
                           <i class="fas fa-ban"></i>
                          </button>`
@@ -575,9 +591,13 @@ function renderProveedoresTab(proveedores) {
             <div class="text-center py-5">
                 <i class="fas fa-building fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay proveedores registrados</p>
-                <button class="btn btn-primary btn-sm" onclick="showCreateProveedorModal()">
+                ${
+                  tienePermiso("Compras", "Crear")
+                    ? `<button class="btn btn-primary btn-sm" onclick="showCreateProveedorModal()">
                     <i class="fas fa-plus me-2"></i>Agregar Proveedor
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         `;
     return;
@@ -586,9 +606,13 @@ function renderProveedoresTab(proveedores) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Proveedores</h6>
-            <button class="btn btn-primary btn-sm" onclick="showCreateProveedorModal()">
+            ${
+              tienePermiso("Compras", "Crear")
+                ? `<button class="btn btn-primary btn-sm" onclick="showCreateProveedorModal()">
                 <i class="fas fa-plus me-2"></i>Nuevo Proveedor
-            </button>
+            </button>`
+                : ""
+            }
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -629,12 +653,20 @@ function renderProveedoresTab(proveedores) {
                     </span>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="showEditProveedorModal(${p.id})">
+                    ${
+                      tienePermiso("Compras", "Editar")
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditProveedorModal(${p.id})">
                         <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleProveedorEstado(${p.id})">
+                    </button>`
+                        : ""
+                    }
+                    ${
+                      tienePermiso("Compras", "Eliminar")
+                        ? `<button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleProveedorEstado(${p.id})">
                         <i class="fas fa-${activo ? "times" : "check"}"></i>
-                    </button>
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -661,9 +693,13 @@ function renderTiposProveedorTab(tipos) {
             <div class="text-center py-5">
                 <i class="fas fa-tags fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay tipos de proveedor registrados</p>
-                <button class="btn btn-primary btn-sm" onclick="showCreateTipoProveedorModal()">
+                ${
+                  tienePermiso("Compras", "Crear")
+                    ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoProveedorModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Tipo
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         `;
     return;
@@ -672,9 +708,13 @@ function renderTiposProveedorTab(tipos) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Tipos de Proveedor</h6>
-            <button class="btn btn-primary btn-sm" onclick="showCreateTipoProveedorModal()">
+            ${
+              tienePermiso("Compras", "Crear")
+                ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoProveedorModal()">
                 <i class="fas fa-plus me-2"></i>Nuevo Tipo
-            </button>
+            </button>`
+                : ""
+            }
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -704,12 +744,16 @@ function renderTiposProveedorTab(tipos) {
                     </span>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="showEditTipoProveedorModal(${t.id})">
+                    ${
+                      tienePermiso("Compras", "Editar")
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditTipoProveedorModal(${t.id})">
                         <i class="fas fa-edit"></i>
                     </button>
                     <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleTipoProveedorEstado(${t.id})">
                         <i class="fas fa-${activo ? "times" : "check"}"></i>
-                    </button>
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -742,9 +786,13 @@ function renderPedidosTab(pedidos) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Pedidos</h6>
-            <button class="btn btn-primary btn-sm" onclick="showCreatePedidoModal()">
+            ${
+              tienePermiso("Compras", "Crear")
+                ? `<button class="btn btn-primary btn-sm" onclick="showCreatePedidoModal()">
                 <i class="fas fa-plus me-2"></i>Nuevo Pedido
-            </button>
+            </button>`
+                : ""
+            }
         </div>
 
         <div class="row g-2 mb-3">
@@ -792,9 +840,13 @@ function renderPedidosTab(pedidos) {
             <div class="text-center py-5">
                 <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay pedidos registrados</p>
-                <button class="btn btn-primary btn-sm" onclick="showCreatePedidoModal()">
+                ${
+                  tienePermiso("Compras", "Crear")
+                    ? `<button class="btn btn-primary btn-sm" onclick="showCreatePedidoModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Pedido
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         </div>
     `;
@@ -849,14 +901,18 @@ function renderPedidosTab(pedidos) {
                     <button class="btn btn-sm btn-outline-info" onclick="verPedido(${p.id})" title="Ver detalle">
                         <i class="fas fa-eye"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="cambiarEstadoPedido(${p.id})" title="Cambiar estado">
+                    ${
+                      tienePermiso("Compras", "Editar")
+                        ? `<button class="btn btn-sm btn-outline-success" onclick="cambiarEstadoPedido(${p.id})" title="Cambiar estado">
                         <i class="fas fa-sync"></i>
-                    </button>
+                    </button>`
+                        : ""
+                    }
                     <button class="btn btn-sm btn-outline-warning" onclick="verTotalPedido(${p.id})" title="Verificar mínimo">
                         <i class="fas fa-calculator"></i>
                     </button>
                     ${
-                      estado !== "Cancelado"
+                      estado !== "Cancelado" && tienePermiso("Compras", "Editar")
                         ? `
                     <button class="btn btn-sm btn-outline-danger" onclick="cancelarPedido(${p.id})" title="Cancelar pedido">
                         <i class="fas fa-ban"></i>
@@ -963,9 +1019,13 @@ function renderCajaChicaTab(movimientos) {
             <div class="text-center py-5">
                 <i class="fas fa-coins fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay movimientos de caja chica</p>
-                <button class="btn btn-success btn-sm" onclick="showCreateCajaChicaModal()">
+                ${
+                  tienePermiso("Compras", "Crear")
+                    ? `<button class="btn btn-success btn-sm" onclick="showCreateCajaChicaModal()">
                     <i class="fas fa-plus me-2"></i>Registrar Movimiento
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         `;
     return;
@@ -974,9 +1034,13 @@ function renderCajaChicaTab(movimientos) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Movimientos de Caja Chica</h6>
-            <button class="btn btn-success btn-sm" onclick="showCreateCajaChicaModal()">
+            ${
+              tienePermiso("Compras", "Crear")
+                ? `<button class="btn btn-success btn-sm" onclick="showCreateCajaChicaModal()">
                 <i class="fas fa-plus me-2"></i>Nuevo Movimiento
-            </button>
+            </button>`
+                : ""
+            }
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -1025,9 +1089,13 @@ function renderCajaChicaTab(movimientos) {
                     <button class="btn btn-sm btn-outline-info" onclick="verCajaChica(${m.id})" title="Ver">
                         <i class="fas fa-eye"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarCajaChica(${m.id})" title="Eliminar">
+                    ${
+                      tienePermiso("Compras", "Eliminar")
+                        ? `<button class="btn btn-sm btn-outline-danger" onclick="eliminarCajaChica(${m.id})" title="Eliminar">
                         <i class="fas fa-trash"></i>
-                    </button>
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -1057,9 +1125,13 @@ function renderGastosTab(gastos) {
             <div class="text-center py-5">
                 <i class="fas fa-receipt fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay gastos registrados</p>
-                <button class="btn btn-primary btn-sm" onclick="showCreateGastoModal()">
+                ${
+                  tienePermiso("Compras", "Crear")
+                    ? `<button class="btn btn-primary btn-sm" onclick="showCreateGastoModal()">
                     <i class="fas fa-plus me-2"></i>Registrar Gasto
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         `;
     return;
@@ -1068,9 +1140,13 @@ function renderGastosTab(gastos) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Gastos</h6>
-            <button class="btn btn-primary btn-sm" onclick="showCreateGastoModal()">
+            ${
+              tienePermiso("Compras", "Crear")
+                ? `<button class="btn btn-primary btn-sm" onclick="showCreateGastoModal()">
                 <i class="fas fa-plus me-2"></i>Nuevo Gasto
-            </button>
+            </button>`
+                : ""
+            }
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -1119,9 +1195,13 @@ function renderGastosTab(gastos) {
                     <button class="btn btn-sm btn-outline-info" onclick="verGasto(${g.id})" title="Ver">
                         <i class="fas fa-eye"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarGasto(${g.id})" title="Eliminar">
+                    ${
+                      tienePermiso("Compras", "Eliminar")
+                        ? `<button class="btn btn-sm btn-outline-danger" onclick="eliminarGasto(${g.id})" title="Eliminar">
                         <i class="fas fa-trash"></i>
-                    </button>
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -1216,9 +1296,13 @@ function renderTiposGastoTab(tipos) {
             <div class="text-center py-5">
                 <i class="fas fa-tags fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay tipos de gasto registrados</p>
-                <button class="btn btn-primary btn-sm" onclick="showCreateTipoGastoModal()">
+                ${
+                  tienePermiso("Compras", "Crear")
+                    ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoGastoModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Tipo
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         `;
     return;
@@ -1227,9 +1311,13 @@ function renderTiposGastoTab(tipos) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Tipos de Gasto</h6>
-            <button class="btn btn-primary btn-sm" onclick="showCreateTipoGastoModal()">
+            ${
+              tienePermiso("Compras", "Crear")
+                ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoGastoModal()">
                 <i class="fas fa-plus me-2"></i>Nuevo Tipo
-            </button>
+            </button>`
+                : ""
+            }
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -1261,12 +1349,16 @@ function renderTiposGastoTab(tipos) {
                     </span>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="showEditTipoGastoModal(${t.id})">
+                    ${
+                      tienePermiso("Compras", "Editar")
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditTipoGastoModal(${t.id})">
                         <i class="fas fa-edit"></i>
                     </button>
                     <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleTipoGastoEstado(${t.id})">
                         <i class="fas fa-${activo ? "times" : "check"}"></i>
-                    </button>
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -1298,9 +1390,13 @@ function renderTiposPagoCompras(tipos) {
             <div class="text-center py-5">
                 <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay tipos de pago registrados para compras</p>
-                <button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
+                ${
+                  (tienePermiso("Compras", "Crear") || tienePermiso("Ventas", "Crear"))
+                    ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
                     <i class="fas fa-plus me-2"></i>Crear Tipo de Pago
-                </button>
+                </button>`
+                    : ""
+                }
             </div>
         `;
     return;
@@ -1309,9 +1405,13 @@ function renderTiposPagoCompras(tipos) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Tipos de Pago para Compras</h6>
-            <button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
+            ${
+              (tienePermiso("Compras", "Crear") || tienePermiso("Ventas", "Crear"))
+                ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
                 <i class="fas fa-plus me-2"></i>Nuevo Tipo
-            </button>
+            </button>`
+                : ""
+            }
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -1342,9 +1442,13 @@ function renderTiposPagoCompras(tipos) {
                     </span>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleTipoPagoEstado(${t.id})" title="${activo ? "Inactivar" : "Activar"}">
+                    ${
+                      (tienePermiso("Compras", "Editar") || tienePermiso("Ventas", "Editar"))
+                        ? `<button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleTipoPagoEstado(${t.id})" title="${activo ? "Inactivar" : "Activar"}">
                         <i class="fas fa-${activo ? "times" : "check"}"></i>
-                    </button>
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;

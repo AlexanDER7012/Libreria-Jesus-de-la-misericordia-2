@@ -212,15 +212,15 @@ async function loadInventarioModule() {
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4><i class="fas fa-warehouse me-2 text-secondary"></i>Inventario</h4>
             <div>
-                <button class="btn btn-primary btn-sm me-2" onclick="showMovimientoModal()">
+                ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-primary btn-sm me-2" onclick="showMovimientoModal()">
                     <i class="fas fa-exchange-alt me-1"></i>Movimiento
-                </button>
-                <button class="btn btn-warning btn-sm me-2" onclick="showConteoFisicoModal()">
+                </button>` : ""}
+                ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-warning btn-sm me-2" onclick="showConteoFisicoModal()">
                     <i class="fas fa-clipboard-list me-1"></i>Conteo Físico
-                </button>
-                <button class="btn btn-info btn-sm" onclick="showTrasladoModal()">
+                </button>` : ""}
+                ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-info btn-sm" onclick="showTrasladoModal()">
                     <i class="fas fa-arrows-alt-h me-1"></i>Traslado
-                </button>
+                </button>` : ""}
             </div>
         </div>
 
@@ -463,9 +463,9 @@ function renderResumenInventario() {
                     <button class="btn btn-sm btn-outline-info" onclick="verHistorialProducto(${p.id})" title="Ver historial de movimientos">
                         <i class="fas fa-history"></i> Historial
                     </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="showMovimientoModalConProducto(${p.id})" title="Registrar movimiento">
+                    ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-sm btn-outline-success" onclick="showMovimientoModalConProducto(${p.id})" title="Registrar movimiento">
                         <i class="fas fa-exchange-alt"></i>
-                    </button>
+                    </button>` : ""}
                 </td>
             </tr>
         `;
@@ -652,9 +652,9 @@ function mostrarHistorialModal(producto, movimientos) {
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        <button class="btn btn-primary" onclick="showMovimientoModalConProducto(${producto.id})">
+                        ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-primary" onclick="showMovimientoModalConProducto(${producto.id})">
                             <i class="fas fa-plus me-1"></i>Nuevo Movimiento
-                        </button>
+                        </button>` : ""}
                     </div>
                 </div>
             </div>
@@ -1197,9 +1197,9 @@ function renderConteoFisico(conteos) {
             <div class="text-center py-5">
                 <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay conteos físicos registrados</p>
-                <button class="btn btn-warning btn-sm" onclick="showConteoFisicoModal()">
+                ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-warning btn-sm" onclick="showConteoFisicoModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Conteo
-                </button>
+                </button>` : ""}
             </div>
         `;
     return;
@@ -1284,9 +1284,9 @@ function renderTraslados(traslados) {
             <div class="text-center py-5">
                 <i class="fas fa-arrows-alt-h fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay traslados registrados</p>
-                <button class="btn btn-info btn-sm" onclick="showTrasladoModal()">
+                ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-info btn-sm" onclick="showTrasladoModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Traslado
-                </button>
+                </button>` : ""}
             </div>
         `;
     return;
@@ -1345,7 +1345,7 @@ function renderTraslados(traslados) {
                         ${estado}
                     </span>
                     ${
-                      estado === "Pendiente"
+                      estado === "Pendiente" && tienePermiso("Inventario", "Editar")
                         ? `
                         <button class="btn btn-sm btn-outline-success ms-1" onclick="recibirTraslado(${t.id})">
                             <i class="fas fa-check"></i>
@@ -1460,7 +1460,7 @@ function renderAlertas(alertas) {
                 </td>
                 <td>
                     ${
-                      !leida && !yaResuelta
+                      !leida && !yaResuelta && tienePermiso("Inventario", "Editar")
                         ? `
                         <button class="btn btn-sm btn-outline-success" onclick="marcarAlertaLeida(${a.id})">
                             <i class="fas fa-check"></i> Marcar Leída
@@ -1623,9 +1623,9 @@ function renderTiposMovimiento(tipos) {
             <div class="text-center py-5">
                 <i class="fas fa-tags fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay tipos de movimiento registrados</p>
-                <button class="btn btn-success btn-sm" onclick="showCreateTipoMovimientoModal()">
+                ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-success btn-sm" onclick="showCreateTipoMovimientoModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Tipo
-                </button>
+                </button>` : ""}
             </div>
         `;
     return;
@@ -1634,9 +1634,9 @@ function renderTiposMovimiento(tipos) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Tipos de Movimiento</h6>
-            <button class="btn btn-success btn-sm" onclick="showCreateTipoMovimientoModal()">
+            ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-success btn-sm" onclick="showCreateTipoMovimientoModal()">
                 <i class="fas fa-plus me-1"></i>Nuevo Tipo
-            </button>
+            </button>` : ""}
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">

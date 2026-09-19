@@ -386,6 +386,40 @@ function aplicarControlAccesoPorPestana(idContenedorTabs, mapaPermisos, catalogo
   }
 }
 
+/**
+ * Revisa si el usuario logueado tiene asignado el permiso "<accion>" del
+ * módulo "<modulo>" (ej. tienePermiso("Productos", "Crear")).
+ *
+ * OJO: esto es SOLO para decidir qué mostrar en pantalla (ocultar/deshabilitar
+ * botones) -- una comodidad visual, no la seguridad real. La seguridad de
+ * verdad vive en el backend (la dependencia requiere_permiso() de
+ * app/security.py), que rechaza la petición aunque alguien se salte estos
+ * botones y llame al endpoint directo. Aquí solo evitamos mostrarle al
+ * usuario una acción que de todos modos el servidor le va a rechazar.
+ *
+ * Fail-open igual que aplicarControlAccesoPorPestana: si el permiso todavía
+ * no existe en el catálogo, o no se puede leer localStorage, no se oculta
+ * nada (para no romper pantallas antes de que alguien configure permisos).
+ */
+function tienePermiso(modulo, accion) {
+  try {
+    const misPermisos = JSON.parse(localStorage.getItem("user_permisos") || "[]");
+    if (!misPermisos.length) return true; // todavía no hay permisos configurados: no restringir
+    const moduloLower = (modulo || "").toLowerCase();
+    const accionLower = (accion || "").toLowerCase();
+    // Comparacion sin distinguir mayusculas/minusculas: en la base de
+    // datos los nombres vienen en minuscula ("ver", "crear", ...).
+    return misPermisos.some(
+      (p) =>
+        (p.modulo_nombre || "").toLowerCase() === moduloLower &&
+        (p.nombre || "").toLowerCase() === accionLower,
+    );
+  } catch (e) {
+    console.warn("No se pudo leer user_permisos de localStorage:", e);
+    return true; // fail-open, igual que aplicarControlAccesoPorPestana
+  }
+}
+
 // EXPONER FUNCIONES GLOBALES
 
 window.showToast = showToast;
@@ -398,3 +432,4 @@ window.validarCampoEmail = validarCampoEmail;
 window.mostrarConfirmacion = mostrarConfirmacion;
 window.mostrarLoading = mostrarLoading;
 window.aplicarControlAccesoPorPestana = aplicarControlAccesoPorPestana;
+window.tienePermiso = tienePermiso;

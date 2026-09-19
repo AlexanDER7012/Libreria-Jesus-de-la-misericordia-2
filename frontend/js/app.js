@@ -13,6 +13,7 @@ class App {
       { id: "productos", label: "Productos", icon: "fa-box" },
       { id: "ventas", label: "Ventas", icon: "fa-shopping-cart" },
       { id: "compras", label: "Compras", icon: "fa-truck" },
+      { id: "caja", label: "Caja", icon: "fa-cash-register" },
       { id: "inventario", label: "Inventario", icon: "fa-warehouse" },
       { id: "usuarios", label: "Usuarios", icon: "fa-user-shield" },
       { id: "reportes", label: "Reportes", icon: "fa-chart-bar" },
@@ -46,44 +47,32 @@ class App {
   }
 
   tienePermiso(moduleId) {
-    // ✅ Obtener usuario actual desde localStorage (más confiable)
-    const user = getCurrentUser();
-    const rol = user?.rol || user?.id_rol || this.user?.rol;
-
-    // ✅ Si es administrador (id_rol = 1 o nombre "admin"), tiene acceso a todo
-    if (
-      rol === 1 ||
-      rol === "admin" ||
-      rol === "Administrador" ||
-      user?.id === 1
-    ) {
-      console.log(`✅ Admin: acceso a ${moduleId}`);
+    // ✅ Dashboard siempre visible para cualquier usuario autenticado
+    if (moduleId === "dashboard") {
       return true;
     }
 
-    // ✅ Obtener permisos
+    // ✅ Obtener permisos (el permiso "Ver" de cada módulo determina si el
+    // módulo aparece en el menú/sidebar; ya NO hay excepción hardcodeada
+    // para admin: el rol admin debe tener sus propios permisos "Ver"
+    // asignados como cualquier otro rol)
     const permisos = this.getPermisosUsuario();
     console.log(`🔍 Verificando permiso para ${moduleId}, permisos:`, permisos);
 
     // ✅ Si no hay permisos, SOLO acceso a Dashboard
     if (!permisos || permisos.length === 0) {
       console.warn(`⚠️ Sin permisos, solo Dashboard para ${moduleId}`);
-      return moduleId === "dashboard";
+      return false;
     }
 
-    // ✅ Verificar si el módulo está en la lista de permisos
+    // ✅ Verificar si el módulo está en la lista de permisos (permiso "Ver")
+    const moduleLower = moduleId.toLowerCase();
     const tieneAcceso = permisos.some((p) => {
-      // Buscar el nombre del módulo en diferentes campos
-      const nombreModulo =
-        p.modulo_nombre || p.modulo || p.nombre_modulo || p.modulo_name;
-      // Normalizar
+      const nombreModulo = p.modulo_nombre;
       const moduloLower = nombreModulo ? nombreModulo.toLowerCase() : "";
-      const moduleLower = moduleId.toLowerCase();
-
-      // También verificar por id_modulo
-      const idModulo = p.id_modulo || p.modulo_id;
       const coincide =
-        moduloLower === moduleLower || idModulo === this.getModuloId(moduleId);
+        moduloLower === moduleLower &&
+        (p.nombre || "").toLowerCase() === "ver";
 
       if (coincide) {
         console.log(
@@ -98,21 +87,6 @@ class App {
     }
 
     return tieneAcceso;
-  }
-
-  // ✅ Función auxiliar para mapear nombres de módulo a IDs
-  getModuloId(nombre) {
-    const mapa = {
-      dashboard: 1,
-      productos: 2,
-      ventas: 3,
-      compras: 4,
-      inventario: 5,
-      usuarios: 6,
-      reportes: 7,
-      configuracion: 8,
-    };
-    return mapa[nombre];
   }
 
   // =============================================
@@ -436,6 +410,9 @@ class App {
         case "compras":
           await this.loadCompras(mainContent);
           break;
+        case "caja":
+          await this.loadCaja(mainContent);
+          break;
         case "inventario":
           await this.loadInventario(mainContent);
           break;
@@ -665,6 +642,23 @@ class App {
     `;
     if (typeof loadComprasModule === "function") {
       await loadComprasModule();
+    }
+  }
+
+  async loadCaja(container) {
+    container.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4><i class="fas fa-cash-register me-2 text-primary"></i>Caja</h4>
+      </div>
+      <div id="cajaTableContainer">
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="mt-2 text-muted">Cargando caja...</p>
+        </div>
+      </div>
+    `;
+    if (typeof loadCajaModule === "function") {
+      await loadCajaModule();
     }
   }
 
