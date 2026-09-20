@@ -25,6 +25,7 @@ body {
     color 0.4s ease;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  padding-top: 65px;
 }
 
 /* ================================================================

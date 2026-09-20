@@ -71,8 +71,7 @@ class App {
       const nombreModulo = p.modulo_nombre;
       const moduloLower = nombreModulo ? nombreModulo.toLowerCase() : "";
       const coincide =
-        moduloLower === moduleLower &&
-        (p.nombre || "").toLowerCase() === "ver";
+        moduloLower === moduleLower && (p.nombre || "").toLowerCase() === "ver";
 
       if (coincide) {
         console.log(
@@ -263,38 +262,56 @@ class App {
         label: "Dashboard",
         icon: "fa-chart-bar",
         color: "primary",
+        imagen: "dashboard.png",
       },
-      { id: "productos", label: "Productos", icon: "fa-box", color: "success" },
+      {
+        id: "productos",
+        label: "Productos",
+        icon: "fa-box",
+        color: "success",
+        imagen: "productos.png",
+      },
       {
         id: "ventas",
         label: "Ventas",
         icon: "fa-shopping-cart",
         color: "warning",
+        imagen: "ventas.png",
       },
-      { id: "compras", label: "Compras", icon: "fa-truck", color: "info" },
+      {
+        id: "compras",
+        label: "Compras",
+        icon: "fa-truck",
+        color: "info",
+        imagen: "compras.png",
+      },
       {
         id: "inventario",
         label: "Inventario",
         icon: "fa-warehouse",
         color: "secondary",
+        imagen: "inventario.png",
       },
       {
         id: "usuarios",
         label: "Usuarios",
         icon: "fa-user-shield",
         color: "danger",
+        imagen: "usuarios.png",
       },
       {
         id: "reportes",
         label: "Reportes",
         icon: "fa-chart-bar",
         color: "primary",
+        imagen: "reportes.png",
       },
       {
         id: "configuracion",
         label: "Configuración",
         icon: "fa-cog",
         color: "dark",
+        imagen: "configuracion.png",
       },
     ];
 
@@ -323,8 +340,8 @@ class App {
         (m) => `
       <div class="col-6 col-md-4 col-lg-3">
         <div class="card modulo-card text-center p-3" onclick="window.app.loadModule('${m.id}')">
-          <div class="modulo-icon bg-${m.color}">
-            <i class="fas ${m.icon} fa-2x text-white"></i>
+          <div class="modulo-icon">
+            <img src="assets/img/modulos/${m.imagen}" alt="${m.label}" loading="lazy">
           </div>
           <h6 class="mt-2 mb-0">${m.label}</h6>
         </div>
