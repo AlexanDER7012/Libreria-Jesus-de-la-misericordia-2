@@ -117,30 +117,6 @@ body {
     0 8px 24px rgba(0, 0, 0, 0.06);
 }
 
-.modulo-card .modulo-icon {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 0.75rem;
-  transition:
-    transform 0.3s ease,
-    box-shadow 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.modulo-card:hover .modulo-icon {
-  transform: scale(1.05) rotate(-2deg);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-
-.modulo-card .modulo-icon i {
-  font-size: 1.6rem;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
-}
-
 .modulo-card h6 {
   font-size: 0.85rem;
   font-weight: 600;
@@ -501,16 +477,6 @@ textarea.form-control {
   .modulo-card {
     padding: 1rem 0.75rem;
   }
-  .modulo-card .modulo-icon {
-    width: 44px;
-    height: 44px;
-  }
-  .modulo-card .modulo-icon i {
-    font-size: 1.2rem !important;
-  }
-  .modulo-card h6 {
-    font-size: 0.7rem;
-  }
   .navbar-brand {
     font-size: 0.95rem;
   }
@@ -666,7 +632,7 @@ textarea.form-control {
 }
 
 [data-bs-theme="dark"] .card-header {
-  background: #12121f !important; /* Sobrescribir bg-white */
+  background: #12121f !important;
   border-bottom-color: #2a2a44;
   color: #e8e8f0;
 }
@@ -737,7 +703,7 @@ textarea.form-control {
   background: #0a0a1a !important;
 }
 
-/* BOTONES OSCURO (sobrescribir gradientes para mejor contraste) */
+/* BOTONES OSCURO */
 [data-bs-theme="dark"] .btn-primary {
   background: linear-gradient(135deg, #1a4a8a, #0d3a7a) !important;
 }
@@ -906,7 +872,7 @@ textarea.form-control {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
 }
 
-/* DROPDOWN (si se usa) */
+/* DROPDOWN */
 [data-bs-theme="dark"] .dropdown-menu {
   background: #1a1a2e;
   border-color: #2a2a44;

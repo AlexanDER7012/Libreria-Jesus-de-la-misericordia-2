@@ -1,6 +1,5 @@
 /* ====================================================
-   LOGIN - NEUMORPHISM ULTIMATE
-   Colores: Azul profundo + Naranja + Amarillo
+   LOGIN
    ==================================================== */
 
 /* ============================================
@@ -27,37 +26,6 @@
   padding: 20px;
 }
 
-/* Burbujas decorativas */
-.login-page::before {
-  content: "";
-  position: absolute;
-  width: 450px;
-  height: 450px;
-  background: radial-gradient(
-    circle,
-    rgba(230, 126, 34, 0.06),
-    transparent 70%
-  );
-  border-radius: 50%;
-  top: -200px;
-  right: -150px;
-  animation: floatBubble 14s ease-in-out infinite;
-  z-index: 0;
-}
-
-.login-page::after {
-  content: "";
-  position: absolute;
-  width: 350px;
-  height: 350px;
-  background: radial-gradient(circle, rgba(26, 42, 108, 0.06), transparent 70%);
-  border-radius: 50%;
-  bottom: -150px;
-  left: -100px;
-  animation: floatBubble 12s ease-in-out infinite reverse;
-  z-index: 0;
-}
-
 /* Burbuja adicional */
 .login-page .bubble-extra {
   position: absolute;
@@ -72,7 +40,7 @@
   top: 30%;
   right: 5%;
   animation: floatBubble 16s ease-in-out infinite 2s;
-  z-index: 0;
+  z-index: 1;
 }
 
 @keyframes floatBubble {
@@ -105,8 +73,9 @@
   font-size: 1.3rem;
   cursor: pointer;
   box-shadow:
-    6px 6px 14px #c8ccd1,
-    -6px -6px 14px #ffffff;
+    0 8px 20px rgba(0, 0, 0, 0.25),
+    0 3px 8px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.2);
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
@@ -116,15 +85,16 @@
 .theme-toggle-login:hover {
   transform: scale(1.08);
   box-shadow:
-    4px 4px 10px #c8ccd1,
-    -4px -4px 10px #ffffff;
+    0 12px 28px rgba(0, 0, 0, 0.3),
+    0 4px 10px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.25);
 }
 
 .theme-toggle-login:active {
   transform: scale(0.95);
   box-shadow:
-    inset 4px 4px 10px #c8ccd1,
-    inset -4px -4px 10px #ffffff;
+    0 4px 10px rgba(0, 0, 0, 0.2),
+    inset 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 .theme-toggle-login i {
@@ -139,14 +109,18 @@
    4. TARJETA DE LOGIN
    ============================================ */
 .login-card {
-  background: #e8ecf1;
+  background: rgba(232, 236, 241, 0.75);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+
   border-radius: 56px;
   padding: 48px 44px 40px;
   width: 100%;
   max-width: 440px;
   box-shadow:
-    20px 20px 60px #c8ccd1,
-    -20px -20px 60px #ffffff;
+    0 20px 60px rgba(0, 0, 0, 0.25),
+    0 8px 20px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.3); /* borde sutil luminoso */
   position: relative;
   z-index: 2;
   transition: all 0.5s ease;
@@ -183,6 +157,9 @@
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0); /* ← agregado */
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0.5;
@@ -475,27 +452,64 @@
 }
 
 /* ============================================
-   11. VERSIÓN OSCURA - DEFINITIVA
+   11. FONDO DE IMAGEN EN LOGIN
    ============================================ */
-/* 🎯 FIX: El fondo cambia correctamente ahora */
+
+/* Imagen de fondo sobre el body */
+body.login-page {
+  background-image: url("../assets/img/fondos/fondo-login.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  position: relative;
+}
+
+/* Overlay con degradado azul → naranja para que resalte la tarjeta */
+body.login-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(26, 42, 108, 0.55) 0%,
+    rgba(45, 67, 115, 0.45) 50%,
+    rgba(230, 126, 34, 0.35) 100%
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Modo oscuro: overlay más oscuro */
+body.dark-mode.login-page::before {
+  background: linear-gradient(
+    135deg,
+    rgba(10, 10, 25, 0.7) 0%,
+    rgba(20, 20, 40, 0.65) 50%,
+    rgba(45, 40, 25, 0.6) 100%
+  );
+}
+
+body.dark-mode.login-page {
+  background-image:
+    linear-gradient(rgba(10, 10, 25, 0.35), rgba(10, 10, 25, 0.35)),
+    url("../assets/img/fondos/fondo-login.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  filter: brightness(0.7) saturate(0.9);
+}
+
+/* ============================================
+   12. VERSIÓN OSCURA - DEFINITIVA
+   ============================================ */
 body.dark-mode {
   background: #141428;
 }
 
 body.dark-mode .login-page {
-  background: #141428;
-}
-
-body.dark-mode .login-page::before {
-  background: radial-gradient(
-    circle,
-    rgba(230, 126, 34, 0.08),
-    transparent 70%
-  );
-}
-
-body.dark-mode .login-page::after {
-  background: radial-gradient(circle, rgba(26, 42, 108, 0.12), transparent 70%);
+  background-color: #141428;
 }
 
 body.dark-mode .login-page .bubble-extra {
@@ -507,10 +521,13 @@ body.dark-mode .login-page .bubble-extra {
 }
 
 body.dark-mode .login-card {
-  background: #1a1a32;
+  background: rgba(26, 26, 50, 0.75);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
   box-shadow:
-    20px 20px 60px #0e0e22,
-    -20px -20px 60px #262642;
+    0 20px 60px rgba(0, 0, 0, 0.6),
+    0 8px 20px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 body.dark-mode .theme-toggle-login {
@@ -672,7 +689,7 @@ body.dark-mode .login-footer-link a i {
 }
 
 /* ============================================
-   12. RESPONSIVE
+   13. RESPONSIVE
    ============================================ */
 @media (max-width: 520px) {
   .login-card {
