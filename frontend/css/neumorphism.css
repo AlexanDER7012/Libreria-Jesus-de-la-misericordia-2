@@ -1,6 +1,5 @@
 /* ====================================================
-   NEUMORPHISM - SOLO EFECTOS VISUALES
-   No reemplaza estilos de style.css, solo los mejora
+   NEUMORPHISM
    ==================================================== */
 
 /* ============================================
@@ -484,8 +483,8 @@ body.dark-mode .login-field .input-group:focus-within {
 
 /* Contenedor de la imagen - grande, sin círculo restrictivo */
 .modulo-card .modulo-icon {
-  width: 180px !important;
-  height: 160px !important;
+  width: 170px !important;
+  height: 170px !important;
   border-radius: 20px !important;
   display: flex;
   align-items: center;
@@ -539,6 +538,23 @@ body.dark-mode .login-field .input-group:focus-within {
 
 [data-bs-theme="dark"] .modulo-card:hover h6 {
   color: #f39c12;
+}
+
+/* Responsive: en móvil, un poco más compacto */
+@media (max-width: 576px) {
+  .modulo-card {
+    min-height: 150px;
+    padding: 1rem 0.75rem !important;
+  }
+
+  .modulo-card .modulo-icon {
+    width: 75px !important;
+    height: 75px !important;
+  }
+
+  .modulo-card h6 {
+    font-size: 0.8rem !important;
+  }
 }
 
 /* Responsive: en móvil, un poco más compacto */
