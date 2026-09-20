@@ -67,13 +67,15 @@
    ============================================ */
 .sidebar {
   background: linear-gradient(180deg, #1a2a6c 0%, #2d4373 100%) !important;
-  border-right: 1px solid rgba(230, 126, 34, 0.15) !important;
-  box-shadow: 4px 0 20px rgba(26, 42, 108, 0.15) !important;
+  border-right: none !important;
+  box-shadow:
+    4px 0 20px rgba(26, 42, 108, 0.18),
+    2px 0 6px rgba(0, 0, 0, 0.06) !important;
 }
 
 .sidebar-header {
   background: rgba(0, 0, 0, 0.2) !important;
-  border-bottom: 1px solid rgba(243, 156, 18, 0.25) !important;
+  border-bottom: none !important;
 }
 
 .sidebar-header h5 {
@@ -133,8 +135,10 @@
    ============================================ */
 .navbar.bg-primary {
   background: linear-gradient(145deg, #1a2a6c, #2d4373) !important;
-  box-shadow: 0 4px 20px rgba(26, 42, 108, 0.25) !important;
-  border-bottom: 2px solid rgba(230, 126, 34, 0.3) !important;
+  border-bottom: none !important;
+  box-shadow:
+    0 4px 20px rgba(26, 42, 108, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.08) !important;
 }
 
 .navbar .btn-outline-light:hover {
@@ -413,4 +417,143 @@
   background: linear-gradient(135deg, #2d4373, #1a2a6c) !important;
   animation: none;
   transform: scale(1.1);
+}
+
+/* ============================================
+   MICRO-MEJORAS OPCIONALES (sutiles)
+   ============================================ */
+
+/* 1. Sidebar colapsado: iconos en cápsula suave */
+.sidebar:not(.active) .sidebar-link {
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.04);
+  transition: all 0.3s ease;
+}
+
+.sidebar:not(.active) .sidebar-link:hover {
+  background: rgba(243, 156, 18, 0.2) !important;
+  transform: translateX(0) scale(1.08);
+}
+
+.sidebar:not(.active) .sidebar-link.active {
+  background: linear-gradient(
+    135deg,
+    rgba(230, 126, 34, 0.95),
+    rgba(243, 156, 18, 0.95)
+  ) !important;
+  box-shadow: 0 4px 16px rgba(243, 156, 18, 0.5);
+}
+
+/* 2. Transición más suave en el hover de las cards */
+[data-bs-theme="light"] .card,
+[data-bs-theme="dark"] .card {
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* 3. Glow sutil naranja al hacer focus en inputs del login */
+.login-field .input-group:focus-within {
+  box-shadow:
+    inset 4px 4px 10px #c8ccd1,
+    inset -4px -4px 10px #ffffff,
+    0 0 0 2px rgba(230, 126, 34, 0.15);
+}
+
+body.dark-mode .login-field .input-group:focus-within {
+  box-shadow:
+    inset 4px 4px 10px #0e0e22,
+    inset -4px -4px 10px #262642,
+    0 0 0 2px rgba(243, 156, 18, 0.2);
+}
+
+/* ============================================
+   MODULO-CARDS INICIO - IMAGEN GRANDE
+   (rediseño visual, sin tocar layout ni padding base)
+   ============================================ */
+
+/* Card más alta con imagen grande y nombre debajo */
+.modulo-card {
+  padding: 1.25rem 1rem !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 180px;
+  transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+/* Contenedor de la imagen - grande, sin círculo restrictivo */
+.modulo-card .modulo-icon {
+  width: 180px !important;
+  height: 160px !important;
+  border-radius: 20px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 !important;
+  padding: 8px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+/* La imagen ocupa todo el contenedor */
+.modulo-card .modulo-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 0;
+  display: block;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.12));
+  transition: filter 0.35s ease;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Hover: imagen sube y crece */
+.modulo-card:hover .modulo-icon {
+  transform: translateY(-4px) scale(1.08);
+}
+
+.modulo-card:hover .modulo-icon img {
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.18));
+}
+
+/* Nombre del módulo debajo */
+.modulo-card h6 {
+  font-size: 0.9rem !important;
+  font-weight: 600;
+  margin-top: 0.25rem !important;
+  color: #1a2a6c;
+  transition: color 0.3s ease;
+}
+
+[data-bs-theme="dark"] .modulo-card h6 {
+  color: #e8e8f0;
+}
+
+.modulo-card:hover h6 {
+  color: #e67e22;
+}
+
+[data-bs-theme="dark"] .modulo-card:hover h6 {
+  color: #f39c12;
+}
+
+/* Responsive: en móvil, un poco más compacto */
+@media (max-width: 576px) {
+  .modulo-card {
+    min-height: 150px;
+    padding: 1rem 0.75rem !important;
+  }
+
+  .modulo-card .modulo-icon {
+    width: 75px !important;
+    height: 75px !important;
+  }
+
+  .modulo-card h6 {
+    font-size: 0.8rem !important;
+  }
 }
