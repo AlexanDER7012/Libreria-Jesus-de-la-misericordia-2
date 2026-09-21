@@ -471,134 +471,15 @@ class App {
   // =============================================
 
   async loadDashboard(container) {
-    try {
-      const [clientes, productos, ventas, alertas] = await Promise.all([
-        api.getClientes().catch(() => []),
-        api.getProductos().catch(() => []),
-        api.getVentas().catch(() => []),
-        api.getAlertasStock().catch(() => []),
-      ]);
-
+    if (typeof loadDashboardModule === "function") {
+      await loadDashboardModule();
+    } else {
       container.innerHTML = `
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h4><i class="fas fa-chart-bar me-2 text-primary"></i>Dashboard</h4>
-        </div>
-        <div class="row g-4">
-          <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card bg-primary bg-gradient text-white border-0 shadow-sm">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <h6 class="text-white-50 mb-1">Total Clientes</h6>
-                    <h2 class="mb-0">${clientes.length}</h2>
-                  </div>
-                  <div class="bg-white bg-opacity-25 rounded-circle p-3">
-                    <i class="fas fa-users fa-2x"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card bg-success bg-gradient text-white border-0 shadow-sm">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <h6 class="text-white-50 mb-1">Total Productos</h6>
-                    <h2 class="mb-0">${productos.length}</h2>
-                  </div>
-                  <div class="bg-white bg-opacity-25 rounded-circle p-3">
-                    <i class="fas fa-box fa-2x"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card bg-warning bg-gradient text-white border-0 shadow-sm">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <h6 class="text-white-50 mb-1">Total Ventas</h6>
-                    <h2 class="mb-0">${ventas.length}</h2>
-                  </div>
-                  <div class="bg-white bg-opacity-25 rounded-circle p-3">
-                    <i class="fas fa-shopping-cart fa-2x"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card bg-danger bg-gradient text-white border-0 shadow-sm">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <h6 class="text-white-50 mb-1">Alertas Stock</h6>
-                    <h2 class="mb-0">${alertas.length}</h2>
-                  </div>
-                  <div class="bg-white bg-opacity-25 rounded-circle p-3">
-                    <i class="fas fa-exclamation-triangle fa-2x"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="row mt-4">
-          <div class="col-12">
-            <div class="card border-0 shadow-sm">
-              <div class="card-header bg-white">
-                <h5 class="mb-0"><i class="fas fa-clock me-2 text-primary"></i>Ventas Recientes</h5>
-              </div>
-              <div class="card-body">
-                ${
-                  ventas.length > 0
-                    ? `
-                    <div class="table-responsive">
-                      <table class="table table-hover">
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>Cliente</th>
-                            <th>Fecha</th>
-                            <th>Total</th>
-                            <th>Estado</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          ${ventas
-                            .slice(0, 5)
-                            .map(
-                              (v, i) => `
-                            <tr>
-                              <td>${i + 1}</td>
-                              <td>${v.id_cliente || "--"}</td>
-                              <td>${v.fecha ? new Date(v.fecha).toLocaleDateString() : "--"}</td>
-                              <td>Q${v.total || 0}</td>
-                              <td><span class="badge bg-success">${v.estado || "Completada"}</span></td>
-                            </tr>
-                          `,
-                            )
-                            .join("")}
-                        </tbody>
-                      </table>
-                    </div>
-                  `
-                    : `
-                    <div class="text-center py-4 text-muted">
-                      <i class="fas fa-inbox fa-3x mb-3"></i>
-                      <p>No hay ventas registradas</p>
-                    </div>
-                  `
-                }
-              </div>
-            </div>
-          </div>
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          El módulo de dashboard no está disponible. Verifica que dashboard.js esté cargado.
         </div>
       `;
-    } catch (error) {
-      container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
     }
   }
 

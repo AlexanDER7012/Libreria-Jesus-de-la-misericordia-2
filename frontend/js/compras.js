@@ -16,6 +16,8 @@ let skipCajaChica = 0;
 const LIMITE_CAJA_CHICA = 10;
 let skipGastos = 0;
 const LIMITE_GASTOS = 10;
+let skipCompras = 0;
+const LIMITE_COMPRAS = 10;
 
 // =============================================
 // FUNCIÓN PARA REGISTRAR MOVIMIENTO DE INVENTARIO
@@ -332,7 +334,8 @@ async function loadComprasModule() {
     window.tiposProveedorData = tiposProveedor || [];
     window.tiposGastoData = tiposGasto || [];
 
-    renderComprasTable(comprasData);
+    skipCompras = 0;
+    await cargarComprasTabla();
     cargarResumenCompras();
     renderProveedoresTab(proveedoresData);
     renderTiposProveedorTab(tiposProveedorData);
@@ -346,6 +349,105 @@ async function loadComprasModule() {
             <div class="alert alert-danger">Error al cargar datos: ${error.message}</div>
         `;
   }
+}
+
+// =============================================
+// PAGINACIÓN DE COMPRAS (server-side)
+// =============================================
+async function cargarComprasTabla() {
+  const id_proveedor =
+    document.getElementById("filtroCompraProveedor")?.value || "";
+  const fecha_desde = document.getElementById("filtroCompraDesde")?.value || "";
+  const fecha_hasta = document.getElementById("filtroCompraHasta")?.value || "";
+  const estado = document.getElementById("filtroCompraEstado")?.value || "";
+  const buscar =
+    document.getElementById("filtroCompraBuscar")?.value?.trim() || "";
+
+  let url = `/compras?skip=${skipCompras}&limit=${LIMITE_COMPRAS}`;
+  if (id_proveedor) url += `&id_proveedor=${id_proveedor}`;
+  if (fecha_desde) url += `&fecha_desde=${fecha_desde}`;
+  if (fecha_hasta) url += `&fecha_hasta=${fecha_hasta}`;
+  if (estado) url += `&estado=${estado}`;
+  if (buscar) url += `&buscar=${encodeURIComponent(buscar)}`;
+
+  try {
+    const compras = await api.request(url);
+    comprasData = compras || [];
+    renderComprasTable(comprasData);
+    _agregarControlesPaginacionCompras(
+      "comprasTableContainer",
+      `skipCompras=Math.max(0,skipCompras-${LIMITE_COMPRAS});cargarComprasTabla()`,
+      `skipCompras+=${LIMITE_COMPRAS};cargarComprasTabla()`,
+      skipCompras,
+    );
+  } catch (error) {
+    document.getElementById("comprasTableContainer").innerHTML =
+      `<div class="alert alert-danger">${error.message}</div>`;
+  }
+}
+
+// =============================================
+// MODAL DE CONFIRMACIÓN (reemplaza confirm())
+// =============================================
+function pedirConfirmacion(
+  mensaje,
+  titulo = "Confirmar",
+  botonTexto = "Aceptar",
+) {
+  return new Promise((resolve) => {
+    const existing = document.getElementById("confirmacionComprasModal");
+    if (existing) existing.remove();
+
+    const html = `
+      <div class="modal fade" id="confirmacionComprasModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header bg-warning">
+              <h5 class="modal-title">
+                <i class="fas fa-question-circle me-2"></i>${titulo}
+              </h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <p class="mb-0">${mensaje}</p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="button" class="btn btn-warning" id="confirmacionComprasAceptar">
+                <i class="fas fa-check me-1"></i>${botonTexto}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML("beforeend", html);
+
+    const modalEl = document.getElementById("confirmacionComprasModal");
+    const modalInstance = new bootstrap.Modal(modalEl);
+    let resolved = false;
+
+    const cerrar = (resultado) => {
+      if (resolved) return;
+      resolved = true;
+      resolve(resultado);
+      modalInstance.hide();
+    };
+
+    modalEl.addEventListener("hidden.bs.modal", () => {
+      if (!resolved) {
+        resolved = true;
+        resolve(false);
+      }
+      modalEl.remove();
+    });
+
+    document.getElementById("confirmacionComprasAceptar").onclick = () => {
+      cerrar(true);
+    };
+
+    modalInstance.show();
+  });
 }
 
 // =============================================
@@ -514,7 +616,8 @@ function renderComprasTable(compras) {
                         : ""
                     }
                     ${
-                      c.estado !== "Cancelada" && tienePermiso("Compras", "Editar")
+                      c.estado !== "Cancelada" &&
+                      tienePermiso("Compras", "Editar")
                         ? `<button class="btn btn-sm btn-outline-danger" onclick="cancelarCompra(${c.id})" title="Cancelar compra">
                           <i class="fas fa-ban"></i>
                          </button>`
@@ -530,7 +633,7 @@ function renderComprasTable(compras) {
             </table>
         </div>
         <div class="text-end">
-            <small class="text-muted">Total: ${compras.length} compras</small>
+            <small class="text-muted">Mostrando ${compras.length} compras (página ${Math.floor(skipCompras / LIMITE_COMPRAS) + 1})</small>
         </div>
     </div>
     `;
@@ -581,56 +684,74 @@ async function cargarResumenCompras() {
 // =============================================
 // PANEL: PROVEEDORES
 // =============================================
-
 function renderProveedoresTab(proveedores) {
   const container = document.getElementById("proveedoresContainer");
   if (!container) return;
 
+  window._proveedoresOriginales = proveedores || [];
+
+  let searchHtml = `
+    <div class="row g-2 mb-3">
+      <div class="col-md-6">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-white"><i class="fas fa-search"></i></span>
+          <input type="text" class="form-control" id="buscarProveedoresInput"
+                 placeholder="Buscar por nombre, NIT, contacto, teléfono o email..."
+                 oninput="filtrarProveedoresTabla()">
+          <button class="btn btn-outline-secondary" onclick="document.getElementById('buscarProveedoresInput').value='';filtrarProveedoresTabla()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
   if (!proveedores || proveedores.length === 0) {
     container.innerHTML = `
-            <div class="text-center py-5">
-                <i class="fas fa-building fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No hay proveedores registrados</p>
-                ${
-                  tienePermiso("Compras", "Crear")
-                    ? `<button class="btn btn-primary btn-sm" onclick="showCreateProveedorModal()">
-                    <i class="fas fa-plus me-2"></i>Agregar Proveedor
-                </button>`
-                    : ""
-                }
-            </div>
-        `;
+      <div class="text-center py-5">
+        <i class="fas fa-building fa-3x text-muted mb-3"></i>
+        <p class="text-muted">No hay proveedores registrados</p>
+        ${
+          tienePermiso("Compras", "Crear")
+            ? `<button class="btn btn-primary btn-sm" onclick="showCreateProveedorModal()">
+          <i class="fas fa-plus me-2"></i>Agregar Proveedor
+        </button>`
+            : ""
+        }
+      </div>
+    `;
     return;
   }
 
   let html = `
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6 class="mb-0">Listado de Proveedores</h6>
-            ${
-              tienePermiso("Compras", "Crear")
-                ? `<button class="btn btn-primary btn-sm" onclick="showCreateProveedorModal()">
-                <i class="fas fa-plus me-2"></i>Nuevo Proveedor
-            </button>`
-                : ""
-            }
-        </div>
-        <div class="table-responsive">
-            <table class="table table-hover table-striped">
-                <thead class="table-light">
-                    <tr>
-                        <th>ID</th>
-                        <th>Nombre</th>
-                        <th>Contacto</th>
-                        <th>Teléfono</th>
-                        <th>Email</th>
-                        <th>NIT</th>
-                        <th>Tipo</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h6 class="mb-0">Listado de Proveedores</h6>
+      ${
+        tienePermiso("Compras", "Crear")
+          ? `<button class="btn btn-primary btn-sm" onclick="showCreateProveedorModal()">
+        <i class="fas fa-plus me-2"></i>Nuevo Proveedor
+      </button>`
+          : ""
+      }
+    </div>
+    ${searchHtml}
+    <div class="table-responsive">
+      <table class="table table-hover table-striped">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Contacto</th>
+            <th>Teléfono</th>
+            <th>Email</th>
+            <th>NIT</th>
+            <th>Tipo</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="proveedoresTableBody">
+  `;
 
   proveedores.forEach((p) => {
     const tipo = (window.tiposProveedorData || []).find(
@@ -639,49 +760,82 @@ function renderProveedoresTab(proveedores) {
     const activo = p.activo !== 0;
 
     html += `
-            <tr>
-                <td>${p.id}</td>
-                <td><strong>${p.nombre || "--"}</strong></td>
-                <td>${p.contacto || "--"}</td>
-                <td>${p.telefono || "--"}</td>
-                <td>${p.email || "--"}</td>
-                <td>${p.nit || "--"}</td>
-                <td>${tipo ? tipo.nombre : "--"}</td>
-                <td>
-                    <span class="badge ${activo ? "bg-success" : "bg-danger"}">
-                        ${activo ? "Activo" : "Inactivo"}
-                    </span>
-                </td>
-                <td>
-                    ${
-                      tienePermiso("Compras", "Editar")
-                        ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditProveedorModal(${p.id})">
-                        <i class="fas fa-edit"></i>
-                    </button>`
-                        : ""
-                    }
-                    ${
-                      tienePermiso("Compras", "Eliminar")
-                        ? `<button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleProveedorEstado(${p.id})">
-                        <i class="fas fa-${activo ? "times" : "check"}"></i>
-                    </button>`
-                        : ""
-                    }
-                </td>
-            </tr>
-        `;
+      <tr>
+        <td>${p.id}</td>
+        <td><strong>${p.nombre || "--"}</strong></td>
+        <td>${p.contacto || "--"}</td>
+        <td>${p.telefono || "--"}</td>
+        <td>${p.email || "--"}</td>
+        <td>${p.nit || "--"}</td>
+        <td>${tipo ? tipo.nombre : "--"}</td>
+        <td>
+          <span class="badge ${activo ? "bg-success" : "bg-danger"}">
+            ${activo ? "Activo" : "Inactivo"}
+          </span>
+        </td>
+        <td>
+          ${
+            tienePermiso("Compras", "Editar")
+              ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditProveedorModal(${p.id})">
+            <i class="fas fa-edit"></i>
+          </button>`
+              : ""
+          }
+          ${
+            tienePermiso("Compras", "Eliminar")
+              ? `<button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleProveedorEstado(${p.id})">
+            <i class="fas fa-${activo ? "times" : "check"}"></i>
+          </button>`
+              : ""
+          }
+        </td>
+      </tr>
+    `;
   });
 
   html += `
-                </tbody>
-            </table>
-        </div>
-        <div class="text-end">
-            <small class="text-muted">Total: ${proveedores.length} proveedores</small>
-        </div>
-    `;
+        </tbody>
+      </table>
+    </div>
+    <div class="text-end">
+      <small class="text-muted" id="proveedoresContador">Total: ${proveedores.length} proveedores</small>
+    </div>
+  `;
 
   container.innerHTML = html;
+}
+
+// =============================================
+// FILTRO LOCAL: Proveedores
+// =============================================
+function filtrarProveedoresTabla() {
+  const search = (
+    document.getElementById("buscarProveedoresInput")?.value || ""
+  )
+    .toLowerCase()
+    .trim();
+  const tbody = document.getElementById("proveedoresTableBody");
+  if (!tbody) return;
+  const rows = tbody.getElementsByTagName("tr");
+  let visibleCount = 0;
+
+  for (const row of rows) {
+    const text = row.textContent.toLowerCase();
+    if (!search || text.includes(search)) {
+      row.style.display = "";
+      visibleCount++;
+    } else {
+      row.style.display = "none";
+    }
+  }
+
+  const contador = document.getElementById("proveedoresContador");
+  if (contador) {
+    const total = (window._proveedoresOriginales || []).length;
+    contador.textContent = search
+      ? `Mostrando ${visibleCount} de ${total} proveedores`
+      : `Total: ${total} proveedores`;
+  }
 }
 
 function renderTiposProveedorTab(tipos) {
@@ -772,12 +926,15 @@ function renderTiposProveedorTab(tipos) {
 }
 
 // =============================================
-// PANEL: PEDIDOS (con filtros)
+// PANEL: PEDIDOS (con filtros + búsqueda)
 // =============================================
 
 function renderPedidosTab(pedidos) {
   const container = document.getElementById("pedidosContainer");
   if (!container) return;
+
+  // Guardamos los pedidos originales para filtrar localmente
+  window._pedidosOriginales = pedidos || [];
 
   const proveedoresOptions = (window.proveedoresData || [])
     .map((p) => `<option value="${p.id}">${p.nombre}</option>`)
@@ -832,6 +989,23 @@ function renderPedidosTab(pedidos) {
             </div>
         </div>
 
+        <div class="row g-2 mb-3">
+            <div class="col-md-6">
+                <label class="form-label small mb-0">Búsqueda rápida</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control"
+                           id="buscarPedidosInput"
+                           placeholder="Buscar por ID o proveedor..."
+                           oninput="filtrarPedidosTabla()" />
+                    <button class="btn btn-outline-secondary"
+                            onclick="document.getElementById('buscarPedidosInput').value='';filtrarPedidosTabla()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <div id="pedidosListadoContainer">
   `;
 
@@ -867,7 +1041,7 @@ function renderPedidosTab(pedidos) {
                         <th>Acciones</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="pedidosTableBody">
   `;
 
   pedidos.forEach((p) => {
@@ -912,7 +1086,8 @@ function renderPedidosTab(pedidos) {
                         <i class="fas fa-calculator"></i>
                     </button>
                     ${
-                      estado !== "Cancelado" && tienePermiso("Compras", "Editar")
+                      estado !== "Cancelado" &&
+                      tienePermiso("Compras", "Editar")
                         ? `
                     <button class="btn btn-sm btn-outline-danger" onclick="cancelarPedido(${p.id})" title="Cancelar pedido">
                         <i class="fas fa-ban"></i>
@@ -929,7 +1104,7 @@ function renderPedidosTab(pedidos) {
             </table>
         </div>
         <div class="text-end">
-            <small class="text-muted">Total: ${pedidos.length} pedidos</small>
+            <small class="text-muted" id="pedidosContador">Total: ${pedidos.length} pedidos</small>
         </div>
     </div>
     `;
@@ -937,6 +1112,60 @@ function renderPedidosTab(pedidos) {
   container.innerHTML = html;
 }
 
+// =============================================
+// FILTRO LOCAL: Pedidos
+// =============================================
+function filtrarPedidosTabla() {
+  const search = (document.getElementById("buscarPedidosInput")?.value || "")
+    .toLowerCase()
+    .trim();
+  const tbody = document.getElementById("pedidosTableBody");
+  if (!tbody) return;
+  const rows = tbody.getElementsByTagName("tr");
+  let visibleCount = 0;
+
+  // ¿Es solo números? → buscar por ID exacto
+  const soloNumeros = /^\d+$/.test(search);
+
+  for (const row of rows) {
+    const cells = row.getElementsByTagName("td");
+    if (cells.length < 5) continue;
+
+    const id = (cells[0]?.textContent || "").trim();
+    const proveedor = (cells[1]?.textContent || "").toLowerCase().trim();
+
+    let match = false;
+
+    if (!search) {
+      match = true;
+    } else if (soloNumeros) {
+      // Solo números → ID exacto
+      match = id === search;
+    } else {
+      // Texto → buscar en Proveedor
+      match = proveedor.includes(search);
+    }
+
+    if (match) {
+      row.style.display = "";
+      visibleCount++;
+    } else {
+      row.style.display = "none";
+    }
+  }
+
+  const contador = document.getElementById("pedidosContador");
+  if (contador) {
+    const total = (window._pedidosOriginales || []).length;
+    contador.textContent = search
+      ? `Mostrando ${visibleCount} de ${total} pedidos`
+      : `Total: ${total} pedidos`;
+  }
+}
+
+// =============================================
+// FILTRO SERVER-SIDE: Pedidos (por proveedor, fecha, estado)
+// =============================================
 async function filtrarPedidos() {
   const id_proveedor = document.getElementById("filtroPedidoProveedor").value;
   const fecha_desde = document.getElementById("filtroPedidoDesde").value;
@@ -958,39 +1187,29 @@ async function filtrarPedidos() {
   }
 }
 
+// =============================================
+// LIMPIAR FILTROS: Pedidos
+// =============================================
 function limpiarFiltrosPedidos() {
   const prov = document.getElementById("filtroPedidoProveedor");
   const desde = document.getElementById("filtroPedidoDesde");
   const hasta = document.getElementById("filtroPedidoHasta");
   const estado = document.getElementById("filtroPedidoEstado");
+  const buscar = document.getElementById("buscarPedidosInput");
   if (prov) prov.value = "";
   if (desde) desde.value = "";
   if (hasta) hasta.value = "";
   if (estado) estado.value = "";
+  if (buscar) buscar.value = "";
   filtrarPedidos();
 }
 
+// =============================================
+// FILTRO SERVER-SIDE: Compras
+// =============================================
 async function filtrarCompras() {
-  const id_proveedor = document.getElementById("filtroCompraProveedor").value;
-  const fecha_desde = document.getElementById("filtroCompraDesde").value;
-  const fecha_hasta = document.getElementById("filtroCompraHasta").value;
-  const estado = document.getElementById("filtroCompraEstado").value;
-  const buscar = document.getElementById("filtroCompraBuscar").value.trim();
-
-  let url = "/compras?skip=0&limit=200";
-  if (id_proveedor) url += `&id_proveedor=${id_proveedor}`;
-  if (fecha_desde) url += `&fecha_desde=${fecha_desde}`;
-  if (fecha_hasta) url += `&fecha_hasta=${fecha_hasta}`;
-  if (estado) url += `&estado=${estado}`;
-  if (buscar) url += `&buscar=${encodeURIComponent(buscar)}`;
-
-  try {
-    const compras = await api.request(url);
-    comprasData = compras || [];
-    renderComprasTable(comprasData);
-  } catch (error) {
-    showToast(error.message || "Error al filtrar compras", "error");
-  }
+  skipCompras = 0;
+  await cargarComprasTabla();
 }
 
 function limpiarFiltrosCompras() {
@@ -1004,15 +1223,19 @@ function limpiarFiltrosCompras() {
   if (hasta) hasta.value = "";
   if (estado) estado.value = "";
   if (buscar) buscar.value = "";
-  filtrarCompras();
+  skipCompras = 0;
+  cargarComprasTabla();
 }
 
 // =============================================
-// PANEL: CAJA CHICA
+// PANEL: CAJA CHICA (con búsqueda)
 // =============================================
 function renderCajaChicaTab(movimientos) {
   const container = document.getElementById("cajaChicaContainer");
   if (!container) return;
+
+  // Guardamos los movimientos originales para filtrar localmente
+  window._cajaChicaOriginales = movimientos || [];
 
   if (!movimientos || movimientos.length === 0) {
     container.innerHTML = `
@@ -1042,6 +1265,24 @@ function renderCajaChicaTab(movimientos) {
                 : ""
             }
         </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-md-6">
+                <label class="form-label small mb-0">Búsqueda rápida</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control"
+                           id="buscarCajaChicaInput"
+                           placeholder="Buscar por ID, ubicación, concepto, tipo o usuario..."
+                           oninput="filtrarCajaChicaTabla()" />
+                    <button class="btn btn-outline-secondary"
+                            onclick="document.getElementById('buscarCajaChicaInput').value='';filtrarCajaChicaTabla()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -1057,7 +1298,7 @@ function renderCajaChicaTab(movimientos) {
                         <th>Acciones</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="cajaChicaTableBody">
     `;
 
   movimientos.forEach((m) => {
@@ -1106,19 +1347,86 @@ function renderCajaChicaTab(movimientos) {
             </table>
         </div>
         <div class="text-end">
-            <small class="text-muted">Total: ${movimientos.length} movimientos</small>
+            <small class="text-muted" id="cajaChicaContador">Total: ${movimientos.length} movimientos</small>
         </div>
     `;
 
   container.innerHTML = html;
+
+  // Re-agregar los controles de paginación (van al final del contenedor)
+  _agregarControlesPaginacionCompras(
+    "cajaChicaContainer",
+    `skipCajaChica=Math.max(0,skipCajaChica-${LIMITE_CAJA_CHICA});cargarCajaChicaTabla()`,
+    `skipCajaChica+=${LIMITE_CAJA_CHICA};cargarCajaChicaTabla()`,
+    skipCajaChica,
+  );
 }
 
 // =============================================
-// PANEL: GASTOS
+// FILTRO LOCAL: Caja Chica
+// =============================================
+function filtrarCajaChicaTabla() {
+  const search = (document.getElementById("buscarCajaChicaInput")?.value || "")
+    .toLowerCase()
+    .trim();
+  const tbody = document.getElementById("cajaChicaTableBody");
+  if (!tbody) return;
+  const rows = tbody.getElementsByTagName("tr");
+  let visibleCount = 0;
+
+  // ¿Es solo números? → buscar por ID exacto
+  const soloNumeros = /^\d+$/.test(search);
+
+  for (const row of rows) {
+    const cells = row.getElementsByTagName("td");
+    if (cells.length < 8) continue;
+
+    const id = (cells[0]?.textContent || "").trim();
+    const ubicacion = (cells[1]?.textContent || "").toLowerCase().trim();
+    const tipo = (cells[3]?.textContent || "").toLowerCase().trim();
+    const concepto = (cells[6]?.textContent || "").toLowerCase().trim();
+    const usuario = (cells[7]?.textContent || "").toLowerCase().trim();
+
+    let match = false;
+
+    if (!search) {
+      match = true;
+    } else if (soloNumeros) {
+      match = id === search;
+    } else {
+      match =
+        ubicacion.includes(search) ||
+        tipo.includes(search) ||
+        concepto.includes(search) ||
+        usuario.includes(search);
+    }
+
+    if (match) {
+      row.style.display = "";
+      visibleCount++;
+    } else {
+      row.style.display = "none";
+    }
+  }
+
+  const contador = document.getElementById("cajaChicaContador");
+  if (contador) {
+    const total = (window._cajaChicaOriginales || []).length;
+    contador.textContent = search
+      ? `Mostrando ${visibleCount} de ${total} movimientos`
+      : `Total: ${total} movimientos`;
+  }
+}
+
+// =============================================
+// PANEL: GASTOS (con búsqueda)
 // =============================================
 function renderGastosTab(gastos) {
   const container = document.getElementById("gastosContainer");
   if (!container) return;
+
+  // Guardamos los gastos originales para filtrar localmente
+  window._gastosOriginales = gastos || [];
 
   if (!gastos || gastos.length === 0) {
     container.innerHTML = `
@@ -1148,6 +1456,24 @@ function renderGastosTab(gastos) {
                 : ""
             }
         </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-md-6">
+                <label class="form-label small mb-0">Búsqueda rápida</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control"
+                           id="buscarGastosInput"
+                           placeholder="Buscar por tipo, concepto, ubicación, monto o usuario..."
+                           oninput="filtrarGastosTabla()" />
+                    <button class="btn btn-outline-secondary"
+                            onclick="document.getElementById('buscarGastosInput').value='';filtrarGastosTabla()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -1162,7 +1488,7 @@ function renderGastosTab(gastos) {
                         <th>Acciones</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="gastosTableBody">
     `;
 
   gastos.forEach((g) => {
@@ -1212,11 +1538,50 @@ function renderGastosTab(gastos) {
             </table>
         </div>
         <div class="text-end">
-            <small class="text-muted">Total: ${gastos.length} gastos</small>
+            <small class="text-muted" id="gastosContador">Total: ${gastos.length} gastos</small>
         </div>
     `;
 
   container.innerHTML = html;
+
+  // Re-agregar los controles de paginación
+  _agregarControlesPaginacionCompras(
+    "gastosContainer",
+    `skipGastos=Math.max(0,skipGastos-${LIMITE_GASTOS});cargarGastosTabla()`,
+    `skipGastos+=${LIMITE_GASTOS};cargarGastosTabla()`,
+    skipGastos,
+  );
+}
+
+// =============================================
+// FILTRO LOCAL: Gastos
+// =============================================
+function filtrarGastosTabla() {
+  const search = (document.getElementById("buscarGastosInput")?.value || "")
+    .toLowerCase()
+    .trim();
+  const tbody = document.getElementById("gastosTableBody");
+  if (!tbody) return;
+  const rows = tbody.getElementsByTagName("tr");
+  let visibleCount = 0;
+
+  for (const row of rows) {
+    const text = row.textContent.toLowerCase();
+    if (!search || text.includes(search)) {
+      row.style.display = "";
+      visibleCount++;
+    } else {
+      row.style.display = "none";
+    }
+  }
+
+  const contador = document.getElementById("gastosContador");
+  if (contador) {
+    const total = (window._gastosOriginales || []).length;
+    contador.textContent = search
+      ? `Mostrando ${visibleCount} de ${total} gastos`
+      : `Total: ${total} gastos`;
+  }
 }
 
 // =============================================
@@ -1254,12 +1619,6 @@ async function cargarCajaChicaTabla() {
     if (hasta) url += `&fecha_hasta=${hasta}`;
     const movimientos = await api.request(url);
     renderCajaChicaTab(movimientos);
-    _agregarControlesPaginacionCompras(
-      "cajaChicaContainer",
-      `skipCajaChica=Math.max(0,skipCajaChica-${LIMITE_CAJA_CHICA});cargarCajaChicaTabla()`,
-      `skipCajaChica+=${LIMITE_CAJA_CHICA};cargarCajaChicaTabla()`,
-      skipCajaChica,
-    );
   } catch (error) {
     document.getElementById("cajaChicaContainer").innerHTML =
       `<div class="alert alert-danger">${error.message}</div>`;
@@ -1275,12 +1634,7 @@ async function cargarGastosTabla() {
     if (hasta) url += `&fecha_hasta=${hasta}`;
     const gastos = await api.request(url);
     renderGastosTab(gastos);
-    _agregarControlesPaginacionCompras(
-      "gastosContainer",
-      `skipGastos=Math.max(0,skipGastos-${LIMITE_GASTOS});cargarGastosTabla()`,
-      `skipGastos+=${LIMITE_GASTOS};cargarGastosTabla()`,
-      skipGastos,
-    );
+    // ❌ QUITAMOS la llamada duplicada
   } catch (error) {
     document.getElementById("gastosContainer").innerHTML =
       `<div class="alert alert-danger">${error.message}</div>`;
@@ -1391,7 +1745,8 @@ function renderTiposPagoCompras(tipos) {
                 <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay tipos de pago registrados para compras</p>
                 ${
-                  (tienePermiso("Compras", "Crear") || tienePermiso("Ventas", "Crear"))
+                  tienePermiso("Compras", "Crear") ||
+                  tienePermiso("Ventas", "Crear")
                     ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
                     <i class="fas fa-plus me-2"></i>Crear Tipo de Pago
                 </button>`
@@ -1406,7 +1761,8 @@ function renderTiposPagoCompras(tipos) {
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Tipos de Pago para Compras</h6>
             ${
-              (tienePermiso("Compras", "Crear") || tienePermiso("Ventas", "Crear"))
+              tienePermiso("Compras", "Crear") ||
+              tienePermiso("Ventas", "Crear")
                 ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
                 <i class="fas fa-plus me-2"></i>Nuevo Tipo
             </button>`
@@ -1440,13 +1796,16 @@ function renderTiposPagoCompras(tipos) {
                     <span class="badge ${activo ? "bg-success" : "bg-danger"}">
                         ${activo ? "Activo" : "Inactivo"}
                     </span>
-                </td>
                 <td>
                     ${
-                      (tienePermiso("Compras", "Editar") || tienePermiso("Ventas", "Editar"))
-                        ? `<button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleTipoPagoEstado(${t.id})" title="${activo ? "Inactivar" : "Activar"}">
-                        <i class="fas fa-${activo ? "times" : "check"}"></i>
-                    </button>`
+                      tienePermiso("Compras", "Editar") ||
+                      tienePermiso("Ventas", "Editar")
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditTipoPagoModal(${t.id})" title="Editar">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleTipoPagoEstado(${t.id})" title="${activo ? "Inactivar" : "Activar"}">
+                            <i class="fas fa-${activo ? "times" : "check"}"></i>
+                        </button>`
                         : ""
                     }
                 </td>
@@ -2849,12 +3208,37 @@ function showCreateTipoPagoCompraModal() {
   document.getElementById("tipoPagoForm").reset();
   document.getElementById("tipoPagoCompras").value = "1";
   document.getElementById("tipoPagoVentas").value = "0";
+
+  delete document.getElementById("tipoPagoForm").dataset.idTipoPago;
+
+  new bootstrap.Modal(document.getElementById("tipoPagoModal")).show();
+}
+
+function showEditTipoPagoModal(id) {
+  const tipo = (window.tiposPagoData || []).find((t) => t.id === id);
+  if (!tipo) return showToast("Tipo de pago no encontrado", "error");
+
+  crearModalTipoPago();
+  document.getElementById("tipoPagoModalTitle").textContent =
+    "Editar Tipo de Pago";
+  document.getElementById("tipoPagoNombre").value = tipo.nombre || "";
+  document.getElementById("tipoPagoVentas").value =
+    tipo.para_ventas === 1 ? "1" : "0";
+  document.getElementById("tipoPagoCompras").value =
+    tipo.para_compras === 1 ? "1" : "0";
+
+  // Guardamos el id en un data attribute del form
+  const form = document.getElementById("tipoPagoForm");
+  form.dataset.idTipoPago = tipo.id;
+
   new bootstrap.Modal(document.getElementById("tipoPagoModal")).show();
 }
 
 async function saveTipoPagoCompra(event) {
   event.preventDefault();
 
+  const form = document.getElementById("tipoPagoForm");
+  const id = form.dataset.idTipoPago || "";
   const nombre = document.getElementById("tipoPagoNombre").value.trim();
   const para_ventas = parseInt(document.getElementById("tipoPagoVentas").value);
   const para_compras = parseInt(
@@ -2864,18 +3248,33 @@ async function saveTipoPagoCompra(event) {
   if (!nombre) return showToast("El nombre es obligatorio", "error");
 
   try {
-    await api.request("/tipos-pago", "POST", {
-      nombre,
-      para_ventas,
-      para_compras,
-    });
-    showToast("Tipo de pago creado correctamente", "success");
+    if (id) {
+      // EDITAR
+      await api.request(`/tipos-pago/${id}`, "PUT", {
+        nombre,
+        para_ventas,
+        para_compras,
+      });
+      showToast("Tipo de pago actualizado correctamente", "success");
+    } else {
+      // CREAR
+      await api.request("/tipos-pago", "POST", {
+        nombre,
+        para_ventas,
+        para_compras,
+      });
+      showToast("Tipo de pago creado correctamente", "success");
+    }
+
+    // Limpiar el data attribute
+    delete form.dataset.idTipoPago;
+
     bootstrap.Modal.getInstance(
       document.getElementById("tipoPagoModal"),
     ).hide();
     await loadComprasModule();
   } catch (error) {
-    showToast(error.message || "Error al crear tipo de pago", "error");
+    showToast(error.message || "Error al guardar tipo de pago", "error");
   }
 }
 
@@ -3311,16 +3710,16 @@ async function verCompra(id) {
       .join("");
 
     // --- Pagos ---
-const pagosHtml =
-  (compra.pagos || []).length === 0
-    ? '<tr><td colspan="5" class="text-center">Sin pagos registrados</td></tr>'
-    : (compra.pagos || [])
-        .map((p) => {
-          const tipo = (window.tiposPagoData || []).find(
-            (t) => t.id === p.id_tipo_pago,
-          );
-          const anulado = p.anulado === 1;
-          return `
+    const pagosHtml =
+      (compra.pagos || []).length === 0
+        ? '<tr><td colspan="5" class="text-center">Sin pagos registrados</td></tr>'
+        : (compra.pagos || [])
+            .map((p) => {
+              const tipo = (window.tiposPagoData || []).find(
+                (t) => t.id === p.id_tipo_pago,
+              );
+              const anulado = p.anulado === 1;
+              return `
         <tr class="${anulado ? "text-muted" : ""}">
           <td>${tipo ? tipo.nombre : "--"} ${anulado ? '<span class="badge bg-secondary ms-1">Anulado</span>' : ""}</td>
           <td class="text-end" style="${anulado ? "text-decoration: line-through;" : ""}">Q${p.monto || 0}</td>
@@ -3338,8 +3737,8 @@ const pagosHtml =
           </td>
         </tr>
       `;
-        })
-        .join("");
+            })
+            .join("");
 
     const estadoBadge =
       compra.estado === "Cancelada"
@@ -3590,7 +3989,10 @@ async function registrarNotaEntrega(id) {
         modalInstance.hide();
         await loadComprasModule();
       } catch (error) {
-        showToast(error.message || "Error al registrar nota de entrega", "error");
+        showToast(
+          error.message || "Error al registrar nota de entrega",
+          "error",
+        );
       }
     });
 
@@ -3664,11 +4066,14 @@ async function registrarPagoCompra(id) {
       const id_tipo_pago = parseInt(
         document.getElementById("pagoCompraTipo").value,
       );
-      const monto = parseFloat(document.getElementById("pagoCompraMonto").value);
+      const monto = parseFloat(
+        document.getElementById("pagoCompraMonto").value,
+      );
       const referencia =
         document.getElementById("pagoCompraReferencia").value.trim() || null;
 
-      if (!id_tipo_pago) return showToast("Selecciona un tipo de pago", "error");
+      if (!id_tipo_pago)
+        return showToast("Selecciona un tipo de pago", "error");
       if (!monto || monto <= 0) return showToast("Monto inválido", "error");
 
       try {
@@ -3741,9 +4146,12 @@ function pedirMotivoCancelacion() {
     });
 
     document.getElementById("motivoCancelacionContinuar").onclick = () => {
-      const texto = document.getElementById("motivoCancelacionTexto").value.trim();
+      const texto = document
+        .getElementById("motivoCancelacionTexto")
+        .value.trim();
       if (!texto) {
-        document.getElementById("motivoCancelacionError").style.display = "block";
+        document.getElementById("motivoCancelacionError").style.display =
+          "block";
         return;
       }
       resolved = true;
@@ -3929,9 +4337,12 @@ async function eliminarGasto(id) {
 // =============================================
 // ELIMINAR MOVIMIENTO DE CAJA CHICA
 // =============================================
-
 async function eliminarCajaChica(id) {
-  const ok = confirm("¿Está seguro de eliminar este movimiento?");
+  const ok = await pedirConfirmacion(
+    "¿Está seguro de eliminar este movimiento? Esta acción no se puede deshacer.",
+    "Eliminar Movimiento",
+    "Eliminar",
+  );
   if (!ok) return;
 
   const autorizado = await confirmarAdmin(
@@ -4055,6 +4466,7 @@ window.actualizarSubtotalPedido = actualizarSubtotalPedido;
 window.actualizarTotalesPedidoPreview = actualizarTotalesPedidoPreview;
 window.filtrarPedidos = filtrarPedidos;
 window.limpiarFiltrosPedidos = limpiarFiltrosPedidos;
+window.filtrarPedidosTabla = filtrarPedidosTabla;
 
 // Caja Chica
 window.renderCajaChicaTab = renderCajaChicaTab;
@@ -4094,6 +4506,7 @@ window.cancelarPedido = cancelarPedido;
 window.eliminarPagoCompra = eliminarPagoCompra;
 window.filtrarCompras = filtrarCompras;
 window.limpiarFiltrosCompras = limpiarFiltrosCompras;
+window.cargarComprasTabla = cargarComprasTabla;
 
 // Exponer globalmente
 window.eliminarGasto = eliminarGasto;
@@ -4103,3 +4516,6 @@ window.toggleTipoGastoEstado = toggleTipoGastoEstado;
 
 // Confirmar Admin
 window.confirmarAdmin = confirmarAdmin;
+window.showEditTipoPagoModal = showEditTipoPagoModal;
+window.filtrarCajaChicaTabla = filtrarCajaChicaTabla;
+window.filtrarGastosTabla = filtrarGastosTabla;
