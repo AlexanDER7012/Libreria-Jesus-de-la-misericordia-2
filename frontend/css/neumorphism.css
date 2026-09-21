@@ -1,5 +1,7 @@
 /* ====================================================
-   NEUMORPHISM
+   NEUMORPHISM - ESTÁNDAR UNIFICADO
+   Todas las cards usan el mismo fondo neumórfico.
+   El color solo aparece en la franja superior (3px)
    ==================================================== */
 
 /* ============================================
@@ -62,7 +64,7 @@
 }
 
 /* ============================================
-   SIDEBAR - COLORES Y HOVER (sin tocar layout)
+   SIDEBAR
    ============================================ */
 .sidebar {
   background: linear-gradient(180deg, #1a2a6c 0%, #2d4373 100%) !important;
@@ -82,7 +84,6 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-/* Enlaces del sidebar - ALTO CONTRASTE */
 .sidebar-link {
   color: #e8ecf1 !important;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
@@ -92,13 +93,11 @@
   border-left: 3px solid transparent !important;
 }
 
-/* Íconos naranjas */
 .sidebar-link .sidebar-icon {
   color: #f39c12 !important;
   transition: var(--transition-smooth);
 }
 
-/* Hover */
 .sidebar-link:hover {
   background: rgba(243, 156, 18, 0.15) !important;
   color: #f39c12 !important;
@@ -111,7 +110,6 @@
   transform: scale(1.15) rotate(-5deg);
 }
 
-/* Activo */
 .sidebar-link.active {
   background: linear-gradient(
     135deg,
@@ -130,7 +128,7 @@
 }
 
 /* ============================================
-   NAVBAR - COLORES
+   NAVBAR
    ============================================ */
 .navbar.bg-primary {
   background: linear-gradient(145deg, #1a2a6c, #2d4373) !important;
@@ -148,19 +146,51 @@
 }
 
 /* ============================================
-   CARDS - NEUMORPH (Modo Claro)
+   CARDS - ESTÁNDAR ÚNICO (Modo Claro)
+   Todas las cards comparten el mismo fondo neumórfico.
+   Los colores SOLO aparecen en la franja superior.
    ============================================ */
-[data-bs-theme="light"] .card {
+[data-bs-theme="light"] .card,
+[data-bs-theme="light"] .card.bg-primary,
+[data-bs-theme="light"] .card.bg-success,
+[data-bs-theme="light"] .card.bg-info,
+[data-bs-theme="light"] .card.bg-warning,
+[data-bs-theme="light"] .card.bg-danger,
+[data-bs-theme="light"] .card.bg-secondary,
+[data-bs-theme="light"] .card.bg-dark,
+[data-bs-theme="light"] .card.bg-primary.bg-gradient,
+[data-bs-theme="light"] .card.bg-success.bg-gradient,
+[data-bs-theme="light"] .card.bg-info.bg-gradient,
+[data-bs-theme="light"] .card.bg-warning.bg-gradient,
+[data-bs-theme="light"] .card.bg-danger.bg-gradient,
+[data-bs-theme="light"] .card.bg-secondary.bg-gradient,
+[data-bs-theme="light"] .card.bg-dark.bg-gradient,
+[data-bs-theme="light"] .card.bg-primary.bg-opacity-10,
+[data-bs-theme="light"] .card.bg-success.bg-opacity-10,
+[data-bs-theme="light"] .card.bg-info.bg-opacity-10,
+[data-bs-theme="light"] .card.bg-warning.bg-opacity-10,
+[data-bs-theme="light"] .card.bg-danger.bg-opacity-10,
+[data-bs-theme="light"] .card.bg-secondary.bg-opacity-10 {
   background: var(--neu-bg-light) !important;
+  color: #1a1a2e !important;
   border: none !important;
   border-radius: 20px !important;
   box-shadow:
     8px 8px 20px var(--neu-bg-light-shadow),
     -8px -8px 20px var(--neu-bg-light-highlight) !important;
   transition: var(--transition-smooth);
+  position: relative;
+  overflow: hidden;
 }
 
-[data-bs-theme="light"] .card:hover {
+[data-bs-theme="light"] .card:hover,
+[data-bs-theme="light"] .card.bg-primary:hover,
+[data-bs-theme="light"] .card.bg-success:hover,
+[data-bs-theme="light"] .card.bg-info:hover,
+[data-bs-theme="light"] .card.bg-warning:hover,
+[data-bs-theme="light"] .card.bg-danger:hover,
+[data-bs-theme="light"] .card.bg-secondary:hover,
+[data-bs-theme="light"] .card.bg-dark:hover {
   transform: translateY(-4px);
   box-shadow:
     12px 12px 28px var(--neu-bg-light-shadow),
@@ -170,22 +200,179 @@
 [data-bs-theme="light"] .card-header {
   background: transparent !important;
   border-bottom: 1px solid rgba(26, 42, 108, 0.08) !important;
+  color: #1a1a2e !important;
+}
+
+/* Todos los textos dentro de las cards deben ser oscuros */
+[data-bs-theme="light"] .card h1,
+[data-bs-theme="light"] .card h2,
+[data-bs-theme="light"] .card h3,
+[data-bs-theme="light"] .card h4,
+[data-bs-theme="light"] .card h5,
+[data-bs-theme="light"] .card h6,
+[data-bs-theme="light"] .card p,
+[data-bs-theme="light"] .card span,
+[data-bs-theme="light"] .card strong,
+[data-bs-theme="light"] .card div,
+[data-bs-theme="light"] .card i,
+[data-bs-theme="light"] .card .text-white,
+[data-bs-theme="light"] .card .text-white-50,
+[data-bs-theme="light"] .card .text-dark {
+  color: #1a1a2e !important;
+}
+
+/* Excepción: .text-muted mantiene su tono gris */
+[data-bs-theme="light"] .card .text-muted {
+  color: #6c757d !important;
+}
+
+/* Excepción: badges con bg dentro de cards mantienen su blanco */
+[data-bs-theme="light"] .card .badge.bg-primary,
+[data-bs-theme="light"] .card .badge.bg-success,
+[data-bs-theme="light"] .card .badge.bg-danger,
+[data-bs-theme="light"] .card .badge.bg-dark,
+[data-bs-theme="light"] .card .badge.bg-secondary {
+  color: #ffffff !important;
+}
+
+[data-bs-theme="light"] .card .badge.bg-warning,
+[data-bs-theme="light"] .card .badge.bg-info {
+  color: #1a1a2e !important;
+}
+
+/* FRANJA SUPERIOR de color (única distinción entre cards) */
+[data-bs-theme="light"] .card.bg-primary::before,
+[data-bs-theme="light"] .card.bg-primary.bg-gradient::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #1a2a6c, #2d4373);
+  border-radius: 20px 20px 0 0;
+}
+
+[data-bs-theme="light"] .card.bg-success::before,
+[data-bs-theme="light"] .card.bg-success.bg-gradient::before,
+[data-bs-theme="light"] .card.bg-success.bg-opacity-10::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #198754, #20c997);
+  border-radius: 20px 20px 0 0;
+}
+
+[data-bs-theme="light"] .card.bg-warning::before,
+[data-bs-theme="light"] .card.bg-warning.bg-gradient::before,
+[data-bs-theme="light"] .card.bg-warning.bg-opacity-10::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ffc107, #f39c12);
+  border-radius: 20px 20px 0 0;
+}
+
+[data-bs-theme="light"] .card.bg-info::before,
+[data-bs-theme="light"] .card.bg-info.bg-gradient::before,
+[data-bs-theme="light"] .card.bg-info.bg-opacity-10::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #0dcaf0, #2d4373);
+  border-radius: 20px 20px 0 0;
+}
+
+[data-bs-theme="light"] .card.bg-danger::before,
+[data-bs-theme="light"] .card.bg-danger.bg-gradient::before,
+[data-bs-theme="light"] .card.bg-danger.bg-opacity-10::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #dc3545, #f5576c);
+  border-radius: 20px 20px 0 0;
+}
+
+[data-bs-theme="light"] .card.bg-dark::before,
+[data-bs-theme="light"] .card.bg-dark.bg-gradient::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #212529, #0d0e10);
+  border-radius: 20px 20px 0 0;
+}
+
+[data-bs-theme="light"] .card.bg-secondary::before,
+[data-bs-theme="light"] .card.bg-secondary.bg-gradient::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #6c757d, #5a6268);
+  border-radius: 20px 20px 0 0;
 }
 
 /* ============================================
-   CARDS - NEUMORPH (Modo Oscuro)
+   CARDS - ESTÁNDAR ÚNICO (Modo Oscuro)
    ============================================ */
-[data-bs-theme="dark"] .card {
+[data-bs-theme="dark"] .card,
+[data-bs-theme="dark"] .card.bg-primary,
+[data-bs-theme="dark"] .card.bg-success,
+[data-bs-theme="dark"] .card.bg-info,
+[data-bs-theme="dark"] .card.bg-warning,
+[data-bs-theme="dark"] .card.bg-danger,
+[data-bs-theme="dark"] .card.bg-secondary,
+[data-bs-theme="dark"] .card.bg-dark,
+[data-bs-theme="dark"] .card.bg-primary.bg-gradient,
+[data-bs-theme="dark"] .card.bg-success.bg-gradient,
+[data-bs-theme="dark"] .card.bg-info.bg-gradient,
+[data-bs-theme="dark"] .card.bg-warning.bg-gradient,
+[data-bs-theme="dark"] .card.bg-danger.bg-gradient,
+[data-bs-theme="dark"] .card.bg-secondary.bg-gradient,
+[data-bs-theme="dark"] .card.bg-dark.bg-gradient,
+[data-bs-theme="dark"] .card.bg-primary.bg-opacity-10,
+[data-bs-theme="dark"] .card.bg-success.bg-opacity-10,
+[data-bs-theme="dark"] .card.bg-info.bg-opacity-10,
+[data-bs-theme="dark"] .card.bg-warning.bg-opacity-10,
+[data-bs-theme="dark"] .card.bg-danger.bg-opacity-10,
+[data-bs-theme="dark"] .card.bg-secondary.bg-opacity-10 {
   background: var(--neu-bg-dark) !important;
+  color: #e8e8f0 !important;
   border: none !important;
   border-radius: 20px !important;
   box-shadow:
     8px 8px 20px var(--neu-bg-dark-shadow),
     -8px -8px 20px var(--neu-bg-dark-highlight) !important;
   transition: var(--transition-smooth);
+  position: relative;
+  overflow: hidden;
 }
 
-[data-bs-theme="dark"] .card:hover {
+[data-bs-theme="dark"] .card:hover,
+[data-bs-theme="dark"] .card.bg-primary:hover,
+[data-bs-theme="dark"] .card.bg-success:hover,
+[data-bs-theme="dark"] .card.bg-info:hover,
+[data-bs-theme="dark"] .card.bg-warning:hover,
+[data-bs-theme="dark"] .card.bg-danger:hover,
+[data-bs-theme="dark"] .card.bg-secondary:hover,
+[data-bs-theme="dark"] .card.bg-dark:hover {
   transform: translateY(-4px);
   box-shadow:
     12px 12px 28px var(--neu-bg-dark-shadow),
@@ -195,65 +382,26 @@
 [data-bs-theme="dark"] .card-header {
   background: transparent !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: #e8e8f0 !important;
+}
+
+/* Todos los textos dentro de las cards deben ser claros */
+[data-bs-theme="dark"] .card h1,
+[data-bs-theme="dark"] .card h2,
+[data-bs-theme="dark"] .card h3,
+[data-bs-theme="dark"] .card h4,
+[data-bs-theme="dark"] .card h5,
+[data-bs-theme="dark"] .card h6,
+[data-bs-theme="dark"] .card p,
+[data-bs-theme="dark"] .card span,
+[data-bs-theme="dark"] .card strong,
+[data-bs-theme="dark"] .card div,
+[data-bs-theme="dark"] .card i {
+  color: #e8e8f0 !important;
 }
 
 /* ============================================
-   CARDS DE RESUMEN - COLORES SUAVES
-   ============================================ */
-[data-bs-theme="light"] .card.bg-success.bg-opacity-10,
-[data-bs-theme="light"] .card.bg-warning.bg-opacity-10,
-[data-bs-theme="light"] .card.bg-info.bg-opacity-10,
-[data-bs-theme="light"] .card.bg-primary.bg-opacity-10 {
-  background: var(--neu-bg-light) !important;
-  box-shadow:
-    8px 8px 20px var(--neu-bg-light-shadow),
-    -8px -8px 20px var(--neu-bg-light-highlight) !important;
-  position: relative;
-  overflow: hidden;
-}
-
-[data-bs-theme="light"] .card.bg-success.bg-opacity-10::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #198754, #20c997);
-}
-
-[data-bs-theme="light"] .card.bg-warning.bg-opacity-10::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #ffc107, #f39c12);
-}
-
-[data-bs-theme="light"] .card.bg-info.bg-opacity-10::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #0dcaf0, #2d4373);
-}
-
-[data-bs-theme="light"] .card.bg-primary.bg-opacity-10::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #1a2a6c, #2d4373);
-}
-
-/* ============================================
-   PESTAÑAS (TABS) - NEUMORPH ELEGANTE
+   PESTAÑAS (TABS)
    ============================================ */
 .nav-tabs {
   border-bottom: none !important;
@@ -293,7 +441,6 @@
 [data-bs-theme="light"] .nav-tabs .nav-link {
   color: #6b7280 !important;
 }
-
 [data-bs-theme="dark"] .nav-tabs .nav-link {
   color: #9ca3af !important;
 }
@@ -304,7 +451,6 @@
   transform: translateY(-1px);
 }
 
-/* PESTAÑA ACTIVA */
 [data-bs-theme="light"] .nav-tabs .nav-link.active {
   background: linear-gradient(135deg, #1a2a6c, #2d4373) !important;
   color: white !important;
@@ -339,7 +485,6 @@
 .nav-tabs .nav-item {
   animation: fadeInUp 0.4s ease-out backwards;
 }
-
 .nav-tabs .nav-item:nth-child(1) {
   animation-delay: 0.05s;
 }
@@ -360,7 +505,7 @@
 }
 
 /* ============================================
-   BADGES - SUAVIZADOS
+   BADGES
    ============================================ */
 .badge.bg-success {
   background: linear-gradient(135deg, #198754, #20c997) !important;
@@ -404,7 +549,7 @@
 }
 
 /* ============================================
-   BOTÓN FLOTANTE - PULSO
+   BOTÓN FLOTANTE
    ============================================ */
 .btn-floating-sidebar {
   background: linear-gradient(135deg, #1a2a6c, #2d4373) !important;
@@ -419,10 +564,8 @@
 }
 
 /* ============================================
-   MICRO-MEJORAS OPCIONALES (sutiles)
+   SIDEBAR COLAPSADO
    ============================================ */
-
-/* 1. Sidebar colapsado: iconos en cápsula suave */
 .sidebar:not(.active) .sidebar-link {
   border-radius: 12px !important;
   background: rgba(255, 255, 255, 0.04);
@@ -443,13 +586,9 @@
   box-shadow: 0 4px 16px rgba(243, 156, 18, 0.5);
 }
 
-/* 2. Transición más suave en el hover de las cards */
-[data-bs-theme="light"] .card,
-[data-bs-theme="dark"] .card {
-  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-
-/* 3. Glow sutil naranja al hacer focus en inputs del login */
+/* ============================================
+   LOGIN INPUTS (glow naranja)
+   ============================================ */
 .login-field .input-group:focus-within {
   box-shadow:
     inset 4px 4px 10px #c8ccd1,
@@ -466,10 +605,7 @@ body.dark-mode .login-field .input-group:focus-within {
 
 /* ============================================
    MODULO-CARDS INICIO - IMAGEN GRANDE
-   (rediseño visual, sin tocar layout ni padding base)
    ============================================ */
-
-/* Card más alta con imagen grande y nombre debajo */
 .modulo-card {
   padding: 1.25rem 1rem !important;
   display: flex;
@@ -481,7 +617,6 @@ body.dark-mode .login-field .input-group:focus-within {
   transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
 }
 
-/* Contenedor de la imagen - grande, sin círculo restrictivo */
 .modulo-card .modulo-icon {
   width: 170px !important;
   height: 170px !important;
@@ -496,7 +631,6 @@ body.dark-mode .login-field .input-group:focus-within {
   transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
 }
 
-/* La imagen ocupa todo el contenedor */
 .modulo-card .modulo-icon img {
   width: 100%;
   height: 100%;
@@ -510,7 +644,6 @@ body.dark-mode .login-field .input-group:focus-within {
   -webkit-user-drag: none;
 }
 
-/* Hover: imagen sube y crece */
 .modulo-card:hover .modulo-icon {
   transform: translateY(-4px) scale(1.08);
 }
@@ -519,7 +652,6 @@ body.dark-mode .login-field .input-group:focus-within {
   filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.18));
 }
 
-/* Nombre del módulo debajo */
 .modulo-card h6 {
   font-size: 0.9rem !important;
   font-weight: 600;
@@ -540,7 +672,6 @@ body.dark-mode .login-field .input-group:focus-within {
   color: #f39c12;
 }
 
-/* Responsive: en móvil, un poco más compacto */
 @media (max-width: 576px) {
   .modulo-card {
     min-height: 150px;
@@ -557,19 +688,85 @@ body.dark-mode .login-field .input-group:focus-within {
   }
 }
 
-/* Responsive: en móvil, un poco más compacto */
-@media (max-width: 576px) {
-  .modulo-card {
-    min-height: 150px;
-    padding: 1rem 0.75rem !important;
-  }
+/* ============================================
+   DASHBOARD - KPI CARDS
+   ============================================ */
+.kpi-card {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  border-radius: 16px;
+}
 
-  .modulo-card .modulo-icon {
-    width: 75px !important;
-    height: 75px !important;
-  }
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: currentColor;
+  opacity: 0.6;
+}
 
-  .modulo-card h6 {
-    font-size: 0.8rem !important;
-  }
+.kpi-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1) !important;
+}
+
+.kpi-card.kpi-primary::before {
+  background: linear-gradient(90deg, #0d6efd, #0a58ca);
+}
+.kpi-card.kpi-success::before {
+  background: linear-gradient(90deg, #198754, #146c43);
+}
+.kpi-card.kpi-warning::before {
+  background: linear-gradient(90deg, #ffc107, #e0a800);
+}
+.kpi-card.kpi-danger::before {
+  background: linear-gradient(90deg, #dc3545, #b02a37);
+}
+
+.kpi-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #6c757d;
+  margin-bottom: 0.25rem;
+}
+
+.kpi-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #1a1a2e;
+  margin-bottom: 0.15rem;
+}
+
+.kpi-sub {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Modo oscuro */
+[data-bs-theme="dark"] .kpi-label {
+  color: #9ca3af;
+}
+
+[data-bs-theme="dark"] .kpi-value {
+  color: #e8e8f0;
 }
