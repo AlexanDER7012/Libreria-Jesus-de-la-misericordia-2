@@ -8,17 +8,23 @@ class App {
     console.log("👤 Usuario actual:", this.user);
     this.sidebarVisible = false;
 
+    // ⭐ CAMBIO: se eliminan "dashboard" y "productos" del sidebar.
+    //    "reportes" ahora incluye las gráficas del dashboard.
     this.modules = [
-      { id: "dashboard", label: "Dashboard", icon: "fa-chart-bar" },
-      { id: "productos", label: "Productos", icon: "fa-box" },
+      { id: "reportes", label: "Reportes", icon: "fa-chart-bar" },
       { id: "ventas", label: "Ventas", icon: "fa-shopping-cart" },
       { id: "compras", label: "Compras", icon: "fa-truck" },
       { id: "caja", label: "Caja", icon: "fa-cash-register" },
       { id: "inventario", label: "Inventario", icon: "fa-warehouse" },
       { id: "usuarios", label: "Usuarios", icon: "fa-user-shield" },
-      { id: "reportes", label: "Reportes", icon: "fa-chart-bar" },
       { id: "configuracion", label: "Configuración", icon: "fa-cog" },
     ];
+
+    // ⭐ CAMBIO: mapa de redirecciones para compatibilidad
+    this.redirects = {
+      dashboard: { module: "reportes", tab: "dashboard" },
+      productos: { module: "inventario", tab: "productos" },
+    };
 
     this.init();
   }
@@ -47,25 +53,36 @@ class App {
   }
 
   tienePermiso(moduleId) {
-    // ✅ Dashboard siempre visible para cualquier usuario autenticado
-    if (moduleId === "dashboard") {
+    // ⭐ CAMBIO: "reportes" siempre visible (antes era "dashboard").
+    //    Si el usuario podía ver Dashboard, sigue viendo Reportes.
+    if (moduleId === "reportes") {
       return true;
     }
 
-    // ✅ Obtener permisos (el permiso "Ver" de cada módulo determina si el
-    // módulo aparece en el menú/sidebar; ya NO hay excepción hardcodeada
-    // para admin: el rol admin debe tener sus propios permisos "Ver"
-    // asignados como cualquier otro rol)
+    // ⭐ CAMBIO: compatibilidad con permisos antiguos.
+    //    Si el módulo está mapeado en redirects, se valida el permiso
+    //    del módulo destino Y también se acepta el permiso del módulo
+    //    original (para no romper instalaciones existentes).
+    const redirect = this.redirects[moduleId];
+    if (redirect) {
+      return (
+        this.tienePermiso(redirect.module) || this._checkPermisoRaw(moduleId)
+      );
+    }
+
+    return this._checkPermisoRaw(moduleId);
+  }
+
+  // ⭐ NUEVO: lógica original de verificación, extraída para reutilizar
+  _checkPermisoRaw(moduleId) {
     const permisos = this.getPermisosUsuario();
     console.log(`🔍 Verificando permiso para ${moduleId}, permisos:`, permisos);
 
-    // ✅ Si no hay permisos, SOLO acceso a Dashboard
     if (!permisos || permisos.length === 0) {
-      console.warn(`⚠️ Sin permisos, solo Dashboard para ${moduleId}`);
+      console.warn(`⚠️ Sin permisos, solo Reportes para ${moduleId}`);
       return false;
     }
 
-    // ✅ Verificar si el módulo está en la lista de permisos (permiso "Ver")
     const moduleLower = moduleId.toLowerCase();
     const tieneAcceso = permisos.some((p) => {
       const nombreModulo = p.modulo_nombre;
@@ -89,7 +106,7 @@ class App {
   }
 
   // =============================================
-  // NAVEGACIÓN ORIGINAL (adaptada)
+  // NAVEGACIÓN
   // =============================================
 
   setupNavigation() {
@@ -138,15 +155,11 @@ class App {
     if (!nav) return;
     nav.innerHTML = "";
 
-    // ✅ Obtener permisos
     const permisos = this.getPermisosUsuario();
     console.log("📋 Permisos del usuario:", permisos);
 
     this.modules.forEach((mod) => {
-      // ✅ Verificar si el usuario tiene permiso para ver este módulo
-      const tienePermiso = this.tienePermiso(mod.id);
-
-      if (tienePermiso) {
+      if (this.tienePermiso(mod.id)) {
         const a = document.createElement("a");
         a.href = "#";
         a.className = "sidebar-link";
@@ -160,7 +173,6 @@ class App {
       }
     });
 
-    // ✅ Si no hay módulos permitidos, mostrar mensaje
     if (nav.children.length === 0) {
       nav.innerHTML = `
         <div class="text-center text-white-50 p-3">
@@ -187,7 +199,6 @@ class App {
   hideSidebar() {
     const sidebar = document.getElementById("sidebar");
     if (sidebar) {
-      // ✅ Solo ocultar cuando estamos en Inicio
       sidebar.classList.remove("active");
       this.sidebarVisible = false;
     }
@@ -198,21 +209,17 @@ class App {
   toggleSidebar() {
     const sidebar = document.getElementById("sidebar");
     const icon = document.getElementById("sidebarCollapseIcon");
-
     if (!sidebar) return;
 
     if (this.sidebarVisible) {
-      // ✅ Colapsar - solo iconos (pero sidebar visible)
       sidebar.classList.remove("active");
       this.sidebarVisible = false;
       if (icon) icon.className = "fas fa-chevron-right";
     } else {
-      // ✅ Expandir - mostrar texto
       sidebar.classList.add("active");
       this.sidebarVisible = true;
       if (icon) icon.className = "fas fa-chevron-left";
     }
-
     this.updateFloatingButton();
   }
 
@@ -235,20 +242,15 @@ class App {
   updateFloatingButton() {
     const btn = document.getElementById("showSidebarBtn");
     if (!btn) return;
-
     if (this.sidebarVisible) {
       btn.style.display = "none";
     } else {
-      if (this.currentModule !== null) {
-        btn.style.display = "flex";
-      } else {
-        btn.style.display = "none";
-      }
+      btn.style.display = this.currentModule !== null ? "flex" : "none";
     }
   }
 
   // =============================================
-  // PANTALLA DE INICIO (MATRIZ) - CON FILTRO DE PERMISOS
+  // PANTALLA DE INICIO (MATRIZ)
   // =============================================
 
   showHome() {
@@ -258,18 +260,11 @@ class App {
 
     const allModules = [
       {
-        id: "dashboard",
-        label: "Dashboard",
+        id: "reportes",
+        label: "Reportes",
         icon: "fa-chart-bar",
         color: "primary",
-        imagen: "dashboard.png",
-      },
-      {
-        id: "productos",
-        label: "Productos",
-        icon: "fa-box",
-        color: "success",
-        imagen: "productos.png",
+        imagen: "reportes.png",
       },
       {
         id: "ventas",
@@ -286,6 +281,13 @@ class App {
         imagen: "compras.png",
       },
       {
+        id: "caja",
+        label: "Caja",
+        icon: "fa-cash-register",
+        color: "primary",
+        imagen: "caja.png",
+      },
+      {
         id: "inventario",
         label: "Inventario",
         icon: "fa-warehouse",
@@ -300,13 +302,6 @@ class App {
         imagen: "usuarios.png",
       },
       {
-        id: "reportes",
-        label: "Reportes",
-        icon: "fa-chart-bar",
-        color: "primary",
-        imagen: "reportes.png",
-      },
-      {
         id: "configuracion",
         label: "Configuración",
         icon: "fa-cog",
@@ -315,9 +310,7 @@ class App {
       },
     ];
 
-    const mainModules = allModules.filter((mod) => {
-      return this.tienePermiso(mod.id);
-    });
+    const mainModules = allModules.filter((mod) => this.tienePermiso(mod.id));
 
     if (mainModules.length === 0) {
       mainContent.innerHTML = `
@@ -327,7 +320,6 @@ class App {
           <p class="text-muted small">Contacta al administrador para solicitar permisos.</p>
         </div>
       `;
-      // ✅ OCULTAR SIDEBAR EN INICIO
       this.hideSidebar();
       document.getElementById("sidebarToggleBtn")?.classList.add("d-none");
       this.updateFloatingButton();
@@ -338,7 +330,7 @@ class App {
     let cards = mainModules
       .map(
         (m) => `
-      <div class="col-6 col-md-4 col-lg-3">
+      <div class="col-12 col-sm-6 col-lg-4">
         <div class="card modulo-card text-center p-3" onclick="window.app.loadModule('${m.id}')">
           <div class="modulo-icon">
             <img src="assets/img/modulos/${m.imagen}" alt="${m.label}" loading="lazy">
@@ -356,7 +348,6 @@ class App {
       </div>
     `;
 
-    // ✅ OCULTAR SIDEBAR EN INICIO
     this.hideSidebar();
     document.getElementById("sidebarToggleBtn")?.classList.add("d-none");
     this.updateFloatingButton();
@@ -376,13 +367,12 @@ class App {
 
   updateTitle(moduleName) {
     const titles = {
-      dashboard: "Dashboard",
-      productos: "Productos",
+      reportes: "Reportes",
       ventas: "Ventas",
       compras: "Compras",
+      caja: "Caja",
       inventario: "Inventario",
       usuarios: "Usuarios",
-      reportes: "Reportes",
       configuracion: "Configuración",
       Inicio: "Inicio",
     };
@@ -394,32 +384,41 @@ class App {
     document.title = `${displayName} - Librería`;
   }
 
-  async loadModule(moduleName) {
-    if (!moduleName || moduleName === this.currentModule) return;
+  async loadModule(moduleName, tabId) {
+    if (!moduleName) return;
 
-    // ✅ Verificar permiso antes de cargar
-    if (!this.tienePermiso(moduleName)) {
+    // Resolver redirección si aplica
+    let realModule = moduleName;
+    let realTab = tabId;
+    const redirect = this.redirects[moduleName];
+    if (redirect) {
+      realModule = redirect.module;
+      realTab = realTab || redirect.tab;
+      console.log(
+        `🔀 Redirigiendo ${moduleName} → ${realModule} (tab: ${realTab})`,
+      );
+    }
+
+    if (realModule === this.currentModule && !realTab) return;
+
+    if (!this.tienePermiso(realModule)) {
       showToast("No tienes permiso para acceder a este módulo", "error");
       return;
     }
 
-    this.currentModule = moduleName;
-
+    this.currentModule = realModule;
     this.showSidebar();
-    this.updateActiveNav(moduleName);
-    this.updateTitle(moduleName);
+    this.updateActiveNav(realModule);
+    this.updateTitle(realModule);
     this.updateFloatingButton();
 
     const mainContent = document.getElementById("mainContent");
     if (!mainContent) return;
 
     try {
-      switch (moduleName) {
-        case "dashboard":
-          await this.loadDashboard(mainContent);
-          break;
-        case "productos":
-          await this.loadProductos(mainContent);
+      switch (realModule) {
+        case "reportes":
+          await this.loadReportes(mainContent);
           break;
         case "ventas":
           await this.loadVentas(mainContent);
@@ -436,14 +435,15 @@ class App {
         case "usuarios":
           await this.loadUsuarios(mainContent);
           break;
-        case "reportes":
-          await this.loadReportes(mainContent);
-          break;
         case "configuracion":
           await this.loadConfiguracion(mainContent);
           break;
         default:
           mainContent.innerHTML = `<div class="alert alert-warning">Módulo no encontrado</div>`;
+      }
+
+      if (realTab) {
+        this.activarTabDeModulo(realModule, realTab);
       }
     } catch (error) {
       mainContent.innerHTML = `
@@ -453,6 +453,26 @@ class App {
         </div>
       `;
     }
+  }
+
+  activarTabDeModulo(moduleName, tabId) {
+    // Esperar a que el DOM del módulo se haya renderizado
+    setTimeout(() => {
+      // Buscar un botón de pestaña cuyo data-bs-target o id coincida
+      const selector = `[data-bs-target="#${tabId}"], [data-tab-id="${tabId}"]`;
+      const tabBtn = document.querySelector(selector);
+      if (tabBtn && window.bootstrap) {
+        try {
+          const tab = new bootstrap.Tab(tabBtn);
+          tab.show();
+          console.log(`📑 Pestaña activada: ${tabId}`);
+        } catch (e) {
+          console.warn(`No se pudo activar la pestaña ${tabId}:`, e);
+        }
+      } else {
+        console.warn(`Pestaña no encontrada: ${tabId}`);
+      }
+    }, 400);
   }
 
   // =============================================
@@ -469,39 +489,6 @@ class App {
   // =============================================
   // MÉTODOS DE CARGA DE MÓDULOS
   // =============================================
-
-  async loadDashboard(container) {
-    if (typeof loadDashboardModule === "function") {
-      await loadDashboardModule();
-    } else {
-      container.innerHTML = `
-        <div class="alert alert-warning">
-          <i class="fas fa-exclamation-triangle me-2"></i>
-          El módulo de dashboard no está disponible. Verifica que dashboard.js esté cargado.
-        </div>
-      `;
-    }
-  }
-
-  async loadProductos(container) {
-    container.innerHTML = `
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4><i class="fas fa-box me-2 text-success"></i>Productos</h4>
-        <button class="btn btn-success" onclick="showCreateProductoModal()">
-          <i class="fas fa-plus me-2"></i>Nuevo Producto
-        </button>
-      </div>
-      <div id="productosTableContainer">
-        <div class="text-center py-5">
-          <div class="spinner-border text-success" role="status"></div>
-          <p class="mt-2 text-muted">Cargando productos...</p>
-        </div>
-      </div>
-    `;
-    if (typeof loadProductosModule === "function") {
-      await loadProductosModule();
-    }
-  }
 
   async loadVentas(container) {
     container.innerHTML = `
@@ -564,19 +551,184 @@ class App {
     container.innerHTML = `
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h4><i class="fas fa-warehouse me-2 text-secondary"></i>Inventario</h4>
-        <button class="btn btn-secondary" onclick="showCreateMovimientoModal()">
-          <i class="fas fa-plus me-2"></i>Nuevo Movimiento
-        </button>
       </div>
-      <div id="inventarioTableContainer">
-        <div class="text-center py-5">
-          <div class="spinner-border text-secondary" role="status"></div>
-          <p class="mt-2 text-muted">Cargando inventario...</p>
+
+      <!--  Pestañas padre: Catálogo / Operaciones -->
+      <ul class="nav nav-pills mb-3" id="inventarioGrupoTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="grupo-catalogo" data-bs-toggle="pill"
+                  data-bs-target="#panel-grupo-catalogo" type="button" role="tab">
+            <i class="fas fa-boxes me-1"></i>Catálogo
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="grupo-operaciones" data-bs-toggle="pill"
+                  data-bs-target="#panel-grupo-operaciones" type="button" role="tab">
+            <i class="fas fa-clipboard-list me-1"></i>Operaciones
+          </button>
+        </li>
+      </ul>
+
+      <div class="tab-content" id="inventarioGrupoContent">
+        <!--  GRUPO CATÁLOGO -->
+        <div class="tab-pane fade show active" id="panel-grupo-catalogo" role="tabpanel">
+          <ul class="nav nav-tabs mb-3" id="inventarioTabs" role="tablist">
+            <li class="nav-item">
+              <button class="nav-link active" id="tab-inv-productos" data-bs-toggle="tab"
+                      data-bs-target="#panel-inv-productos" type="button">
+                <i class="fas fa-box me-1"></i>Productos
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" id="tab-inv-categorias" data-bs-toggle="tab"
+                      data-bs-target="#panel-inv-categorias" type="button">
+                <i class="fas fa-tags me-1"></i>Categorías
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" id="tab-inv-marcas" data-bs-toggle="tab"
+                      data-bs-target="#panel-inv-marcas" type="button">
+                <i class="fas fa-copyright me-1"></i>Marcas
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" id="tab-inv-unidades" data-bs-toggle="tab"
+                      data-bs-target="#panel-inv-unidades" type="button">
+                <i class="fas fa-ruler me-1"></i>Unidades
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" id="tab-inv-tipos" data-bs-toggle="tab"
+                      data-bs-target="#panel-inv-tipos" type="button">
+                <i class="fas fa-exchange-alt me-1"></i>Tipos Mov.
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="inventarioTabContent">
+            <div class="tab-pane fade show active" id="panel-inv-productos" role="tabpanel">
+              <div id="productosTableContainer">
+                <div class="text-center py-5">
+                  <div class="spinner-border text-success" role="status"></div>
+                  <p class="mt-2 text-muted">Cargando productos...</p>
+                </div>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="panel-inv-categorias" role="tabpanel">
+              <div id="categoriasTableContainer"></div>
+            </div>
+            <div class="tab-pane fade" id="panel-inv-marcas" role="tabpanel">
+              <div id="marcasTableContainer"></div>
+            </div>
+            <div class="tab-pane fade" id="panel-inv-unidades" role="tabpanel">
+              <div id="unidadesTableContainer"></div>
+            </div>
+            <div class="tab-pane fade" id="panel-inv-tipos" role="tabpanel">
+              <div id="tiposMovimientoContainer"></div>
+            </div>
+          </div>
+        </div>
+
+        <!--  GRUPO OPERACIONES -->
+        <div class="tab-pane fade" id="panel-grupo-operaciones" role="tabpanel">
+          <ul class="nav nav-tabs mb-3" id="inventarioOpsTabs" role="tablist">
+            <li class="nav-item">
+              <button class="nav-link active" id="tab-inv-resumen" data-bs-toggle="tab"
+                      data-bs-target="#panel-inv-resumen" type="button">
+                <i class="fas fa-warehouse me-1"></i>Resumen
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" id="tab-inv-conteo" data-bs-toggle="tab"
+                      data-bs-target="#panel-inv-conteo" type="button">
+                <i class="fas fa-clipboard-list me-1"></i>Conteo Físico
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" id="tab-inv-traslados" data-bs-toggle="tab"
+                      data-bs-target="#panel-inv-traslados" type="button">
+                <i class="fas fa-arrows-alt-h me-1"></i>Traslados
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" id="tab-inv-alertas" data-bs-toggle="tab"
+                      data-bs-target="#panel-inv-alertas" type="button">
+                <i class="fas fa-exclamation-triangle me-1"></i>Alertas
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="inventarioOpsContent">
+            <div class="tab-pane fade show active" id="panel-inv-resumen" role="tabpanel">
+              <div id="inventarioTableContainer"></div>
+            </div>
+            <div class="tab-pane fade" id="panel-inv-conteo" role="tabpanel">
+              <div class="row mb-2 g-2 justify-content-end">
+                <div class="col-auto">
+                  <input type="date" class="form-control form-control-sm" id="conteoFechaDesde"
+                         onchange="skipConteo=0;cargarConteoTabla()">
+                </div>
+                <div class="col-auto">
+                  <input type="date" class="form-control form-control-sm" id="conteoFechaHasta"
+                         onchange="skipConteo=0;cargarConteoTabla()">
+                </div>
+              </div>
+              <div id="conteoContainer"></div>
+            </div>
+            <div class="tab-pane fade" id="panel-inv-traslados" role="tabpanel">
+              <div class="row mb-2 g-2 justify-content-end">
+                <div class="col-auto">
+                  <select class="form-select form-select-sm" id="trasladosFiltroEstado"
+                          onchange="skipTraslados=0;cargarTrasladosTabla()">
+                    <option value="">Todos los estados</option>
+                    <option value="EnProceso">En Proceso</option>
+                    <option value="Recibido">Recibido</option>
+                    <option value="Completado">Completado</option>
+                  </select>
+                </div>
+                <div class="col-auto">
+                  <input type="date" class="form-control form-control-sm" id="trasladosFechaDesde"
+                         onchange="skipTraslados=0;cargarTrasladosTabla()">
+                </div>
+                <div class="col-auto">
+                  <input type="date" class="form-control form-control-sm" id="trasladosFechaHasta"
+                         onchange="skipTraslados=0;cargarTrasladosTabla()">
+                </div>
+              </div>
+              <div id="trasladosContainer"></div>
+            </div>
+            <div class="tab-pane fade" id="panel-inv-alertas" role="tabpanel">
+              <div class="row mb-2 g-2 justify-content-end">
+                <div class="col-auto">
+                  <input type="date" class="form-control form-control-sm" id="alertasFechaDesde"
+                         onchange="skipAlertas=0;cargarAlertasTabla()">
+                </div>
+                <div class="col-auto">
+                  <input type="date" class="form-control form-control-sm" id="alertasFechaHasta"
+                         onchange="skipAlertas=0;cargarAlertasTabla()">
+                </div>
+              </div>
+              <div id="alertasContainer"></div>
+            </div>
+          </div>
         </div>
       </div>
     `;
+
+    // Cargar los submódulos
+    if (typeof loadProductosModule === "function") {
+      try {
+        await loadProductosModule();
+      } catch (e) {
+        console.warn(e);
+      }
+    }
     if (typeof loadInventarioModule === "function") {
-      await loadInventarioModule();
+      try {
+        await loadInventarioModule();
+      } catch (e) {
+        console.warn(e);
+      }
     }
   }
 
@@ -600,30 +752,60 @@ class App {
     }
   }
 
-  // =============================================
-  // CARGA DEL MÓDULO DE REPORTES
-  // =============================================
   async loadReportes(container) {
     container.innerHTML = `
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h4><i class="fas fa-chart-bar me-2 text-primary"></i>Reportes</h4>
       </div>
-      <div id="reportesContainer">
-        <div class="text-center py-5">
-          <div class="spinner-border text-primary" role="status"></div>
-          <p class="mt-2 text-muted">Cargando módulo de reportes...</p>
+
+      <ul class="nav nav-tabs mb-3" id="reportesTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="tab-rep-dashboard" data-bs-toggle="tab"
+                  data-bs-target="#panel-rep-dashboard" type="button" role="tab">
+            <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-rep-reportes" data-bs-toggle="tab"
+                  data-bs-target="#panel-rep-reportes" type="button" role="tab">
+            <i class="fas fa-file-alt me-1"></i>Reportes detallados
+          </button>
+        </li>
+      </ul>
+
+      <div class="tab-content">
+        <div class="tab-pane fade show active" id="panel-rep-dashboard" role="tabpanel">
+          <div id="dashboardContainer">
+            <div class="text-center py-5">
+              <div class="spinner-border text-primary" role="status"></div>
+              <p class="mt-2 text-muted">Cargando dashboard...</p>
+            </div>
+          </div>
+        </div>
+        <div class="tab-pane fade" id="panel-rep-reportes" role="tabpanel">
+          <div id="reportesContainer">
+            <div class="text-center py-5">
+              <div class="spinner-border text-primary" role="status"></div>
+              <p class="mt-2 text-muted">Cargando reportes...</p>
+            </div>
+          </div>
         </div>
       </div>
     `;
+
+    if (typeof loadDashboardModule === "function") {
+      try {
+        await loadDashboardModule();
+      } catch (e) {
+        console.warn(e);
+      }
+    }
     if (typeof loadReportesModule === "function") {
-      await loadReportesModule();
-    } else {
-      container.innerHTML = `
-        <div class="alert alert-warning">
-          <i class="fas fa-exclamation-triangle me-2"></i>
-          El módulo de reportes no está disponible. Verifica que el archivo reportes.js esté cargado.
-        </div>
-      `;
+      try {
+        await loadReportesModule();
+      } catch (e) {
+        console.warn(e);
+      }
     }
   }
 
@@ -656,4 +838,4 @@ document.addEventListener("DOMContentLoaded", () => {
 // Exponer funciones para uso global
 window.goHome = () => window.app?.goHome();
 window.toggleSidebar = () => window.app?.toggleSidebar();
-window.loadModule = (mod) => window.app?.loadModule(mod);
+window.loadModule = (mod, tab) => window.app?.loadModule(mod, tab);
