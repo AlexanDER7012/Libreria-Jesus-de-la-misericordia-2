@@ -196,8 +196,8 @@ function renderVentasTable(ventas) {
       <div class="col-md-6">
         <div class="input-group">
           <input type="text" class="form-control" id="ventaSearchInput" 
-                 placeholder="Buscar por ID, cliente, NIT o producto..." 
-                 oninput="filtrarVentas()">
+                placeholder="Buscar por ID, cliente, NIT o producto..." 
+                oninput="filtrarVentas()">
           <button class="btn btn-outline-secondary" onclick="filtrarVentas()">
             <i class="fas fa-search"></i>
           </button>
@@ -215,9 +215,16 @@ function renderVentasTable(ventas) {
         </button>
         ${
           tienePermiso("Ventas", "Crear")
+            ? `<button class="btn btn-outline-primary btn-sm" onclick="showCargaMasivaVentasModal()">
+                <i class="fas fa-file-upload me-1"></i>Carga Masiva
+              </button>`
+            : ""
+        }
+        ${
+          tienePermiso("Ventas", "Crear")
             ? `<button class="btn btn-warning btn-sm" onclick="showCreateVentaModal()">
-          <i class="fas fa-plus me-2"></i>Nueva Venta
-        </button>`
+                <i class="fas fa-plus me-2"></i>Nueva Venta
+              </button>`
             : ""
         }
       </div>
@@ -2121,7 +2128,8 @@ async function cargarSubCotizaciones() {
                       <i class="fas fa-eye"></i>
                     </button>
                     ${
-                      c.estado === "Pendiente" && tienePermiso("Ventas", "Editar")
+                      c.estado === "Pendiente" &&
+                      tienePermiso("Ventas", "Editar")
                         ? `
                       <button class="btn btn-sm btn-outline-success" onclick="aprobarCotizacion(${c.id})">
                         <i class="fas fa-check"></i>
@@ -2845,8 +2853,13 @@ function _renderServiciosPaginado(lista) {
   const tbody = document.getElementById("serviciosTableBody");
   if (tbody) tbody.innerHTML = renderServiciosRows(paginaActual);
 
-  const totalPaginas = Math.max(1, Math.ceil(lista.length / SERVICIOS_POR_PAGINA));
-  const contenedorPaginacion = document.getElementById("serviciosPaginacionContainer");
+  const totalPaginas = Math.max(
+    1,
+    Math.ceil(lista.length / SERVICIOS_POR_PAGINA),
+  );
+  const contenedorPaginacion = document.getElementById(
+    "serviciosPaginacionContainer",
+  );
   if (contenedorPaginacion) {
     contenedorPaginacion.innerHTML = `
       <button class="btn btn-sm btn-outline-secondary" onclick="serviciosAnterior()" ${paginaServicios === 0 ? "disabled" : ""}>
@@ -3932,6 +3945,481 @@ async function saveTipoPagoDesdeVentas() {
 }
 
 // ============================================================
+// CARGA MASIVA DE VENTAS DESDE EXCEL
+// ============================================================
+let cargaMasivaFilas = []; // filas parseadas del Excel
+let cargaMasivaVentasAgrupadas = []; // ventas agrupadas listas para crear
+
+function showCargaMasivaVentasModal() {
+  let modal = document.getElementById("cargaMasivaVentasModal");
+  if (modal) modal.remove();
+
+  modal = document.createElement("div");
+  modal.className = "modal fade";
+  modal.id = "cargaMasivaVentasModal";
+  modal.setAttribute("tabindex", "-1");
+  modal.innerHTML = `
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">
+            <i class="fas fa-file-upload me-2"></i>Carga Masiva de Ventas
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+
+          <div class="alert alert-info small">
+            <strong>Formato esperado del archivo (fila de encabezados obligatoria):</strong>
+            <code>NIT_Cliente | Codigo_Producto | Cantidad | Descuento_Porcentaje | Observaciones</code>
+            <br>
+            Las filas con el <strong>mismo NIT + Observaciones</strong> se agrupan en una sola venta.
+            Si el NIT no existe se usará el "Cliente por defecto"; si tampoco hay, la venta queda sin cliente.
+            <div class="mt-2">
+              <button class="btn btn-sm btn-outline-primary" onclick="descargarPlantillaVentas()">
+                <i class="fas fa-download me-1"></i>Descargar plantilla
+              </button>
+            </div>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Turno de Caja *</label>
+              <select class="form-select" id="cmCajaTurno">
+                <option value="">Seleccionar turno</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Vendedor *</label>
+              <select class="form-select" id="cmVendedor">
+                <option value="">Cargando vendedores...</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Cliente por defecto (opcional)</label>
+              <select class="form-select" id="cmClienteDefault">
+                <option value="">Sin cliente</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Archivo Excel / CSV *</label>
+            <input type="file" class="form-control" id="cmArchivo"
+                   accept=".xlsx,.xls,.csv" onchange="procesarArchivoVentasMasivas(event)">
+          </div>
+
+          <div id="cmResumen" class="mb-2"></div>
+          <div id="cmPreview" class="table-responsive" style="max-height:400px; overflow:auto;"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-primary" id="cmBtnConfirmar" disabled onclick="confirmarCargaMasivaVentas()">
+            <i class="fas fa-check me-1"></i>Confirmar y Crear Ventas
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  const instance = new bootstrap.Modal(modal);
+  instance.show();
+
+  // Llenar selects
+  llenarSelectCajaTurnoCM();
+  llenarSelectVendedoresCM();
+  llenarSelectClienteDefaultCM();
+
+  modal.addEventListener("hidden.bs.modal", function () {
+    this.remove();
+  });
+}
+
+function llenarSelectCajaTurnoCM() {
+  const select = document.getElementById("cmCajaTurno");
+  if (!select) return;
+  const abiertos = (cajaTurnosData || []).filter((t) => t.estado === "Abierto");
+  select.innerHTML = '<option value="">Seleccionar turno</option>';
+  if (abiertos.length === 0) {
+    select.innerHTML = '<option value="">No hay turnos abiertos</option>';
+    return;
+  }
+  abiertos.forEach((t) => {
+    select.innerHTML += `<option value="${t.id}">Turno #${t.id} - Usuario: ${t.id_usuario || "--"}</option>`;
+  });
+  if (abiertos.length === 1) select.value = abiertos[0].id;
+}
+
+async function llenarSelectVendedoresCM() {
+  const select = document.getElementById("cmVendedor");
+  if (!select) return;
+  const vendedores = await cargarVendedoresConTurno();
+  select.innerHTML = '<option value="">Seleccionar vendedor</option>';
+  if (vendedores.length === 0) {
+    select.innerHTML =
+      '<option value="">No hay vendedores con turno abierto</option>';
+    return;
+  }
+  vendedores.forEach((v) => {
+    select.innerHTML += `<option value="${v.id_usuario}">${v.nombre}</option>`;
+  });
+  if (vendedores.length === 1) select.value = vendedores[0].id_usuario;
+}
+
+function llenarSelectClienteDefaultCM() {
+  const select = document.getElementById("cmClienteDefault");
+  if (!select) return;
+  select.innerHTML = '<option value="">Sin cliente</option>';
+  (window.clientesData || []).forEach((c) => {
+    const est = c.activo !== 0 ? "" : " (Inactivo)";
+    select.innerHTML += `<option value="${c.id}">${c.nombre}${est}</option>`;
+  });
+}
+
+function descargarPlantillaVentas() {
+  const data = [
+    {
+      NIT_Cliente: "CF",
+      Codigo_Producto: "PROD-001",
+      Cantidad: 2,
+      Descuento_Porcentaje: 0,
+      Observaciones: "Venta mostrador",
+    },
+    {
+      NIT_Cliente: "CF",
+      Codigo_Producto: "PROD-002",
+      Cantidad: 1,
+      Descuento_Porcentaje: 5,
+      Observaciones: "Venta mostrador",
+    },
+    {
+      NIT_Cliente: "12345678",
+      Codigo_Producto: "PROD-003",
+      Cantidad: 3,
+      Descuento_Porcentaje: 0,
+      Observaciones: "Cliente frecuente",
+    },
+  ];
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "PlantillaVentas");
+  XLSX.writeFile(wb, "Plantilla_Carga_Masiva_Ventas.xlsx");
+  showToast("Plantilla descargada", "success");
+}
+
+// ============================================================
+// PROCESAR ARCHIVO
+// ============================================================
+function procesarArchivoVentasMasivas(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+
+      if (!rows || rows.length === 0) {
+        showToast("El archivo está vacío", "warning");
+        return;
+      }
+
+      cargaMasivaFilas = rows;
+      validarYPrevisualizarVentasMasivas();
+    } catch (err) {
+      console.error(err);
+      showToast("Error al leer el archivo: " + err.message, "error");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ============================================================
+// VALIDACIÓN Y PREVISUALIZACIÓN
+// ============================================================
+function validarYPrevisualizarVentasMasivas() {
+  const productos = window.productosData || [];
+  const clientes = window.clientesData || [];
+  const clienteDefaultId =
+    parseInt(document.getElementById("cmClienteDefault").value) || null;
+
+  const errores = [];
+  const filasValidas = [];
+
+  cargaMasivaFilas.forEach((row, idx) => {
+    const numFila = idx + 2; // +2: fila 1 es encabezado
+    const nitRaw = String(row.NIT_Cliente || "").trim();
+    const codigo = String(row.Codigo_Producto || "").trim();
+    const cantidad = parseFloat(row.Cantidad);
+    const descuento = parseFloat(row.Descuento_Porcentaje) || 0;
+    const observaciones = String(row.Observaciones || "").trim();
+
+    if (!codigo) {
+      errores.push(`Fila ${numFila}: falta Codigo_Producto`);
+      return;
+    }
+    if (!cantidad || cantidad <= 0) {
+      errores.push(`Fila ${numFila}: Cantidad inválida (${row.Cantidad})`);
+      return;
+    }
+    if (descuento < 0 || descuento > 100) {
+      errores.push(`Fila ${numFila}: Descuento fuera de rango (0-100)`);
+      return;
+    }
+
+    const producto = productos.find((p) => p.codigo === codigo);
+    if (!producto) {
+      errores.push(`Fila ${numFila}: producto "${codigo}" no encontrado`);
+      return;
+    }
+
+    // Resolver cliente
+    let idCliente = null;
+    let nitCliente = null;
+    if (nitRaw && nitRaw.toUpperCase() !== "CF") {
+      const cliente = clientes.find((c) => c.nit === nitRaw);
+      if (cliente) {
+        idCliente = cliente.id;
+        nitCliente = cliente.nit;
+      } else if (clienteDefaultId) {
+        idCliente = clienteDefaultId;
+        const cdef = clientes.find((c) => c.id === clienteDefaultId);
+        nitCliente = cdef ? cdef.nit : null;
+      } else {
+        // Sin coincidencia y sin default: se permite sin cliente (CF)
+        idCliente = null;
+        nitCliente = null;
+      }
+    } else if (clienteDefaultId) {
+      idCliente = clienteDefaultId;
+      const cdef = clientes.find((c) => c.id === clienteDefaultId);
+      nitCliente = cdef ? cdef.nit : null;
+    }
+
+    filasValidas.push({
+      numFila,
+      nitRaw: nitRaw || "CF",
+      nitCliente,
+      idCliente,
+      codigo,
+      producto,
+      cantidad,
+      descuento,
+      observaciones,
+    });
+  });
+
+  // Agrupar por (nitRaw + observaciones)
+  const grupos = {};
+  filasValidas.forEach((f) => {
+    const key = `${f.nitRaw}||${f.observaciones}`;
+    if (!grupos[key]) {
+      grupos[key] = {
+        nitRaw: f.nitRaw,
+        idCliente: f.idCliente,
+        nitCliente: f.nitCliente,
+        observaciones: f.observaciones,
+        descuento: f.descuento,
+        items: [],
+      };
+    }
+    grupos[key].items.push(f);
+  });
+
+  cargaMasivaVentasAgrupadas = Object.values(grupos);
+
+  // Render previsualización
+  renderPreviewVentasMasivas(errores, cargaMasivaVentasAgrupadas);
+
+  const btn = document.getElementById("cmBtnConfirmar");
+  if (btn)
+    btn.disabled =
+      errores.length > 0 || cargaMasivaVentasAgrupadas.length === 0;
+}
+
+function renderPreviewVentasMasivas(errores, grupos) {
+  const resumen = document.getElementById("cmResumen");
+  const preview = document.getElementById("cmPreview");
+
+  let totalGeneral = 0;
+  grupos.forEach((g) => {
+    let sub = 0;
+    g.items.forEach((it) => {
+      sub += it.cantidad * (it.producto.precio_venta || 0);
+    });
+    g.subtotal = sub;
+    g.total = sub - (sub * (g.descuento || 0)) / 100;
+    totalGeneral += g.total;
+  });
+
+  resumen.innerHTML = `
+    <div class="row g-2">
+      <div class="col-md-3">
+        <div class="alert alert-${errores.length ? "warning" : "success"} py-2 mb-0">
+          <strong>${grupos.length}</strong> ventas válidas
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="alert alert-${errores.length ? "danger" : "secondary"} py-2 mb-0">
+          <strong>${errores.length}</strong> errores
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="alert alert-info py-2 mb-0">
+          Total: <strong>Q${totalGeneral.toFixed(2)}</strong>
+        </div>
+      </div>
+    </div>
+    ${
+      errores.length
+        ? `
+      <div class="alert alert-danger small mt-2 mb-0" style="max-height:150px; overflow:auto;">
+        <strong>Errores detectados (corrige el archivo y vuelve a cargarlo):</strong>
+        <ul class="mb-0">${errores.map((e) => `<li>${e}</li>`).join("")}</ul>
+      </div>`
+        : ""
+    }
+  `;
+
+  if (grupos.length === 0) {
+    preview.innerHTML =
+      '<p class="text-muted text-center">Sin datos para previsualizar</p>';
+    return;
+  }
+
+  let html = `
+    <table class="table table-sm table-striped">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Cliente</th>
+          <th>Productos</th>
+          <th>Descuento</th>
+          <th>Total</th>
+          <th>Observaciones</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  grupos.forEach((g, i) => {
+    const clienteMostrar = g.idCliente
+      ? window.clientesData.find((c) => c.id === g.idCliente)?.nombre ||
+        `#${g.idCliente}`
+      : "Sin cliente (CF)";
+    html += `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${clienteMostrar}</td>
+        <td>
+          <ul class="mb-0 ps-3">
+            ${g.items.map((it) => `<li>${it.producto.codigo} - ${it.producto.nombre} x ${it.cantidad}</li>`).join("")}
+          </ul>
+        </td>
+        <td>${g.descuento}%</td>
+        <td><strong>Q${g.total.toFixed(2)}</strong></td>
+        <td>${g.observaciones || "--"}</td>
+      </tr>
+    `;
+  });
+  html += "</tbody></table>";
+  preview.innerHTML = html;
+}
+
+// ============================================================
+// CONFIRMAR CARGA MASIVA
+// ============================================================
+async function confirmarCargaMasivaVentas() {
+  const id_caja_turno = parseInt(document.getElementById("cmCajaTurno").value);
+  const id_vendedor = parseInt(document.getElementById("cmVendedor").value);
+
+  if (!id_caja_turno) {
+    showToast("Selecciona un turno de caja", "error");
+    return;
+  }
+  if (!id_vendedor) {
+    showToast("Selecciona un vendedor", "error");
+    return;
+  }
+  if (cargaMasivaVentasAgrupadas.length === 0) {
+    showToast("No hay ventas para procesar", "warning");
+    return;
+  }
+
+  // Obtener ubicación de configuración
+  let id_ubicacion = null;
+  try {
+    const config = await api.request("/configuracion").catch(() => ({}));
+    id_ubicacion = config.id_ubicacion || null;
+  } catch (_) {}
+  if (!id_ubicacion) {
+    showToast(
+      "No hay ubicación configurada. Contacta al administrador.",
+      "error",
+    );
+    return;
+  }
+
+  const id_usuario = getCurrentUser()?.id || 1;
+
+  const btn = document.getElementById("cmBtnConfirmar");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Procesando...`;
+
+  let ok = 0,
+    fail = 0;
+  const errores = [];
+
+  for (const g of cargaMasivaVentasAgrupadas) {
+    try {
+      const data = {
+        id_usuario,
+        id_vendedor,
+        id_cliente: g.idCliente,
+        id_caja_turno,
+        id_ubicacion,
+        id_cotizacion: null,
+        descuento_porcentaje: g.descuento || 0,
+        observaciones: g.observaciones || null,
+        nit: g.nitCliente || null,
+        detalles: g.items.map((it) => ({
+          id_producto: it.producto.id,
+          cantidad: it.cantidad,
+        })),
+        pagos: [],
+      };
+      await api.createVenta(data);
+      ok++;
+    } catch (err) {
+      fail++;
+      errores.push(
+        `Cliente ${g.nitRaw} (${g.observaciones || "s/obs"}): ${err.message}`,
+      );
+    }
+  }
+
+  if (fail === 0) {
+    showToast(`✅ ${ok} ventas creadas correctamente`, "success");
+  } else {
+    showToast(
+      `⚠ ${ok} creadas, ${fail} fallidas. Revisa la consola.`,
+      "warning",
+    );
+    console.warn("Errores carga masiva:", errores);
+  }
+
+  // Cerrar modal y recargar
+  const modal = bootstrap.Modal.getInstance(
+    document.getElementById("cargaMasivaVentasModal"),
+  );
+  if (modal) modal.hide();
+  await loadVentasModule();
+}
+
+// ============================================================
 // EXPONER FUNCIONES GLOBALES
 // ============================================================
 window.loadVentasModule = loadVentasModule;
@@ -3986,3 +4474,7 @@ window.pagarServicioIndependiente = pagarServicioIndependiente;
 window.eliminarPagoVenta = eliminarPagoVenta;
 window.showCreateTipoPagoModal = showCreateTipoPagoModal;
 window.showCrearTipoPagoModal = showCrearTipoPagoModal;
+window.showCargaMasivaVentasModal = showCargaMasivaVentasModal;
+window.procesarArchivoVentasMasivas = procesarArchivoVentasMasivas;
+window.confirmarCargaMasivaVentas = confirmarCargaMasivaVentas;
+window.descargarPlantillaVentas = descargarPlantillaVentas;
