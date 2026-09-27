@@ -202,116 +202,55 @@ function filtrarProductos(productos, termino) {
 // =============================================
 
 async function loadInventarioModule() {
-  const container = document.getElementById("mainContent");
+  const container =
+    document.getElementById("inventarioTableContainer") ||
+    document.getElementById("mainContent");
   if (!container) return;
 
   await obtenerProductosParaInventario();
   console.log("Productos cargados:", window.productosData);
 
   container.innerHTML = `
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4><i class="fas fa-warehouse me-2 text-secondary"></i>Inventario</h4>
-            <div>
-                ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-primary btn-sm me-2" onclick="showMovimientoModal()">
-                    <i class="fas fa-exchange-alt me-1"></i>Movimiento
-                </button>` : ""}
-                ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-warning btn-sm me-2" onclick="showConteoFisicoModal()">
-                    <i class="fas fa-clipboard-list me-1"></i>Conteo Físico
-                </button>` : ""}
-                ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-info btn-sm" onclick="showTrasladoModal()">
-                    <i class="fas fa-arrows-alt-h me-1"></i>Traslado
-                </button>` : ""}
-            </div>
-        </div>
+          <div class="d-flex justify-content-end align-items-center mb-3">
+              <div>
+                  ${
+                    tienePermiso("Inventario", "Crear")
+                      ? `<button class="btn btn-primary btn-sm me-2" onclick="showMovimientoModal()">
+                      <i class="fas fa-exchange-alt me-1"></i>Movimiento
+                  </button>`
+                      : ""
+                  }
+                  ${
+                    tienePermiso("Inventario", "Crear")
+                      ? `<button class="btn btn-outline-primary btn-sm me-2" onclick="showCargaMasivaMovimientosModal()">
+                      <i class="fas fa-file-upload me-1"></i>Carga Masiva
+                  </button>`
+                      : ""
+                  }
+                  ${
+                    tienePermiso("Inventario", "Crear")
+                      ? `<button class="btn btn-warning btn-sm me-2" onclick="showConteoFisicoModal()">
+                      <i class="fas fa-clipboard-list me-1"></i>Conteo Físico
+                  </button>`
+                      : ""
+                  }
+                  ${
+                    tienePermiso("Inventario", "Crear")
+                      ? `<button class="btn btn-info btn-sm" onclick="showTrasladoModal()">
+                      <i class="fas fa-arrows-alt-h me-1"></i>Traslado
+                  </button>`
+                      : ""
+                  }
+              </div>
+          </div>
 
-        <ul class="nav nav-tabs mb-3" id="inventarioTabs" role="tablist">
-            <li class="nav-item">
-                <button class="nav-link active" id="tab-movimientos" data-bs-toggle="tab"
-                        data-bs-target="#panel-movimientos" type="button" role="tab">
-                    <i class="fas fa-warehouse me-1"></i>Resumen Inventario
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link" id="tab-conteo" data-bs-toggle="tab"
-                        data-bs-target="#panel-conteo" type="button" role="tab">
-                    <i class="fas fa-clipboard-list me-1"></i>Conteo Físico
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link" id="tab-traslados" data-bs-toggle="tab"
-                        data-bs-target="#panel-traslados" type="button" role="tab">
-                    <i class="fas fa-arrows-alt-h me-1"></i>Traslados
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link" id="tab-alertas" data-bs-toggle="tab"
-                        data-bs-target="#panel-alertas" type="button" role="tab">
-                    <i class="fas fa-exclamation-triangle me-1"></i>Alertas
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link" id="tab-tipos-movimiento" data-bs-toggle="tab"
-                        data-bs-target="#panel-tipos-movimiento" type="button" role="tab">
-                    <i class="fas fa-tags me-1"></i>Tipos de Movimiento
-                </button>
-            </li>
-        </ul>
-
-        <div class="tab-content" id="inventarioTabContent">
-            <div class="tab-pane fade show active" id="panel-movimientos" role="tabpanel">
-                <div id="movimientosContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando inventario...</p>
-                    </div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="panel-conteo" role="tabpanel">
-                <div class="row mb-2 g-2 justify-content-end">
-                    <div class="col-auto">
-                        <input type="date" class="form-control form-control-sm" id="conteoFechaDesde" onchange="skipConteo=0;cargarConteoTabla()">
-                    </div>
-                    <div class="col-auto">
-                        <input type="date" class="form-control form-control-sm" id="conteoFechaHasta" onchange="skipConteo=0;cargarConteoTabla()">
-                    </div>
-                </div>
-                <div id="conteoContainer"><div class="text-center py-5"><div class="spinner-border text-warning" role="status"></div><p class="mt-2 text-muted">Cargando conteos físicos...</p></div></div>
-            </div>
-            <div class="tab-pane fade" id="panel-traslados" role="tabpanel">
-                <div class="row mb-2 g-2 justify-content-end">
-                    <div class="col-auto">
-                        <select class="form-select form-select-sm" id="trasladosFiltroEstado" onchange="skipTraslados=0;cargarTrasladosTabla()">
-                            <option value="">Todos los estados</option>
-                            <option value="EnProceso">En Proceso</option>
-                            <option value="Recibido">Recibido</option>
-                            <option value="Completado">Completado</option>
-                        </select>
-                    </div>
-                    <div class="col-auto">
-                        <input type="date" class="form-control form-control-sm" id="trasladosFechaDesde" onchange="skipTraslados=0;cargarTrasladosTabla()">
-                    </div>
-                    <div class="col-auto">
-                        <input type="date" class="form-control form-control-sm" id="trasladosFechaHasta" onchange="skipTraslados=0;cargarTrasladosTabla()">
-                    </div>
-                </div>
-                <div id="trasladosContainer"><div class="text-center py-5"><div class="spinner-border text-info" role="status"></div><p class="mt-2 text-muted">Cargando traslados...</p></div></div>
-            </div>
-            <div class="tab-pane fade" id="panel-alertas" role="tabpanel">
-                <div class="row mb-2 g-2 justify-content-end">
-                    <div class="col-auto">
-                        <input type="date" class="form-control form-control-sm" id="alertasFechaDesde" onchange="skipAlertas=0;cargarAlertasTabla()">
-                    </div>
-                    <div class="col-auto">
-                        <input type="date" class="form-control form-control-sm" id="alertasFechaHasta" onchange="skipAlertas=0;cargarAlertasTabla()">
-                    </div>
-                </div>
-                <div id="alertasContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando alertas...</p></div></div>
-            </div>
-            <div class="tab-pane fade" id="panel-tipos-movimiento" role="tabpanel">
-                <div id="tiposMovimientoContainer"><div class="text-center py-5"><div class="spinner-border text-success" role="status"></div><p class="mt-2 text-muted">Cargando tipos de movimiento...</p></div></div>
-            </div>
-        </div>
-    `;
+          <div id="movimientosContainer">
+              <div class="text-center py-5">
+                  <div class="spinner-border text-primary" role="status"></div>
+                  <p class="mt-2 text-muted">Cargando inventario...</p>
+              </div>
+          </div>
+      `;
 
   crearModalesInventario();
 
@@ -463,9 +402,13 @@ function renderResumenInventario() {
                     <button class="btn btn-sm btn-outline-info" onclick="verHistorialProducto(${p.id})" title="Ver historial de movimientos">
                         <i class="fas fa-history"></i> Historial
                     </button>
-                    ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-sm btn-outline-success" onclick="showMovimientoModalConProducto(${p.id})" title="Registrar movimiento">
+                    ${
+                      tienePermiso("Inventario", "Crear")
+                        ? `<button class="btn btn-sm btn-outline-success" onclick="showMovimientoModalConProducto(${p.id})" title="Registrar movimiento">
                         <i class="fas fa-exchange-alt"></i>
-                    </button>` : ""}
+                    </button>`
+                        : ""
+                    }
                 </td>
             </tr>
         `;
@@ -652,9 +595,13 @@ function mostrarHistorialModal(producto, movimientos) {
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-primary" onclick="showMovimientoModalConProducto(${producto.id})">
+                        ${
+                          tienePermiso("Inventario", "Crear")
+                            ? `<button class="btn btn-primary" onclick="showMovimientoModalConProducto(${producto.id})">
                             <i class="fas fa-plus me-1"></i>Nuevo Movimiento
-                        </button>` : ""}
+                        </button>`
+                            : ""
+                        }
                     </div>
                 </div>
             </div>
@@ -1197,9 +1144,13 @@ function renderConteoFisico(conteos) {
             <div class="text-center py-5">
                 <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay conteos físicos registrados</p>
-                ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-warning btn-sm" onclick="showConteoFisicoModal()">
+                ${
+                  tienePermiso("Inventario", "Crear")
+                    ? `<button class="btn btn-warning btn-sm" onclick="showConteoFisicoModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Conteo
-                </button>` : ""}
+                </button>`
+                    : ""
+                }
             </div>
         `;
     return;
@@ -1284,9 +1235,13 @@ function renderTraslados(traslados) {
             <div class="text-center py-5">
                 <i class="fas fa-arrows-alt-h fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay traslados registrados</p>
-                ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-info btn-sm" onclick="showTrasladoModal()">
+                ${
+                  tienePermiso("Inventario", "Crear")
+                    ? `<button class="btn btn-info btn-sm" onclick="showTrasladoModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Traslado
-                </button>` : ""}
+                </button>`
+                    : ""
+                }
             </div>
         `;
     return;
@@ -1345,7 +1300,8 @@ function renderTraslados(traslados) {
                         ${estado}
                     </span>
                     ${
-                      estado === "Pendiente" && tienePermiso("Inventario", "Editar")
+                      estado === "Pendiente" &&
+                      tienePermiso("Inventario", "Editar")
                         ? `
                         <button class="btn btn-sm btn-outline-success ms-1" onclick="recibirTraslado(${t.id})">
                             <i class="fas fa-check"></i>
@@ -1460,7 +1416,9 @@ function renderAlertas(alertas) {
                 </td>
                 <td>
                     ${
-                      !leida && !yaResuelta && tienePermiso("Inventario", "Editar")
+                      !leida &&
+                      !yaResuelta &&
+                      tienePermiso("Inventario", "Editar")
                         ? `
                         <button class="btn btn-sm btn-outline-success" onclick="marcarAlertaLeida(${a.id})">
                             <i class="fas fa-check"></i> Marcar Leída
@@ -1490,7 +1448,12 @@ function renderAlertas(alertas) {
 // =============================================
 // PAGINACIÓN (server-side) DE CONTEO, TRASLADOS Y ALERTAS
 // =============================================
-function _agregarControlesPaginacionInventario(containerId, onAnterior, onSiguiente, skipActual) {
+function _agregarControlesPaginacionInventario(
+  containerId,
+  onAnterior,
+  onSiguiente,
+  skipActual,
+) {
   const container = document.getElementById(containerId);
   if (!container) return;
   container.insertAdjacentHTML(
@@ -1623,9 +1586,13 @@ function renderTiposMovimiento(tipos) {
             <div class="text-center py-5">
                 <i class="fas fa-tags fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay tipos de movimiento registrados</p>
-                ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-success btn-sm" onclick="showCreateTipoMovimientoModal()">
+                ${
+                  tienePermiso("Inventario", "Crear")
+                    ? `<button class="btn btn-success btn-sm" onclick="showCreateTipoMovimientoModal()">
                     <i class="fas fa-plus me-2"></i>Nuevo Tipo
-                </button>` : ""}
+                </button>`
+                    : ""
+                }
             </div>
         `;
     return;
@@ -1634,9 +1601,13 @@ function renderTiposMovimiento(tipos) {
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Tipos de Movimiento</h6>
-            ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-success btn-sm" onclick="showCreateTipoMovimientoModal()">
+            ${
+              tienePermiso("Inventario", "Crear")
+                ? `<button class="btn btn-success btn-sm" onclick="showCreateTipoMovimientoModal()">
                 <i class="fas fa-plus me-1"></i>Nuevo Tipo
-            </button>` : ""}
+            </button>`
+                : ""
+            }
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -1812,9 +1783,405 @@ async function deleteTipoMovimiento(id) {
   showToast("Los tipos de movimiento no se pueden eliminar.", "warning");
 }
 
+// ============================================================
+// CARGA MASIVA DE MOVIMIENTOS DE INVENTARIO
+// ============================================================
+
+let cargaMasivaMovimientosFilas = [];
+let cargaMasivaMovimientosValidadas = [];
+
+// ------------------------------------------------------------
+// MODAL
+// ------------------------------------------------------------
+function showCargaMasivaMovimientosModal() {
+  let modal = document.getElementById("cargaMasivaMovimientosModal");
+  if (modal) modal.remove();
+
+  modal = document.createElement("div");
+  modal.className = "modal fade";
+  modal.id = "cargaMasivaMovimientosModal";
+  modal.setAttribute("tabindex", "-1");
+  modal.innerHTML = `
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">
+            <i class="fas fa-file-upload me-2"></i>Carga Masiva de Movimientos
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+
+          <div class="alert alert-info small">
+            <strong>Formato esperado del archivo (fila de encabezados obligatoria):</strong>
+            <div class="mt-1" style="font-family: monospace; font-size: 0.85rem;">
+              Codigo_Producto | Tipo_Movimiento | Cantidad | Observacion
+            </div>
+            <ul class="mb-0 mt-2 small">
+              <li><strong>Codigo_Producto:</strong> debe existir en el catálogo.</li>
+              <li><strong>Tipo_Movimiento:</strong> por nombre (ej. "Entrada por compra"). Debe existir.</li>
+              <li><strong>Cantidad:</strong> número positivo (el tipo define si es entrada o salida).</li>
+              <li><strong>Observacion:</strong> opcional.</li>
+              <li>El usuario que registra es <strong>${getCurrentUser()?.nombre_usuario || "el usuario actual"}</strong>.</li>
+            </ul>
+            <div class="mt-2">
+              <button class="btn btn-sm btn-outline-primary" onclick="descargarPlantillaMovimientos()">
+                <i class="fas fa-download me-1"></i>Descargar plantilla
+              </button>
+            </div>
+          </div>
+
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="cmMovModoPrueba">
+            <label class="form-check-label fw-bold" for="cmMovModoPrueba">
+              Modo prueba (solo previsualizar, no aplicar cambios)
+            </label>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Archivo Excel / CSV *</label>
+            <input type="file" class="form-control" id="cmMovArchivo"
+                   accept=".xlsx,.xls,.csv" onchange="procesarArchivoMovimientos(event)">
+          </div>
+
+          <div id="cmMovResumen" class="mb-2"></div>
+          <div id="cmMovPreview" class="table-responsive" style="max-height:400px; overflow:auto;"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-primary" id="cmMovBtnConfirmar" disabled
+                  onclick="confirmarCargaMasivaMovimientos()">
+            <i class="fas fa-check me-1"></i>Confirmar y Crear Movimientos
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  const instance = new bootstrap.Modal(modal);
+  instance.show();
+  modal.addEventListener("hidden.bs.modal", function () {
+    this.remove();
+  });
+}
+
+// ------------------------------------------------------------
+// PLANTILLA
+// ------------------------------------------------------------
+function descargarPlantillaMovimientos() {
+  const data = [
+    {
+      Codigo_Producto: "PROD-001",
+      Tipo_Movimiento: "Entrada por compra",
+      Cantidad: 50,
+      Observacion: "Compra a proveedor ABC",
+    },
+    {
+      Codigo_Producto: "PROD-002",
+      Tipo_Movimiento: "Ajuste entrada",
+      Cantidad: 10,
+      Observacion: "Corrección de inventario físico",
+    },
+    {
+      Codigo_Producto: "PROD-003",
+      Tipo_Movimiento: "Salida por venta",
+      Cantidad: 3,
+      Observacion: "Venta #1234",
+    },
+  ];
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Movimientos");
+  XLSX.writeFile(wb, "Plantilla_Carga_Masiva_Movimientos.xlsx");
+  showToast("Plantilla descargada", "success");
+}
+
+// ------------------------------------------------------------
+// LEER ARCHIVO
+// ------------------------------------------------------------
+function procesarArchivoMovimientos(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+
+      if (!rows || rows.length === 0) {
+        showToast("El archivo está vacío", "warning");
+        return;
+      }
+
+      cargaMasivaMovimientosFilas = rows;
+      validarYPrevisualizarMovimientos();
+    } catch (err) {
+      console.error(err);
+      showToast("Error al leer el archivo: " + err.message, "error");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ------------------------------------------------------------
+// VALIDACIÓN Y PREVISUALIZACIÓN
+// ------------------------------------------------------------
+async function validarYPrevisualizarMovimientos() {
+  // Refrescar tipos de movimiento por si acaso
+  let tipos = tiposMovimientoData;
+  if (!tipos || tipos.length === 0) {
+    try {
+      tipos = await api.getTiposMovimiento();
+      tiposMovimientoData = tipos || [];
+    } catch (e) {
+      tipos = [];
+    }
+  }
+
+  const productos = window.productosData || [];
+
+  const errores = [];
+  const filasValidas = [];
+
+  cargaMasivaMovimientosFilas.forEach((row, idx) => {
+    const numFila = idx + 2;
+    const codigoProducto = String(row.Codigo_Producto || "").trim();
+    const nombreTipo = String(row.Tipo_Movimiento || "").trim();
+    const cantidad = parseFloat(row.Cantidad);
+    const observacion = String(row.Observacion || "").trim() || null;
+
+    if (!codigoProducto) {
+      errores.push(`Fila ${numFila}: falta Codigo_Producto`);
+      return;
+    }
+    if (!nombreTipo) {
+      errores.push(`Fila ${numFila}: falta Tipo_Movimiento`);
+      return;
+    }
+    if (!cantidad || cantidad <= 0 || isNaN(cantidad)) {
+      errores.push(`Fila ${numFila}: cantidad inválida (${row.Cantidad})`);
+      return;
+    }
+
+    // Buscar producto por código
+    const producto = productos.find(
+      (p) => (p.codigo || "").toLowerCase() === codigoProducto.toLowerCase(),
+    );
+    if (!producto) {
+      errores.push(
+        `Fila ${numFila}: producto "${codigoProducto}" no encontrado`,
+      );
+      return;
+    }
+
+    // Buscar tipo por nombre (case-insensitive)
+    const tipo = tipos.find(
+      (t) => (t.nombre || "").toLowerCase() === nombreTipo.toLowerCase(),
+    );
+    if (!tipo) {
+      errores.push(
+        `Fila ${numFila}: tipo de movimiento "${nombreTipo}" no encontrado`,
+      );
+      return;
+    }
+
+    // Interpretar signo
+    let esEntrada = false;
+    if (tipo.signo === 1) esEntrada = true;
+    else if (tipo.signo === 2) esEntrada = false;
+    else esEntrada = null; // neutral
+
+    filasValidas.push({
+      numFila,
+      codigoProducto,
+      producto,
+      tipo,
+      esEntrada,
+      cantidad,
+      observacion,
+    });
+  });
+
+  cargaMasivaMovimientosValidadas = filasValidas;
+  renderPreviewMovimientos(errores, filasValidas);
+
+  const btn = document.getElementById("cmMovBtnConfirmar");
+  if (btn) btn.disabled = errores.length > 0 || filasValidas.length === 0;
+}
+
+// ------------------------------------------------------------
+// PREVISUALIZACIÓN
+// ------------------------------------------------------------
+function renderPreviewMovimientos(errores, filas) {
+  const resumen = document.getElementById("cmMovResumen");
+  const preview = document.getElementById("cmMovPreview");
+
+  const entradas = filas.filter((f) => f.esEntrada === true).length;
+  const salidas = filas.filter((f) => f.esEntrada === false).length;
+  const neutrales = filas.filter((f) => f.esEntrada === null).length;
+
+  resumen.innerHTML = `
+    <div class="row g-2">
+      <div class="col-md-3">
+        <div class="alert alert-${filas.length ? "success" : "secondary"} py-2 mb-0">
+          <strong>${filas.length}</strong> movimientos válidos
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="alert alert-info py-2 mb-0">
+          ➕ <strong>${entradas}</strong> entradas · ➖ <strong>${salidas}</strong> salidas
+          ${neutrales ? ` · ⏸️ <strong>${neutrales}</strong> neutrales` : ""}
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="alert alert-${errores.length ? "danger" : "secondary"} py-2 mb-0">
+          <strong>${errores.length}</strong> errores
+        </div>
+      </div>
+    </div>
+    ${
+      errores.length
+        ? `
+      <div class="alert alert-danger small mt-2 mb-0" style="max-height:150px; overflow:auto;">
+        <strong>Errores detectados (corrige el archivo y vuelve a cargarlo):</strong>
+        <ul class="mb-0">${errores.map((e) => `<li>${e}</li>`).join("")}</ul>
+      </div>`
+        : ""
+    }
+  `;
+
+  if (filas.length === 0) {
+    preview.innerHTML =
+      '<p class="text-muted text-center">Sin datos para previsualizar</p>';
+    return;
+  }
+
+  let html = `
+    <table class="table table-sm table-striped">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Código</th>
+          <th>Producto</th>
+          <th>Tipo</th>
+          <th>Signo</th>
+          <th class="text-end">Cantidad</th>
+          <th>Observación</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  filas.forEach((f, i) => {
+    let badge = "";
+    if (f.esEntrada === true)
+      badge = `<span class="badge bg-success">➕ Entrada</span>`;
+    else if (f.esEntrada === false)
+      badge = `<span class="badge bg-danger">➖ Salida</span>`;
+    else badge = `<span class="badge bg-secondary">⏸️ Neutral</span>`;
+
+    html += `
+      <tr>
+        <td>${i + 1}</td>
+        <td><code>${f.codigoProducto}</code></td>
+        <td>${f.producto.nombre}</td>
+        <td>${f.tipo.nombre}</td>
+        <td>${badge}</td>
+        <td class="text-end">${f.cantidad}</td>
+        <td>${f.observacion || "--"}</td>
+      </tr>
+    `;
+  });
+  html += "</tbody></table>";
+  preview.innerHTML = html;
+}
+
+// ------------------------------------------------------------
+// CONFIRMAR Y EJECUTAR
+// ------------------------------------------------------------
+async function confirmarCargaMasivaMovimientos() {
+  if (cargaMasivaMovimientosValidadas.length === 0) {
+    showToast("No hay movimientos para procesar", "warning");
+    return;
+  }
+
+  const modoPrueba = document.getElementById("cmMovModoPrueba")?.checked;
+
+  const btn = document.getElementById("cmMovBtnConfirmar");
+  btn.disabled = true;
+  const textoOriginal = btn.innerHTML;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Procesando...`;
+
+  let ok = 0;
+  let fail = 0;
+  const errores = [];
+
+  for (const f of cargaMasivaMovimientosValidadas) {
+    try {
+      if (modoPrueba) {
+        ok++;
+        continue;
+      }
+
+      const data = {
+        id_producto: f.producto.id,
+        id_tipo_movimiento: f.tipo.id,
+        cantidad: f.cantidad,
+        observacion: f.observacion,
+      };
+
+      await api.request("/movimientos-inventario", "POST", data);
+      ok++;
+    } catch (err) {
+      fail++;
+      errores.push(
+        `Fila ${f.numFila} (${f.codigoProducto}): ${err.message || "error"}`,
+      );
+    }
+  }
+
+  if (modoPrueba) {
+    showToast(`🧪 Modo prueba: ${ok} movimientos serían creados`, "info");
+    btn.disabled = false;
+    btn.innerHTML = textoOriginal;
+    return;
+  }
+
+  if (fail === 0) {
+    showToast(`✅ ${ok} movimientos creados correctamente`, "success");
+  } else {
+    showToast(
+      `⚠ ${ok} creados, ${fail} fallidos. Revisa la consola.`,
+      "warning",
+    );
+    console.warn("Errores carga masiva movimientos:", errores);
+  }
+
+  const modal = bootstrap.Modal.getInstance(
+    document.getElementById("cargaMasivaMovimientosModal"),
+  );
+  if (modal) modal.hide();
+
+  // Recargar datos del módulo de inventario para refrescar stock
+  await loadInventarioModule();
+  if (typeof loadProductosModule === "function") {
+    await loadProductosModule();
+  }
+}
+
 // =============================================
 // EXPONER FUNCIONES GLOBALES
 // =============================================
+
+// Carga masiva de movimientos
+window.showCargaMasivaMovimientosModal = showCargaMasivaMovimientosModal;
+window.descargarPlantillaMovimientos = descargarPlantillaMovimientos;
+window.procesarArchivoMovimientos = procesarArchivoMovimientos;
+window.confirmarCargaMasivaMovimientos = confirmarCargaMasivaMovimientos;
 
 window.loadInventarioModule = loadInventarioModule;
 window.showMovimientoModal = showMovimientoModal;
