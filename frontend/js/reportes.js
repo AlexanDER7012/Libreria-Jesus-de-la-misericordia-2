@@ -1,4 +1,4 @@
-// reportes.js - VERSIÓN COMPLETA CON TODOS LOS REPORTES ORGANIZADOS POR MÓDULOS
+// reportes.js
 
 // ============================================================
 // CARGA DEL MODULO DE REPORTES
@@ -242,7 +242,8 @@ async function cargarReporteCuentasActivas() {
 
 async function actualizarCuentasActivas() {
   const ordenPor = document.getElementById("cuentaActivaOrden")?.value || "";
-  const ordenDir = document.getElementById("cuentaActivaDireccion")?.value || "asc";
+  const ordenDir =
+    document.getElementById("cuentaActivaDireccion")?.value || "asc";
   const resultado = document.getElementById("cuentaActivaResultado");
   if (!resultado) return;
   try {
@@ -290,7 +291,8 @@ async function cargarReporteCuentasInactivas() {
 
 async function actualizarCuentasInactivas() {
   const ordenPor = document.getElementById("cuentaInactivaOrden")?.value || "";
-  const ordenDir = document.getElementById("cuentaInactivaDireccion")?.value || "asc";
+  const ordenDir =
+    document.getElementById("cuentaInactivaDireccion")?.value || "asc";
   const resultado = document.getElementById("cuentaInactivaResultado");
   if (!resultado) return;
   try {
@@ -308,8 +310,6 @@ async function actualizarCuentasInactivas() {
     resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
   }
 }
-
-
 
 async function cargarReporteUsuariosPorFecha() {
   const container = document.getElementById("reporteUsuariosPorFechaContainer");
@@ -351,7 +351,8 @@ async function actualizarUsuariosPorFecha() {
   const desde = document.getElementById("usuariosFechaDesde")?.value;
   const hasta = document.getElementById("usuariosFechaHasta")?.value;
   const ordenPor = document.getElementById("usuariosFechaOrden")?.value || "";
-  const ordenDir = document.getElementById("usuariosFechaDireccion")?.value || "asc";
+  const ordenDir =
+    document.getElementById("usuariosFechaDireccion")?.value || "asc";
   const resultado = document.getElementById("usuariosFechaResultado");
   if (!resultado) return;
   try {
@@ -361,7 +362,10 @@ async function actualizarUsuariosPorFecha() {
     if (ordenPor) url += `&orden_por=${ordenPor}&orden_direccion=${ordenDir}`;
     const data = await api.request(url);
     resultado.innerHTML =
-      _renderTablaUsuarios(data, `Usuarios registrados del ${desde || "--"} al ${hasta || "--"}`) +
+      _renderTablaUsuarios(
+        data,
+        `Usuarios registrados del ${desde || "--"} al ${hasta || "--"}`,
+      ) +
       _controlesPaginacion(
         `skipUsuariosPorFecha=Math.max(0,skipUsuariosPorFecha-${LIMITE_REPORTE_USUARIOS});actualizarUsuariosPorFecha()`,
         `skipUsuariosPorFecha+=${LIMITE_REPORTE_USUARIOS};actualizarUsuariosPorFecha()`,
@@ -371,7 +375,6 @@ async function actualizarUsuariosPorFecha() {
     resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
   }
 }
-
 
 async function cargarReporteUsuariosBuscar() {
   const container = document.getElementById("reporteUsuariosBuscarContainer");
@@ -421,12 +424,14 @@ async function cargarReporteUsuariosBuscar() {
 }
 
 async function actualizarUsuariosBuscar() {
-  const estado = document.getElementById("buscarUsuarioEstado")?.value || "todos";
+  const estado =
+    document.getElementById("buscarUsuarioEstado")?.value || "todos";
   const buscar = document.getElementById("buscarUsuarioNombre")?.value?.trim();
   const desde = document.getElementById("buscarUsuarioDesde")?.value;
   const hasta = document.getElementById("buscarUsuarioHasta")?.value;
   const ordenPor = document.getElementById("buscarUsuarioOrden")?.value || "";
-  const ordenDir = document.getElementById("buscarUsuarioDireccion")?.value || "asc";
+  const ordenDir =
+    document.getElementById("buscarUsuarioDireccion")?.value || "asc";
   const resultado = document.getElementById("buscarUsuarioResultado");
   if (!resultado) return;
   try {
@@ -448,15 +453,30 @@ async function actualizarUsuariosBuscar() {
   }
 }
 
-
-function exportarCuentasActivasPDF() { exportarPDF("cuentaActivaResultado", "Cuentas_Activas"); }
-function exportarCuentasActivasExcel() { exportarExcel("cuentaActivaResultado", "Cuentas_Activas"); }
-function exportarCuentasInactivasPDF() { exportarPDF("cuentaInactivaResultado", "Cuentas_Inactivas"); }
-function exportarCuentasInactivasExcel() { exportarExcel("cuentaInactivaResultado", "Cuentas_Inactivas"); }
-function exportarUsuariosPorFechaPDF() { exportarPDF("usuariosFechaResultado", "Usuarios_Por_Fecha"); }
-function exportarUsuariosPorFechaExcel() { exportarExcel("usuariosFechaResultado", "Usuarios_Por_Fecha"); }
-function exportarUsuariosBuscarPDF() { exportarPDF("buscarUsuarioResultado", "Busqueda_Usuarios"); }
-function exportarUsuariosBuscarExcel() { exportarExcel("buscarUsuarioResultado", "Busqueda_Usuarios"); }
+function exportarCuentasActivasPDF() {
+  exportarPDF("cuentaActivaResultado", "Cuentas_Activas");
+}
+function exportarCuentasActivasExcel() {
+  exportarExcel("cuentaActivaResultado", "Cuentas_Activas");
+}
+function exportarCuentasInactivasPDF() {
+  exportarPDF("cuentaInactivaResultado", "Cuentas_Inactivas");
+}
+function exportarCuentasInactivasExcel() {
+  exportarExcel("cuentaInactivaResultado", "Cuentas_Inactivas");
+}
+function exportarUsuariosPorFechaPDF() {
+  exportarPDF("usuariosFechaResultado", "Usuarios_Por_Fecha");
+}
+function exportarUsuariosPorFechaExcel() {
+  exportarExcel("usuariosFechaResultado", "Usuarios_Por_Fecha");
+}
+function exportarUsuariosBuscarPDF() {
+  exportarPDF("buscarUsuarioResultado", "Busqueda_Usuarios");
+}
+function exportarUsuariosBuscarExcel() {
+  exportarExcel("buscarUsuarioResultado", "Busqueda_Usuarios");
+}
 
 window.cargarReporteCuentasActivas = cargarReporteCuentasActivas;
 window.actualizarCuentasActivas = actualizarCuentasActivas;
