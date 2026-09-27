@@ -7,94 +7,18 @@ let unidadesData = [];
 
 // CARGA DEL MÓDULO PRINCIPAL CON PESTAÑAS
 async function loadProductosModule() {
-  const container = document.getElementById("mainContent");
+  const container =
+    document.getElementById("productosTableContainer") ||
+    document.getElementById("mainContent");
   if (!container) return;
 
   // Asegurar que los modales existan
   ensureAllModals();
 
   container.innerHTML = `
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4><i class="fas fa-box me-2 text-success"></i>Productos</h4>
-            <div>
-                ${
-                  tienePermiso("Productos", "Crear")
-                    ? `<button class="btn btn-success btn-sm" onclick="showCreateProductoModal()">
-                    <i class="fas fa-plus me-2"></i>Nuevo Producto
-                </button>`
-                    : ""
-                }
-            </div>
-        </div>
-
-        <!-- PESTAÑAS INTERNAS -->
-        <ul class="nav nav-tabs mb-3" id="productosTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="tab-productos" data-bs-toggle="tab"
-                        data-bs-target="#panel-productos" type="button" role="tab">
-                    <i class="fas fa-box me-1"></i>Productos
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="tab-categorias" data-bs-toggle="tab"
-                        data-bs-target="#panel-categorias" type="button" role="tab">
-                    <i class="fas fa-tags me-1"></i>Categorías
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="tab-marcas" data-bs-toggle="tab"
-                        data-bs-target="#panel-marcas" type="button" role="tab">
-                    <i class="fas fa-copyright me-1"></i>Marcas
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="tab-unidades" data-bs-toggle="tab"
-                        data-bs-target="#panel-unidades" type="button" role="tab">
-                    <i class="fas fa-ruler me-1"></i>Unidades
-                </button>
-            </li>
-        </ul>
-
-        <div class="tab-content" id="productosTabContent">
-            <!-- PANEL: PRODUCTOS -->
-            <div class="tab-pane fade show active" id="panel-productos" role="tabpanel">
-                <div id="productosTableContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-success" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando productos...</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- PANEL: CATEGORÍAS -->
-            <div class="tab-pane fade" id="panel-categorias" role="tabpanel">
-                <div id="categoriasTableContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando categorías...</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- PANEL: MARCAS -->
-            <div class="tab-pane fade" id="panel-marcas" role="tabpanel">
-                <div id="marcasTableContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-info" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando marcas...</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- PANEL: UNIDADES -->
-            <div class="tab-pane fade" id="panel-unidades" role="tabpanel">
-                <div id="unidadesTableContainer">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-warning" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando unidades...</p>
-                    </div>
-                </div>
-            </div>
+        <div class="text-center py-5">
+            <div class="spinner-border text-success" role="status"></div>
+            <p class="mt-2 text-muted">Cargando productos...</p>
         </div>
     `;
 
@@ -462,22 +386,48 @@ function renderProductosTable(productos) {
 
   if (!productos || productos.length === 0) {
     container.innerHTML = `
-            <div class="text-center py-5">
-                <i class="fas fa-box fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No hay productos registrados</p>
-                ${
-                  tienePermiso("Productos", "Crear")
-                    ? `<button class="btn btn-success btn-sm" onclick="showCreateProductoModal()">
-                    <i class="fas fa-plus me-2"></i>Agregar Producto
-                </button>`
-                    : ""
-                }
-            </div>
-        `;
+        <div class="text-center py-5">
+            <i class="fas fa-box fa-3x text-muted mb-3"></i>
+            <p class="text-muted">No hay productos registrados</p>
+            ${
+              tienePermiso("Productos", "Crear")
+                ? `<button class="btn btn-success btn-sm" onclick="showCreateProductoModal()">
+                <i class="fas fa-plus me-2"></i>Agregar Producto
+            </button>`
+                : ""
+            }
+        </div>
+    `;
     return;
   }
 
   let html = `
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Listado de Productos</h6>
+            <div class="d-flex gap-2">
+                ${
+                  tienePermiso("Productos", "Editar")
+                    ? `<button class="btn btn-outline-warning btn-sm" onclick="showActualizacionMasivaProductosModal()">
+                    <i class="fas fa-file-edit me-2"></i>Actualización Masiva
+                </button>`
+                    : ""
+                }
+                ${
+                  tienePermiso("Productos", "Crear")
+                    ? `<button class="btn btn-outline-primary btn-sm" onclick="showCargaMasivaProductosModal()">
+                    <i class="fas fa-file-upload me-2"></i>Carga Masiva
+                </button>`
+                    : ""
+                }
+                ${
+                  tienePermiso("Productos", "Crear")
+                    ? `<button class="btn btn-success btn-sm" onclick="showCreateProductoModal()">
+                    <i class="fas fa-plus me-2"></i>Nuevo Producto
+                </button>`
+                    : ""
+                }
+            </div>
+        </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -1407,7 +1357,1220 @@ async function toggleUnidadEstado(id) {
   }
 }
 
+// ============================================================
+// CARGA MASIVA DE PRODUCTOS
+// ============================================================
+
+let cargaMasivaProductosFilas = []; // filas parseadas del Excel
+let cargaMasivaProductosValidadas = []; // filas con validación resuelta
+
+// ------------------------------------------------------------
+// MODAL
+// ------------------------------------------------------------
+function showCargaMasivaProductosModal() {
+  let modal = document.getElementById("cargaMasivaProductosModal");
+  if (modal) modal.remove();
+
+  modal = document.createElement("div");
+  modal.className = "modal fade";
+  modal.id = "cargaMasivaProductosModal";
+  modal.setAttribute("tabindex", "-1");
+  modal.innerHTML = `
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">
+            <i class="fas fa-file-upload me-2"></i>Carga Masiva de Productos
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+
+          <div class="alert alert-info small">
+            <strong>Formato esperado del archivo (fila de encabezados obligatoria):</strong>
+            <div class="mt-1" style="font-family: monospace; font-size: 0.85rem;">
+              Codigo | Nombre | Descripcion | Categoria | Marca | Unidad_Compra | Unidad_Venta |
+              Factor_Conversion | Precio_Compra | Precio_Venta | Margen_Ganancia |
+              Precio_Automatico | Stock_Minimo | Stock_Maximo
+            </div>
+            <ul class="mb-0 mt-2 small">
+              <li>Las <strong>categorías, marcas y unidades</strong> que no existan se crearán automáticamente.</li>
+              <li>Todos los productos se crean como <strong>activos</strong>.</li>
+              <li>El <strong>stock actual</strong> arranca en 0. Los stocks iniciales se cargan con la Carga Masiva de Movimientos.</li>
+              <li>Si un <strong>código ya existe</strong>, la fila se reporta como error (no se sobrescribe).</li>
+            </ul>
+            <div class="mt-2">
+              <button class="btn btn-sm btn-outline-primary" onclick="descargarPlantillaProductos()">
+                <i class="fas fa-download me-1"></i>Descargar plantilla
+              </button>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Archivo Excel / CSV *</label>
+            <input type="file" class="form-control" id="cmProdArchivo"
+                   accept=".xlsx,.xls,.csv" onchange="procesarArchivoProductos(event)">
+          </div>
+
+          <div id="cmProdResumen" class="mb-2"></div>
+          <div id="cmProdPreview" class="table-responsive" style="max-height:400px; overflow:auto;"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-primary" id="cmProdBtnConfirmar" disabled
+                  onclick="confirmarCargaMasivaProductos()">
+            <i class="fas fa-check me-1"></i>Confirmar y Crear Productos
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  const instance = new bootstrap.Modal(modal);
+  instance.show();
+  modal.addEventListener("hidden.bs.modal", function () {
+    this.remove();
+  });
+}
+
+// ------------------------------------------------------------
+// PLANTILLA
+// ------------------------------------------------------------
+function descargarPlantillaProductos() {
+  const data = [
+    {
+      Codigo: "PROD-001",
+      Nombre: "Cuaderno profesional 100 hojas",
+      Descripcion: "Cuaderno rayado",
+      Categoria: "Cuadernos",
+      Marca: "Scribe",
+      Unidad_Compra: "Unidad",
+      Unidad_Venta: "Unidad",
+      Factor_Conversion: 1,
+      Precio_Compra: 8.5,
+      Precio_Venta: 12.0,
+      Margen_Ganancia: 0,
+      Precio_Automatico: 0,
+      Stock_Minimo: 10,
+      Stock_Maximo: 200,
+    },
+    {
+      Codigo: "PROD-002",
+      Nombre: "Lápiz HB",
+      Descripcion: "Lápiz grafito",
+      Categoria: "Útiles",
+      Marca: "Faber-Castell",
+      Unidad_Compra: "Caja",
+      Unidad_Venta: "Unidad",
+      Factor_Conversion: 12,
+      Precio_Compra: 24.0,
+      Precio_Venta: 3.5,
+      Margen_Ganancia: 0,
+      Precio_Automatico: 0,
+      Stock_Minimo: 20,
+      Stock_Maximo: 500,
+    },
+  ];
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Productos");
+  XLSX.writeFile(wb, "Plantilla_Carga_Masiva_Productos.xlsx");
+  showToast("Plantilla descargada", "success");
+}
+
+// ------------------------------------------------------------
+// LEER ARCHIVO
+// ------------------------------------------------------------
+function procesarArchivoProductos(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+
+      if (!rows || rows.length === 0) {
+        showToast("El archivo está vacío", "warning");
+        return;
+      }
+
+      cargaMasivaProductosFilas = rows;
+      validarYPrevisualizarProductos();
+    } catch (err) {
+      console.error(err);
+      showToast("Error al leer el archivo: " + err.message, "error");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ------------------------------------------------------------
+// VALIDACIÓN Y PREVISUALIZACIÓN
+// ------------------------------------------------------------
+function validarYPrevisualizarProductos() {
+  const categorias = categoriasData || [];
+  const marcas = marcasData || [];
+  const unidades = unidadesData || [];
+
+  const errores = [];
+  const filasValidas = [];
+
+  // Códigos ya existentes y duplicados en el archivo
+  const codigosExistentes = new Set(
+    (productosData || []).map((p) =>
+      String(p.codigo || "")
+        .trim()
+        .toLowerCase(),
+    ),
+  );
+  const codigosEnArchivo = new Set();
+
+  cargaMasivaProductosFilas.forEach((row, idx) => {
+    const numFila = idx + 2;
+    const codigo = String(row.Codigo || "").trim();
+    const nombre = String(row.Nombre || "").trim();
+
+    if (!codigo) {
+      errores.push(`Fila ${numFila}: falta Codigo`);
+      return;
+    }
+    if (!nombre) {
+      errores.push(`Fila ${numFila}: falta Nombre`);
+      return;
+    }
+
+    const codigoLower = codigo.toLowerCase();
+    if (codigosExistentes.has(codigoLower)) {
+      errores.push(`Fila ${numFila}: el código "${codigo}" ya existe`);
+      return;
+    }
+    if (codigosEnArchivo.has(codigoLower)) {
+      errores.push(
+        `Fila ${numFila}: código "${codigo}" duplicado en el archivo`,
+      );
+      return;
+    }
+    codigosEnArchivo.add(codigoLower);
+
+    // Resolver categoría/marca/unidades por nombre
+    const categoriaNombre = String(row.Categoria || "").trim();
+    const marcaNombre = String(row.Marca || "").trim();
+    const unidadCompraNombre = String(row.Unidad_Compra || "").trim();
+    const unidadVentaNombre = String(row.Unidad_Venta || "").trim();
+
+    const categoriaExistente = categoriaNombre
+      ? categorias.find(
+          (c) =>
+            (c.nombre || "").toLowerCase() === categoriaNombre.toLowerCase(),
+        )
+      : null;
+    const marcaExistente = marcaNombre
+      ? marcas.find(
+          (m) => (m.nombre || "").toLowerCase() === marcaNombre.toLowerCase(),
+        )
+      : null;
+    const unidadCompraExistente = unidadCompraNombre
+      ? unidades.find(
+          (u) =>
+            (u.nombre || "").toLowerCase() === unidadCompraNombre.toLowerCase(),
+        )
+      : null;
+    const unidadVentaExistente = unidadVentaNombre
+      ? unidades.find(
+          (u) =>
+            (u.nombre || "").toLowerCase() === unidadVentaNombre.toLowerCase(),
+        )
+      : null;
+
+    filasValidas.push({
+      numFila,
+      codigo,
+      nombre,
+      descripcion: String(row.Descripcion || "").trim() || null,
+      categoriaNombre: categoriaNombre || null,
+      categoriaExistente,
+      marcaNombre: marcaNombre || null,
+      marcaExistente,
+      unidadCompraNombre: unidadCompraNombre || null,
+      unidadCompraExistente,
+      unidadVentaNombre: unidadVentaNombre || null,
+      unidadVentaExistente,
+      factor_conversion: parseFloat(row.Factor_Conversion) || 1,
+      precio_compra: parseFloat(row.Precio_Compra) || 0,
+      precio_venta: parseFloat(row.Precio_Venta) || 0,
+      margen_ganancia: parseFloat(row.Margen_Ganancia) || 0,
+      precio_automatico: parseInt(row.Precio_Automatico) === 1 ? 1 : 0,
+      stock_minimo: parseFloat(row.Stock_Minimo) || 0,
+      stock_maximo: parseFloat(row.Stock_Maximo) || 0,
+    });
+  });
+
+  cargaMasivaProductosValidadas = filasValidas;
+  renderPreviewProductos(errores, filasValidas);
+
+  const btn = document.getElementById("cmProdBtnConfirmar");
+  if (btn) btn.disabled = errores.length > 0 || filasValidas.length === 0;
+}
+
+// ------------------------------------------------------------
+// PREVISUALIZACIÓN
+// ------------------------------------------------------------
+function renderPreviewProductos(errores, filas) {
+  const resumen = document.getElementById("cmProdResumen");
+  const preview = document.getElementById("cmProdPreview");
+
+  resumen.innerHTML = `
+    <div class="row g-2">
+      <div class="col-md-4">
+        <div class="alert alert-${filas.length ? "success" : "secondary"} py-2 mb-0">
+          <strong>${filas.length}</strong> productos válidos
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="alert alert-${errores.length ? "danger" : "secondary"} py-2 mb-0">
+          <strong>${errores.length}</strong> errores
+        </div>
+      </div>
+    </div>
+    ${
+      errores.length
+        ? `
+      <div class="alert alert-danger small mt-2 mb-0" style="max-height:150px; overflow:auto;">
+        <strong>Errores detectados (corrige el archivo y vuelve a cargarlo):</strong>
+        <ul class="mb-0">${errores.map((e) => `<li>${e}</li>`).join("")}</ul>
+      </div>`
+        : ""
+    }
+  `;
+
+  if (filas.length === 0) {
+    preview.innerHTML =
+      '<p class="text-muted text-center">Sin datos para previsualizar</p>';
+    return;
+  }
+
+  let html = `
+    <table class="table table-sm table-striped">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Código</th>
+          <th>Nombre</th>
+          <th>Categoría</th>
+          <th>Marca</th>
+          <th>Und. Compra</th>
+          <th>Und. Venta</th>
+          <th>P. Venta</th>
+          <th>Stock Mín.</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  filas.forEach((f, i) => {
+    const catMostrar = f.categoriaNombre
+      ? f.categoriaNombre + (f.categoriaExistente ? "" : " ⭐")
+      : "--";
+    const marcaMostrar = f.marcaNombre
+      ? f.marcaNombre + (f.marcaExistente ? "" : " ⭐")
+      : "--";
+    const undCMostrar = f.unidadCompraNombre
+      ? f.unidadCompraNombre + (f.unidadCompraExistente ? "" : " ⭐")
+      : "--";
+    const undVMostrar = f.unidadVentaNombre
+      ? f.unidadVentaNombre + (f.unidadVentaExistente ? "" : " ⭐")
+      : "--";
+
+    html += `
+      <tr>
+        <td>${i + 1}</td>
+        <td><code>${f.codigo}</code></td>
+        <td>${f.nombre}</td>
+        <td>${catMostrar}</td>
+        <td>${marcaMostrar}</td>
+        <td>${undCMostrar}</td>
+        <td>${undVMostrar}</td>
+        <td>Q${f.precio_venta.toFixed(2)}</td>
+        <td>${f.stock_minimo}</td>
+      </tr>
+    `;
+  });
+  html += "</tbody></table>";
+  html += `<div class="small text-muted">⭐ = se creará automáticamente</div>`;
+  preview.innerHTML = html;
+}
+
+// ------------------------------------------------------------
+// CONFIRMAR Y EJECUTAR
+// ------------------------------------------------------------
+async function confirmarCargaMasivaProductos() {
+  if (cargaMasivaProductosValidadas.length === 0) {
+    showToast("No hay productos para procesar", "warning");
+    return;
+  }
+
+  const btn = document.getElementById("cmProdBtnConfirmar");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Procesando...`;
+
+  let ok = 0,
+    fail = 0;
+  const errores = [];
+
+  // Caches para no crear dos veces la misma categoría/marca/unidad
+  const cacheCategorias = {};
+  const cacheMarcas = {};
+  const cacheUnidades = {};
+
+  // Precargar caches con los existentes
+  (categoriasData || []).forEach((c) => {
+    cacheCategorias[(c.nombre || "").toLowerCase()] = c.id;
+  });
+  (marcasData || []).forEach((m) => {
+    cacheMarcas[(m.nombre || "").toLowerCase()] = m.id;
+  });
+  (unidadesData || []).forEach((u) => {
+    cacheUnidades[(u.nombre || "").toLowerCase()] = u.id;
+  });
+
+  // Helpers para crear si no existe
+  async function obtenerCategoriaId(nombre) {
+    if (!nombre) return null;
+    const key = nombre.toLowerCase();
+    if (cacheCategorias[key]) return cacheCategorias[key];
+    try {
+      const result = await api.createCategoria({ nombre, activo: 1 });
+      cacheCategorias[key] = result.id;
+      return result.id;
+    } catch (e) {
+      // Si falla porque ya existe, intentar recuperarla
+      try {
+        const cats = await api.getCategorias();
+        const found = (cats || []).find(
+          (c) => (c.nombre || "").toLowerCase() === key,
+        );
+        if (found) {
+          cacheCategorias[key] = found.id;
+          return found.id;
+        }
+      } catch (_) {}
+      throw e;
+    }
+  }
+
+  async function obtenerMarcaId(nombre) {
+    if (!nombre) return null;
+    const key = nombre.toLowerCase();
+    if (cacheMarcas[key]) return cacheMarcas[key];
+    try {
+      const result = await api.createMarca({ nombre, activo: 1 });
+      cacheMarcas[key] = result.id;
+      return result.id;
+    } catch (e) {
+      try {
+        const arr = await api.getMarcas();
+        const found = (arr || []).find(
+          (m) => (m.nombre || "").toLowerCase() === key,
+        );
+        if (found) {
+          cacheMarcas[key] = found.id;
+          return found.id;
+        }
+      } catch (_) {}
+      throw e;
+    }
+  }
+
+  async function obtenerUnidadId(nombre) {
+    if (!nombre) return null;
+    const key = nombre.toLowerCase();
+    if (cacheUnidades[key]) return cacheUnidades[key];
+    try {
+      const result = await api.request("/unidades-medida", "POST", {
+        nombre,
+        activo: 1,
+      });
+      cacheUnidades[key] = result.id;
+      return result.id;
+    } catch (e) {
+      try {
+        const arr = await api.getUnidadesMedida();
+        const found = (arr || []).find(
+          (u) => (u.nombre || "").toLowerCase() === key,
+        );
+        if (found) {
+          cacheUnidades[key] = found.id;
+          return found.id;
+        }
+      } catch (_) {}
+      throw e;
+    }
+  }
+
+  for (const f of cargaMasivaProductosValidadas) {
+    try {
+      const id_categoria = await obtenerCategoriaId(f.categoriaNombre);
+      const id_marca = await obtenerMarcaId(f.marcaNombre);
+      const id_unidad_compra = await obtenerUnidadId(f.unidadCompraNombre);
+      const id_unidad_venta = await obtenerUnidadId(f.unidadVentaNombre);
+
+      const data = {
+        codigo: f.codigo,
+        nombre: f.nombre,
+        descripcion: f.descripcion,
+        id_categoria,
+        id_marca,
+        id_unidad_compra,
+        id_unidad_venta,
+        factor_conversion: f.factor_conversion,
+        precio_compra: f.precio_compra,
+        precio_venta: f.precio_venta,
+        precio_automatico: f.precio_automatico,
+        margen_ganancia: f.margen_ganancia,
+        stock_minimo: f.stock_minimo,
+        stock_maximo: f.stock_maximo,
+        activo: 1,
+      };
+
+      await api.createProducto(data);
+      ok++;
+    } catch (err) {
+      fail++;
+      errores.push(
+        `Fila ${f.numFila} (${f.codigo}): ${err.message || "error"}`,
+      );
+    }
+  }
+
+  if (fail === 0) {
+    showToast(`✅ ${ok} productos creados correctamente`, "success");
+  } else {
+    showToast(
+      `⚠ ${ok} creados, ${fail} fallidos. Revisa la consola.`,
+      "warning",
+    );
+    console.warn("Errores carga masiva productos:", errores);
+  }
+
+  const modal = bootstrap.Modal.getInstance(
+    document.getElementById("cargaMasivaProductosModal"),
+  );
+  if (modal) modal.hide();
+
+  // Recargar datos del módulo
+  await loadProductosModule();
+}
+
+// ============================================================
+// ACTUALIZACIÓN MASIVA DE PRODUCTOS
+// ============================================================
+
+let actualizacionMasivaFilas = []; // filas parseadas del Excel
+let actualizacionMasivaValidadas = []; // filas con diff calculado
+
+// ------------------------------------------------------------
+// MODAL
+// ------------------------------------------------------------
+function showActualizacionMasivaProductosModal() {
+  let modal = document.getElementById("actualizacionMasivaProductosModal");
+  if (modal) modal.remove();
+
+  modal = document.createElement("div");
+  modal.className = "modal fade";
+  modal.id = "actualizacionMasivaProductosModal";
+  modal.setAttribute("tabindex", "-1");
+  modal.innerHTML = `
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header bg-warning text-dark">
+          <h5 class="modal-title">
+            <i class="fas fa-file-edit me-2"></i>Actualización Masiva de Productos
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+
+          <div class="alert alert-info small">
+            <strong>¿Cómo funciona?</strong>
+            <ol class="mb-2 mt-1 small">
+              <li>Descarga el archivo con <strong>todo el inventario actual</strong>.</li>
+              <li>Marca <code>SI</code> en la columna <strong>Actualizar</strong> de las filas que quieras modificar.</li>
+              <li>Edita los campos que desees cambiar.</li>
+              <li>Sube el archivo → revisa el diff → confirma.</li>
+            </ol>
+            <ul class="mb-2 small">
+              <li><strong>Codigo:</strong> no lo modifiques. Si lo cambias, se intentará buscar por Nombre.</li>
+              <li><strong>Stock_Actual:</strong> es informativa. Si la modificas, se ignora.</li>
+              <li><strong>Activo:</strong> acepta <code>Activo</code>, <code>Inactivo</code>, <code>SI</code>, <code>NO</code>, <code>1</code>, <code>0</code>.</li>
+              <li><strong>Actualizar:</strong> acepta <code>SI</code>, <code>S</code>, <code>1</code>, <code>X</code>, <code>YES</code>, <code>TRUE</code>.</li>
+            </ul>
+            <div class="mt-2">
+              <button class="btn btn-sm btn-outline-warning" onclick="descargarInventarioActual()">
+                <i class="fas fa-download me-1"></i>Descargar inventario actual
+              </button>
+            </div>
+          </div>
+
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="cmActProdModoPrueba">
+            <label class="form-check-label fw-bold" for="cmActProdModoPrueba">
+              Modo prueba (solo previsualizar, no aplicar cambios)
+            </label>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Archivo Excel / CSV *</label>
+            <input type="file" class="form-control" id="cmActProdArchivo"
+                   accept=".xlsx,.xls,.csv" onchange="procesarArchivoActualizacion(event)">
+          </div>
+
+          <div id="cmActProdResumen" class="mb-2"></div>
+          <div id="cmActProdPreview" class="table-responsive" style="max-height:400px; overflow:auto;"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-warning" id="cmActProdBtnConfirmar" disabled
+                  onclick="confirmarActualizacionMasivaProductos()">
+            <i class="fas fa-check me-1"></i>Aplicar Actualizaciones
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  const instance = new bootstrap.Modal(modal);
+  instance.show();
+  modal.addEventListener("hidden.bs.modal", function () {
+    this.remove();
+  });
+}
+
+// ------------------------------------------------------------
+// DESCARGAR INVENTARIO ACTUAL
+// ------------------------------------------------------------
+function descargarInventarioActual() {
+  if (!productosData || productosData.length === 0) {
+    showToast("No hay productos para exportar", "warning");
+    return;
+  }
+
+  // Mapa de categorías/marcas/unidades para nombre
+  const mapCat = {};
+  (categoriasData || []).forEach((c) => (mapCat[c.id] = c.nombre));
+  const mapMarca = {};
+  (marcasData || []).forEach((m) => (mapMarca[m.id] = m.nombre));
+  const mapUnd = {};
+  (unidadesData || []).forEach((u) => (mapUnd[u.id] = u.nombre));
+
+  const data = productosData.map((p) => ({
+    Actualizar: "NO",
+    Codigo: p.codigo || "",
+    Nombre: p.nombre || "",
+    Descripcion: p.descripcion || "",
+    Categoria: mapCat[p.id_categoria] || "",
+    Marca: mapMarca[p.id_marca] || "",
+    Unidad_Compra: mapUnd[p.id_unidad_compra] || "",
+    Unidad_Venta: mapUnd[p.id_unidad_venta] || "",
+    Factor_Conversion: p.factor_conversion || 1,
+    Precio_Compra: p.precio_compra || 0,
+    Precio_Venta: p.precio_venta || 0,
+    Margen_Ganancia: p.margen_ganancia || 0,
+    Precio_Automatico: p.precio_automatico || 0,
+    Stock_Minimo: p.stock_minimo || 0,
+    Stock_Maximo: p.stock_maximo || 0,
+    Stock_Actual: p.stock_actual || 0,
+    Activo: p.activo !== 0 ? "Activo" : "Inactivo",
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Inventario");
+  XLSX.writeFile(
+    wb,
+    `Inventario_${new Date().toISOString().slice(0, 10)}.xlsx`,
+  );
+  showToast("Inventario descargado", "success");
+}
+
+// ------------------------------------------------------------
+// LEER ARCHIVO
+// ------------------------------------------------------------
+function procesarArchivoActualizacion(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+
+      if (!rows || rows.length === 0) {
+        showToast("El archivo está vacío", "warning");
+        return;
+      }
+
+      actualizacionMasivaFilas = rows;
+      validarYPrevisualizarActualizacion();
+    } catch (err) {
+      console.error(err);
+      showToast("Error al leer el archivo: " + err.message, "error");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ------------------------------------------------------------
+// HELPERS DE PARSEO
+// ------------------------------------------------------------
+function _esSi(valor) {
+  const v = String(valor || "")
+    .trim()
+    .toUpperCase();
+  return ["SI", "SÍ", "S", "YES", "Y", "1", "TRUE", "X"].includes(v);
+}
+
+function _parseActivo(valor, valorActual) {
+  const v = String(valor || "")
+    .trim()
+    .toUpperCase();
+  if (["ACTIVO", "SI", "SÍ", "1", "TRUE"].includes(v)) return 1;
+  if (["INACTIVO", "NO", "0", "FALSE"].includes(v)) return 0;
+  return valorActual; // si está vacío o no reconocido, no cambia
+}
+
+// ------------------------------------------------------------
+// VALIDACIÓN Y PREVISUALIZACIÓN (con diff)
+// ------------------------------------------------------------
+function validarYPrevisualizarActualizacion() {
+  const productos = productosData || [];
+  const categorias = categoriasData || [];
+  const marcas = marcasData || [];
+  const unidades = unidadesData || [];
+
+  const errores = [];
+  const advertencias = [];
+  const cambios = [];
+
+  // Solo filas marcadas con SI en Actualizar
+  const filasMarcadas = [];
+  actualizacionMasivaFilas.forEach((row, idx) => {
+    if (_esSi(row.Actualizar)) {
+      filasMarcadas.push({ row, numFila: idx + 2 });
+    }
+  });
+
+  if (filasMarcadas.length === 0) {
+    const btn = document.getElementById("cmActProdBtnConfirmar");
+    if (btn) btn.disabled = true;
+    document.getElementById("cmActProdResumen").innerHTML =
+      '<div class="alert alert-warning mb-0">No hay filas marcadas con <strong>SI</strong> en la columna <em>Actualizar</em>.</div>';
+    document.getElementById("cmActProdPreview").innerHTML = "";
+    return;
+  }
+
+  // Mapas de búsqueda
+  const porCodigo = {};
+  const porNombre = {};
+  productos.forEach((p) => {
+    if (p.codigo) porCodigo[String(p.codigo).trim().toLowerCase()] = p;
+    if (p.nombre) {
+      const key = String(p.nombre).trim().toLowerCase();
+      if (!porNombre[key]) porNombre[key] = [];
+      porNombre[key].push(p);
+    }
+  });
+
+  const codigosProcesados = new Set();
+
+  filasMarcadas.forEach(({ row, numFila }) => {
+    const codigoArchivo = String(row.Codigo || "").trim();
+    const nombreArchivo = String(row.Nombre || "").trim();
+
+    if (!codigoArchivo) {
+      errores.push(`Fila ${numFila}: falta Codigo`);
+      return;
+    }
+
+    // Buscar por código
+    let productoEncontrado = porCodigo[codigoArchivo.toLowerCase()];
+    let metodoBusqueda = "codigo";
+
+    // Si no se encontró por código, buscar por nombre (respaldo)
+    if (!productoEncontrado && nombreArchivo) {
+      const matches = porNombre[nombreArchivo.toLowerCase()] || [];
+      if (matches.length === 1) {
+        productoEncontrado = matches[0];
+        metodoBusqueda = "nombre";
+        advertencias.push(
+          `Fila ${numFila}: el código "${codigoArchivo}" no existe. Se encontró por nombre "${nombreArchivo}".`,
+        );
+      } else if (matches.length > 1) {
+        errores.push(
+          `Fila ${numFila}: código "${codigoArchivo}" no existe y el nombre "${nombreArchivo}" coincide con ${matches.length} productos. Ambiguo.`,
+        );
+        return;
+      }
+    }
+
+    if (!productoEncontrado) {
+      errores.push(
+        `Fila ${numFila}: no se encontró producto con código "${codigoArchivo}" ni nombre "${nombreArchivo}".`,
+      );
+      return;
+    }
+
+    if (codigosProcesados.has(productoEncontrado.id)) {
+      errores.push(
+        `Fila ${numFila}: el producto "${productoEncontrado.codigo}" ya fue procesado en otra fila.`,
+      );
+      return;
+    }
+    codigosProcesados.add(productoEncontrado.id);
+
+    // Validar duplicado de nombre (si se cambió el nombre)
+    if (
+      nombreArchivo &&
+      nombreArchivo.toLowerCase() !==
+        (productoEncontrado.nombre || "").toLowerCase()
+    ) {
+      const matches = porNombre[nombreArchivo.toLowerCase()] || [];
+      const otro = matches.find((p) => p.id !== productoEncontrado.id);
+      if (otro) {
+        errores.push(
+          `Fila ${numFila}: el nombre "${nombreArchivo}" ya existe en el producto "${otro.codigo}".`,
+        );
+        return;
+      }
+    }
+
+    // Resolver categoría/marca/unidades
+    const catNombre = String(row.Categoria || "").trim();
+    const marcaNombre = String(row.Marca || "").trim();
+    const undCNombre = String(row.Unidad_Compra || "").trim();
+    const undVNombre = String(row.Unidad_Venta || "").trim();
+
+    const catExistente = catNombre
+      ? categorias.find(
+          (c) => (c.nombre || "").toLowerCase() === catNombre.toLowerCase(),
+        )
+      : null;
+    const marcaExistente = marcaNombre
+      ? marcas.find(
+          (m) => (m.nombre || "").toLowerCase() === marcaNombre.toLowerCase(),
+        )
+      : null;
+    const undCExistente = undCNombre
+      ? unidades.find(
+          (u) => (u.nombre || "").toLowerCase() === undCNombre.toLowerCase(),
+        )
+      : null;
+    const undVExistente = undVNombre
+      ? unidades.find(
+          (u) => (u.nombre || "").toLowerCase() === undVNombre.toLowerCase(),
+        )
+      : null;
+
+    // Calcular diff
+    const diff = [];
+    const pushDiff = (campo, antes, despues) => {
+      if (String(antes) !== String(despues)) {
+        diff.push({ campo, antes, despues });
+      }
+    };
+
+    pushDiff(
+      "Nombre",
+      productoEncontrado.nombre || "",
+      nombreArchivo || productoEncontrado.nombre || "",
+    );
+    pushDiff(
+      "Descripcion",
+      productoEncontrado.descripcion || "",
+      String(row.Descripcion || "").trim(),
+    );
+    pushDiff(
+      "Categoria",
+      catNombre
+        ? catExistente
+          ? catExistente.nombre
+          : "(nueva) " + catNombre
+        : "",
+      catNombre,
+    );
+    pushDiff(
+      "Marca",
+      marcaNombre
+        ? marcaExistente
+          ? marcaExistente.nombre
+          : "(nueva) " + marcaNombre
+        : "",
+      marcaNombre,
+    );
+    pushDiff(
+      "Unidad_Compra",
+      undCNombre
+        ? undCExistente
+          ? undCExistente.nombre
+          : "(nueva) " + undCNombre
+        : "",
+      undCNombre,
+    );
+    pushDiff(
+      "Unidad_Venta",
+      undVNombre
+        ? undVExistente
+          ? undVExistente.nombre
+          : "(nueva) " + undVNombre
+        : "",
+      undVNombre,
+    );
+    pushDiff(
+      "Factor_Conversion",
+      productoEncontrado.factor_conversion || 1,
+      parseFloat(row.Factor_Conversion) || 1,
+    );
+    pushDiff(
+      "Precio_Compra",
+      productoEncontrado.precio_compra || 0,
+      parseFloat(row.Precio_Compra) || 0,
+    );
+    pushDiff(
+      "Precio_Venta",
+      productoEncontrado.precio_venta || 0,
+      parseFloat(row.Precio_Venta) || 0,
+    );
+    pushDiff(
+      "Margen_Ganancia",
+      productoEncontrado.margen_ganancia || 0,
+      parseFloat(row.Margen_Ganancia) || 0,
+    );
+    pushDiff(
+      "Precio_Automatico",
+      productoEncontrado.precio_automatico || 0,
+      parseInt(row.Precio_Automatico) === 1 ? 1 : 0,
+    );
+    pushDiff(
+      "Stock_Minimo",
+      productoEncontrado.stock_minimo || 0,
+      parseFloat(row.Stock_Minimo) || 0,
+    );
+    pushDiff(
+      "Stock_Maximo",
+      productoEncontrado.stock_maximo || 0,
+      parseFloat(row.Stock_Maximo) || 0,
+    );
+
+    const activoNuevo = _parseActivo(
+      row.Activo,
+      productoEncontrado.activo !== 0 ? 1 : 0,
+    );
+    pushDiff("Activo", productoEncontrado.activo !== 0 ? 1 : 0, activoNuevo);
+
+    // Advertir si modificaron Stock_Actual
+    const stockActualArchivo = row.Stock_Actual;
+    if (
+      stockActualArchivo !== undefined &&
+      String(stockActualArchivo).trim() !== ""
+    ) {
+      const stockNum = parseFloat(stockActualArchivo);
+      if (
+        !isNaN(stockNum) &&
+        stockNum !== (productoEncontrado.stock_actual || 0)
+      ) {
+        advertencias.push(
+          `Fila ${numFila}: se ignoró la modificación de Stock_Actual (el stock solo se cambia por movimientos).`,
+        );
+      }
+    }
+
+    cambios.push({
+      numFila,
+      metodoBusqueda,
+      producto: productoEncontrado,
+      diff,
+      // Datos finales para aplicar
+      finales: {
+        codigo: productoEncontrado.codigo, // no se cambia
+        nombre: nombreArchivo || productoEncontrado.nombre,
+        descripcion: String(row.Descripcion || "").trim() || null,
+        categoriaNombre: catNombre || null,
+        marcaNombre: marcaNombre || null,
+        unidadCompraNombre: undCNombre || null,
+        unidadVentaNombre: undVNombre || null,
+        factor_conversion: parseFloat(row.Factor_Conversion) || 1,
+        precio_compra: parseFloat(row.Precio_Compra) || 0,
+        precio_venta: parseFloat(row.Precio_Venta) || 0,
+        margen_ganancia: parseFloat(row.Margen_Ganancia) || 0,
+        precio_automatico: parseInt(row.Precio_Automatico) === 1 ? 1 : 0,
+        stock_minimo: parseFloat(row.Stock_Minimo) || 0,
+        stock_maximo: parseFloat(row.Stock_Maximo) || 0,
+        activo: activoNuevo,
+      },
+    });
+  });
+
+  actualizacionMasivaValidadas = cambios;
+  renderPreviewActualizacion(errores, advertencias, cambios);
+
+  const btn = document.getElementById("cmActProdBtnConfirmar");
+  if (btn) btn.disabled = errores.length > 0 || cambios.length === 0;
+}
+
+// ------------------------------------------------------------
+// PREVISUALIZACIÓN (con diff)
+// ------------------------------------------------------------
+function renderPreviewActualizacion(errores, advertencias, cambios) {
+  const resumen = document.getElementById("cmActProdResumen");
+  const preview = document.getElementById("cmActProdPreview");
+
+  let totalCambiosCampos = 0;
+  cambios.forEach((c) => (totalCambiosCampos += c.diff.length));
+
+  resumen.innerHTML = `
+    <div class="row g-2">
+      <div class="col-md-4">
+        <div class="alert alert-${cambios.length ? "success" : "secondary"} py-2 mb-0">
+          <strong>${cambios.length}</strong> productos a actualizar
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="alert alert-info py-2 mb-0">
+          <strong>${totalCambiosCampos}</strong> cambios de campos
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="alert alert-${errores.length ? "danger" : "secondary"} py-2 mb-0">
+          <strong>${errores.length}</strong> errores
+        </div>
+      </div>
+    </div>
+    ${
+      errores.length
+        ? `
+      <div class="alert alert-danger small mt-2 mb-0" style="max-height:150px; overflow:auto;">
+        <strong>Errores (corrige el archivo y vuelve a cargarlo):</strong>
+        <ul class="mb-0">${errores.map((e) => `<li>${e}</li>`).join("")}</ul>
+      </div>`
+        : ""
+    }
+    ${
+      advertencias.length
+        ? `
+      <div class="alert alert-warning small mt-2 mb-0" style="max-height:150px; overflow:auto;">
+        <strong>Advertencias:</strong>
+        <ul class="mb-0">${advertencias.map((a) => `<li>${a}</li>`).join("")}</ul>
+      </div>`
+        : ""
+    }
+  `;
+
+  if (cambios.length === 0) {
+    preview.innerHTML =
+      '<p class="text-muted text-center">Sin cambios para previsualizar</p>';
+    return;
+  }
+
+  let html = `
+    <table class="table table-sm table-striped">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Producto</th>
+          <th>Campo</th>
+          <th>Antes</th>
+          <th>Después</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  cambios.forEach((c, idx) => {
+    if (c.diff.length === 0) {
+      html += `
+        <tr>
+          <td>${idx + 1}</td>
+          <td><strong>${c.producto.codigo}</strong> - ${c.producto.nombre}</td>
+          <td colspan="3" class="text-muted"><em>Sin cambios detectados</em></td>
+        </tr>
+      `;
+      return;
+    }
+    c.diff.forEach((d, i) => {
+      html += `
+        <tr>
+          ${
+            i === 0
+              ? `<td rowspan="${c.diff.length}">${idx + 1}</td>
+                       <td rowspan="${c.diff.length}"><strong>${c.producto.codigo}</strong><br><small>${c.producto.nombre}</small></td>`
+              : ""
+          }
+          <td><code>${d.campo}</code></td>
+          <td class="text-danger">${d.antes}</td>
+          <td class="text-success"><strong>${d.despues}</strong></td>
+        </tr>
+      `;
+    });
+  });
+
+  html += "</tbody></table>";
+  preview.innerHTML = html;
+}
+
+// ------------------------------------------------------------
+// CONFIRMAR Y APLICAR
+// ------------------------------------------------------------
+async function confirmarActualizacionMasivaProductos() {
+  if (actualizacionMasivaValidadas.length === 0) {
+    showToast("No hay cambios para aplicar", "warning");
+    return;
+  }
+
+  const modoPrueba = document.getElementById("cmActProdModoPrueba")?.checked;
+
+  const btn = document.getElementById("cmActProdBtnConfirmar");
+  btn.disabled = true;
+  const textoOriginal = btn.innerHTML;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Procesando...`;
+
+  // Caches para categorías/marcas/unidades
+  const cacheCategorias = {};
+  const cacheMarcas = {};
+  const cacheUnidades = {};
+  (categoriasData || []).forEach(
+    (c) => (cacheCategorias[(c.nombre || "").toLowerCase()] = c.id),
+  );
+  (marcasData || []).forEach(
+    (m) => (cacheMarcas[(m.nombre || "").toLowerCase()] = m.id),
+  );
+  (unidadesData || []).forEach(
+    (u) => (cacheUnidades[(u.nombre || "").toLowerCase()] = u.id),
+  );
+
+  async function obtenerCategoriaId(nombre) {
+    if (!nombre) return null;
+    const key = nombre.toLowerCase();
+    if (cacheCategorias[key]) return cacheCategorias[key];
+    const result = await api.createCategoria({ nombre, activo: 1 });
+    cacheCategorias[key] = result.id;
+    return result.id;
+  }
+  async function obtenerMarcaId(nombre) {
+    if (!nombre) return null;
+    const key = nombre.toLowerCase();
+    if (cacheMarcas[key]) return cacheMarcas[key];
+    const result = await api.createMarca({ nombre, activo: 1 });
+    cacheMarcas[key] = result.id;
+    return result.id;
+  }
+  async function obtenerUnidadId(nombre) {
+    if (!nombre) return null;
+    const key = nombre.toLowerCase();
+    if (cacheUnidades[key]) return cacheUnidades[key];
+    const result = await api.request("/unidades-medida", "POST", {
+      nombre,
+      activo: 1,
+    });
+    cacheUnidades[key] = result.id;
+    return result.id;
+  }
+
+  let ok = 0,
+    fail = 0;
+  const errores = [];
+
+  for (const c of actualizacionMasivaValidadas) {
+    try {
+      if (modoPrueba) {
+        ok++;
+        continue;
+      }
+
+      const id_categoria = await obtenerCategoriaId(c.finales.categoriaNombre);
+      const id_marca = await obtenerMarcaId(c.finales.marcaNombre);
+      const id_unidad_compra = await obtenerUnidadId(
+        c.finales.unidadCompraNombre,
+      );
+      const id_unidad_venta = await obtenerUnidadId(
+        c.finales.unidadVentaNombre,
+      );
+
+      const data = {
+        codigo: c.finales.codigo,
+        nombre: c.finales.nombre,
+        descripcion: c.finales.descripcion,
+        id_categoria,
+        id_marca,
+        id_unidad_compra,
+        id_unidad_venta,
+        factor_conversion: c.finales.factor_conversion,
+        precio_compra: c.finales.precio_compra,
+        precio_venta: c.finales.precio_venta,
+        precio_automatico: c.finales.precio_automatico,
+        margen_ganancia: c.finales.margen_ganancia,
+        stock_minimo: c.finales.stock_minimo,
+        stock_maximo: c.finales.stock_maximo,
+        activo: c.finales.activo,
+      };
+
+      await api.updateProducto(c.producto.id, data);
+      ok++;
+    } catch (err) {
+      fail++;
+      errores.push(
+        `Fila ${c.numFila} (${c.producto.codigo}): ${err.message || "error"}`,
+      );
+    }
+  }
+
+  if (modoPrueba) {
+    showToast(`🧪 Modo prueba: ${ok} productos serían actualizados`, "info");
+  } else if (fail === 0) {
+    showToast(`✅ ${ok} productos actualizados correctamente`, "success");
+  } else {
+    showToast(
+      `⚠ ${ok} actualizados, ${fail} fallidos. Revisa la consola.`,
+      "warning",
+    );
+    console.warn("Errores actualización masiva productos:", errores);
+  }
+
+  const modal = bootstrap.Modal.getInstance(
+    document.getElementById("actualizacionMasivaProductosModal"),
+  );
+  if (modal) modal.hide();
+
+  if (!modoPrueba) {
+    await loadProductosModule();
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = textoOriginal;
+  }
+}
+
 // EXPONER FUNCIONES GLOBALES
+
+// Carga masiva de productos
+window.showCargaMasivaProductosModal = showCargaMasivaProductosModal;
+window.descargarPlantillaProductos = descargarPlantillaProductos;
+window.procesarArchivoProductos = procesarArchivoProductos;
+window.confirmarCargaMasivaProductos = confirmarCargaMasivaProductos;
+
+// Actualización masiva de productos
+window.showActualizacionMasivaProductosModal =
+  showActualizacionMasivaProductosModal;
+window.descargarInventarioActual = descargarInventarioActual;
+window.procesarArchivoActualizacion = procesarArchivoActualizacion;
+window.confirmarActualizacionMasivaProductos =
+  confirmarActualizacionMasivaProductos;
 
 // Productos
 window.loadProductosModule = loadProductosModule;
