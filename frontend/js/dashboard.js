@@ -27,8 +27,21 @@ function _estaOscuro() {
 // CARGA PRINCIPAL DEL DASHBOARD
 // =============================================
 async function loadDashboardModule() {
-  const container = document.getElementById("mainContent");
+  const container =
+    document.getElementById("dashboardContainer") ||
+    document.getElementById("mainContent");
   if (!container) return;
+
+  if (
+    container.id === "mainContent" &&
+    document.getElementById("reportesTabs")
+  ) {
+    console.warn(
+      "⚠️ loadDashboardModule() llamado sin #dashboardContainer. " +
+        "Se aborta para no romper las pestañas de Reportes.",
+    );
+    return;
+  }
 
   // Destruir gráficas previas
   Object.values(dashboardCharts).forEach((chart) => {
