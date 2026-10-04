@@ -8,8 +8,6 @@ class App {
     console.log("👤 Usuario actual:", this.user);
     this.sidebarVisible = false;
 
-    // ⭐ CAMBIO: se eliminan "dashboard" y "productos" del sidebar.
-    //    "reportes" ahora incluye las gráficas del dashboard.
     this.modules = [
       { id: "reportes", label: "Reportes", icon: "fa-chart-bar" },
       { id: "ventas", label: "Ventas", icon: "fa-shopping-cart" },
@@ -20,7 +18,7 @@ class App {
       { id: "configuracion", label: "Configuración", icon: "fa-cog" },
     ];
 
-    // ⭐ CAMBIO: mapa de redirecciones para compatibilidad
+
     this.redirects = {
       dashboard: { module: "reportes", tab: "dashboard" },
       productos: { module: "inventario", tab: "productos" },
@@ -494,9 +492,6 @@ class App {
     container.innerHTML = `
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h4><i class="fas fa-shopping-cart me-2 text-warning"></i>Ventas</h4>
-        <button class="btn btn-warning" onclick="showCreateVentaModal()">
-          <i class="fas fa-plus me-2"></i>Nueva Venta
-        </button>
       </div>
       <div id="ventasTableContainer">
         <div class="text-center py-5">
@@ -514,9 +509,6 @@ class App {
     container.innerHTML = `
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h4><i class="fas fa-truck me-2 text-info"></i>Compras</h4>
-        <button class="btn btn-info" onclick="showCreateCompraModal()">
-          <i class="fas fa-plus me-2"></i>Nueva Compra
-        </button>
       </div>
       <div id="comprasTableContainer">
         <div class="text-center py-5">
@@ -736,9 +728,6 @@ class App {
     container.innerHTML = `
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h4><i class="fas fa-user-shield me-2 text-danger"></i>Usuarios</h4>
-        <button class="btn btn-danger" onclick="showCreateUsuarioModal()">
-          <i class="fas fa-plus me-2"></i>Nuevo Usuario
-        </button>
       </div>
       <div id="usuariosTableContainer">
         <div class="text-center py-5">
@@ -813,9 +802,6 @@ class App {
     container.innerHTML = `
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h4><i class="fas fa-cog me-2 text-dark"></i>Configuración</h4>
-        <button class="btn btn-dark" onclick="showEditConfiguracionModal()">
-          <i class="fas fa-edit me-2"></i>Editar Configuración
-        </button>
       </div>
       <div id="configuracionContainer">
         <div class="text-center py-5">

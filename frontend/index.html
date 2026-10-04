@@ -98,119 +98,6 @@
     <!-- MODALES GLOBALES                         -->
     <!-- ======================================== -->
 
-    <!-- Modal de Clientes -->
-    <div class="modal fade" id="clienteModal" tabindex="-1" aria-hidden="true">
-      <div
-        class="modal-dialog modal-lg modal-dialog-scrollable"
-        style="max-height: 90vh"
-      >
-        <div class="modal-content" style="max-height: 90vh">
-          <div class="modal-header bg-primary text-white sticky-top">
-            <h5 class="modal-title" id="clienteModalTitle">
-              <i class="fas fa-user me-2"></i>Cliente
-            </h5>
-            <button
-              type="button"
-              class="btn-close btn-close-white"
-              data-bs-dismiss="modal"
-            ></button>
-          </div>
-          <div
-            class="modal-body"
-            style="overflow-y: auto; max-height: calc(90vh - 130px)"
-          >
-            <form id="clienteForm" onsubmit="saveCliente(event)">
-              <input type="hidden" id="clienteId" />
-
-              <!-- FILA 1: Nombre y Teléfono -->
-              <div class="row g-3 mb-3">
-                <div class="col-md-6">
-                  <label class="form-label fw-bold"
-                    >Nombre <span class="text-danger">*</span></label
-                  >
-                  <input
-                    type="text"
-                    class="form-control"
-                    id="clienteNombre"
-                    required
-                    placeholder="Nombre completo"
-                  />
-                  <div class="invalid-feedback" id="clienteNombreError"></div>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-bold">Teléfono</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    id="clienteTelefono"
-                    placeholder="Teléfono"
-                  />
-                </div>
-              </div>
-
-              <!-- FILA 2: Email y Dirección -->
-              <div class="row g-3 mb-3">
-                <div class="col-md-6">
-                  <label class="form-label fw-bold">Email</label>
-                  <input
-                    type="email"
-                    class="form-control"
-                    id="clienteEmail"
-                    placeholder="correo@ejemplo.com"
-                  />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-bold">Dirección</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    id="clienteDireccion"
-                    placeholder="Dirección"
-                  />
-                </div>
-              </div>
-
-              <!-- FILA 3: NIT y Tipo -->
-              <div class="row g-3 mb-3">
-                <div class="col-md-6">
-                  <label class="form-label fw-bold">NIT</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    id="clienteNit"
-                    placeholder="Número de NIT"
-                  />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-bold">Tipo</label>
-                  <select class="form-select" id="clienteTipo">
-                    <option value="General">General</option>
-                    <option value="Frecuente">Frecuente</option>
-                    <option value="Mayorista">Mayorista</option>
-                  </select>
-                </div>
-              </div>
-
-              <!-- FILA 4: Estado -->
-              <div class="row g-3 mb-3">
-                <div class="col-md-6">
-                  <label class="form-label fw-bold">Estado</label>
-                  <select class="form-select" id="clienteActivo">
-                    <option value="1">Activo</option>
-                    <option value="0">Inactivo</option>
-                  </select>
-                </div>
-              </div>
-
-              <button type="submit" class="btn btn-primary w-100">
-                <i class="fas fa-save me-2"></i>Guardar Cliente
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Modal de Productos  -->
     <div class="modal fade" id="productoModal" tabindex="-1" aria-hidden="true">
       <div
@@ -1695,7 +1582,6 @@
     <script src="js/app.js"></script>
     <script src="js/dashboard.js"></script>
     <script src="js/components.js"></script>
-    <script src="js/clientes.js"></script>
     <script src="js/productos.js"></script>
     <script src="js/ventas.js"></script>
     <script src="js/compras.js"></script>
