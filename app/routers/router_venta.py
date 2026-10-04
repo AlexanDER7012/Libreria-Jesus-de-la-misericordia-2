@@ -1,7 +1,7 @@
 from datetime import date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
@@ -49,6 +49,7 @@ def listar_ventas(
     id_caja_turno: Optional[int] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
+    buscar: Optional[str] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     usuario_actual=Depends(get_current_user),
@@ -64,7 +65,75 @@ def listar_ventas(
         query = query.filter(func.date(Venta.fecha) >= fecha_desde)
     if fecha_hasta is not None:
         query = query.filter(func.date(Venta.fecha) <= fecha_hasta)
+    if buscar:
+        termino = buscar.strip()
+        patron = f"%{termino}%"
+        ids_cliente_coincidentes = db.query(Cliente.id).filter(
+            or_(Cliente.nombre.ilike(patron), Cliente.nit.ilike(patron))
+        )
+        ids_venta_por_producto = (
+            db.query(DetalleVenta.id_venta)
+            .join(Producto, Producto.id == DetalleVenta.id_producto)
+            .filter(Producto.nombre.ilike(patron))
+        )
+        condiciones = [
+            Venta.nit.ilike(patron),
+            Venta.id_cliente.in_(ids_cliente_coincidentes),
+            Venta.id.in_(ids_venta_por_producto),
+        ]
+        if termino.isdigit():
+            condiciones.append(Venta.id == int(termino))
+        query = query.filter(or_(*condiciones))
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
+
+
+@router.get("/conteo")
+def contar_ventas_agrupado(
+    agrupar_por: str = "cliente",
+    db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
+):
+    """
+    Devuelve el conteo de ventas agrupado por cliente o por vendedor
+    (id_usuario), para mostrar badges de "cantidad de ventas" sin tener
+    que traer el historial completo de ventas al frontend.
+    Ej: GET /ventas/conteo?agrupar_por=cliente -> [{"id": 3, "total": 12}, ...]
+    """
+    if agrupar_por not in ("cliente", "vendedor"):
+        raise HTTPException(
+            status_code=400, detail="agrupar_por debe ser 'cliente' o 'vendedor'"
+        )
+    columna = Venta.id_cliente if agrupar_por == "cliente" else Venta.id_usuario
+    resultados = (
+        db.query(columna.label("id"), func.count(Venta.id).label("total"))
+        .group_by(columna)
+        .all()
+    )
+    return [{"id": r.id, "total": r.total} for r in resultados if r.id is not None]
+
+
+@router.get("/estadisticas-producto/{producto_id}")
+def estadisticas_venta_producto(
+    producto_id: int,
+    db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
+):
+    """
+    Veces vendido y cantidad total vendida de un producto, calculado en el
+    backend (evita traer todas las ventas al frontend solo para esta ficha).
+    """
+    resultado = (
+        db.query(
+            func.count(DetalleVenta.id).label("veces_vendido"),
+            func.coalesce(func.sum(DetalleVenta.cantidad), 0).label("cantidad_total"),
+        )
+        .filter(DetalleVenta.id_producto == producto_id)
+        .first()
+    )
+    return {
+        "veces_vendido": int(resultado.veces_vendido or 0),
+        "cantidad_total": float(resultado.cantidad_total or 0),
+    }
 
 
 @router.get("/{venta_id}", response_model=VentaResponse)
@@ -179,10 +248,7 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
 
     turno.total_ventas = round(float(turno.total_ventas or 0) + total, 2)
 
-    registrar_actividad(
-        db, usuario_actual.id, "CREAR", "Venta",
-        detalle=f"Registró la venta #{nueva_venta.id} por Q{total}" + (f" a cliente id={datos.id_cliente}" if datos.id_cliente else ""),
-    )
+    registrar_actividad(db, usuario_actual.id, "CREAR", "Venta")
     db.commit()
     db.refresh(nueva_venta)
     return nueva_venta
@@ -207,10 +273,7 @@ def cancelar_venta(venta_id: int, db: Session = Depends(get_db), usuario_actual:
             turno.total_ventas = round(float(turno.total_ventas or 0) - float(venta.total or 0), 2)
 
     venta.estado = "Cancelada"
-    registrar_actividad(
-        db, usuario_actual.id, "CANCELAR", "Venta",
-        detalle=f"Canceló la venta #{venta.id} (total Q{venta.total})",
-    )
+    registrar_actividad(db, usuario_actual.id, "CANCELAR", "Venta")
     db.commit()
     db.refresh(venta)
     return venta
@@ -228,15 +291,10 @@ def actualizar_venta(venta_id: int, datos: VentaUpdate, db: Session = Depends(ge
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
-    cambios = datos.model_dump(exclude_unset=True)
-    for campo, valor in cambios.items():
+    for campo, valor in datos.model_dump(exclude_unset=True).items():
         setattr(venta, campo, valor)
 
-    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in cambios.items()) or "sin cambios"
-    registrar_actividad(
-        db, usuario_actual.id, "EDITAR", "Venta",
-        detalle=f"Actualizó la venta #{venta.id} ({cambios_texto})",
-    )
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Venta")
     db.commit()
     db.refresh(venta)
     return venta
@@ -255,10 +313,7 @@ def registrar_pago_venta(venta_id: int, pago_data: MetodoPagoVentaCreate, db: Se
         referencia=pago_data.referencia,
     )
     db.add(nuevo_pago)
-    registrar_actividad(
-        db, usuario_actual.id, "EDITAR", "Venta",
-        detalle=f"Registró un pago de Q{pago_data.monto} a la venta #{venta_id}",
-    )
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Venta")
     db.commit()
     db.refresh(nuevo_pago)
     return nuevo_pago
@@ -284,7 +339,6 @@ def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: S
     if not pago:
         raise HTTPException(status_code=404, detail="Pago no encontrado")
 
-    monto_pago_eliminado = float(pago.monto)
     db.delete(pago)
     db.flush()
 
@@ -303,10 +357,7 @@ def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: S
             ),
         )
 
-    registrar_actividad(
-        db, usuario_actual.id, "EDITAR", "Venta",
-        detalle=f"Eliminó el pago #{pago_id} (Q{monto_pago_eliminado}) de la venta #{venta_id}",
-    )
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Venta")
     db.commit()
 
 
@@ -370,10 +421,7 @@ def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get
             subtotal=round(d.cantidad * d.costo_unitario, 2),
         ))
 
-    registrar_actividad(
-        db, usuario_actual.id, "CREAR", "ServicioAdicional",
-        detalle=f"Registró el servicio adicional #{nuevo.id} ({datos.tipo_servicio}) por Q{total}",
-    )
+    registrar_actividad(db, usuario_actual.id, "CREAR", "ServicioAdicional")
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -384,7 +432,6 @@ def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db), usuario_a
     servicio = db.query(ServicioAdicional).filter(ServicioAdicional.id == servicio_id).first()
     if not servicio:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
-    detalle_servicio = f"Eliminó el servicio adicional #{servicio.id} ({servicio.tipo_servicio}, Q{servicio.total})"
     db.delete(servicio)
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "ServicioAdicional", detalle=detalle_servicio)
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "ServicioAdicional")
     db.commit()

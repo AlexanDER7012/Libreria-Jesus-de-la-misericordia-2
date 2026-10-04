@@ -406,16 +406,21 @@ def listar_permisos_detalle_de_rol(rol_id: int, db: Session = Depends(get_db), u
 @router_rol.post("/permisos", response_model=RolPermisoResponse, status_code=201)
 def asignar_permiso_a_rol(datos: RolPermisoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Editar"))):
     """Asigna un permiso existente a un rol existente."""
-    if not db.query(Rol).filter(Rol.id == datos.id_rol).first():
+    rol = db.query(Rol).filter(Rol.id == datos.id_rol).first()
+    if not rol:
         raise HTTPException(status_code=404, detail="Rol no encontrado")
-    if not db.query(Permiso).filter(Permiso.id == datos.id_permiso).first():
+    permiso = db.query(Permiso).filter(Permiso.id == datos.id_permiso).first()
+    if not permiso:
         raise HTTPException(status_code=404, detail="Permiso no encontrado")
+
+    modulo = db.query(Modulo).filter(Modulo.id == permiso.id_modulo).first()
+    nombre_permiso = f"{modulo.nombre} - {permiso.nombre}" if modulo else permiso.nombre
 
     nueva_asignacion = RolPermiso(**datos.model_dump())
     db.add(nueva_asignacion)
     registrar_actividad(
         db, usuario_actual.id, "EDITAR", "Rol",
-        detalle=f"Asignó el permiso id={datos.id_permiso} al rol id={datos.id_rol}",
+        detalle=f"Asignó el permiso '{nombre_permiso}' al rol '{rol.nombre}'",
     )
     db.commit()
     db.refresh(nueva_asignacion)
@@ -428,7 +433,18 @@ def quitar_permiso_de_rol(rol_permiso_id: int, db: Session = Depends(get_db), us
     asignacion = db.query(RolPermiso).filter(RolPermiso.id == rol_permiso_id).first()
     if not asignacion:
         raise HTTPException(status_code=404, detail="Asignación no encontrada")
-    detalle_quitar = f"Quitó el permiso id={asignacion.id_permiso} del rol id={asignacion.id_rol}"
+
+    rol = db.query(Rol).filter(Rol.id == asignacion.id_rol).first()
+    permiso = db.query(Permiso).filter(Permiso.id == asignacion.id_permiso).first()
+    modulo = db.query(Modulo).filter(Modulo.id == permiso.id_modulo).first() if permiso else None
+    nombre_rol = rol.nombre if rol else f"id={asignacion.id_rol}"
+    nombre_permiso = (
+        f"{modulo.nombre} - {permiso.nombre}"
+        if modulo and permiso
+        else (permiso.nombre if permiso else f"id={asignacion.id_permiso}")
+    )
+
+    detalle_quitar = f"Quitó el permiso '{nombre_permiso}' del rol '{nombre_rol}'"
     db.delete(asignacion)
     registrar_actividad(db, usuario_actual.id, "EDITAR", "Rol", detalle=detalle_quitar)
     db.commit()

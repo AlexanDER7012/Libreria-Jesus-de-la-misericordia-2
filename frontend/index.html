@@ -551,9 +551,7 @@
                 <div class="col-md-6">
                   <div class="mb-3">
                     <label class="form-label">Cliente</label>
-                    <select class="form-select" id="ventaCliente">
-                      <option value="">Sin cliente</option>
-                    </select>
+                    <div id="ventaClienteSelectorWrapper"></div>
                   </div>
                 </div>
                 <div class="col-md-6">
@@ -1085,11 +1083,7 @@
                   <label class="form-label fw-bold mb-1"
                     >Proveedor <span class="text-danger">*</span></label
                   >
-                  <select
-                    class="form-select form-select-sm"
-                    id="compraProveedor"
-                    required
-                  ></select>
+                  <div id="compraProveedorSelectorWrapper"></div>
                 </div>
                 <div class="col-md-4">
                   <label class="form-label fw-bold mb-1">N° Factura</label>
@@ -1583,6 +1577,7 @@
     <script src="js/dashboard.js"></script>
     <script src="js/components.js"></script>
     <script src="js/productos.js"></script>
+    <script src="js/selector-busqueda.js"></script>
     <script src="js/ventas.js"></script>
     <script src="js/compras.js"></script>
     <script src="js/inventario.js"></script>
