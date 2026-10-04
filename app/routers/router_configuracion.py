@@ -42,9 +42,14 @@ def obtener_configuracion(db: Session = Depends(get_db), usuario_actual: Usuario
 @router.put("", response_model=ConfiguracionGeneralResponse)
 def actualizar_configuracion(datos: ConfiguracionGeneralUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Editar"))):
     config = _obtener_o_crear_configuracion(db)
-    for campo, valor in datos.model_dump(exclude_unset=True).items():
+    cambios = datos.model_dump(exclude_unset=True)
+    for campo, valor in cambios.items():
         setattr(config, campo, valor)
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Configuracion")
+    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in cambios.items()) or "sin cambios"
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Configuracion",
+        detalle=f"Actualizó la configuración general ({cambios_texto})",
+    )
     db.commit()
     db.refresh(config)
     return config
@@ -72,7 +77,10 @@ def crear_meta(datos: MetaFinancieraCreate, db: Session = Depends(get_db), usuar
 
     nueva = MetaFinanciera(**datos.model_dump())
     db.add(nueva)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "MetaFinanciera")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "MetaFinanciera",
+        detalle=f"Creó la meta financiera de {datos.mes}/{datos.anio}",
+    )
     db.commit()
     db.refresh(nueva)
     return nueva
@@ -85,7 +93,10 @@ def actualizar_meta(meta_id: int, datos: MetaFinancieraCreate, db: Session = Dep
         raise HTTPException(status_code=404, detail="Meta financiera no encontrada")
     for campo, valor in datos.model_dump().items():
         setattr(meta, campo, valor)
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "MetaFinanciera")
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "MetaFinanciera",
+        detalle=f"Actualizó la meta financiera de {meta.mes}/{meta.anio}",
+    )
     db.commit()
     db.refresh(meta)
     return meta
@@ -96,7 +107,8 @@ def eliminar_meta(meta_id: int, db: Session = Depends(get_db), usuario_actual: U
     meta = db.query(MetaFinanciera).filter(MetaFinanciera.id == meta_id).first()
     if not meta:
         raise HTTPException(status_code=404, detail="Meta financiera no encontrada")
+    detalle_meta = f"Eliminó la meta financiera de {meta.mes}/{meta.anio}"
     db.delete(meta)
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "MetaFinanciera")
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "MetaFinanciera", detalle=detalle_meta)
     db.commit()
     return None

@@ -167,6 +167,7 @@ class BitacoraItem(BaseModel):
     fecha: Optional[datetime] = None
     accion: Optional[str] = None
     modulo: Optional[str] = None
+    detalles: Optional[str] = None
 
 
 class BitacoraResponse(BaseModel):

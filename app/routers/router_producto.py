@@ -129,7 +129,11 @@ def crear_producto(datos: ProductoCreate, db: Session = Depends(get_db), usuario
 
     nuevo = Producto(**datos_dict, stock_actual=0, activo=1)
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Producto")
+    db.flush()
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Producto",
+        detalle=f"Creó el producto '{nuevo.nombre}' (código {datos.codigo})",
+    )
     db.commit()
     db.refresh(nuevo)
 
@@ -169,7 +173,11 @@ def actualizar_producto(producto_id: int, datos: ProductoUpdate, db: Session = D
             motivo="Actualización de producto",
         )
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Producto")
+    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in datos_dict.items()) or "sin cambios"
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Producto",
+        detalle=f"Actualizó el producto '{producto.nombre}' ({cambios_texto})",
+    )
     db.commit()
     db.refresh(producto)
     return producto
@@ -182,7 +190,10 @@ def eliminar_producto(producto_id: int, db: Session = Depends(get_db), usuario_a
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     producto.activo = 0
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Producto")
+    registrar_actividad(
+        db, usuario_actual.id, "ELIMINAR", "Producto",
+        detalle=f"Desactivó el producto '{producto.nombre}' (código {producto.codigo})",
+    )
     db.commit()
     db.refresh(producto)
     return producto
@@ -194,7 +205,10 @@ def reactivar_producto(producto_id: int, db: Session = Depends(get_db), usuario_
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     producto.activo = 1
-    registrar_actividad(db, usuario_actual.id, "REACTIVAR", "Producto")
+    registrar_actividad(
+        db, usuario_actual.id, "REACTIVAR", "Producto",
+        detalle=f"Reactivó el producto '{producto.nombre}' (código {producto.codigo})",
+    )
     db.commit()
     db.refresh(producto)
     return producto
@@ -220,7 +234,10 @@ def listar_categorias(
 def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
     nueva = Categoria(**datos.model_dump())
     db.add(nueva)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Categoria")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Categoria",
+        detalle=f"Creó la categoría '{nueva.nombre}'",
+    )
     db.commit()
     db.refresh(nueva)
     return nueva
@@ -246,7 +263,10 @@ def listar_marcas(
 def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
     nueva = Marca(**datos.model_dump())
     db.add(nueva)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Marca")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Marca",
+        detalle=f"Creó la marca '{nueva.nombre}'",
+    )
     db.commit()
     db.refresh(nueva)
     return nueva
@@ -272,7 +292,10 @@ def listar_unidades_medida(
 def crear_unidad_medida(datos: UnidadMedidaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
     nueva = UnidadMedida(**datos.model_dump())
     db.add(nueva)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "UnidadMedida")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "UnidadMedida",
+        detalle=f"Creó la unidad de medida '{nueva.nombre}'",
+    )
     db.commit()
     db.refresh(nueva)
     return nueva

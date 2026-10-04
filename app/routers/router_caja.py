@@ -83,7 +83,11 @@ def abrir_turno(datos: CajaTurnoAbrir, db: Session = Depends(get_db), usuario_ac
 
     nuevo = CajaTurno(**datos.model_dump(), estado="Abierto")
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "CajaTurno")
+    db.flush()
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "CajaTurno",
+        detalle=f"Abrió el turno #{nuevo.id} en la ubicación id={datos.id_ubicacion}",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -117,7 +121,10 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
     turno.estado = "Cerrado"
     turno.observaciones = datos.observaciones
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "CajaTurno")
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "CajaTurno",
+        detalle=f"Cerró el turno #{turno.id} (contado Q{turno.total_contado}, diferencia Q{turno.diferencia})",
+    )
     db.commit()
     db.refresh(turno)
     return turno
@@ -172,7 +179,10 @@ def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Sessio
 
     nuevo = CajaChicaMovimiento(**datos.model_dump(), saldo=nuevo_saldo)
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "CajaChica")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "CajaChica",
+        detalle=f"Registró un {datos.tipo} de caja chica por Q{datos.monto} (saldo resultante Q{nuevo_saldo})",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -220,7 +230,10 @@ def obtener_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual=D
 def registrar_gasto(datos: GastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Crear"), ("Caja", "Crear")]))):
     nuevo = Gasto(**datos.model_dump())
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Gasto")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Gasto",
+        detalle=f"Registró el gasto '{nuevo.concepto}'",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -239,7 +252,10 @@ def listar_tipos_gasto(db: Session = Depends(get_db), usuario_actual=Depends(get
 def crear_tipo_gasto(datos: TipoGastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Crear"), ("Caja", "Crear")]))):
     nuevo = TipoGasto(**datos.model_dump())
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "TipoGasto")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "TipoGasto",
+        detalle=f"Creó el tipo de gasto '{nuevo.nombre}'",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -258,7 +274,10 @@ def listar_tipos_pago(db: Session = Depends(get_db), usuario_actual=Depends(get_
 def crear_tipo_pago(datos: TipoPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Crear"), ("Ventas", "Crear"), ("Caja", "Crear")]))):
     nuevo = TipoPago(**datos.model_dump())
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "TipoPago")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "TipoPago",
+        detalle=f"Creó el tipo de pago '{nuevo.nombre}'",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -274,8 +293,9 @@ def eliminar_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual:
     gasto = db.query(Gasto).filter(Gasto.id == gasto_id).first()
     if not gasto:
         raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    detalle_gasto = f"Eliminó el gasto '{gasto.concepto}'"
     db.delete(gasto)
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Gasto")
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Gasto", detalle=detalle_gasto)
     db.commit()
 
 
@@ -290,8 +310,9 @@ def eliminar_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get
     mov = db.query(CajaChicaMovimiento).filter(CajaChicaMovimiento.id == movimiento_id).first()
     if not mov:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    detalle_mov = f"Eliminó el movimiento de caja chica ({mov.tipo}, Q{mov.monto})"
     db.delete(mov)
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "CajaChica")
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "CajaChica", detalle=detalle_mov)
     db.commit()
 
 
@@ -304,9 +325,14 @@ def actualizar_tipo_gasto(tipo_id: int, datos: TipoGastoCreate, db: Session = De
     tipo = db.query(TipoGasto).filter(TipoGasto.id == tipo_id).first()
     if not tipo:
         raise HTTPException(status_code=404, detail="Tipo de gasto no encontrado")
-    for campo, valor in datos.model_dump(exclude_unset=True).items():
+    cambios = datos.model_dump(exclude_unset=True)
+    for campo, valor in cambios.items():
         setattr(tipo, campo, valor)
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "TipoGasto")
+    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in cambios.items()) or "sin cambios"
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "TipoGasto",
+        detalle=f"Actualizó el tipo de gasto '{tipo.nombre}' ({cambios_texto})",
+    )
     db.commit()
     db.refresh(tipo)
     return tipo
@@ -321,9 +347,14 @@ def actualizar_tipo_pago(tipo_id: int, datos: TipoPagoCreate, db: Session = Depe
     tipo = db.query(TipoPago).filter(TipoPago.id == tipo_id).first()
     if not tipo:
         raise HTTPException(status_code=404, detail="Tipo de pago no encontrado")
-    for campo, valor in datos.model_dump(exclude_unset=True).items():
+    cambios = datos.model_dump(exclude_unset=True)
+    for campo, valor in cambios.items():
         setattr(tipo, campo, valor)
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "TipoPago")
+    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in cambios.items()) or "sin cambios"
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "TipoPago",
+        detalle=f"Actualizó el tipo de pago '{tipo.nombre}' ({cambios_texto})",
+    )
     db.commit()
     db.refresh(tipo)
     return tipo

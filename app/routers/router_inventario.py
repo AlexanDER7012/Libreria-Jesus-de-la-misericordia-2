@@ -203,7 +203,10 @@ def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(ge
 
         _generar_alerta_si_stock_bajo(db, producto)
 
-    registrar_actividad(db, usuario_actual.id, "CREAR", "MovimientoInventario")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "MovimientoInventario",
+        detalle=f"Registró movimiento #{nuevo_movimiento.id} de tipo '{tipo.nombre}'",
+    )
     db.commit()
     db.refresh(nuevo_movimiento)
     return nuevo_movimiento
@@ -222,7 +225,11 @@ def listar_tipos_movimiento(db: Session = Depends(get_db), usuario_actual: Usuar
 def crear_tipo_movimiento(datos: TipoMovimientoInventarioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Crear"))):
     nuevo = TipoMovimientoInventario(**datos.model_dump())
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "TipoMovimientoInventario")
+    db.flush()
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "TipoMovimientoInventario",
+        detalle=f"Creó el tipo de movimiento '{nuevo.nombre}' (id={nuevo.id})",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -273,7 +280,11 @@ def registrar_conteo(datos: InventarioFisicoCreate, db: Session = Depends(get_db
         ajustado=0,
     )
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "InventarioFisico")
+    db.flush()
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "InventarioFisico",
+        detalle=f"Registró conteo físico de '{producto.nombre}': sistema={stock_sistema}, real={datos.stock_real}, diferencia={diferencia}",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -294,7 +305,10 @@ def aplicar_ajuste(conteo_id: int, db: Session = Depends(get_db), usuario_actual
 
     _generar_alerta_si_stock_bajo(db, producto)
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "InventarioFisico")
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "InventarioFisico",
+        detalle=f"Aplicó el ajuste del conteo #{conteo.id}: stock de '{producto.nombre}' pasó a {producto.stock_actual}",
+    )
     db.commit()
     db.refresh(conteo)
     return conteo
@@ -339,7 +353,11 @@ def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db),
 
     nuevo = TrasladoSucursal(**datos.model_dump(), estado="EnProceso")
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "TrasladoSucursal")
+    db.flush()
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "TrasladoSucursal",
+        detalle=f"Registró el traslado #{nuevo.id} del producto id={datos.id_producto}",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -358,7 +376,10 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: int, db: Session = 
     traslado.id_usuario_recibe = id_usuario_recibe
     traslado.fecha_recepcion = datetime.now()
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "TrasladoSucursal")
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "TrasladoSucursal",
+        detalle=f"Confirmó la recepción del traslado #{traslado.id} (recibido por usuario id={id_usuario_recibe})",
+    )
     db.commit()
     db.refresh(traslado)
     return traslado
@@ -398,7 +419,10 @@ def marcar_leida(alerta_id: int, db: Session = Depends(get_db), usuario_actual: 
         raise HTTPException(status_code=404, detail="Alerta no encontrada")
     alerta.leida = 1
     alerta.fecha_lectura = datetime.now()
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Alerta")
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Alerta",
+        detalle=f"Marcó como leída la alerta #{alerta.id}: {alerta.mensaje}",
+    )
     db.commit()
     db.refresh(alerta)
     return alerta

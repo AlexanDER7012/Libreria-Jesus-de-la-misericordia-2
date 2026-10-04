@@ -129,7 +129,10 @@ def crear_usuario(datos: UsuarioCreate, db: Session = Depends(get_db), usuario_a
         activo=1,
     )
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Usuario")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Usuario",
+        detalle=f"Creó el usuario '{datos.nombre_usuario}'",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -148,7 +151,14 @@ def actualizar_usuario(usuario_id: int, datos: UsuarioUpdate, db: Session = Depe
     for campo, valor in datos_dict.items():
         setattr(usuario, campo, valor)
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Usuario")
+    campos_log = {k: v for k, v in datos_dict.items() if k != "password"}
+    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in campos_log.items())
+    if "password" in datos_dict:
+        cambios_texto = (cambios_texto + ", " if cambios_texto else "") + "contraseña actualizada"
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Usuario",
+        detalle=f"Actualizó el usuario '{usuario.nombre_usuario}' ({cambios_texto or 'sin cambios'})",
+    )
     db.commit()
     db.refresh(usuario)
     return usuario
@@ -161,7 +171,10 @@ def eliminar_usuario(usuario_id: int, db: Session = Depends(get_db), usuario_act
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     usuario.activo = 0
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Usuario")
+    registrar_actividad(
+        db, usuario_actual.id, "ELIMINAR", "Usuario",
+        detalle=f"Desactivó el usuario '{usuario.nombre_usuario}'",
+    )
     db.commit()
     db.refresh(usuario)
     return usuario
@@ -174,7 +187,10 @@ def reactivar_usuario(usuario_id: int, db: Session = Depends(get_db), usuario_ac
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     usuario.activo = 1
     usuario.intentos_fallidos = 0
-    registrar_actividad(db, usuario_actual.id, "REACTIVAR", "Usuario")
+    registrar_actividad(
+        db, usuario_actual.id, "REACTIVAR", "Usuario",
+        detalle=f"Reactivó el usuario '{usuario.nombre_usuario}'",
+    )
     db.commit()
     db.refresh(usuario)
     return usuario
@@ -216,7 +232,10 @@ def crear_empleado(datos: EmpleadoCreate, db: Session = Depends(get_db), usuario
 
     nuevo = Empleado(**datos.model_dump(), activo=1)
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Empleado")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Empleado",
+        detalle=f"Creó el empleado '{datos.nombre}' (DPI {datos.dpi})",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -228,10 +247,15 @@ def actualizar_empleado(empleado_id: int, datos: EmpleadoUpdate, db: Session = D
     if not empleado:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
-    for campo, valor in datos.model_dump(exclude_unset=True).items():
+    cambios = datos.model_dump(exclude_unset=True)
+    for campo, valor in cambios.items():
         setattr(empleado, campo, valor)
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Empleado")
+    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in cambios.items()) or "sin cambios"
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Empleado",
+        detalle=f"Actualizó el empleado '{empleado.nombre}' ({cambios_texto})",
+    )
     db.commit()
     db.refresh(empleado)
     return empleado
@@ -244,7 +268,10 @@ def eliminar_empleado(empleado_id: int, db: Session = Depends(get_db), usuario_a
     if not empleado:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
     empleado.activo = 0
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Empleado")
+    registrar_actividad(
+        db, usuario_actual.id, "ELIMINAR", "Empleado",
+        detalle=f"Desactivó el empleado '{empleado.nombre}'",
+    )
     db.commit()
     db.refresh(empleado)
     return empleado
@@ -256,7 +283,10 @@ def reactivar_empleado(empleado_id: int, db: Session = Depends(get_db), usuario_
     if not empleado:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
     empleado.activo = 1
-    registrar_actividad(db, usuario_actual.id, "REACTIVAR", "Empleado")
+    registrar_actividad(
+        db, usuario_actual.id, "REACTIVAR", "Empleado",
+        detalle=f"Reactivó el empleado '{empleado.nombre}'",
+    )
     db.commit()
     db.refresh(empleado)
     return empleado
@@ -279,7 +309,10 @@ def crear_rol(datos: RolCreate, db: Session = Depends(get_db), usuario_actual: U
 
     nuevo = Rol(**datos.model_dump())
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Rol")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Rol",
+        detalle=f"Creó el rol '{datos.nombre}'",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -303,7 +336,11 @@ def actualizar_rol(rol_id: int, datos: RolUpdate, db: Session = Depends(get_db),
     for campo, valor in datos_dict.items():
         setattr(rol, campo, valor)
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Rol")
+    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in datos_dict.items()) or "sin cambios"
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Rol",
+        detalle=f"Actualizó el rol '{rol.nombre}' ({cambios_texto})",
+    )
     db.commit()
     db.refresh(rol)
     return rol
@@ -329,9 +366,13 @@ def eliminar_rol(rol_id: int, db: Session = Depends(get_db), usuario_actual: Usu
             detail=f"No se puede eliminar: hay {usuarios_con_este_rol} usuario(s) con este rol asignado. Reasígnalos o quítales el rol primero.",
         )
 
+    nombre_rol_eliminado = rol.nombre
     db.query(RolPermiso).filter(RolPermiso.id_rol == rol_id).delete()
     db.delete(rol)
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Rol")
+    registrar_actividad(
+        db, usuario_actual.id, "ELIMINAR", "Rol",
+        detalle=f"Eliminó el rol '{nombre_rol_eliminado}'",
+    )
     db.commit()
 
 
@@ -372,7 +413,10 @@ def asignar_permiso_a_rol(datos: RolPermisoCreate, db: Session = Depends(get_db)
 
     nueva_asignacion = RolPermiso(**datos.model_dump())
     db.add(nueva_asignacion)
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Rol")
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Rol",
+        detalle=f"Asignó el permiso id={datos.id_permiso} al rol id={datos.id_rol}",
+    )
     db.commit()
     db.refresh(nueva_asignacion)
     return nueva_asignacion
@@ -384,8 +428,9 @@ def quitar_permiso_de_rol(rol_permiso_id: int, db: Session = Depends(get_db), us
     asignacion = db.query(RolPermiso).filter(RolPermiso.id == rol_permiso_id).first()
     if not asignacion:
         raise HTTPException(status_code=404, detail="Asignación no encontrada")
+    detalle_quitar = f"Quitó el permiso id={asignacion.id_permiso} del rol id={asignacion.id_rol}"
     db.delete(asignacion)
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Rol")
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Rol", detalle=detalle_quitar)
     db.commit()
 
 
@@ -402,7 +447,10 @@ def listar_puestos(db: Session = Depends(get_db), usuario_actual: Usuario = Depe
 def crear_puesto(datos: PuestoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Crear"))):
     nuevo = Puesto(**datos.model_dump())
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Puesto")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Puesto",
+        detalle=f"Creó el puesto '{datos.nombre}'",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -421,7 +469,10 @@ def listar_turnos(db: Session = Depends(get_db), usuario_actual: Usuario = Depen
 def crear_turno(datos: TurnoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Crear"))):
     nuevo = Turno(**datos.model_dump())
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Turno")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Turno",
+        detalle=f"Creó el turno '{datos.nombre}'",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -440,7 +491,10 @@ def listar_modulos(db: Session = Depends(get_db), usuario_actual: Usuario = Depe
 def crear_modulo(datos: ModuloCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Crear"))):
     nuevo = Modulo(**datos.model_dump())
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Modulo")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Modulo",
+        detalle=f"Creó el módulo '{datos.nombre}'",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -459,7 +513,10 @@ def listar_permisos(db: Session = Depends(get_db), usuario_actual: Usuario = Dep
 def crear_permiso(datos: PermisoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Crear"))):
     nuevo = Permiso(**datos.model_dump())
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Permiso")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Permiso",
+        detalle=f"Creó el permiso '{datos.nombre}'",
+    )
     db.commit()
     db.refresh(nuevo)
 
@@ -513,7 +570,10 @@ def registrar_pago(datos: HistoricoPagoEmpleadoCreate, db: Session = Depends(get
 
     nuevo = HistoricoPagoEmpleado(**datos.model_dump())
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "HistoricoPagoEmpleado")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "HistoricoPagoEmpleado",
+        detalle=f"Registró un pago de Q{datos.monto} ({datos.concepto}) al empleado id={datos.id_empleado}",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
