@@ -67,7 +67,10 @@ def crear_cliente(datos: ClienteCreate, db: Session = Depends(get_db), usuario_a
     """Crea un nuevo cliente (siempre queda activo=1)."""
     nuevo_cliente = Cliente(**datos.model_dump(), activo=1)
     db.add(nuevo_cliente)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Cliente")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Cliente",
+        detalle=f"Creó el cliente '{nuevo_cliente.nombre}'",
+    )
     db.commit()
     db.refresh(nuevo_cliente)
     return nuevo_cliente
@@ -80,10 +83,15 @@ def actualizar_cliente(cliente_id: int, datos: ClienteUpdate, db: Session = Depe
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    for campo, valor in datos.model_dump(exclude_unset=True).items():
+    cambios = datos.model_dump(exclude_unset=True)
+    for campo, valor in cambios.items():
         setattr(cliente, campo, valor)
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Cliente")
+    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in cambios.items()) or "sin cambios"
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Cliente",
+        detalle=f"Actualizó el cliente '{cliente.nombre}' ({cambios_texto})",
+    )
     db.commit()
     db.refresh(cliente)
     return cliente
@@ -96,7 +104,10 @@ def eliminar_cliente(cliente_id: int, db: Session = Depends(get_db), usuario_act
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
     cliente.activo = 0
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Cliente")
+    registrar_actividad(
+        db, usuario_actual.id, "ELIMINAR", "Cliente",
+        detalle=f"Desactivó el cliente '{cliente.nombre}'",
+    )
     db.commit()
     db.refresh(cliente)
     return cliente
@@ -110,7 +121,10 @@ def reactivar_cliente(cliente_id: int, db: Session = Depends(get_db), usuario_ac
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
     cliente.activo = 1
-    registrar_actividad(db, usuario_actual.id, "REACTIVAR", "Cliente")
+    registrar_actividad(
+        db, usuario_actual.id, "REACTIVAR", "Cliente",
+        detalle=f"Reactivó el cliente '{cliente.nombre}'",
+    )
     db.commit()
     db.refresh(cliente)
     return cliente

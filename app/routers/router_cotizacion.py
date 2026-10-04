@@ -106,7 +106,10 @@ def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db), usu
             precio_unitario=precio,
         ))
 
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Cotizacion")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Cotizacion",
+        detalle=f"Creó la cotización {nueva_cotizacion.numero_expediente} por Q{round(total, 2)}",
+    )
     db.commit()
     db.refresh(nueva_cotizacion)
     return nueva_cotizacion
@@ -122,7 +125,10 @@ def cambiar_estado_cotizacion(cotizacion_id: int, nuevo_estado: str, db: Session
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
 
     cotizacion.estado = nuevo_estado
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Cotizacion")
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Cotizacion",
+        detalle=f"Cambió el estado de la cotización {cotizacion.numero_expediente} a '{nuevo_estado}'",
+    )
     db.commit()
     db.refresh(cotizacion)
     return cotizacion

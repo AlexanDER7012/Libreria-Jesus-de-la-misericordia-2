@@ -487,6 +487,7 @@ def reporte_bitacora(
             id=log.id, id_usuario=log.id_usuario,
             nombre_usuario=usuario.nombre_usuario if usuario else None,
             fecha=log.fecha, accion=log.accion, modulo=log.modulo,
+            detalles=log.detalles,
         ))
     return BitacoraResponse(desde=desde, hasta=hasta, cantidad=len(detalle), detalle=detalle)
 

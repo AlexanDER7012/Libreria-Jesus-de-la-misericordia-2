@@ -900,6 +900,7 @@ async function actualizarBitacoraUsuarios() {
                         <th>Fecha</th>
                         <th>Acción</th>
                         <th>Módulo</th>
+                        <th>Descripción</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -926,6 +927,7 @@ async function actualizarBitacoraUsuarios() {
                 <td>${l.fecha ? new Date(l.fecha).toLocaleString() : "--"}</td>
                 <td><span class="badge bg-${accionColor}">${l.accion || "--"}</span></td>
                 <td>${l.modulo || "--"}</td>
+                <td>${l.detalles || "--"}</td>
             </tr>
         `;
     });

@@ -78,7 +78,10 @@ def obtener_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuario_
 def crear_proveedor(datos: ProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
     nuevo = Proveedor(**datos.model_dump(), activo=1)
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Proveedor")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Proveedor",
+        detalle=f"Creó el proveedor '{nuevo.nombre}'",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -89,9 +92,14 @@ def actualizar_proveedor(proveedor_id: int, datos: ProveedorUpdate, db: Session 
     proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
-    for campo, valor in datos.model_dump(exclude_unset=True).items():
+    cambios = datos.model_dump(exclude_unset=True)
+    for campo, valor in cambios.items():
         setattr(proveedor, campo, valor)
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Proveedor")
+    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in cambios.items()) or "sin cambios"
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Proveedor",
+        detalle=f"Actualizó el proveedor '{proveedor.nombre}' ({cambios_texto})",
+    )
     db.commit()
     db.refresh(proveedor)
     return proveedor
@@ -104,7 +112,10 @@ def eliminar_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuario
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
     proveedor.activo = 0
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Proveedor")
+    registrar_actividad(
+        db, usuario_actual.id, "ELIMINAR", "Proveedor",
+        detalle=f"Desactivó el proveedor '{proveedor.nombre}'",
+    )
     db.commit()
     db.refresh(proveedor)
     return proveedor
@@ -116,7 +127,10 @@ def reactivar_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuari
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
     proveedor.activo = 1
-    registrar_actividad(db, usuario_actual.id, "REACTIVAR", "Proveedor")
+    registrar_actividad(
+        db, usuario_actual.id, "REACTIVAR", "Proveedor",
+        detalle=f"Reactivó el proveedor '{proveedor.nombre}'",
+    )
     db.commit()
     db.refresh(proveedor)
     return proveedor
@@ -135,7 +149,10 @@ def listar_tipos_proveedor(db: Session = Depends(get_db), usuario_actual=Depends
 def crear_tipo_proveedor(datos: TipoProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
     nuevo = TipoProveedor(**datos.model_dump())
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "TipoProveedor")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "TipoProveedor",
+        detalle=f"Creó el tipo de proveedor '{nuevo.nombre}'",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -145,9 +162,14 @@ def actualizar_tipo_proveedor(tipo_id: int, datos: TipoProveedorCreate, db: Sess
     tipo = db.query(TipoProveedor).filter(TipoProveedor.id == tipo_id).first()
     if not tipo:
         raise HTTPException(status_code=404, detail="Tipo de proveedor no encontrado")
-    for campo, valor in datos.model_dump(exclude_unset=True).items():
+    cambios = datos.model_dump(exclude_unset=True)
+    for campo, valor in cambios.items():
         setattr(tipo, campo, valor)
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "TipoProveedor")
+    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in cambios.items()) or "sin cambios"
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "TipoProveedor",
+        detalle=f"Actualizó el tipo de proveedor '{tipo.nombre}' ({cambios_texto})",
+    )
     db.commit()
     db.refresh(tipo)
     return tipo
@@ -201,7 +223,11 @@ def calcular_total_pedido(pedido_id: int, db: Session = Depends(get_db), usuario
 def crear_pedido(datos: PedidoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
     nuevo = Pedido(**datos.model_dump(), estado="Pendiente")
     db.add(nuevo)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Pedido")
+    db.flush()
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Pedido",
+        detalle=f"Creó el pedido #{nuevo.id} a proveedor id={datos.id_proveedor}",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -232,7 +258,10 @@ def agregar_producto_a_pedido(pedido_id: int, datos: DetallePedidoCreate, db: Se
         precio_compra=precio,
     )
     db.add(nuevo_detalle)
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Pedido")
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Pedido",
+        detalle=f"Agregó el producto id={datos.id_producto} (cantidad {datos.cantidad_pedida}) al pedido #{pedido_id}",
+    )
     db.commit()
     db.refresh(nuevo_detalle)
     return nuevo_detalle
@@ -245,8 +274,9 @@ def quitar_producto_de_pedido(pedido_id: int, detalle_id: int, db: Session = Dep
     ).first()
     if not detalle:
         raise HTTPException(status_code=404, detail="Detalle no encontrado en este pedido")
+    detalle_quitar_pedido = f"Quitó el producto id={detalle.id_producto} del pedido #{pedido_id}"
     db.delete(detalle)
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Pedido")
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Pedido", detalle=detalle_quitar_pedido)
     db.commit()
 
 
@@ -276,7 +306,10 @@ def cambiar_estado_pedido(
             )
 
     pedido.estado = nuevo_estado
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Pedido")
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Pedido",
+        detalle=f"Cambió el estado del pedido #{pedido.id} a '{nuevo_estado}'",
+    )
     db.commit()
     db.refresh(pedido)
     return pedido

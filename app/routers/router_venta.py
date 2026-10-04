@@ -179,7 +179,10 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
 
     turno.total_ventas = round(float(turno.total_ventas or 0) + total, 2)
 
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Venta")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Venta",
+        detalle=f"Registró la venta #{nueva_venta.id} por Q{total}" + (f" a cliente id={datos.id_cliente}" if datos.id_cliente else ""),
+    )
     db.commit()
     db.refresh(nueva_venta)
     return nueva_venta
@@ -204,7 +207,10 @@ def cancelar_venta(venta_id: int, db: Session = Depends(get_db), usuario_actual:
             turno.total_ventas = round(float(turno.total_ventas or 0) - float(venta.total or 0), 2)
 
     venta.estado = "Cancelada"
-    registrar_actividad(db, usuario_actual.id, "CANCELAR", "Venta")
+    registrar_actividad(
+        db, usuario_actual.id, "CANCELAR", "Venta",
+        detalle=f"Canceló la venta #{venta.id} (total Q{venta.total})",
+    )
     db.commit()
     db.refresh(venta)
     return venta
@@ -222,10 +228,15 @@ def actualizar_venta(venta_id: int, datos: VentaUpdate, db: Session = Depends(ge
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
-    for campo, valor in datos.model_dump(exclude_unset=True).items():
+    cambios = datos.model_dump(exclude_unset=True)
+    for campo, valor in cambios.items():
         setattr(venta, campo, valor)
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Venta")
+    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in cambios.items()) or "sin cambios"
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Venta",
+        detalle=f"Actualizó la venta #{venta.id} ({cambios_texto})",
+    )
     db.commit()
     db.refresh(venta)
     return venta
@@ -244,7 +255,10 @@ def registrar_pago_venta(venta_id: int, pago_data: MetodoPagoVentaCreate, db: Se
         referencia=pago_data.referencia,
     )
     db.add(nuevo_pago)
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Venta")
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Venta",
+        detalle=f"Registró un pago de Q{pago_data.monto} a la venta #{venta_id}",
+    )
     db.commit()
     db.refresh(nuevo_pago)
     return nuevo_pago
@@ -270,6 +284,7 @@ def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: S
     if not pago:
         raise HTTPException(status_code=404, detail="Pago no encontrado")
 
+    monto_pago_eliminado = float(pago.monto)
     db.delete(pago)
     db.flush()
 
@@ -288,7 +303,10 @@ def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: S
             ),
         )
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Venta")
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Venta",
+        detalle=f"Eliminó el pago #{pago_id} (Q{monto_pago_eliminado}) de la venta #{venta_id}",
+    )
     db.commit()
 
 
@@ -352,7 +370,10 @@ def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get
             subtotal=round(d.cantidad * d.costo_unitario, 2),
         ))
 
-    registrar_actividad(db, usuario_actual.id, "CREAR", "ServicioAdicional")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "ServicioAdicional",
+        detalle=f"Registró el servicio adicional #{nuevo.id} ({datos.tipo_servicio}) por Q{total}",
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -363,6 +384,7 @@ def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db), usuario_a
     servicio = db.query(ServicioAdicional).filter(ServicioAdicional.id == servicio_id).first()
     if not servicio:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    detalle_servicio = f"Eliminó el servicio adicional #{servicio.id} ({servicio.tipo_servicio}, Q{servicio.total})"
     db.delete(servicio)
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "ServicioAdicional")
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "ServicioAdicional", detalle=detalle_servicio)
     db.commit()

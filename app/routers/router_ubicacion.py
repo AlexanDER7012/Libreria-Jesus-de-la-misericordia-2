@@ -71,7 +71,10 @@ def crear_ubicacion(datos: UbicacionCreate, db: Session = Depends(get_db), usuar
     """Crea una nueva sucursal."""
     nueva = Ubicacion(**datos.model_dump(), activo=1)
     db.add(nueva)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Ubicacion")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Ubicacion",
+        detalle=f"Creó la sucursal '{nueva.nombre}'",
+    )
     db.commit()
     db.refresh(nueva)
     return nueva
@@ -84,10 +87,15 @@ def actualizar_ubicacion(ubicacion_id: int, datos: UbicacionUpdate, db: Session 
     if not ubicacion:
         raise HTTPException(status_code=404, detail="Ubicación no encontrada")
 
-    for campo, valor in datos.model_dump(exclude_unset=True).items():
+    cambios = datos.model_dump(exclude_unset=True)
+    for campo, valor in cambios.items():
         setattr(ubicacion, campo, valor)
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Ubicacion")
+    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in cambios.items()) or "sin cambios"
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Ubicacion",
+        detalle=f"Actualizó la sucursal '{ubicacion.nombre}' ({cambios_texto})",
+    )
     db.commit()
     db.refresh(ubicacion)
     return ubicacion
@@ -101,7 +109,10 @@ def eliminar_ubicacion(ubicacion_id: int, db: Session = Depends(get_db), usuario
         raise HTTPException(status_code=404, detail="Ubicación no encontrada")
 
     ubicacion.activo = 0
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Ubicacion")
+    registrar_actividad(
+        db, usuario_actual.id, "ELIMINAR", "Ubicacion",
+        detalle=f"Desactivó la sucursal '{ubicacion.nombre}'",
+    )
     db.commit()
     db.refresh(ubicacion)
     return ubicacion
@@ -156,7 +167,10 @@ def crear_sububicacion(datos: SububicacionCreate, db: Session = Depends(get_db),
 
     nueva = Sububicacion(**datos.model_dump(), activo=1)
     db.add(nueva)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Sububicacion")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Sububicacion",
+        detalle=f"Creó la sububicación '{nueva.nombre}' en la sucursal '{ubicacion.nombre}'",
+    )
     db.commit()
     db.refresh(nueva)
     return nueva
@@ -168,10 +182,15 @@ def actualizar_sububicacion(sububicacion_id: int, datos: SububicacionUpdate, db:
     if not sub:
         raise HTTPException(status_code=404, detail="Sububicación no encontrada")
 
-    for campo, valor in datos.model_dump(exclude_unset=True).items():
+    cambios = datos.model_dump(exclude_unset=True)
+    for campo, valor in cambios.items():
         setattr(sub, campo, valor)
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Sububicacion")
+    cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in cambios.items()) or "sin cambios"
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Sububicacion",
+        detalle=f"Actualizó la sububicación '{sub.nombre}' ({cambios_texto})",
+    )
     db.commit()
     db.refresh(sub)
     return sub
@@ -185,7 +204,10 @@ def eliminar_sububicacion(sububicacion_id: int, db: Session = Depends(get_db), u
         raise HTTPException(status_code=404, detail="Sububicación no encontrada")
 
     sub.activo = 0
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "Sububicacion")
+    registrar_actividad(
+        db, usuario_actual.id, "ELIMINAR", "Sububicacion",
+        detalle=f"Desactivó la sububicación '{sub.nombre}'",
+    )
     db.commit()
     db.refresh(sub)
     return sub

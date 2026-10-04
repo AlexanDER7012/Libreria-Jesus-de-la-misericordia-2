@@ -183,7 +183,10 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
     if pedido and pedido.estado != "Comprado":
         pedido.estado = "Comprado"
 
-    registrar_actividad(db, usuario_actual.id, "CREAR", "Compra")
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Compra",
+        detalle=f"Registró la compra #{nueva_compra.id} a proveedor id={datos.id_proveedor} (factura {datos.numero_factura or 's/n'}) por Q{total_factura}",
+    )
     db.commit()
     db.refresh(nueva_compra)
     return nueva_compra
@@ -244,7 +247,10 @@ def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db
     if datos.motivo:
         compra.motivo_cancelacion = datos.motivo
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Compra")
+    detalle_cancelacion = f"Canceló la compra #{compra.id}"
+    if datos.motivo:
+        detalle_cancelacion += f" — motivo: {datos.motivo}"
+    registrar_actividad(db, usuario_actual.id, "EDITAR", "Compra", detalle=detalle_cancelacion)
     db.commit()
     db.refresh(compra)
     return compra
@@ -263,6 +269,7 @@ def eliminar_pago_compra(compra_id: int, pago_id: int, db: Session = Depends(get
     if not pago:
         raise HTTPException(status_code=404, detail="Pago no encontrado en esta compra")
 
+    monto_pago_eliminado = float(pago.monto)
     db.delete(pago)
     db.flush()
 
@@ -276,7 +283,10 @@ def eliminar_pago_compra(compra_id: int, pago_id: int, db: Session = Depends(get
     else:
         compra.estado = "Pendiente"
 
-    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "CompraPago")
+    registrar_actividad(
+        db, usuario_actual.id, "ELIMINAR", "CompraPago",
+        detalle=f"Eliminó el pago #{pago_id} (Q{monto_pago_eliminado}) de la compra #{compra_id}",
+    )
     db.commit()
 
 
@@ -334,7 +344,10 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
         if compra.estado == "Pendiente":
             compra.estado = "Recibida"
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Compra")
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Compra",
+        detalle=f"Registró nota de entrega de la compra #{compra_id} (conforme={'Sí' if datos.conforme == 1 else 'No'})",
+    )
     db.commit()
     db.refresh(nueva_nota)
     return nueva_nota
@@ -360,7 +373,10 @@ def registrar_pago_compra(compra_id: int, datos: CompraPagoCreate, db: Session =
     elif total_pagado > 0:
         compra.estado = "Parcial"
 
-    registrar_actividad(db, usuario_actual.id, "EDITAR", "Compra")
+    registrar_actividad(
+        db, usuario_actual.id, "EDITAR", "Compra",
+        detalle=f"Registró un pago de Q{datos.monto} a la compra #{compra_id}",
+    )
     db.commit()
     db.refresh(nuevo_pago)
     return nuevo_pago
@@ -394,7 +410,11 @@ def listar_devoluciones(
 def registrar_devolucion(datos: DevolucionCompraCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
     nueva = DevolucionCompra(**datos.model_dump())
     db.add(nueva)
-    registrar_actividad(db, usuario_actual.id, "CREAR", "DevolucionCompra")
+    db.flush()
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "DevolucionCompra",
+        detalle=f"Registró la devolución de compra #{nueva.id}",
+    )
     db.commit()
     db.refresh(nueva)
     return nueva

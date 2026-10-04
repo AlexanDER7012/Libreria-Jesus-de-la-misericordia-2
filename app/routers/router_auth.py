@@ -36,14 +36,20 @@ def login(datos: LoginRequest, db: Session = Depends(get_db)):
 
     if not verify_password(datos.password, usuario.password):
         usuario.intentos_fallidos = (usuario.intentos_fallidos or 0) + 1
-        db.add(LogActividad(id_usuario=usuario.id, accion="LOGIN_FALLIDO", modulo="auth"))
+        db.add(LogActividad(
+            id_usuario=usuario.id, accion="LOGIN_FALLIDO", modulo="auth",
+            detalles=f"Intento de inicio de sesión fallido para '{usuario.nombre_usuario}' (intento #{usuario.intentos_fallidos})",
+        ))
         db.commit()
         raise credenciales_invalidas
 
     # Login correcto
     usuario.intentos_fallidos = 0
     usuario.fecha_ultimo_acceso = datetime.now()
-    db.add(LogActividad(id_usuario=usuario.id, accion="LOGIN", modulo="auth"))
+    db.add(LogActividad(
+        id_usuario=usuario.id, accion="LOGIN", modulo="auth",
+        detalles=f"Inicio de sesión de '{usuario.nombre_usuario}'",
+    ))
     db.commit()
 
     token = create_access_token(data={"sub": str(usuario.id), "nombre_usuario": usuario.nombre_usuario})
