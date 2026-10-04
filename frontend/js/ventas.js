@@ -15,6 +15,11 @@ let ventaDetallesTemp = [];
 let vendedoresData = [];
 let cotizacionItemsTemp = [];
 
+// Paginación (server-side) de la tabla principal de Ventas
+let skipVentasTabla = 0;
+const LIMITE_VENTAS_TABLA = 50;
+let _ventasSearchTimeout = null;
+
 // ============================================================
 // CARGA DEL MODULO PRINCIPAL
 // ============================================================
@@ -123,7 +128,6 @@ async function loadVentasModule() {
 
   try {
     const [
-      ventas,
       clientes,
       productos,
       tiposPago,
@@ -132,7 +136,6 @@ async function loadVentasModule() {
       cotizaciones,
       ubicaciones,
     ] = await Promise.all([
-      api.getVentas().catch(() => []),
       api.getClientes().catch(() => []),
       api.getProductos().catch(() => []),
       api.getTiposPago().catch(() => []),
@@ -142,7 +145,6 @@ async function loadVentasModule() {
       api.request("/ubicaciones").catch(() => []),
     ]);
 
-    ventasData = ventas || [];
     window.clientesData = clientes || [];
     window.productosData = productos || [];
     tiposPagoData = tiposPago || [];
@@ -163,7 +165,8 @@ async function loadVentasModule() {
       window.ubicacionesData.length,
     );
 
-    renderVentasTable(ventasData);
+    skipVentasTabla = 0;
+    await cargarVentasTabla();
     cargarSubClientes();
     cargarSubServicios();
     cargarSubCotizaciones();
@@ -185,19 +188,84 @@ async function loadVentasModule() {
 }
 
 // ============================================================
-// PESTAÑA: VENTAS CON BÚSQUEDA Y BOTÓN DE PAGO
+// PESTAÑA: VENTAS CON BÚSQUEDA, RANGO DE FECHAS Y PAGINACIÓN
+// (server-side: el backend ya filtra/pagina, aquí solo se pide la página)
 // ============================================================
+async function cargarVentasTabla() {
+  const container = document.getElementById("ventasTableContainer");
+  if (!container) return;
+
+  const buscarInput = document.getElementById("ventaSearchInput");
+  const desdeInput = document.getElementById("ventaFechaDesde");
+  const hastaInput = document.getElementById("ventaFechaHasta");
+  const buscar = buscarInput ? buscarInput.value.trim() : "";
+  const desde = desdeInput ? desdeInput.value : "";
+  const hasta = hastaInput ? hastaInput.value : "";
+
+  try {
+    let url = `/ventas?skip=${skipVentasTabla}&limit=${LIMITE_VENTAS_TABLA}`;
+    if (buscar) url += `&buscar=${encodeURIComponent(buscar)}`;
+    if (desde) url += `&fecha_desde=${desde}`;
+    if (hasta) url += `&fecha_hasta=${hasta}`;
+
+    ventasData = (await api.request(url)) || [];
+    renderVentasTable(ventasData);
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error al cargar ventas: ${error.message}</div>`;
+  }
+}
+
+function onVentaSearchInput() {
+  clearTimeout(_ventasSearchTimeout);
+  _ventasSearchTimeout = setTimeout(() => {
+    skipVentasTabla = 0;
+    cargarVentasTabla();
+  }, 400);
+}
+
+function filtrarVentas() {
+  skipVentasTabla = 0;
+  cargarVentasTabla();
+}
+
+function limpiarFiltroVentas() {
+  const input = document.getElementById("ventaSearchInput");
+  const desde = document.getElementById("ventaFechaDesde");
+  const hasta = document.getElementById("ventaFechaHasta");
+  if (input) input.value = "";
+  if (desde) desde.value = "";
+  if (hasta) hasta.value = "";
+  skipVentasTabla = 0;
+  cargarVentasTabla();
+}
+
+function ventasTablaAnterior() {
+  skipVentasTabla = Math.max(0, skipVentasTabla - LIMITE_VENTAS_TABLA);
+  cargarVentasTabla();
+}
+
+function ventasTablaSiguiente() {
+  skipVentasTabla += LIMITE_VENTAS_TABLA;
+  cargarVentasTabla();
+}
+
 function renderVentasTable(ventas) {
   const container = document.getElementById("ventasTableContainer");
   if (!container) return;
 
+  const valorBusquedaPrevio = (
+    document.getElementById("ventaSearchInput")?.value || ""
+  ).replace(/"/g, "&quot;");
+  const fechaDesdePrevia = document.getElementById("ventaFechaDesde")?.value || "";
+  const fechaHastaPrevia = document.getElementById("ventaFechaHasta")?.value || "";
+
   let searchHtml = `
-    <div class="row mb-3">
-      <div class="col-md-6">
+    <div class="row mb-3 g-2">
+      <div class="col-md-4">
         <div class="input-group">
-          <input type="text" class="form-control" id="ventaSearchInput" 
-                placeholder="Buscar por ID, cliente, NIT o producto..." 
-                oninput="filtrarVentas()">
+          <input type="text" class="form-control" id="ventaSearchInput"
+                placeholder="Buscar por ID, cliente, NIT o producto..."
+                oninput="onVentaSearchInput()" value="${valorBusquedaPrevio}">
           <button class="btn btn-outline-secondary" onclick="filtrarVentas()">
             <i class="fas fa-search"></i>
           </button>
@@ -206,7 +274,15 @@ function renderVentasTable(ventas) {
           </button>
         </div>
       </div>
-      <div class="col-md-6 text-end">
+      <div class="col-md-2">
+        <input type="date" class="form-control" id="ventaFechaDesde" title="Desde"
+               value="${fechaDesdePrevia}" onchange="filtrarVentas()">
+      </div>
+      <div class="col-md-2">
+        <input type="date" class="form-control" id="ventaFechaHasta" title="Hasta"
+               value="${fechaHastaPrevia}" onchange="filtrarVentas()">
+      </div>
+      <div class="col-md-4 text-end">
         <button class="btn btn-success btn-sm" onclick="exportarVentasExcel()">
           <i class="fas fa-file-excel me-1"></i>Exportar
         </button>
@@ -231,19 +307,33 @@ function renderVentasTable(ventas) {
     </div>
   `;
 
+  const paginacionHtml = `
+    <div class="d-flex justify-content-between align-items-center mt-2">
+        <button class="btn btn-sm btn-outline-secondary" onclick="ventasTablaAnterior()" ${skipVentasTabla === 0 ? "disabled" : ""}>
+            <i class="fas fa-chevron-left me-1"></i>Anterior
+        </button>
+        <small class="text-muted">Página ${Math.floor(skipVentasTabla / LIMITE_VENTAS_TABLA) + 1}${ventas && ventas.length ? ` — Mostrando ${ventas.length} venta(s)` : ""}</small>
+        <button class="btn btn-sm btn-outline-secondary" onclick="ventasTablaSiguiente()" ${!ventas || ventas.length < LIMITE_VENTAS_TABLA ? "disabled" : ""}>
+            Siguiente<i class="fas fa-chevron-right ms-1"></i>
+        </button>
+    </div>
+  `;
+
   if (!ventas || ventas.length === 0) {
     container.innerHTML =
       searchHtml +
       `
             <div class="text-center py-5">
                 <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No hay ventas registradas</p>
+                <p class="text-muted">No hay ventas que coincidan con el filtro</p>
             </div>
-        `;
+        ` +
+      paginacionHtml;
     return;
   }
 
-  // Calcular totales
+  // Totales de la página actual (NO son el total histórico de todas las ventas,
+  // ya que la tabla ahora pagina del lado del servidor)
   let totalVentas = 0;
   let totalPendiente = 0;
   ventas.forEach((v) => {
@@ -263,7 +353,7 @@ function renderVentasTable(ventas) {
       <div class="col-md-3">
         <div class="card bg-success bg-opacity-10">
           <div class="card-body text-center py-2">
-            <h6 class="text-success mb-0">Total Ventas</h6>
+            <h6 class="text-success mb-0">Total (esta página)</h6>
             <h5 class="mb-0">Q${totalVentas.toFixed(2)}</h5>
           </div>
         </div>
@@ -271,7 +361,7 @@ function renderVentasTable(ventas) {
       <div class="col-md-3">
         <div class="card bg-warning bg-opacity-10">
           <div class="card-body text-center py-2">
-            <h6 class="text-warning mb-0">Pendiente por Cobrar</h6>
+            <h6 class="text-warning mb-0">Pendiente (esta página)</h6>
             <h5 class="mb-0">Q${totalPendiente.toFixed(2)}</h5>
           </div>
         </div>
@@ -279,7 +369,7 @@ function renderVentasTable(ventas) {
       <div class="col-md-3">
         <div class="card bg-info bg-opacity-10">
           <div class="card-body text-center py-2">
-            <h6 class="text-info mb-0">Cantidad de Ventas</h6>
+            <h6 class="text-info mb-0">Ventas en esta página</h6>
             <h5 class="mb-0">${ventas.length}</h5>
           </div>
         </div>
@@ -287,7 +377,7 @@ function renderVentasTable(ventas) {
       <div class="col-md-3">
         <div class="card bg-primary bg-opacity-10">
           <div class="card-body text-center py-2">
-            <h6 class="text-primary mb-0">Promedio por Venta</h6>
+            <h6 class="text-primary mb-0">Promedio (esta página)</h6>
             <h5 class="mb-0">Q${(totalVentas / ventas.length).toFixed(2)}</h5>
           </div>
         </div>
@@ -383,54 +473,42 @@ function renderVentasTable(ventas) {
                 </tbody>
             </table>
         </div>
-        <div class="text-end">
-            <small class="text-muted">Total: ${ventas.length} ventas</small>
-        </div>
-    `;
+    ` + paginacionHtml;
 
   container.innerHTML = html;
-  window.ventasDataOriginal = ventas;
 }
 
-function filtrarVentas() {
-  const search = document
-    .getElementById("ventaSearchInput")
-    .value.toLowerCase()
-    .trim();
-  const tbody = document.getElementById("ventasTableBody");
-  if (!tbody) return;
-  const rows = tbody.getElementsByTagName("tr");
-  let visibleCount = 0;
-  for (const row of rows) {
-    const text = row.textContent.toLowerCase();
-    if (!search || text.includes(search)) {
-      row.style.display = "";
-      visibleCount++;
-    } else {
-      row.style.display = "none";
-    }
-  }
-  const footer = document.querySelector(
-    "#ventasTableContainer .text-end small",
-  );
-  if (footer) {
-    footer.textContent = `Mostrando: ${visibleCount} de ${rows.length} ventas`;
-  }
-}
-
-function limpiarFiltroVentas() {
-  const input = document.getElementById("ventaSearchInput");
-  if (input) {
-    input.value = "";
-    filtrarVentas();
-  }
-}
 
 // ============================================================
-// EXPORTAR VENTAS A EXCEL Y PDF
+// EXPORTAR VENTAS A EXCEL Y PDF (trae TODAS las ventas que coincidan
+// con los filtros actuales, no solo la página visible en pantalla)
 // ============================================================
-function exportarVentasExcel() {
-  const ventas = window.ventasDataOriginal || ventasData;
+async function obtenerTodasLasVentasFiltradasParaExportar() {
+  const buscarInput = document.getElementById("ventaSearchInput");
+  const desdeInput = document.getElementById("ventaFechaDesde");
+  const hastaInput = document.getElementById("ventaFechaHasta");
+  const buscar = buscarInput ? buscarInput.value.trim() : "";
+  const desde = desdeInput ? desdeInput.value : "";
+  const hasta = hastaInput ? hastaInput.value : "";
+
+  const LIMITE = 200;
+  let skip = 0;
+  let todas = [];
+  while (true) {
+    let url = `/ventas?skip=${skip}&limit=${LIMITE}`;
+    if (buscar) url += `&buscar=${encodeURIComponent(buscar)}`;
+    if (desde) url += `&fecha_desde=${desde}`;
+    if (hasta) url += `&fecha_hasta=${hasta}`;
+    const pagina = (await api.request(url).catch(() => [])) || [];
+    todas = todas.concat(pagina);
+    if (pagina.length < LIMITE) break;
+    skip += LIMITE;
+  }
+  return todas;
+}
+
+async function exportarVentasExcel() {
+  const ventas = await obtenerTodasLasVentasFiltradasParaExportar();
   if (!ventas || ventas.length === 0) {
     showToast("No hay ventas para exportar", "warning");
     return;
@@ -459,8 +537,8 @@ function exportarVentasExcel() {
   showToast("Ventas exportadas a Excel", "success");
 }
 
-function exportarVentasPDF() {
-  const ventas = window.ventasDataOriginal || ventasData;
+async function exportarVentasPDF() {
+  const ventas = await obtenerTodasLasVentasFiltradasParaExportar();
   if (!ventas || ventas.length === 0) {
     showToast("No hay ventas para exportar", "warning");
     return;
@@ -676,9 +754,7 @@ function crearModalVenta() {
               <div class="col-md-4">
                 <div class="mb-3">
                   <label class="form-label">Cliente</label>
-                  <select class="form-select" id="ventaCliente">
-                    <option value="">Sin cliente</option>
-                  </select>
+                  <div id="ventaClienteSelectorWrapper"></div>
                 </div>
               </div>
               <div class="col-md-4">
@@ -926,9 +1002,8 @@ async function buscarCotizacionParaVenta() {
       `;
     }
 
-    if (data.id_cliente) {
-      const selectCliente = document.getElementById("ventaCliente");
-      selectCliente.value = data.id_cliente;
+    if (data.id_cliente && window.__ventaClienteSelector) {
+      window.__ventaClienteSelector.setValue(data.id_cliente);
     }
 
     ventaDetallesTemp = [];
@@ -985,7 +1060,10 @@ async function verFichaCliente(idCliente) {
       return;
     }
 
-    const ventasCliente = ventasData.filter((v) => v.id_cliente === idCliente);
+    const ventasCliente =
+      (await api
+        .request(`/ventas?id_cliente=${idCliente}&limit=200`)
+        .catch(() => [])) || [];
     const serviciosCliente = serviciosAdicionalesData.filter(
       (s) => s.id_cliente === idCliente,
     );
@@ -1226,12 +1304,17 @@ async function verFichaCliente(idCliente) {
 // LLENAR SELECTS
 // ============================================================
 function llenarSelectCliente() {
-  const select = document.getElementById("ventaCliente");
-  if (!select) return;
-  select.innerHTML = '<option value="">Sin cliente</option>';
-  (window.clientesData || []).forEach((c) => {
-    const estado = c.activo !== 0 ? "" : " (Inactivo)";
-    select.innerHTML += `<option value="${c.id}">${c.nombre}${estado}</option>`;
+  if (typeof crearSelectorBusqueda !== "function") return;
+  window.__ventaClienteSelector = crearSelectorBusqueda({
+    wrapperId: "ventaClienteSelectorWrapper",
+    hiddenInputId: "ventaCliente",
+    searchInputId: "ventaClienteSearchTxt",
+    dropdownId: "ventaClienteDropdown",
+    getData: () => window.clientesData || [],
+    getId: (c) => c.id,
+    getLabel: (c) =>
+      `${c.nombre}${c.nit ? " - NIT: " + c.nit : ""}${c.activo !== 0 ? "" : " (Inactivo)"}`,
+    placeholder: "Buscar cliente por nombre o NIT...",
   });
 }
 
@@ -1782,7 +1865,6 @@ function buscarClientePorNit(event) {
   const input = document.getElementById("ventaBuscarNit");
   const nit = input.value.trim();
   const infoDiv = document.getElementById("ventaClienteInfo");
-  const selectCliente = document.getElementById("ventaCliente");
 
   if (!nit) {
     infoDiv.innerHTML = "";
@@ -1800,7 +1882,9 @@ function buscarClientePorNit(event) {
         ${cliente.email ? ` - ${cliente.email}` : ""}
       </div>
     `;
-    selectCliente.value = cliente.id;
+    if (window.__ventaClienteSelector) {
+      window.__ventaClienteSelector.setValue(cliente.id);
+    }
     showToast(`Cliente encontrado: ${cliente.nombre}`, "success");
   } else {
     infoDiv.innerHTML = `
@@ -1809,14 +1893,18 @@ function buscarClientePorNit(event) {
         No se encontró cliente con NIT: ${nit}
       </div>
     `;
-    selectCliente.value = "";
+    if (window.__ventaClienteSelector) {
+      window.__ventaClienteSelector.reset();
+    }
   }
 }
 
 function limpiarBusquedaCliente() {
   document.getElementById("ventaBuscarNit").value = "";
   document.getElementById("ventaClienteInfo").innerHTML = "";
-  document.getElementById("ventaCliente").value = "";
+  if (window.__ventaClienteSelector) {
+    window.__ventaClienteSelector.reset();
+  }
 }
 
 // ============================================================
@@ -1829,6 +1917,17 @@ async function cargarSubClientes() {
   try {
     const clientes = await api.getClientes().catch(() => []);
     window.clientesData = clientes || [];
+
+    const conteoVentasPorCliente = {};
+    try {
+      const conteos =
+        (await api
+          .request("/ventas/conteo?agrupar_por=cliente")
+          .catch(() => [])) || [];
+      conteos.forEach((c) => {
+        conteoVentasPorCliente[c.id] = c.total;
+      });
+    } catch (e) {}
 
     let searchHtml = `
       <div class="row mb-3">
@@ -1890,7 +1989,7 @@ async function cargarSubClientes() {
     `;
 
     clientes.forEach((c) => {
-      const ventasCliente = ventasData.filter((v) => v.id_cliente === c.id);
+      const totalVentasCliente = conteoVentasPorCliente[c.id] || 0;
       const activo = c.activo !== 0;
       html += `
         <tr>
@@ -1903,7 +2002,7 @@ async function cargarSubClientes() {
           <td>${c.telefono || "--"}</td>
           <td>${c.email || "--"}</td>
           <td>${c.nit || "--"}</td>
-          <td><span class="badge bg-info">${ventasCliente.length}</span></td>
+          <td><span class="badge bg-info">${totalVentasCliente}</span></td>
           <td>
             <span class="badge ${activo ? "bg-success" : "bg-danger"}">
               ${activo ? "Activo" : "Inactivo"}
@@ -2632,6 +2731,23 @@ async function cargarSubServicios() {
       .catch(() => []);
     serviciosAdicionalesData = servicios || [];
 
+    window.__ventasPorServicioMap = {};
+    const idsVentaUnicos = [
+      ...new Set(
+        (serviciosAdicionalesData || [])
+          .map((s) => s.id_venta)
+          .filter((id) => !!id),
+      ),
+    ];
+    if (idsVentaUnicos.length > 0) {
+      const ventasEncontradas = await Promise.all(
+        idsVentaUnicos.map((id) => api.getVenta(id).catch(() => null)),
+      );
+      ventasEncontradas.forEach((v) => {
+        if (v) window.__ventasPorServicioMap[v.id] = v;
+      });
+    }
+
     if (!servicios || servicios.length === 0) {
       container.innerHTML = `
         <div class="text-center py-5">
@@ -2739,7 +2855,7 @@ function renderServiciosRows(servicios) {
       let saldoRestante = s.total || 0;
 
       if (s.id_venta) {
-        const venta = ventasData.find((v) => v.id === s.id_venta);
+        const venta = (window.__ventasPorServicioMap || {})[s.id_venta];
         if (venta) {
           // Total de pagos de la venta
           const totalPagos = (venta.pagos || []).reduce(
@@ -2888,7 +3004,9 @@ function serviciosSiguiente() {
   _renderServiciosPaginado(_listaServiciosFiltrada());
 }
 
-function showCreateServicioModal() {
+async function showCreateServicioModal() {
+  const ventasParaSelect =
+    (await api.request("/ventas?limit=100").catch(() => [])) || [];
   const modal = document.createElement("div");
   modal.className = "modal fade";
   modal.id = "servicioModal";
@@ -2956,7 +3074,7 @@ function showCreateServicioModal() {
                   <label class="form-label">Venta (opcional)</label>
                   <select class="form-select" id="servicioVenta">
                     <option value="">Sin venta</option>
-                    ${ventasData
+                    ${ventasParaSelect
                       .map(
                         (v) => `
                       <option value="${v.id}">#${v.id} - ${(window.clientesData || []).find((c) => c.id === v.id_cliente)?.nombre || "Sin cliente"} - Q${(v.total || 0).toFixed(2)}</option>
@@ -3265,18 +3383,14 @@ async function saveServicio(event) {
           total: nuevoTotal,
         });
 
-        // 6. FORZAR RECARGA DE ventasData
-        const ventasActualizadas = await api.getVentas();
-        ventasData = ventasActualizadas || [];
+        // 6. Refrescar la tabla de ventas visible (respeta filtros y página actuales)
+        await cargarVentasTabla();
 
-        // 7. Actualizar la venta en ventasData
-        const idx = ventasData.findIndex((v) => v.id === id_venta);
-        if (idx !== -1) {
-          ventasData[idx].total = nuevoTotal;
+        // 7. Refrescar también el caché de ventas que usan los servicios
+        const ventaActualizada = await api.getVenta(id_venta).catch(() => null);
+        if (ventaActualizada && window.__ventasPorServicioMap) {
+          window.__ventasPorServicioMap[id_venta] = ventaActualizada;
         }
-
-        // 8. FORZAR RECARGA DE LA TABLA DE VENTAS
-        renderVentasTable(ventasData);
 
         showToast(
           `Venta #${id_venta} actualizada. Nuevo total: Q${nuevoTotal.toFixed(2)}`,
@@ -3340,7 +3454,9 @@ async function pagarServicio(idServicio) {
 
     // Si el servicio tiene venta asociada, abrir pago de la venta
     if (servicio.id_venta) {
-      const venta = ventasData.find((v) => v.id === servicio.id_venta);
+      const venta =
+        (window.__ventasPorServicioMap || {})[servicio.id_venta] ||
+        (await api.getVenta(servicio.id_venta).catch(() => null));
       if (venta) {
         // Verificar si la venta ya está pagada
         const totalPagos = (venta.pagos || []).reduce(
@@ -3520,6 +3636,17 @@ async function cargarSubVendedores() {
     const usuarios = await api.getUsuarios().catch(() => []);
     const empleados = await api.getEmpleados().catch(() => []);
 
+    const conteoVentasPorVendedor = {};
+    try {
+      const conteos =
+        (await api
+          .request("/ventas/conteo?agrupar_por=vendedor")
+          .catch(() => [])) || [];
+      conteos.forEach((c) => {
+        conteoVentasPorVendedor[c.id] = c.total;
+      });
+    } catch (e) {}
+
     const empleadosMap = {};
     empleados.forEach((e) => {
       empleadosMap[e.id] = e;
@@ -3575,9 +3702,7 @@ async function cargarSubVendedores() {
     `;
 
     resultado.forEach((v) => {
-      const ventasVendedor = ventasData.filter(
-        (venta) => venta.id_usuario === v.id_usuario,
-      );
+      const totalVentasVendedor = conteoVentasPorVendedor[v.id_usuario] || 0;
       const activo = v.activo !== 0;
 
       html += `
@@ -3587,7 +3712,7 @@ async function cargarSubVendedores() {
           <td>${v.nombre_usuario || "--"}</td>
           <td>${v.email || "--"}</td>
           <td>${v.telefono || "--"}</td>
-          <td><span class="badge bg-warning">${ventasVendedor.length}</span></td>
+          <td><span class="badge bg-warning">${totalVentasVendedor}</span></td>
           <td>
             <span class="badge ${activo ? "bg-success" : "bg-danger"}">
               ${activo ? "Activo" : "Inactivo"}
@@ -3772,14 +3897,15 @@ async function verFichaProducto(idProducto) {
 
     let vecesVendido = 0;
     let cantidadTotal = 0;
-    ventasData.forEach((v) => {
-      (v.detalles || []).forEach((d) => {
-        if (d.id_producto === idProducto) {
-          vecesVendido++;
-          cantidadTotal += d.cantidad || 0;
-        }
-      });
-    });
+    try {
+      const stats = await api
+        .request(`/ventas/estadisticas-producto/${idProducto}`)
+        .catch(() => null);
+      if (stats) {
+        vecesVendido = stats.veces_vendido || 0;
+        cantidadTotal = stats.cantidad_total || 0;
+      }
+    } catch (e) {}
 
     const modalContent = `
       <div class="modal-header">

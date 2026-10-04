@@ -3380,8 +3380,9 @@ async function cargarPedidoEnCompra() {
       );
     }
 
-    const selProv = document.getElementById("compraProveedor");
-    if (selProv) selProv.value = pedido.id_proveedor || "";
+    if (pedido.id_proveedor && window.__compraProveedorSelector) {
+      window.__compraProveedorSelector.setValue(pedido.id_proveedor);
+    }
 
     compraDetallesTemp = (pedido.detalles || []).map((d) => {
       const producto = (window.productosData || []).find(
@@ -3426,13 +3427,18 @@ async function cargarPedidoEnCompra() {
 }
 
 function llenarSelectProveedor() {
-  const select = document.getElementById("compraProveedor");
-  if (!select) return;
-  select.innerHTML = '<option value="">Seleccionar proveedor</option>';
-  (window.proveedoresData || []).forEach((p) => {
-    if (p.activo !== 0) {
-      select.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
-    }
+  if (typeof crearSelectorBusqueda !== "function") return;
+  window.__compraProveedorSelector = crearSelectorBusqueda({
+    wrapperId: "compraProveedorSelectorWrapper",
+    hiddenInputId: "compraProveedor",
+    searchInputId: "compraProveedorSearchTxt",
+    dropdownId: "compraProveedorDropdown",
+    getData: () => (window.proveedoresData || []).filter((p) => p.activo !== 0),
+    getId: (p) => p.id,
+    getLabel: (p) =>
+      `${p.nombre}${p.codigo_proveedor ? " (" + p.codigo_proveedor + ")" : ""}${p.nit ? " - NIT: " + p.nit : ""}`,
+    placeholder: "Buscar proveedor por nombre, código o NIT...",
+    small: true,
   });
 }
 
