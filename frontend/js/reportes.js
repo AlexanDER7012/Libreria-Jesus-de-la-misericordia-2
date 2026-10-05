@@ -4,7 +4,9 @@
 // CARGA DEL MODULO DE REPORTES
 // ============================================================
 async function loadReportesModule() {
-  const container = document.getElementById("mainContent");
+  const container =
+    document.getElementById("reportesContainer") ||
+    document.getElementById("mainContent");
   if (!container) return;
 
   container.innerHTML = `

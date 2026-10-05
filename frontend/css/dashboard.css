@@ -1,0 +1,515 @@
+/* ============================================================
+   dashboard.css
+   Estilos modernos para el Dashboard (SaaS style)
+   ============================================================ */
+
+/* ============================================================
+   VARIABLES
+   ============================================================ */
+:root {
+  /* Paleta principal */
+  --dash-primary: #6366f1;
+  --dash-primary-soft: #818cf8;
+  --dash-success: #10b981;
+  --dash-success-soft: #34d399;
+  --dash-warning: #f59e0b;
+  --dash-warning-soft: #fbbf24;
+  --dash-danger: #f43f5e;
+  --dash-danger-soft: #fb7185;
+  --dash-info: #06b6d4;
+  --dash-info-soft: #22d3ee;
+
+  /* Fondos */
+  --dash-bg-card: #ffffff;
+  --dash-bg-hover: #f8fafc;
+  --dash-border: #e2e8f0;
+  --dash-border-strong: #cbd5e1;
+
+  /* Texto */
+  --dash-text: #1e293b;
+  --dash-text-muted: #64748b;
+  --dash-text-light: #94a3b8;
+
+  /* Sombras */
+  --dash-shadow-sm:
+    0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --dash-shadow-md:
+    0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.03);
+  --dash-shadow-lg:
+    0 10px 30px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.04);
+  --dash-shadow-hover:
+    0 12px 36px rgba(99, 102, 241, 0.12), 0 4px 12px rgba(0, 0, 0, 0.05);
+
+  /* Radios */
+  --dash-radius: 16px;
+  --dash-radius-sm: 10px;
+  --dash-radius-xs: 6px;
+
+  /* Transiciones */
+  --dash-transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Modo oscuro */
+[data-bs-theme="dark"] {
+  --dash-bg-card: #1e293b;
+  --dash-bg-hover: #334155;
+  --dash-border: #334155;
+  --dash-border-strong: #475569;
+
+  --dash-text: #f1f5f9;
+  --dash-text-muted: #94a3b8;
+  --dash-text-light: #64748b;
+
+  --dash-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --dash-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --dash-shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --dash-shadow-hover:
+    0 12px 36px rgba(99, 102, 241, 0.25), 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================================
+   HEADER DEL DASHBOARD
+   ============================================================ */
+.dash-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--dash-border);
+}
+
+.dash-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--dash-text);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  letter-spacing: -0.025em;
+}
+
+.dash-title i {
+  color: var(--dash-primary);
+}
+
+.dash-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--dash-radius-sm);
+  background: transparent;
+  border: 1px solid var(--dash-border);
+  color: var(--dash-text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--dash-transition);
+}
+
+.dash-refresh:hover {
+  background: var(--dash-primary);
+  border-color: var(--dash-primary);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: var(--dash-shadow-md);
+}
+
+.dash-refresh:active {
+  transform: translateY(0);
+}
+
+/* ============================================================
+   TARJETAS KPI
+   ============================================================ */
+.dash-kpi {
+  position: relative;
+  background: var(--dash-bg-card);
+  border-radius: var(--dash-radius);
+  padding: 1.5rem;
+  box-shadow: var(--dash-shadow-sm);
+  border: 1px solid var(--dash-border);
+  overflow: hidden;
+  transition: var(--dash-transition);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.dash-kpi::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--kpi-color, var(--dash-primary)),
+    var(--kpi-color-soft, var(--dash-primary-soft))
+  );
+}
+
+.dash-kpi:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--dash-shadow-hover);
+}
+
+/* Variantes de color */
+.dash-kpi-primary {
+  --kpi-color: #6366f1;
+  --kpi-color-soft: #818cf8;
+  --kpi-bg: rgba(99, 102, 241, 0.08);
+}
+.dash-kpi-success {
+  --kpi-color: #10b981;
+  --kpi-color-soft: #34d399;
+  --kpi-bg: rgba(16, 185, 129, 0.08);
+}
+.dash-kpi-warning {
+  --kpi-color: #f59e0b;
+  --kpi-color-soft: #fbbf24;
+  --kpi-bg: rgba(245, 158, 11, 0.08);
+}
+.dash-kpi-danger {
+  --kpi-color: #f43f5e;
+  --kpi-color-soft: #fb7185;
+  --kpi-bg: rgba(244, 63, 94, 0.08);
+}
+.dash-kpi-info {
+  --kpi-color: #06b6d4;
+  --kpi-color-soft: #22d3ee;
+  --kpi-bg: rgba(6, 182, 212, 0.08);
+}
+
+.dash-kpi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.dash-kpi-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dash-text-muted);
+  margin: 0;
+}
+
+.dash-kpi-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: var(--kpi-bg);
+  color: var(--kpi-color);
+}
+
+.dash-kpi-trend.up {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+.dash-kpi-trend.down {
+  background: rgba(244, 63, 94, 0.12);
+  color: #f43f5e;
+}
+.dash-kpi-trend.neutral {
+  background: rgba(100, 116, 139, 0.12);
+  color: #64748b;
+}
+
+.dash-kpi-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--dash-text);
+  line-height: 1.1;
+  margin: 0.25rem 0;
+  letter-spacing: -0.025em;
+}
+
+.dash-kpi-sub {
+  font-size: 0.8rem;
+  color: var(--dash-text-muted);
+  margin: 0;
+}
+
+.dash-kpi-icon {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--kpi-bg);
+  color: var(--kpi-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  transition: var(--dash-transition);
+}
+
+.dash-kpi:hover .dash-kpi-icon {
+  transform: scale(1.1) rotate(-5deg);
+}
+
+/* ============================================================
+   TARJETAS KPI GRANDES (para 2ª fila)
+   ============================================================ */
+.dash-kpi-lg {
+  min-height: 160px;
+}
+
+.dash-kpi-lg .dash-kpi-value {
+  font-size: 2.25rem;
+}
+
+.dash-kpi-lg .dash-kpi-list {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--dash-border);
+  font-size: 0.8rem;
+}
+
+.dash-kpi-lg .dash-kpi-list-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+  color: var(--dash-text-muted);
+}
+
+.dash-kpi-lg .dash-kpi-list-item strong {
+  color: var(--dash-text);
+  font-weight: 600;
+}
+
+.dash-kpi-lg .dash-kpi-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--kpi-color);
+  cursor: pointer;
+  transition: var(--dash-transition);
+}
+
+.dash-kpi-lg .dash-kpi-action:hover {
+  gap: 0.6rem;
+}
+
+/* ============================================================
+   TARJETAS DE GRÁFICAS
+   ============================================================ */
+.dash-chart-card {
+  background: var(--dash-bg-card);
+  border-radius: var(--dash-radius);
+  border: 1px solid var(--dash-border);
+  box-shadow: var(--dash-shadow-sm);
+  padding: 1.25rem 1.5rem 1.5rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  transition: var(--dash-transition);
+}
+
+.dash-chart-card:hover {
+  box-shadow: var(--dash-shadow-md);
+}
+
+.dash-chart-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--dash-text);
+  margin: 0 0 1.25rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dash-chart-title i {
+  color: var(--dash-primary);
+  font-size: 0.95rem;
+}
+
+.dash-chart-body {
+  position: relative;
+  flex: 1;
+  min-height: 220px;
+}
+
+.dash-chart-body canvas {
+  max-height: 100%;
+}
+
+/* ============================================================
+   TARJETAS DE TABLAS
+   ============================================================ */
+.dash-table-card {
+  background: var(--dash-bg-card);
+  border-radius: var(--dash-radius);
+  border: 1px solid var(--dash-border);
+  box-shadow: var(--dash-shadow-sm);
+  overflow: hidden;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-table-header {
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--dash-border);
+}
+
+.dash-table-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--dash-text);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dash-table-title i {
+  color: var(--dash-primary);
+}
+
+.dash-table-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--dash-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--dash-radius-xs);
+  transition: var(--dash-transition);
+}
+
+.dash-table-action:hover {
+  background: rgba(99, 102, 241, 0.1);
+  gap: 0.6rem;
+}
+
+.dash-table-body {
+  flex: 1;
+  overflow: auto;
+}
+
+.dash-table-body table {
+  margin: 0;
+}
+
+.dash-table-body table thead th {
+  background: var(--dash-bg-hover);
+  color: var(--dash-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.75rem 1.5rem;
+  border: none;
+}
+
+.dash-table-body table tbody td {
+  padding: 0.75rem 1.5rem;
+  border-color: var(--dash-border);
+  color: var(--dash-text);
+  font-size: 0.875rem;
+  vertical-align: middle;
+}
+
+.dash-table-body table tbody tr:hover {
+  background: var(--dash-bg-hover);
+}
+
+.dash-table-body table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ============================================================
+   ESTADO VACÍO
+   ============================================================ */
+.dash-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  color: var(--dash-text-muted);
+  text-align: center;
+}
+
+.dash-empty i {
+  font-size: 2.5rem;
+  color: var(--dash-text-light);
+  margin-bottom: 0.75rem;
+  opacity: 0.5;
+}
+
+.dash-empty p {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+/* ============================================================
+   SPINNER
+   ============================================================ */
+.dash-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1rem;
+}
+
+.dash-loading .spinner-border {
+  color: var(--dash-primary);
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.dash-loading p {
+  margin-top: 1rem;
+  color: var(--dash-text-muted);
+  font-size: 0.875rem;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .dash-kpi {
+    padding: 1.25rem;
+  }
+  .dash-kpi-value {
+    font-size: 1.5rem;
+  }
+  .dash-kpi-lg .dash-kpi-value {
+    font-size: 1.75rem;
+  }
+  .dash-kpi-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 0.95rem;
+  }
+  .dash-title {
+    font-size: 1.25rem;
+  }
+}
