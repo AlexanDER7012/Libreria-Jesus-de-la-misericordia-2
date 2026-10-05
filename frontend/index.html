@@ -28,11 +28,19 @@
     <link rel="stylesheet" href="css/style.css" />
     <link rel="stylesheet" href="css/neumorphism.css" />
     <link rel="stylesheet" href="css/dashboard.css" />
+    <link rel="stylesheet" href="css/ia.css" />
   </head>
   <!-- Chart.js para gráficos -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- Para carga masiva -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Inteligencia artificial-->
+  <script src="js/ia.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      if (typeof initIAChat === "function") initIAChat();
+    });
+  </script>
   <body>
     <!-- BARRA SUPERIOR -->
     <nav
