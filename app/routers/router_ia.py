@@ -10,9 +10,6 @@ from app import models
 
 router = APIRouter(prefix="/ia", tags=["Inteligencia Artificial"])
 
-# Cliente de OpenRouter (compatible con SDK de OpenAI).
-# El "or 'missing'" evita que el cliente explote al importar el módulo si
-# la API key no está configurada; el endpoint valida la key al ejecutarse.
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=settings.OPENROUTER_API_KEY or "missing",
