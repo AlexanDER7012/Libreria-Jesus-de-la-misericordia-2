@@ -13,5 +13,6 @@ from . import (
     router_venta,
     router_cotizacion,      
     router_configuracion,
-    router_reportes,       
+    router_reportes,
+    router_ia,       
 )

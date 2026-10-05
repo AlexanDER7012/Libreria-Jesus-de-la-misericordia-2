@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # --- OpenRouter (IA) ---
+    OPENROUTER_API_KEY: str | None = None
+
     class Config:
         env_file = ".env"
 
