@@ -6,7 +6,7 @@ from app.routers import (
     router_auth,
     router_cliente, router_ubicacion, router_usuario, router_producto,
     router_inventario, router_proveedor, router_compra, router_caja,
-    router_venta, router_cotizacion, router_configuracion, router_reportes,
+    router_venta, router_cotizacion, router_configuracion, router_reportes, router_ia,
 )
 
 app = FastAPI(
@@ -87,11 +87,11 @@ app.include_router(router_reportes.router_compras, prefix="/reportes/compras", t
 app.include_router(router_reportes.router_inventario, prefix="/reportes/inventario", tags=["Reportes - Inventario"])
 app.include_router(router_reportes.router_usuarios, prefix="/reportes/usuarios", tags=["Reportes - Usuarios"])
 
+app.include_router(router_ia.router)
 
 @app.get("/api/status", tags=["Estado"])
 def read_status():
     """Antes vivia en '/', se movio aqui para que '/' pueda servir el frontend en su lugar."""
     return {"status": "Online", "docs": "/docs"}
-
 
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
