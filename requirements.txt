@@ -11,10 +11,12 @@ ecdsa==0.19.2
 fastapi==0.141.1
 greenlet==3.5.5
 h11==0.16.0
+httpx==0.28.1
 idna==3.19
 Mako==1.4.1
 MarkupSafe==3.0.3
 mysql-connector-python==9.5.0
+openai==1.59.6
 passlib==1.7.4
 psycopg2-binary==2.9.12
 pyasn1==0.6.4
