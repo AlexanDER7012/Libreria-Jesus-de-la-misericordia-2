@@ -362,8 +362,11 @@ async function cargarComprasTabla() {
   const estado = document.getElementById("filtroCompraEstado")?.value || "";
   const buscar =
     document.getElementById("filtroCompraBuscar")?.value?.trim() || "";
+  const recepcion =
+    document.getElementById("filtroCompraRecepcion")?.value || "";
 
   let url = `/compras?skip=${skipCompras}&limit=${LIMITE_COMPRAS}`;
+  if (recepcion) url += `&recepcion=${recepcion}`;
   if (id_proveedor) url += `&id_proveedor=${id_proveedor}`;
   if (fecha_desde) url += `&fecha_desde=${fecha_desde}`;
   if (fecha_hasta) url += `&fecha_hasta=${fecha_hasta}`;
@@ -373,7 +376,24 @@ async function cargarComprasTabla() {
   try {
     const compras = await api.request(url);
     comprasData = compras || [];
+    // Guardar los filtros actuales para no perderlos al redibujar la tabla
+    const filtrosPrevios = {};
+    [
+      "filtroCompraProveedor",
+      "filtroCompraDesde",
+      "filtroCompraHasta",
+      "filtroCompraEstado",
+      "filtroCompraBuscar",
+      "filtroCompraRecepcion",
+    ].forEach((idFiltro) => {
+      const el = document.getElementById(idFiltro);
+      if (el) filtrosPrevios[idFiltro] = el.value;
+    });
     renderComprasTable(comprasData);
+    Object.entries(filtrosPrevios).forEach(([idFiltro, valor]) => {
+      const el = document.getElementById(idFiltro);
+      if (el) el.value = valor;
+    });
     _agregarControlesPaginacionCompras(
       "comprasTableContainer",
       `skipCompras=Math.max(0,skipCompras-${LIMITE_COMPRAS});cargarComprasTabla()`,
@@ -453,6 +473,33 @@ function pedirConfirmacion(
 // =============================================
 // PANEL: COMPRAS
 // =============================================
+// Estado de recepción de una compra según sus notas de entrega
+function _estadoRecepcionCompra(c) {
+  if (c.estado === "Cancelada") return { tipo: "cancelada" };
+  const notas = c.notas_entrega || [];
+  const conforme = notas.find((n) => n.conforme === 1);
+  if (conforme) {
+    return { tipo: "recibida", fecha: c.fecha_recepcion || conforme.fecha_recepcion, nota: conforme };
+  }
+  if (notas.length > 0) return { tipo: "no_conforme" };
+  return { tipo: "pendiente" };
+}
+
+function _badgeRecepcionCompra(c) {
+  const r = _estadoRecepcionCompra(c);
+  if (r.tipo === "recibida") {
+    const fecha = r.fecha ? new Date(r.fecha).toLocaleDateString() : "";
+    return `<span class="badge bg-success"><i class="fas fa-check me-1"></i>Recibida ${fecha}</span>`;
+  }
+  if (r.tipo === "no_conforme") {
+    return `<span class="badge bg-danger" title="Hay una nota de entrega NO conforme; el stock no se sumó">No conforme</span>`;
+  }
+  if (r.tipo === "pendiente") {
+    return `<span class="badge bg-warning text-dark">Pendiente de recibir</span>`;
+  }
+  return `<span class="text-muted">--</span>`;
+}
+
 function renderComprasTable(compras) {
   const container = document.getElementById("comprasTableContainer");
   if (!container) return;
@@ -522,6 +569,14 @@ function renderComprasTable(compras) {
                     </button>
                 </div>
             </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-0">Recepción</label>
+                <select class="form-select form-select-sm" id="filtroCompraRecepcion" onchange="filtrarCompras()">
+                    <option value="">Todas</option>
+                    <option value="pendiente">Pendientes de recibir</option>
+                    <option value="recibida">Recibidas</option>
+                </select>
+            </div>
         </div>
 
         <div id="comprasListadoContainer">
@@ -559,6 +614,7 @@ function renderComprasTable(compras) {
                         <th>IVA</th>
                         <th>Total</th>
                         <th>Estado</th>
+                        <th>Recepción</th>
                         <th>Saldo</th>
                         <th>Acciones</th>
                     </tr>
@@ -591,12 +647,13 @@ function renderComprasTable(compras) {
             <tr>
                 <td>${c.id}</td>
                 <td>${nombreProveedor}</td>
-                <td>${c.numero_factura || "--"}</td>
+                <td>${c.numero_factura || "--"}${c.id_pedido ? `<div class="small text-muted">Pedido #${c.id_pedido}</div>` : ""}</td>
                 <td>${c.fecha ? new Date(c.fecha).toLocaleDateString() : "--"}</td>
                 <td>Q${c.subtotal || 0}</td>
                 <td>Q${c.iva || 0}</td>
                 <td><strong>Q${c.total || 0}</strong></td>
                 <td><span class="badge ${estadoBadge}">${estado}</span></td>
+                <td>${_badgeRecepcionCompra(c)}</td>
                 <td>Q${c.saldo_pendiente || 0}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-info" onclick="verCompra(${c.id})" title="Ver detalle">
@@ -606,7 +663,9 @@ function renderComprasTable(compras) {
                         <i class="fas fa-print"></i>
                     </button>
                     ${
-                      tienePermiso("Compras", "Editar") && c.estado !== "Cancelada"
+                      tienePermiso("Compras", "Editar") &&
+                      _estadoRecepcionCompra(c).tipo !== "recibida" &&
+                      _estadoRecepcionCompra(c).tipo !== "cancelada"
                         ? `<button class="btn btn-sm btn-outline-success" onclick="registrarNotaEntrega(${c.id})" title="Nota de entrega (recibir mercadería)">
                         <i class="fas fa-file-signature"></i>
                     </button>`
@@ -1219,6 +1278,8 @@ async function filtrarCompras() {
 }
 
 function limpiarFiltrosCompras() {
+  const recep = document.getElementById("filtroCompraRecepcion");
+  if (recep) recep.value = "";
   const prov = document.getElementById("filtroCompraProveedor");
   const desde = document.getElementById("filtroCompraDesde");
   const hasta = document.getElementById("filtroCompraHasta");
@@ -3821,6 +3882,31 @@ async function verCompra(id) {
             })
             .join("");
 
+    // --- Notas de entrega ---
+    const notasEntrega = compra.notas_entrega || [];
+    const notasHtml =
+      notasEntrega.length === 0
+        ? '<tr><td colspan="5" class="text-center text-muted">Todavía no se ha registrado la recepción de esta compra</td></tr>'
+        : notasEntrega
+            .map((n) => {
+              const u = (window.usuariosData || []).find(
+                (x) => x.id === n.id_usuario_receptor,
+              );
+              const receptor = u
+                ? u.nombre_usuario || u.nombre || u.username || "--"
+                : n.id_usuario_receptor || "--";
+              return `
+        <tr>
+          <td>${n.numero_nota || "--"}</td>
+          <td>${n.fecha_recepcion ? new Date(n.fecha_recepcion).toLocaleString() : "--"}</td>
+          <td>${n.conforme === 1 ? '<span class="badge bg-success">Conforme</span>' : '<span class="badge bg-danger">No conforme</span>'}</td>
+          <td>${receptor}</td>
+          <td>${n.observaciones || ""}</td>
+        </tr>
+      `;
+            })
+            .join("");
+
     const estadoBadge =
       compra.estado === "Cancelada"
         ? "bg-danger"
@@ -3845,6 +3931,10 @@ async function verCompra(id) {
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Fecha:</strong> ${compra.fecha ? new Date(compra.fecha).toLocaleString() : "--"}</div>
                     <div class="col-md-6"><strong>Estado:</strong> <span class="badge ${estadoBadge}">${compra.estado || "Pendiente"}</span></div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6"><strong>Recepción:</strong> ${_badgeRecepcionCompra(compra)}</div>
+                    <div class="col-md-6"><strong>Pedido:</strong> ${compra.id_pedido ? `#${compra.id_pedido}` : "Sin pedido"}</div>
                 </div>
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Subtotal:</strong> Q${compra.subtotal || 0}</div>
@@ -3880,6 +3970,22 @@ async function verCompra(id) {
                             </tr>
                         </thead>
                         <tbody>${pagosHtml}</tbody>
+                    </table>
+                </div>
+
+                <h6 class="fw-bold mt-4">Notas de entrega (recepción)</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>N° Nota</th>
+                                <th>Fecha</th>
+                                <th>Resultado</th>
+                                <th>Recibió</th>
+                                <th>Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>${notasHtml}</tbody>
                     </table>
                 </div>
             </div>
