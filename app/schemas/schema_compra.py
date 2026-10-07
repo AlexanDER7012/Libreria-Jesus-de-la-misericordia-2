@@ -75,6 +75,8 @@ class CompraResponse(BaseModel):
     motivo_cancelacion: Optional[str] = None
     detalles: List[DetalleCompraResponse] = []
     pagos: List[CompraPagoResponse] = []
+    # Notas de entrega de la compra (para saber si ya se recibió la mercadería)
+    notas_entrega: List["NotaEntregaResponse"] = []
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -92,6 +94,10 @@ class NotaEntregaResponse(NotaEntregaCreate):
     id_compra: int
     fecha_recepcion: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+# CompraResponse usa NotaEntregaResponse, que se declara después
+CompraResponse.model_rebuild()
 
 
 # ===================== DevolucionCompra =====================

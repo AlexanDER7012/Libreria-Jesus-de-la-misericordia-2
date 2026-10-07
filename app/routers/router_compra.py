@@ -1,5 +1,5 @@
-from datetime import date
-from typing import List, Optional
+from datetime import date, datetime
+from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -80,11 +80,15 @@ def listar_compras(
     buscar: Optional[str] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
+    recepcion: Optional[Literal["pendiente", "recibida"]] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     usuario_actual=Depends(get_current_user),
 ):
-    """buscar: coincidencia en número de factura. Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
+    """buscar: coincidencia en número de factura. Filtra por fecha_desde/fecha_hasta.
+    recepcion: 'pendiente' = compras sin nota de entrega conforme (y no canceladas);
+    'recibida' = compras con nota de entrega conforme.
+    Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Compra).order_by(Compra.fecha.desc())
     if estado is not None:
         query = query.filter(Compra.estado == estado)
@@ -96,6 +100,12 @@ def listar_compras(
         query = query.filter(func.date(Compra.fecha) >= fecha_desde)
     if fecha_hasta is not None:
         query = query.filter(func.date(Compra.fecha) <= fecha_hasta)
+    if recepcion is not None:
+        ids_recibidas = db.query(NotaEntrega.id_compra).filter(NotaEntrega.conforme == 1)
+        if recepcion == "recibida":
+            query = query.filter(Compra.id.in_(ids_recibidas))
+        else:
+            query = query.filter(~Compra.id.in_(ids_recibidas), Compra.estado != "Cancelada")
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
@@ -358,6 +368,7 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
             if producto:
                 producto.stock_actual = float(producto.stock_actual or 0) + float(detalle.cantidad_unidades)
 
+        compra.fecha_recepcion = datetime.now()
         if compra.estado == "Pendiente":
             compra.estado = "Recibida"
 
