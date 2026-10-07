@@ -81,6 +81,7 @@ def buscar_por_codigo(
     Búsqueda exacta por código de barras — pensado para cuando el lector
     USB/Bluetooth 'escribe' el código completo y se dispara la búsqueda.
     """
+    codigo = codigo.strip()
     producto = db.query(Producto).filter(Producto.codigo == codigo).first()
     if not producto:
         raise HTTPException(status_code=404, detail="No existe ningún producto con ese código")
@@ -117,10 +118,16 @@ def historico_precios_de_producto(
 
 @router.post("", response_model=ProductoResponse, status_code=201)
 def crear_producto(datos: ProductoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
-    if db.query(Producto).filter(Producto.codigo == datos.codigo).first():
-        raise HTTPException(status_code=400, detail="Ya existe un producto con ese código")
+    codigo_limpio = (datos.codigo or "").strip()
+    existente = db.query(Producto).filter(Producto.codigo == codigo_limpio).first()
+    if existente:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ya existe un producto con ese código ('{existente.nombre}')",
+        )
 
     datos_dict = datos.model_dump()
+    datos_dict["codigo"] = codigo_limpio
 
     if datos_dict.get("precio_automatico") == 1:
         datos_dict["precio_venta"] = _calcular_precio_venta(
@@ -156,6 +163,21 @@ def actualizar_producto(producto_id: int, datos: ProductoUpdate, db: Session = D
 
     precio_anterior = producto.precio_venta
     datos_dict = datos.model_dump(exclude_unset=True)
+
+    # Evita que dos productos queden con el mismo código de barras al editar
+    if datos_dict.get("codigo") is not None:
+        datos_dict["codigo"] = datos_dict["codigo"].strip()
+        if datos_dict["codigo"] != producto.codigo:
+            duplicado = (
+                db.query(Producto)
+                .filter(Producto.codigo == datos_dict["codigo"], Producto.id != producto_id)
+                .first()
+            )
+            if duplicado:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Ya existe otro producto con ese código ('{duplicado.nombre}')",
+                )
 
     precio_automatico_final = datos_dict.get("precio_automatico", producto.precio_automatico)
     if precio_automatico_final == 1:

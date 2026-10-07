@@ -740,7 +740,7 @@ function crearModalVenta() {
                   <div class="input-group">
                     <input type="text" class="form-control" id="ventaBuscarNit" 
                            placeholder="Ingresa NIT del cliente" 
-                           onkeyup="if(event.key === 'Enter') buscarClientePorNit()">
+                           onkeydown="if(event.key === 'Enter'){ event.preventDefault(); buscarClientePorNit(); }">
                     <button class="btn btn-outline-primary" type="button" onclick="buscarClientePorNit()">
                       <i class="fas fa-search"></i>
                     </button>
@@ -764,7 +764,7 @@ function crearModalVenta() {
                     <input type="text" class="form-control" id="ventaCotizacion" 
                            placeholder="ID de cotización aprobada" 
                            onchange="buscarCotizacionParaVenta()" 
-                           onkeyup="if(event.key === 'Enter') buscarCotizacionParaVenta()">
+                           onkeydown="if(event.key === 'Enter'){ event.preventDefault(); buscarCotizacionParaVenta(); }">
                     <button class="btn btn-outline-info" type="button" onclick="buscarCotizacionParaVenta()">
                       <i class="fas fa-search"></i>
                     </button>
@@ -810,6 +810,14 @@ function crearModalVenta() {
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h6 class="fw-bold">Productos</h6>
             </div>
+
+            <div class="input-group input-group-sm mb-1">
+              <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+              <input type="text" class="form-control" id="ventaScanInput"
+                     placeholder="Escanea el código de barras aquí (o escríbelo y presiona Enter)"
+                     autocomplete="off">
+            </div>
+            <div id="ventaScanInfo" class="small mb-2"></div>
 
             <div class="row mb-2" id="ventaDetalleRow">
               <div class="col-md-5">
@@ -948,6 +956,17 @@ async function showCreateVentaModal() {
   llenarSelectProductoDetalle();
 
   if (ventaDetallesList) ventaDetallesList.innerHTML = "";
+
+  crearEscanerCodigo({
+    input: "ventaScanInput",
+    info: "ventaScanInfo",
+    onProducto: agregarProductoEscaneadoVenta,
+  });
+  modal.addEventListener(
+    "shown.bs.modal",
+    () => document.getElementById("ventaScanInput")?.focus(),
+    { once: true },
+  );
 
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
@@ -1390,25 +1409,75 @@ function agregarDetalleVenta(event) {
     return;
   }
 
-  if ((producto.stock_actual || 0) < cantidad) {
+  const yaEnVenta = _cantidadEnVenta(id_producto);
+  if ((parseFloat(producto.stock_actual) || 0) < yaEnVenta + cantidad) {
     showToast(
-      `Stock insuficiente. Disponible: ${producto.stock_actual || 0}`,
+      `Stock insuficiente. Disponible: ${producto.stock_actual || 0}` +
+        (yaEnVenta ? ` (ya agregaste ${yaEnVenta})` : ""),
       "error",
     );
     return;
   }
 
-  ventaDetallesTemp.push({
-    id_producto: id_producto,
-    cantidad: cantidad,
-    producto: producto,
-    precio_unitario: producto.precio_venta || 0,
-  });
+  const existente = ventaDetallesTemp.find((d) => d.id_producto === id_producto);
+  if (existente) {
+    existente.cantidad += cantidad;
+  } else {
+    ventaDetallesTemp.push({
+      id_producto: id_producto,
+      cantidad: cantidad,
+      producto: producto,
+      precio_unitario: producto.precio_venta || 0,
+    });
+  }
 
   renderDetallesVenta();
   cantidadInput.value = 1;
   productSelect.value = "";
   document.getElementById("ventaDetallePrecio").value = "";
+  document.getElementById("ventaScanInput")?.focus();
+}
+
+// ============================================================
+// LECTOR DE CÓDIGO DE BARRAS (Nueva Venta)
+// El lector USB "escribe" el código y manda Enter. Cada escaneo agrega
+// el producto (o suma 1 si ya está en la venta).
+// ============================================================
+function _cantidadEnVenta(idProducto) {
+  return ventaDetallesTemp
+    .filter((d) => d.id_producto === idProducto)
+    .reduce((suma, d) => suma + (parseFloat(d.cantidad) || 0), 0);
+}
+
+// Qué pasa en Nueva Venta al escanear un producto. La búsqueda por código,
+// el Enter y los avisos los maneja escaner-codigo.js.
+function agregarProductoEscaneadoVenta(producto) {
+  const nuevaCantidad = _cantidadEnVenta(producto.id) + 1;
+  const stock = parseFloat(producto.stock_actual) || 0;
+  if (stock < nuevaCantidad) {
+    return {
+      tipo: "error",
+      texto: `Stock insuficiente de ${producto.nombre}. Disponible: ${stock}`,
+    };
+  }
+
+  const existente = ventaDetallesTemp.find((d) => d.id_producto === producto.id);
+  if (existente) {
+    existente.cantidad = (parseFloat(existente.cantidad) || 0) + 1;
+  } else {
+    ventaDetallesTemp.push({
+      id_producto: producto.id,
+      cantidad: 1,
+      producto: producto,
+      precio_unitario: producto.precio_venta || 0,
+    });
+  }
+
+  renderDetallesVenta();
+  return {
+    tipo: "ok",
+    texto: `${producto.nombre} agregado (cantidad: ${nuevaCantidad})`,
+  };
 }
 
 function eliminarDetalleVenta(index) {
@@ -4553,6 +4622,7 @@ window.showCreateVentaModal = showCreateVentaModal;
 window.buscarCotizacionParaVenta = buscarCotizacionParaVenta;
 window.crearVentaDesdeCotizacion = crearVentaDesdeCotizacion;
 window.agregarDetalleVenta = agregarDetalleVenta;
+window.agregarProductoEscaneadoVenta = agregarProductoEscaneadoVenta;
 window.eliminarDetalleVenta = eliminarDetalleVenta;
 window.saveVenta = saveVenta;
 window.verVenta = verVenta;

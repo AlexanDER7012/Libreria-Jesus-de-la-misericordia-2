@@ -123,10 +123,10 @@ function mostrarConfirmacion(titulo, mensaje) {
 
 async function obtenerProductosParaInventario() {
   try {
-    if (window.productosData && window.productosData.length > 0) {
-      return window.productosData;
-    }
-    const productos = await api.getProductos();
+    // Siempre se piden al servidor: antes se reutilizaba la lista que ya
+    // estaba en memoria y el stock mostrado podía estar desactualizado
+    // (por ejemplo, decía "Agotado" aunque ya se hubiera recibido mercadería).
+    const productos = await api.request("/productos?limit=200");
     window.productosData = productos || [];
     try {
       localStorage.setItem(
@@ -876,6 +876,12 @@ function showMovimientoModal() {
   document.getElementById("movimientoId").value = "";
   limpiarErroresFormulario("movimientoForm");
   populateSelectsInventario();
+  prepararEscanerInventario("movimientoProducto", seleccionarProductoEscaneadoMovimiento);
+  modal.addEventListener(
+    "shown.bs.modal",
+    () => document.getElementById("movimientoProductoScan")?.focus(),
+    { once: true },
+  );
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
 }
@@ -892,6 +898,12 @@ function showConteoFisicoModal() {
   document.getElementById("conteoStockSistema").value = 0;
   limpiarErroresFormulario("conteoForm");
   populateSelectsInventario();
+  prepararEscanerInventario("conteoProducto", contarProductoEscaneado);
+  modal.addEventListener(
+    "shown.bs.modal",
+    () => document.getElementById("conteoProductoScan")?.focus(),
+    { once: true },
+  );
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
 }
@@ -907,8 +919,110 @@ function showTrasladoModal() {
   document.getElementById("trasladoId").value = "";
   limpiarErroresFormulario("trasladoForm");
   populateSelectsInventario();
+  prepararEscanerInventario("trasladoProducto", seleccionarProductoEscaneadoTraslado);
+  modal.addEventListener(
+    "shown.bs.modal",
+    () => document.getElementById("trasladoProductoScan")?.focus(),
+    { once: true },
+  );
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
+}
+
+// =============================================
+// LECTOR DE CÓDIGO DE BARRAS (Movimiento, Conteo físico, Traslado)
+// La búsqueda por código, el Enter y los avisos los maneja escaner-codigo.js
+// =============================================
+function prepararEscanerInventario(selectId, onProducto) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const scanId = `${selectId}Scan`;
+  const infoId = `${selectId}ScanInfo`;
+
+  if (!document.getElementById(scanId)) {
+    const bloque = select.closest(".mb-3") || select;
+    bloque.insertAdjacentHTML(
+      "beforebegin",
+      `
+      <div class="mb-2">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+          <input type="text" class="form-control" id="${scanId}"
+                 placeholder="Escanea el código de barras (o escríbelo y presiona Enter)">
+        </div>
+        <div id="${infoId}" class="small mt-1"></div>
+      </div>
+    `,
+    );
+  }
+
+  const info = document.getElementById(infoId);
+  if (info) info.innerHTML = "";
+
+  crearEscanerCodigo({ input: scanId, info: infoId, onProducto });
+}
+
+function _seleccionarProductoInventario(selectId, producto) {
+  const select = document.getElementById(selectId);
+  if (!select) return false;
+  asegurarOpcionProducto(
+    select,
+    producto,
+    `${producto.codigo || ""} - ${producto.nombre} (Stock: ${producto.stock_actual || 0})`,
+  );
+  select.value = String(producto.id);
+  // Dispara el "change" para que se actualicen los campos que dependen del producto
+  select.dispatchEvent(new Event("change"));
+  return true;
+}
+
+function seleccionarProductoEscaneadoMovimiento(producto) {
+  _seleccionarProductoInventario("movimientoProducto", producto);
+  document.getElementById("movimientoCantidad")?.focus();
+  return {
+    tipo: "ok",
+    texto: `${producto.nombre} seleccionado (stock actual: ${producto.stock_actual || 0})`,
+  };
+}
+
+function seleccionarProductoEscaneadoTraslado(producto) {
+  _seleccionarProductoInventario("trasladoProducto", producto);
+  return {
+    tipo: "ok",
+    texto: `${producto.nombre} seleccionado (stock actual: ${producto.stock_actual || 0})`,
+  };
+}
+
+// Conteo físico: el primer escaneo selecciona el producto y cuenta 1;
+// cada escaneo siguiente del MISMO producto suma 1 a "Cantidad Contada".
+function contarProductoEscaneado(producto) {
+  const select = document.getElementById("conteoProducto");
+  const cantidadInput = document.getElementById("conteoCantidad");
+  if (!select || !cantidadInput) {
+    return { tipo: "error", texto: "No se encontró el formulario de conteo" };
+  }
+
+  const actual = parseFloat(cantidadInput.value) || 0;
+  const mismoProducto = String(select.value) === String(producto.id);
+
+  if (!mismoProducto && select.value && actual > 0) {
+    const nombreActual =
+      (window.productosData || []).find((p) => String(p.id) === String(select.value))
+        ?.nombre || "el producto actual";
+    return {
+      tipo: "aviso",
+      texto: `Guarda primero el conteo de ${nombreActual} antes de escanear ${producto.nombre}`,
+    };
+  }
+
+  if (!mismoProducto) _seleccionarProductoInventario("conteoProducto", producto);
+  const nuevaCantidad = (mismoProducto ? actual : 0) + 1;
+  cantidadInput.value = nuevaCantidad;
+
+  return {
+    tipo: "ok",
+    texto: `${producto.nombre}: contadas ${nuevaCantidad} (en sistema: ${producto.stock_actual || 0})`,
+  };
 }
 
 // =============================================
@@ -1001,7 +1115,7 @@ async function saveConteoFisico(event) {
   }
 
   const cantidad = parseFloat(document.getElementById("conteoCantidad").value);
-  if (!cantidad || cantidad < 0) {
+  if (isNaN(cantidad) || cantidad < 0) {
     mostrarErrorCampo("conteoCantidad", "Ingrese una cantidad válida");
     valid = false;
   } else {
@@ -2187,6 +2301,7 @@ window.loadInventarioModule = loadInventarioModule;
 window.showMovimientoModal = showMovimientoModal;
 window.showConteoFisicoModal = showConteoFisicoModal;
 window.showTrasladoModal = showTrasladoModal;
+window.contarProductoEscaneado = contarProductoEscaneado;
 window.saveMovimiento = saveMovimiento;
 window.saveConteoFisico = saveConteoFisico;
 window.saveTraslado = saveTraslado;

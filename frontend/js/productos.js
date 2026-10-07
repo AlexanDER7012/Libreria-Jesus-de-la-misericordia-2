@@ -529,6 +529,17 @@ function showCreateProductoModal() {
   document.getElementById("productoStockMinimo").value = "0";
   document.getElementById("productoStockMaximo").value = "0";
 
+  // Listo para escanear: el cursor queda en "Código" al abrir el modal
+  const codigoInput = document.getElementById("productoCodigo");
+  if (codigoInput) {
+    codigoInput.placeholder = "Escanea el código de barras o escríbelo";
+  }
+  modal.addEventListener(
+    "shown.bs.modal",
+    () => document.getElementById("productoCodigo")?.focus(),
+    { once: true },
+  );
+
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
 }
@@ -2597,6 +2608,13 @@ window.showCreateUnidadModal = showCreateUnidadModal;
 window.showEditUnidadModal = showEditUnidadModal;
 window.saveUnidad = saveUnidad;
 window.toggleUnidadEstado = toggleUnidadEstado;
+
+document.addEventListener("keydown", function (e) {
+  if (e.key !== "Enter" || !e.target || e.target.id !== "productoCodigo") return;
+  e.preventDefault();
+  const nombre = document.getElementById("productoNombre");
+  if (nombre) nombre.focus();
+});
 
 // Event listener permanente para el formulario producto
 document.addEventListener("DOMContentLoaded", function () {

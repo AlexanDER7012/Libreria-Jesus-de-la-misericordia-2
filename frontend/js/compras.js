@@ -606,11 +606,17 @@ function renderComprasTable(compras) {
                         <i class="fas fa-print"></i>
                     </button>
                     ${
-                      tienePermiso("Compras", "Editar")
-                        ? `<button class="btn btn-sm btn-outline-success" onclick="registrarNotaEntrega(${c.id})" title="Nota de entrega">
+                      tienePermiso("Compras", "Editar") && c.estado !== "Cancelada"
+                        ? `<button class="btn btn-sm btn-outline-success" onclick="registrarNotaEntrega(${c.id})" title="Nota de entrega (recibir mercadería)">
                         <i class="fas fa-file-signature"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-warning" onclick="registrarPagoCompra(${c.id})" title="Registrar pago">
+                    </button>`
+                        : ""
+                    }
+                    ${
+                      tienePermiso("Compras", "Editar") &&
+                      c.estado !== "Cancelada" &&
+                      parseFloat(c.saldo_pendiente || 0) > 0
+                        ? `<button class="btn btn-sm btn-outline-warning" onclick="registrarPagoCompra(${c.id})" title="Registrar pago">
                         <i class="fas fa-money-bill-wave"></i>
                     </button>`
                         : ""
@@ -3356,7 +3362,94 @@ function showCreateCompraModal() {
   const lista = document.getElementById("compraDetallesList");
   if (lista) lista.innerHTML = "";
 
+  prepararEscanerCompra();
+  modal.addEventListener(
+    "shown.bs.modal",
+    () => document.getElementById("compraScanInput")?.focus(),
+    { once: true },
+  );
+
   new bootstrap.Modal(modal).show();
+}
+
+// ============================================================
+// LECTOR DE CÓDIGO DE BARRAS (Nueva Compra)
+// Flujo: escaneas -> se selecciona el producto y se llena el último costo
+// -> escribes la cantidad y Enter -> revisas el costo y Enter -> se agrega.
+// ============================================================
+function prepararEscanerCompra() {
+  const contenedor = document.getElementById("compraDetallesContainer");
+  if (!contenedor) return;
+
+  if (!document.getElementById("compraScanInput")) {
+    contenedor.insertAdjacentHTML(
+      "beforebegin",
+      `
+      <div class="input-group input-group-sm mb-1">
+        <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+        <input type="text" class="form-control" id="compraScanInput"
+               placeholder="Escanea el código de barras aquí (o escríbelo y presiona Enter)">
+      </div>
+      <div id="compraScanInfo" class="small mb-2"></div>
+    `,
+    );
+
+    // Enter en Cantidad pasa a Costo; Enter en Costo agrega el producto.
+    // Sin esto, el Enter en esos campos enviaba el formulario de la compra.
+    const row = document.getElementById("compraDetalleRow");
+    const cantidadInput = row?.querySelector(".compra-detalle-cantidad");
+    const costoInput = row?.querySelector(".compra-detalle-costo");
+    cantidadInput?.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      costoInput?.focus();
+      costoInput?.select();
+    });
+    costoInput?.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      agregarDetalleCompra(e);
+    });
+  }
+
+  const info = document.getElementById("compraScanInfo");
+  if (info) info.innerHTML = "";
+
+  crearEscanerCodigo({
+    input: "compraScanInput",
+    info: "compraScanInfo",
+    onProducto: seleccionarProductoEscaneadoCompra,
+  });
+}
+
+function seleccionarProductoEscaneadoCompra(producto) {
+  const row = document.getElementById("compraDetalleRow");
+  if (!row) return { tipo: "error", texto: "No se encontró la fila de detalle" };
+
+  const productSelect = row.querySelector(".compra-detalle-producto");
+  const cantidadInput = row.querySelector(".compra-detalle-cantidad");
+  const costoInput = row.querySelector(".compra-detalle-costo");
+
+  asegurarOpcionProducto(productSelect, producto);
+  productSelect.value = String(producto.id);
+
+  const ultimoCosto = parseFloat(producto.precio_compra) || 0;
+  if (costoInput) costoInput.value = ultimoCosto ? ultimoCosto.toFixed(2) : "";
+  if (cantidadInput) {
+    cantidadInput.value = 1;
+    cantidadInput.focus();
+    cantidadInput.select();
+  }
+
+  return ultimoCosto
+    ? {
+        tipo: "ok",
+        texto: `${producto.nombre}: escribe la cantidad y presiona Enter (último costo Q${ultimoCosto.toFixed(2)})`,
+      }
+    : {
+        tipo: "aviso",
+        texto: `${producto.nombre}: no tiene costo registrado, escríbelo antes de agregar`,
+      };
 }
 
 async function cargarPedidoEnCompra() {
@@ -3479,18 +3572,30 @@ function agregarDetalleCompra(event) {
   );
   if (!producto) return showToast("Producto no encontrado", "error");
 
-  compraDetallesTemp.push({
-    id_producto,
-    cantidad_comprada: cantidad,
-    cantidad_unidades: cantidad,
-    costo_unitario,
-    producto,
-  });
+  const existente = compraDetallesTemp.find(
+    (d) => d.id_producto === id_producto && d.costo_unitario === costo_unitario,
+  );
+  if (existente) {
+    existente.cantidad_comprada += cantidad;
+    existente.cantidad_unidades = (existente.cantidad_unidades || 0) + cantidad;
+  } else {
+    compraDetallesTemp.push({
+      id_producto,
+      cantidad_comprada: cantidad,
+      cantidad_unidades: cantidad,
+      costo_unitario,
+      producto,
+    });
+  }
 
   renderDetallesCompra();
   cantidadInput.value = 1;
   costoInput.value = 0;
   productSelect.value = "";
+
+  const info = document.getElementById("compraScanInfo");
+  if (info) info.innerHTML = "";
+  document.getElementById("compraScanInput")?.focus();
 }
 
 function renderDetallesCompra() {
@@ -3639,44 +3744,14 @@ async function saveCompra(event) {
 
   try {
     const result = await api.request("/compras", "POST", data);
-    showToast(`Compra #${result.id} creada correctamente`, "success");
-
-    let movimientosRegistrados = 0;
-    let erroresMovimientos = [];
-
-    for (const detalle of compraDetallesTemp) {
-      try {
-        await registrarMovimientoInventario(
-          detalle.id_producto,
-          detalle.cantidad_comprada,
-          null,
-          `Compra #${result.id} - ${detalle.producto.nombre}`,
-          detalle.costo_unitario,
-        );
-        movimientosRegistrados++;
-      } catch (error) {
-        erroresMovimientos.push({
-          producto: detalle.producto.nombre,
-          error: error.message,
-        });
-      }
-    }
-
-    if (movimientosRegistrados > 0) {
-      showToast(
-        `✅ Inventario actualizado: ${movimientosRegistrados} productos`,
-        "success",
-      );
-    }
-    if (erroresMovimientos.length > 0) {
-      const mensaje = erroresMovimientos
-        .map((e) => `• ${e.producto}: ${e.error}`)
-        .join("\n");
-      showToast(
-        `⚠️ Algunos productos no actualizaron inventario:\n${mensaje}`,
-        "warning",
-      );
-    }
+    // El stock NO se suma aquí: lo suma el servidor al registrar la
+    // Nota de entrega conforme (cuando la mercadería se recibe). Antes este
+    // archivo también lo sumaba por su cuenta, y el stock quedaba contado
+    // dos veces (y fallaba si el usuario no tenía permiso de Inventario).
+    showToast(
+      `Compra #${result.id} creada correctamente. El stock se sumará al registrar la nota de entrega.`,
+      "success",
+    );
 
     bootstrap.Modal.getInstance(document.getElementById("compraModal")).hide();
     await loadComprasModule();
@@ -3922,6 +3997,12 @@ async function imprimirCompra(id) {
 }
 
 async function registrarNotaEntrega(id) {
+  let numeroSugerido = "";
+  try {
+    const compraNota = await api.request(`/compras/${id}`);
+    numeroSugerido = compraNota?.numero_factura || "";
+  } catch (e) {}
+
   const existing = document.getElementById("registrarNotaEntregaModal");
   if (existing) existing.remove();
 
@@ -3937,7 +4018,10 @@ async function registrarNotaEntrega(id) {
             <form id="registrarNotaEntregaForm">
               <div class="mb-3">
                 <label class="form-label fw-bold">Número de Nota <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" id="notaEntregaNumero" required />
+                <input type="text" class="form-control" id="notaEntregaNumero" required
+                       value="${String(numeroSugerido).replace(/"/g, "&quot;")}"
+                       placeholder="Número de la nota de envío del proveedor" />
+                <small class="text-muted">Es el número del documento que trae el proveedor con la mercadería (nota de envío o remisión). Si no trae uno, usa el número de factura.</small>
               </div>
               <div class="mb-3">
                 <label class="form-label fw-bold">¿El receptor está conforme?</label>
@@ -4006,6 +4090,17 @@ async function registrarNotaEntrega(id) {
 }
 
 async function registrarPagoCompra(id) {
+  let compraPago;
+  try {
+    compraPago = await api.request(`/compras/${id}`);
+  } catch (error) {
+    return showToast(error.message || "No se pudo cargar la compra", "error");
+  }
+  const saldoCompra = Math.round(parseFloat(compraPago?.saldo_pendiente || 0) * 100) / 100;
+  if (saldoCompra <= 0) {
+    return showToast("Esta compra ya está pagada por completo", "warning");
+  }
+
   const tiposPago = await api.getTiposPago();
   if (!tiposPago || tiposPago.length === 0)
     return showToast("No hay tipos de pago disponibles", "error");
@@ -4044,7 +4139,8 @@ async function registrarPagoCompra(id) {
               </div>
               <div class="mb-3">
                 <label class="form-label fw-bold">Monto <span class="text-danger">*</span></label>
-                <input type="number" step="0.01" min="0.01" class="form-control" id="pagoCompraMonto" required />
+                <input type="number" step="0.01" min="0.01" max="${saldoCompra.toFixed(2)}" class="form-control" id="pagoCompraMonto" value="${saldoCompra.toFixed(2)}" required />
+                <small class="text-muted">Saldo pendiente: Q${saldoCompra.toFixed(2)}</small>
               </div>
               <div class="mb-3">
                 <label class="form-label fw-bold">Referencia</label>
@@ -4081,6 +4177,12 @@ async function registrarPagoCompra(id) {
       if (!id_tipo_pago)
         return showToast("Selecciona un tipo de pago", "error");
       if (!monto || monto <= 0) return showToast("Monto inválido", "error");
+      if (monto > saldoCompra + 0.01) {
+        return showToast(
+          `El pago (Q${monto.toFixed(2)}) es mayor al saldo pendiente (Q${saldoCompra.toFixed(2)})`,
+          "error",
+        );
+      }
 
       try {
         await api.request(`/compras/${id}/pagos`, "POST", {
@@ -4505,6 +4607,7 @@ window.cargarPedidoEnCompra = cargarPedidoEnCompra;
 window.llenarSelectProveedor = llenarSelectProveedor;
 window.llenarSelectProductoCompra = llenarSelectProductoCompra;
 window.agregarDetalleCompra = agregarDetalleCompra;
+window.seleccionarProductoEscaneadoCompra = seleccionarProductoEscaneadoCompra;
 window.eliminarDetalleCompra = eliminarDetalleCompra;
 window.renderDetallesCompra = renderDetallesCompra;
 window.cancelarCompra = cancelarCompra;

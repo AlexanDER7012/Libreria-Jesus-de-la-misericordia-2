@@ -213,7 +213,14 @@ def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db
             TipoMovimientoInventario.nombre == "Compra"
         ).first()
 
-    if tipo_ajuste and compra.detalles:
+    # Solo se resta stock si la mercadería SÍ se recibió (nota de entrega
+    # conforme). Si nunca se recibió, el stock nunca se sumó, y restarlo
+    # lo dejaría por debajo de lo real (o negativo).
+    fue_recibida = db.query(NotaEntrega).filter(
+        NotaEntrega.id_compra == compra.id, NotaEntrega.conforme == 1
+    ).first() is not None
+
+    if fue_recibida and tipo_ajuste and compra.detalles:
         movimiento = MovimientoInventario(
             id_usuario=usuario_actual.id,
             id_tipo_movimiento=tipo_ajuste.id,
@@ -248,6 +255,10 @@ def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db
         compra.motivo_cancelacion = datos.motivo
 
     detalle_cancelacion = f"Canceló la compra #{compra.id}"
+    detalle_cancelacion += (
+        " (se restó del inventario lo recibido)" if fue_recibida
+        else " (no se había recibido, el inventario no cambió)"
+    )
     if datos.motivo:
         detalle_cancelacion += f" — motivo: {datos.motivo}"
     registrar_actividad(db, usuario_actual.id, "EDITAR", "Compra", detalle=detalle_cancelacion)
@@ -295,6 +306,11 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
     compra = db.query(Compra).filter(Compra.id == compra_id).first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
+    if compra.estado == "Cancelada":
+        raise HTTPException(
+            status_code=400,
+            detail="Esta compra está cancelada; no se puede registrar su recepción.",
+        )
 
     if datos.conforme == 1:
         ya_recibida = db.query(NotaEntrega).filter(
@@ -339,7 +355,8 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
                 costo_unitario=detalle.costo_unitario,
             ))
             producto = db.query(Producto).filter(Producto.id == detalle.id_producto).first()
-            producto.stock_actual = float(producto.stock_actual or 0) + float(detalle.cantidad_unidades)
+            if producto:
+                producto.stock_actual = float(producto.stock_actual or 0) + float(detalle.cantidad_unidades)
 
         if compra.estado == "Pendiente":
             compra.estado = "Recibida"
@@ -361,6 +378,17 @@ def registrar_pago_compra(compra_id: int, datos: CompraPagoCreate, db: Session =
         raise HTTPException(status_code=404, detail="Compra no encontrada")
     if compra.estado == "Cancelada":
         raise HTTPException(status_code=400, detail="No se pueden registrar pagos a una compra cancelada")
+
+    saldo_actual = round(float(compra.saldo_pendiente or 0), 2)
+    if saldo_actual <= 0:
+        raise HTTPException(status_code=400, detail="Esta compra ya está pagada por completo")
+    if float(datos.monto) <= 0:
+        raise HTTPException(status_code=400, detail="El monto del pago debe ser mayor a 0")
+    if float(datos.monto) > saldo_actual + 0.01:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El pago (Q{float(datos.monto):.2f}) es mayor al saldo pendiente (Q{saldo_actual:.2f})",
+        )
 
     nuevo_pago = CompraPago(id_compra=compra_id, **datos.model_dump())
     db.add(nuevo_pago)
