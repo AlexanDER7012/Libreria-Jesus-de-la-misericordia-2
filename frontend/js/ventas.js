@@ -2170,7 +2170,7 @@ async function showEditClienteSubModal(id) {
 }
 
 async function deleteClienteSub(id) {
-  if (!confirm("¿Estás seguro de eliminar este cliente?")) return;
+  if (!await confirmarAccion("¿Estás seguro de eliminar este cliente?")) return;
   try {
     await api.deleteCliente(id);
     showToast("Cliente eliminado correctamente", "success");

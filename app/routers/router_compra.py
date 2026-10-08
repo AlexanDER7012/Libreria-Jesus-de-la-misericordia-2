@@ -278,20 +278,40 @@ def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db
 
 
 @router.delete("/{compra_id}/pagos/{pago_id}", status_code=204)
-def eliminar_pago_compra(compra_id: int, pago_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Eliminar"))):
-    """Elimina un pago y recalcula el saldo y estado de la compra."""
+def eliminar_pago_compra(
+    compra_id: int,
+    pago_id: int,
+    motivo: Optional[str] = None,
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Eliminar")),
+):
+    """
+    ANULA un pago (ya no se borra): queda en el historial marcado como
+    anulado, con el motivo en observaciones, y el saldo y el estado de la
+    compra se recalculan sin él. Así siempre queda constancia de lo que pasó.
+    """
     compra = db.query(Compra).filter(Compra.id == compra_id).first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
+    if compra.estado == "Cancelada":
+        raise HTTPException(status_code=400, detail="La compra está cancelada; sus pagos ya están anulados")
 
     pago = db.query(CompraPago).filter(
         CompraPago.id == pago_id, CompraPago.id_compra == compra_id
     ).first()
     if not pago:
         raise HTTPException(status_code=404, detail="Pago no encontrado en esta compra")
+    if pago.anulado:
+        raise HTTPException(status_code=400, detail="Este pago ya está anulado")
+
+    motivo_limpio = (motivo or "").strip()
+    if not motivo_limpio:
+        raise HTTPException(status_code=400, detail="Indica el motivo para anular el pago")
 
     monto_pago_eliminado = float(pago.monto)
-    db.delete(pago)
+    pago.anulado = 1
+    nota_anulacion = f"ANULADO: {motivo_limpio}"
+    pago.observaciones = f"{pago.observaciones} | {nota_anulacion}" if pago.observaciones else nota_anulacion
     db.flush()
 
     total_pagado = sum(float(p.monto) for p in compra.pagos if not p.anulado)
@@ -305,8 +325,8 @@ def eliminar_pago_compra(compra_id: int, pago_id: int, db: Session = Depends(get
         compra.estado = "Pendiente"
 
     registrar_actividad(
-        db, usuario_actual.id, "ELIMINAR", "CompraPago",
-        detalle=f"Eliminó el pago #{pago_id} (Q{monto_pago_eliminado}) de la compra #{compra_id}",
+        db, usuario_actual.id, "ANULAR", "CompraPago",
+        detalle=f"Anuló el pago #{pago_id} (Q{monto_pago_eliminado}) de la compra #{compra_id} — motivo: {motivo_limpio}",
     )
     db.commit()
 
