@@ -131,7 +131,7 @@ function ensureAllModals() {
               <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-              <form id="productoForm" novalidate>
+                  <form id="productoForm" onsubmit="saveProducto(event)" novalidate>
                 <input type="hidden" id="productoId" />
                 
                 <!-- FILA 1: Código y Nombre -->
@@ -260,9 +260,6 @@ function ensureAllModals() {
       </div>
     `;
     document.body.insertAdjacentHTML("beforeend", productoModalHTML);
-    document
-      .getElementById("productoForm")
-      .addEventListener("submit", saveProducto);
   }
 
   // Modal de Categoría
@@ -278,7 +275,7 @@ function ensureAllModals() {
               <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-              <form id="categoriaForm" novalidate>
+                  <form id="categoriaForm" onsubmit="saveCategoria(event)" novalidate>
                 <input type="hidden" id="categoriaId" />
                 <div class="mb-3">
                   <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
@@ -300,9 +297,6 @@ function ensureAllModals() {
       </div>
     `;
     document.body.insertAdjacentHTML("beforeend", categoriaModalHTML);
-    document
-      .getElementById("categoriaForm")
-      .addEventListener("submit", saveCategoria);
   }
 
   // Modal de Marca
@@ -318,7 +312,7 @@ function ensureAllModals() {
               <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-              <form id="marcaForm" novalidate>
+                  <form id="marcaForm" onsubmit="saveMarca(event)" novalidate>
                 <input type="hidden" id="marcaId" />
                 <div class="mb-3">
                   <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
@@ -340,7 +334,6 @@ function ensureAllModals() {
       </div>
     `;
     document.body.insertAdjacentHTML("beforeend", marcaModalHTML);
-    document.getElementById("marcaForm").addEventListener("submit", saveMarca);
   }
 
   // Modal de Unidad
@@ -356,7 +349,7 @@ function ensureAllModals() {
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-              <form id="unidadForm" novalidate>
+                  <form id="unidadForm" onsubmit="saveUnidad(event)" novalidate>
                 <input type="hidden" id="unidadId" />
                 <div class="mb-3">
                   <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
@@ -382,9 +375,6 @@ function ensureAllModals() {
       </div>
     `;
     document.body.insertAdjacentHTML("beforeend", unidadModalHTML);
-    document
-      .getElementById("unidadForm")
-      .addEventListener("submit", saveUnidad);
   }
 }
 
@@ -563,6 +553,7 @@ function renderProductosTable(productos) {
 // PRODUCTOS - CRUD
 
 function showCreateProductoModal() {
+  ensureAllModals();
   const modal = document.getElementById("productoModal");
   const form = document.getElementById("productoForm");
   const title = document.getElementById("productoModalTitle");
@@ -902,6 +893,7 @@ function renderCategoriasTable(categorias) {
 }
 
 function showCreateCategoriaModal() {
+  ensureAllModals();
   const modal = document.getElementById("categoriaModal");
   if (!modal) {
     showToast("Error: Modal de categoría no encontrado", "error");
@@ -1105,6 +1097,7 @@ function renderMarcasTable(marcas) {
 }
 
 function showCreateMarcaModal() {
+  ensureAllModals();
   const modal = document.getElementById("marcaModal");
   if (!modal) {
     showToast("Error: Modal de marca no encontrado", "error");
@@ -1308,6 +1301,7 @@ function renderUnidadesTable(unidades) {
 }
 
 function showCreateUnidadModal() {
+  ensureAllModals();
   const modal = document.getElementById("unidadModal");
   if (!modal) {
     showToast("Error: Modal de unidad no encontrado", "error");
