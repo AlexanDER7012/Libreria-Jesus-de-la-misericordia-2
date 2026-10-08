@@ -2136,7 +2136,7 @@ async function toggleProveedorEstado(id) {
 
   const accion = proveedor.activo !== 0 ? "inactivar" : "reactivar";
   if (
-    !confirm(
+    !await confirmarAccion(
       `¿${accion === "inactivar" ? "Inactivar" : "Reactivar"} el proveedor "${proveedor.nombre}"?`,
     )
   )
@@ -2226,7 +2226,7 @@ async function toggleTipoProveedorEstado(id) {
 
   const nuevo = tipo.activo === 0 ? 1 : 0;
   const accion = nuevo === 1 ? "activar" : "inactivar";
-  if (!confirm(`¿Está seguro de ${accion} el tipo "${tipo.nombre}"?`)) return;
+  if (!await confirmarAccion(`¿Está seguro de ${accion} el tipo "${tipo.nombre}"?`)) return;
 
   try {
     await api.request(`/tipos-proveedor/${id}`, "PUT", {
@@ -2592,7 +2592,7 @@ async function savePedidoCompleto(event) {
     0,
   );
   if (total < 500) {
-    const ok = confirm(
+    const ok = await confirmarAccion(
       `El pedido suma Q${total.toFixed(2)}, no alcanza el mínimo de Q500.\n\n¿Continuar de todas formas?\n(El pedido quedará como Pendiente)`,
     );
     if (!ok) return;
@@ -2788,9 +2788,11 @@ async function cambiarEstadoPedido(id) {
     "Comprado",
     "Cancelado",
   ];
-  const estadoActual = prompt(
-    `Ingrese el nuevo estado (${estados.join(", ")}):`,
+  const estadoActual = await elegirOpcionModal(
+    `Nuevo estado del pedido #${id}:`,
+    estados,
     "Aprobado",
+    { titulo: "Cambiar estado del pedido", textoAceptar: "Cambiar" },
   );
 
   if (!estadoActual) return;
@@ -2799,8 +2801,9 @@ async function cambiarEstadoPedido(id) {
     return showToast(`Estado inválido. Use: ${estados.join(", ")}`, "error");
   }
 
-  const forzar = confirm(
+  const forzar = await confirmarAccion(
     "¿Forzar aprobación aunque no alcance el mínimo de Q500?",
+    { titulo: "Mínimo de pedido", textoAceptar: "Sí, forzar", textoCancelar: "No", peligro: false },
   );
 
   try {
@@ -3197,7 +3200,7 @@ async function toggleTipoGastoEstado(id) {
   const tipo = (window.tiposGastoData || []).find((t) => t.id === id);
   if (!tipo) return;
   if (
-    !confirm(
+    !await confirmarAccion(
       `¿${tipo.activo !== 0 ? "Inactivar" : "Activar"} el tipo "${tipo.nombre}"?`,
     )
   )
@@ -3863,7 +3866,7 @@ async function verCompra(id) {
               const anulado = p.anulado === 1;
               return `
         <tr class="${anulado ? "text-muted" : ""}">
-          <td>${tipo ? tipo.nombre : "--"} ${anulado ? '<span class="badge bg-secondary ms-1">Anulado</span>' : ""}</td>
+          <td>${tipo ? tipo.nombre : "--"} ${anulado ? '<span class="badge bg-secondary ms-1">Anulado</span>' : ""}${anulado && p.observaciones ? `<div class="small">${escaparHtmlEscaner(p.observaciones)}</div>` : ""}</td>
           <td class="text-end" style="${anulado ? "text-decoration: line-through;" : ""}">Q${p.monto || 0}</td>
           <td>${p.referencia || "--"}</td>
           <td>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleDateString() : "--"}</td>
@@ -3871,9 +3874,11 @@ async function verCompra(id) {
             ${
               anulado
                 ? ""
-                : `<button class="btn btn-sm btn-outline-danger"
-                    onclick="eliminarPagoCompra(${compra.id}, ${p.id})">
-              <i class="fas fa-trash"></i>
+                : compra.estado === "Cancelada" || !tienePermiso("Compras", "Eliminar")
+                  ? ""
+                  : `<button class="btn btn-sm btn-outline-danger"
+                    onclick="eliminarPagoCompra(${compra.id}, ${p.id})" title="Anular pago">
+              <i class="fas fa-ban me-1"></i>Anular
             </button>`
             }
           </td>
@@ -4403,7 +4408,7 @@ async function cancelarCompra(id) {
 }
 
 async function cancelarPedido(id) {
-  if (!confirm("¿Cancelar este pedido?")) return;
+  if (!await confirmarAccion("¿Cancelar este pedido?")) return;
   try {
     await api.request(
       `/pedidos/${id}/estado?nuevo_estado=Cancelado&forzar=true`,
@@ -4416,15 +4421,35 @@ async function cancelarPedido(id) {
   }
 }
 
+// Los pagos ya no se borran: se ANULAN (quedan en el historial tachados,
+// con el motivo), y el saldo de la compra se recalcula sin ellos.
 async function eliminarPagoCompra(compraId, pagoId) {
-  if (!confirm("¿Eliminar este pago? El saldo de la compra se recalculará."))
-    return;
+  const motivo = await pedirTextoModal(
+    "¿Por qué se anula este pago? (por ejemplo: se registró dos veces, monto equivocado)",
+    { titulo: "Anular pago", textoAceptar: "Anular pago", obligatorio: true },
+  );
+  if (motivo === null) return;
   try {
-    await api.request(`/compras/${compraId}/pagos/${pagoId}`, "DELETE");
-    showToast("Pago eliminado", "success");
+    await api.request(
+      `/compras/${compraId}/pagos/${pagoId}?motivo=${encodeURIComponent(motivo)}`,
+      "DELETE",
+    );
+    showToast("Pago anulado. El saldo de la compra se recalculó.", "success");
+
+    // Cerrar el detalle abierto y volver a abrirlo con los datos nuevos
+    const detalleAbierto = document.getElementById("compraDetalleModal");
+    if (detalleAbierto) {
+      await new Promise((resolve) => {
+        detalleAbierto.addEventListener("hidden.bs.modal", resolve, { once: true });
+        const instancia = bootstrap.Modal.getInstance(detalleAbierto);
+        if (instancia) instancia.hide();
+        else resolve();
+      });
+    }
+    await loadComprasModule();
     verCompra(compraId);
   } catch (error) {
-    showToast(error.message || "Error al eliminar pago", "error");
+    showToast(error.message || "Error al anular el pago", "error");
   }
 }
 
@@ -4531,7 +4556,7 @@ async function confirmarAdmin(mensaje) {
 // =============================================
 
 async function eliminarGasto(id) {
-  const ok = confirm("¿Está seguro de eliminar este gasto?");
+  const ok = await confirmarAccion("¿Está seguro de eliminar este gasto?");
   if (!ok) return;
 
   const autorizado = await confirmarAdmin(
@@ -4583,7 +4608,7 @@ async function toggleTipoPagoEstado(id) {
 
   const nuevo = tipo.activo === 1 ? 0 : 1;
   const accion = nuevo === 1 ? "activar" : "inactivar";
-  const ok = confirm(
+  const ok = await confirmarAccion(
     `¿Está seguro de ${accion} el tipo de pago "${tipo.nombre}"?`,
   );
   if (!ok) return;
@@ -4616,7 +4641,7 @@ async function toggleTipoGastoEstado(id) {
 
   const nuevo = tipo.activo === 1 ? 0 : 1;
   const accion = nuevo === 1 ? "activar" : "inactivar";
-  const ok = confirm(
+  const ok = await confirmarAccion(
     `¿Está seguro de ${accion} el tipo de gasto "${tipo.nombre}"?`,
   );
   if (!ok) return;
