@@ -294,6 +294,55 @@ async function loadInventarioModule() {
   }
 }
 
+// ============================================================
+// RECARGA ESPECÍFICA POR SECCIÓN
+// ============================================================
+
+async function recargarResumenInventario() {
+  try {
+    await obtenerProductosParaInventario();
+    renderResumenInventario();
+  } catch (error) {
+    console.error("Error recargando resumen:", error);
+    showToast("Error al recargar el resumen", "error");
+  }
+}
+
+async function recargarConteo() {
+  try {
+    await cargarConteoTabla();
+  } catch (error) {
+    console.error("Error recargando conteo:", error);
+  }
+}
+
+async function recargarTraslados() {
+  try {
+    await cargarTrasladosTabla();
+  } catch (error) {
+    console.error("Error recargando traslados:", error);
+  }
+}
+
+async function recargarAlertas() {
+  try {
+    await cargarAlertasTabla();
+  } catch (error) {
+    console.error("Error recargando alertas:", error);
+  }
+}
+
+async function recargarTiposMovimiento() {
+  try {
+    const tipos = await api.getTiposMovimiento().catch(() => []);
+    tiposMovimientoData = tipos || [];
+    renderTiposMovimiento(tiposMovimientoData);
+    populateSelectsInventario();
+  } catch (error) {
+    console.error("Error recargando tipos de movimiento:", error);
+  }
+}
+
 // =============================================
 // FUNCIÓN PARA BUSCAR EN EL RESUMEN
 // =============================================
@@ -876,7 +925,10 @@ function showMovimientoModal() {
   document.getElementById("movimientoId").value = "";
   limpiarErroresFormulario("movimientoForm");
   populateSelectsInventario();
-  prepararEscanerInventario("movimientoProducto", seleccionarProductoEscaneadoMovimiento);
+  prepararEscanerInventario(
+    "movimientoProducto",
+    seleccionarProductoEscaneadoMovimiento,
+  );
   modal.addEventListener(
     "shown.bs.modal",
     () => document.getElementById("movimientoProductoScan")?.focus(),
@@ -919,7 +971,10 @@ function showTrasladoModal() {
   document.getElementById("trasladoId").value = "";
   limpiarErroresFormulario("trasladoForm");
   populateSelectsInventario();
-  prepararEscanerInventario("trasladoProducto", seleccionarProductoEscaneadoTraslado);
+  prepararEscanerInventario(
+    "trasladoProducto",
+    seleccionarProductoEscaneadoTraslado,
+  );
   modal.addEventListener(
     "shown.bs.modal",
     () => document.getElementById("trasladoProductoScan")?.focus(),
@@ -1007,15 +1062,17 @@ function contarProductoEscaneado(producto) {
 
   if (!mismoProducto && select.value && actual > 0) {
     const nombreActual =
-      (window.productosData || []).find((p) => String(p.id) === String(select.value))
-        ?.nombre || "el producto actual";
+      (window.productosData || []).find(
+        (p) => String(p.id) === String(select.value),
+      )?.nombre || "el producto actual";
     return {
       tipo: "aviso",
       texto: `Guarda primero el conteo de ${nombreActual} antes de escanear ${producto.nombre}`,
     };
   }
 
-  if (!mismoProducto) _seleccionarProductoInventario("conteoProducto", producto);
+  if (!mismoProducto)
+    _seleccionarProductoInventario("conteoProducto", producto);
   const nuevaCantidad = (mismoProducto ? actual : 0) + 1;
   cantidadInput.value = nuevaCantidad;
 
@@ -1081,7 +1138,8 @@ async function saveMovimiento(event) {
     );
     if (modal) modal.hide();
 
-    await loadInventarioModule();
+    await recargarResumenInventario();
+    await recargarTiposMovimiento();
   } catch (error) {
     showToast(error.message || "Error al registrar movimiento", "error");
   }
@@ -1141,7 +1199,8 @@ async function saveConteoFisico(event) {
     );
     if (modal) modal.hide();
 
-    await loadInventarioModule();
+    await recargarConteo();
+    await recargarResumenInventario();
   } catch (error) {
     showToast(error.message || "Error al registrar conteo", "error");
   }
@@ -1223,7 +1282,8 @@ async function saveTraslado(event) {
     );
     if (modal) modal.hide();
 
-    await loadInventarioModule();
+    await recargarTraslados();
+    await recargarResumenInventario();
   } catch (error) {
     console.error("❌ Error en traslado:", error);
     let msg = "Error al registrar traslado";
@@ -1459,7 +1519,7 @@ async function recibirTraslado(id) {
       "PATCH",
     );
     showToast("Traslado recibido correctamente", "success");
-    await loadInventarioModule();
+    await recargarTraslados();
   } catch (error) {
     console.error("❌ Error al recibir traslado:", error);
     showToast(error.message || "Error al recibir traslado", "error");
@@ -1658,17 +1718,17 @@ async function marcarAlertaLeida(id) {
   try {
     await api.request(`/alertas/${id}`, "PATCH", { leida: 1 });
     showToast("Alerta marcada como leída", "success");
-    await loadInventarioModule();
+    await recargarAlertas();
   } catch (error1) {
     try {
       await api.request(`/alertas/${id}/leer`, "PATCH");
       showToast("Alerta marcada como leída", "success");
-      await loadInventarioModule();
+      await recargarAlertas();
     } catch (error2) {
       try {
         await api.request(`/alertas/${id}`, "PUT", { leida: 1 });
         showToast("Alerta marcada como leída", "success");
-        await loadInventarioModule();
+        await recargarAlertas();
       } catch (error3) {
         const confirmado = await mostrarConfirmacion(
           "Error al marcar alerta",
@@ -1865,7 +1925,7 @@ async function saveTipoMovimiento(event) {
     );
     if (modal) modal.hide();
 
-    await loadInventarioModule();
+    await recargarTiposMovimiento();
   } catch (error) {
     let msg = "Error al crear tipo";
     if (error.response && error.response.data) {
@@ -2280,10 +2340,11 @@ async function confirmarCargaMasivaMovimientos() {
   );
   if (modal) modal.hide();
 
-  // Recargar datos del módulo de inventario para refrescar stock
-  await loadInventarioModule();
-  if (typeof loadProductosModule === "function") {
-    await loadProductosModule();
+  // Recargar solo las secciones afectadas
+  await recargarResumenInventario();
+  await recargarTiposMovimiento();
+  if (typeof recargarProductos === "function") {
+    await recargarProductos();
   }
 }
 
@@ -2323,3 +2384,10 @@ window.mostrarHistorialModal = mostrarHistorialModal;
 window.showMovimientoModalConProducto = showMovimientoModalConProducto;
 window.buscarEnInventario = buscarEnInventario;
 window.filtrarProductos = filtrarProductos;
+
+// Recargas específicas por sección
+window.recargarResumenInventario = recargarResumenInventario;
+window.recargarConteo = recargarConteo;
+window.recargarTraslados = recargarTraslados;
+window.recargarAlertas = recargarAlertas;
+window.recargarTiposMovimiento = recargarTiposMovimiento;

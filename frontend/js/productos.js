@@ -61,6 +61,61 @@ async function loadProductosModule() {
   }
 }
 
+// ============================================================
+// RECARGA ESPECÍFICA POR SECCIÓN (sin tocar las otras pestañas)
+// ============================================================
+
+async function recargarProductos() {
+  try {
+    const productos = (await api.getProductos().catch(() => [])) || [];
+    productosData = productos;
+    window.productosData = productosData;
+    renderProductosTable(productosData);
+  } catch (error) {
+    console.error("Error recargando productos:", error);
+    showToast("Error al recargar productos", "error");
+  }
+}
+
+async function recargarCategorias() {
+  try {
+    const categorias = (await api.getCategorias().catch(() => [])) || [];
+    categoriasData = categorias;
+    window.categoriasData = categoriasData;
+    renderCategoriasTable(categoriasData);
+    populateSelects();
+  } catch (error) {
+    console.error("Error recargando categorías:", error);
+    showToast("Error al recargar categorías", "error");
+  }
+}
+
+async function recargarMarcas() {
+  try {
+    const marcas = (await api.getMarcas().catch(() => [])) || [];
+    marcasData = marcas;
+    window.marcasData = marcasData;
+    renderMarcasTable(marcasData);
+    populateSelects();
+  } catch (error) {
+    console.error("Error recargando marcas:", error);
+    showToast("Error al recargar marcas", "error");
+  }
+}
+
+async function recargarUnidades() {
+  try {
+    const unidades = (await api.getUnidadesMedida().catch(() => [])) || [];
+    unidadesData = unidades;
+    window.unidadesData = unidadesData;
+    renderUnidadesTable(unidadesData);
+    populateSelects();
+  } catch (error) {
+    console.error("Error recargando unidades:", error);
+    showToast("Error al recargar unidades", "error");
+  }
+}
+
 // FUNCIÓN PARA CREAR TODOS LOS MODALES
 function ensureAllModals() {
   // Modal de Producto
@@ -698,7 +753,7 @@ async function saveProducto(event) {
     if (modal) modal.hide();
 
     // Recargar datos
-    await loadProductosModule();
+    await recargarProductos();
   } catch (error) {
     console.error("Error guardando producto:", error);
     showToast(error.message || "Error al guardar el producto", "error");
@@ -729,7 +784,7 @@ async function toggleProductoEstado(id) {
       `Producto ${accion === "inactivar" ? "inactivado" : "activado"} correctamente`,
       "success",
     );
-    await loadProductosModule();
+    await recargarProductos();
   } catch (error) {
     showToast(error.message || "Error al cambiar estado", "error");
   }
@@ -751,7 +806,7 @@ async function deleteProducto(id) {
   try {
     await api.deleteProducto(id);
     showToast("Producto eliminado correctamente", "success");
-    await loadProductosModule();
+    await recargarProductos();
   } catch (error) {
     showToast(error.message || "Error al eliminar el producto", "error");
   }
@@ -927,7 +982,7 @@ async function saveCategoria(event) {
     );
     if (modal) modal.hide();
 
-    await loadProductosModule();
+    await recargarCategorias();
   } catch (error) {
     showToast(error.message || "Error al guardar categoría", "error");
   }
@@ -954,7 +1009,7 @@ async function toggleCategoriaEstado(id) {
       `Categoría ${accion === "inactivar" ? "inactivada" : "activada"} correctamente`,
       "success",
     );
-    await loadProductosModule();
+    await recargarCategorias();
   } catch (error) {
     showToast(error.message || "Error al cambiar estado", "error");
   }
@@ -1128,7 +1183,7 @@ async function saveMarca(event) {
     );
     if (modal) modal.hide();
 
-    await loadProductosModule();
+    await recargarMarcas();
   } catch (error) {
     showToast(error.message || "Error al guardar marca", "error");
   }
@@ -1155,7 +1210,7 @@ async function toggleMarcaEstado(id) {
       `Marca ${accion === "inactivar" ? "inactivada" : "activada"} correctamente`,
       "success",
     );
-    await loadProductosModule();
+    await recargarMarcas();
   } catch (error) {
     showToast(error.message || "Error al cambiar estado", "error");
   }
@@ -1335,7 +1390,7 @@ async function saveUnidad(event) {
     );
     if (modal) modal.hide();
 
-    await loadProductosModule();
+    await recargarUnidades();
   } catch (error) {
     showToast(error.message || "Error al guardar unidad", "error");
   }
@@ -1362,7 +1417,7 @@ async function toggleUnidadEstado(id) {
       `Unidad ${accion === "inactivar" ? "inactivada" : "activada"} correctamente`,
       "success",
     );
-    await loadProductosModule();
+    await recargarUnidades();
   } catch (error) {
     showToast(error.message || "Error al cambiar estado", "error");
   }
@@ -1873,8 +1928,12 @@ async function confirmarCargaMasivaProductos() {
   );
   if (modal) modal.hide();
 
-  // Recargar datos del módulo
-  await loadProductosModule();
+  // Recargar cada sección por separado (porque la carga puede crear
+  // categorías/marcas/unidades nuevas)
+  await recargarProductos();
+  await recargarCategorias();
+  await recargarMarcas();
+  await recargarUnidades();
 }
 
 // ============================================================
@@ -2560,7 +2619,10 @@ async function confirmarActualizacionMasivaProductos() {
   if (modal) modal.hide();
 
   if (!modoPrueba) {
-    await loadProductosModule();
+    await recargarProductos();
+    await recargarCategorias();
+    await recargarMarcas();
+    await recargarUnidades();
   } else {
     btn.disabled = false;
     btn.innerHTML = textoOriginal;
@@ -2610,7 +2672,8 @@ window.saveUnidad = saveUnidad;
 window.toggleUnidadEstado = toggleUnidadEstado;
 
 document.addEventListener("keydown", function (e) {
-  if (e.key !== "Enter" || !e.target || e.target.id !== "productoCodigo") return;
+  if (e.key !== "Enter" || !e.target || e.target.id !== "productoCodigo")
+    return;
   e.preventDefault();
   const nombre = document.getElementById("productoNombre");
   if (nombre) nombre.focus();
@@ -2627,3 +2690,9 @@ document.addEventListener("DOMContentLoaded", function () {
     console.log("Event listener de productoForm configurado");
   }
 });
+
+// Recargas específicas por sección
+window.recargarProductos = recargarProductos;
+window.recargarCategorias = recargarCategorias;
+window.recargarMarcas = recargarMarcas;
+window.recargarUnidades = recargarUnidades;
