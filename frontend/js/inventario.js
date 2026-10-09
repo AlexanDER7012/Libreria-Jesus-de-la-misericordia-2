@@ -770,7 +770,7 @@ function crearModalesInventario() {
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <form id="movimientoForm" novalidate>
+                              <form id="movimientoForm" onsubmit="saveMovimiento(event)" novalidate>
                                 <input type="hidden" id="movimientoId" />
                                 <div class="mb-3">
                                     <label class="form-label">Producto *</label>
@@ -799,7 +799,6 @@ function crearModalesInventario() {
             </div>
         `;
     document.body.insertAdjacentHTML("beforeend", html);
-    document.getElementById("movimientoForm").onsubmit = saveMovimiento;
   }
 
   // Modal Conteo Físico
@@ -813,7 +812,7 @@ function crearModalesInventario() {
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <form id="conteoForm" novalidate>
+                              <form id="conteoForm" onsubmit="saveConteoFisico(event)" novalidate>
                                 <input type="hidden" id="conteoId" />
                                 <div class="mb-3">
                                     <label class="form-label">Producto *</label>
@@ -846,7 +845,6 @@ function crearModalesInventario() {
             </div>
         `;
     document.body.insertAdjacentHTML("beforeend", html);
-    document.getElementById("conteoForm").onsubmit = saveConteoFisico;
 
     document
       .getElementById("conteoProducto")
@@ -871,7 +869,7 @@ function crearModalesInventario() {
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <form id="trasladoForm" novalidate>
+                              <form id="trasladoForm" onsubmit="saveTraslado(event)" novalidate>
                                 <input type="hidden" id="trasladoId" />
                                 <div class="mb-3">
                                     <label class="form-label">Producto *</label>
@@ -912,7 +910,6 @@ function crearModalesInventario() {
             </div>
         `;
     document.body.insertAdjacentHTML("beforeend", html);
-    document.getElementById("trasladoForm").onsubmit = saveTraslado;
   }
 
   // Modal Tipo de Movimiento
@@ -926,7 +923,7 @@ function crearModalesInventario() {
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <form id="tipoMovimientoForm" novalidate>
+                              <form id="tipoMovimientoForm" onsubmit="saveTipoMovimiento(event)" novalidate>
                                 <input type="hidden" id="tipoMovimientoId" />
                                 <div class="mb-3">
                                     <label class="form-label">Nombre *</label>
@@ -952,7 +949,6 @@ function crearModalesInventario() {
             </div>
         `;
     document.body.insertAdjacentHTML("beforeend", html);
-    document.getElementById("tipoMovimientoForm").onsubmit = saveTipoMovimiento;
   }
 }
 
