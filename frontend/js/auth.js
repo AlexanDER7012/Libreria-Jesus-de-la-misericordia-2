@@ -96,6 +96,8 @@ function iniciarControlInactividad() {
   const eventos = ["mousemove", "keydown", "click", "scroll", "touchstart"];
   const reiniciarTimer = () => {
     if (document.getElementById("inactividadModal")) return; // ya se está mostrando el aviso
+    registrarActividadCompartida();
+    renovarTokenSiHaceFalta();
     clearTimeout(inactividadTimer);
     inactividadTimer = setTimeout(mostrarAvisoInactividad, TIEMPO_INACTIVIDAD_MS);
   };
@@ -106,8 +108,73 @@ function iniciarControlInactividad() {
   reiniciarTimer();
 }
 
+// ---------------------------------------------------------------
+// Antes la sesión se cerraba aunque el usuario estuviera trabajando:
+//  1) El token dura 60 minutos y solo se renovaba al dar "Seguir conectado"
+//     en el aviso de inactividad. Quien trabajaba sin parar nunca veía el
+//     aviso, y a los 60 minutos el servidor lo sacaba.
+//  2) Con el sistema abierto en dos pestañas, la pestaña sin uso cerraba la
+//     sesión de TODAS a los 15 minutos, aunque se trabajara en la otra.
+// Ahora la actividad se comparte entre pestañas y el token se renueva solo
+// mientras el usuario esté activo.
+// ---------------------------------------------------------------
+const CLAVE_ULTIMA_ACTIVIDAD = "ultima_actividad";
+let _ultimaEscrituraActividad = 0;
+let _renovandoToken = false;
+let _ultimaRenovacion = 0;
+
+function registrarActividadCompartida() {
+  const ahora = Date.now();
+  if (ahora - _ultimaEscrituraActividad < 15000) return; // como máximo cada 15 s
+  _ultimaEscrituraActividad = ahora;
+  try {
+    localStorage.setItem(CLAVE_ULTIMA_ACTIVIDAD, String(ahora));
+  } catch (e) {}
+}
+
+function _msDesdeUltimaActividad() {
+  const ultima = parseInt(localStorage.getItem(CLAVE_ULTIMA_ACTIVIDAD) || "0", 10);
+  return ultima ? Date.now() - ultima : Infinity;
+}
+
+function _segundosParaVencerToken() {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return payload.exp ? payload.exp - Date.now() / 1000 : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function renovarTokenSiHaceFalta() {
+  const restantes = _segundosParaVencerToken();
+  // Renovar cuando falten menos de 20 minutos (y no esté ya vencido)
+  if (restantes === null || restantes > 20 * 60 || restantes <= 0 || _renovandoToken) return;
+  if (Date.now() - _ultimaRenovacion < 2 * 60 * 1000) return; // como máximo cada 2 minutos
+  _renovandoToken = true;
+  _ultimaRenovacion = Date.now();
+  try {
+    await window.api.renovarToken();
+  } finally {
+    _renovandoToken = false;
+  }
+}
+
 function mostrarAvisoInactividad() {
   if (!localStorage.getItem("token")) return;
+
+  // Si hubo actividad en otra pestaña, todavía no corresponde avisar
+  const inactivo = _msDesdeUltimaActividad();
+  if (inactivo < TIEMPO_INACTIVIDAD_MS) {
+    clearTimeout(inactividadTimer);
+    inactividadTimer = setTimeout(
+      mostrarAvisoInactividad,
+      TIEMPO_INACTIVIDAD_MS - inactivo + 1000,
+    );
+    return;
+  }
 
   const html = `
     <div class="modal fade" id="inactividadModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
@@ -139,6 +206,16 @@ function mostrarAvisoInactividad() {
     segundosRestantes--;
     const span = document.getElementById("inactividadSegundos");
     if (span) span.textContent = segundosRestantes;
+    // Si mientras corre el aviso alguien usa el sistema en otra pestaña,
+    // se cancela el cierre de sesión
+    if (_msDesdeUltimaActividad() < TIEMPO_AVISO_SEGUNDOS * 1000) {
+      clearInterval(countdownInterval);
+      modalInstance.hide();
+      modalEl.remove();
+      clearTimeout(inactividadTimer);
+      inactividadTimer = setTimeout(mostrarAvisoInactividad, TIEMPO_INACTIVIDAD_MS);
+      return;
+    }
     if (segundosRestantes <= 0) {
       clearInterval(countdownInterval);
       modalInstance.hide();

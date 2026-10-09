@@ -260,9 +260,7 @@ function ensureAllModals() {
       </div>
     `;
     document.body.insertAdjacentHTML("beforeend", productoModalHTML);
-    document
-      .getElementById("productoForm")
-      .addEventListener("submit", saveProducto);
+    _vincularFormulario("productoForm", saveProducto);
   }
 
   // Modal de Categoría
@@ -300,9 +298,7 @@ function ensureAllModals() {
       </div>
     `;
     document.body.insertAdjacentHTML("beforeend", categoriaModalHTML);
-    document
-      .getElementById("categoriaForm")
-      .addEventListener("submit", saveCategoria);
+    _vincularFormulario("categoriaForm", saveCategoria);
   }
 
   // Modal de Marca
@@ -340,7 +336,7 @@ function ensureAllModals() {
       </div>
     `;
     document.body.insertAdjacentHTML("beforeend", marcaModalHTML);
-    document.getElementById("marcaForm").addEventListener("submit", saveMarca);
+    _vincularFormulario("marcaForm", saveMarca);
   }
 
   // Modal de Unidad
@@ -382,10 +378,33 @@ function ensureAllModals() {
       </div>
     `;
     document.body.insertAdjacentHTML("beforeend", unidadModalHTML);
-    document
-      .getElementById("unidadForm")
-      .addEventListener("submit", saveUnidad);
+    _vincularFormulario("unidadForm", saveUnidad);
   }
+
+  // Los modales de Categoría, Marca y Unidad ya vienen escritos en
+  // index.html, así que los "if" de arriba no se ejecutan y sus formularios
+  // quedaban SIN función de guardar: al darle Guardar, el navegador recargaba
+  // la página y no se guardaba nada. Aquí se conectan siempre.
+  _vincularFormulariosCatalogo();
+}
+
+// Conecta un formulario con su función de guardar UNA sola vez
+// (evita que se guarde dos veces si esta función se llama de nuevo).
+function _vincularFormulario(idForm, handler) {
+  const form = document.getElementById(idForm);
+  if (!form || form.dataset.vinculado === "1") return;
+  form.dataset.vinculado = "1";
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    handler(e);
+  });
+}
+
+function _vincularFormulariosCatalogo() {
+  _vincularFormulario("productoForm", saveProducto);
+  _vincularFormulario("categoriaForm", saveCategoria);
+  _vincularFormulario("marcaForm", saveMarca);
+  _vincularFormulario("unidadForm", saveUnidad);
 }
 
 // POBLAR SELECTS DEL MODAL PRODUCTO
@@ -2679,17 +2698,8 @@ document.addEventListener("keydown", function (e) {
   if (nombre) nombre.focus();
 });
 
-// Event listener permanente para el formulario producto
-document.addEventListener("DOMContentLoaded", function () {
-  const form = document.getElementById("productoForm");
-  if (form) {
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      saveProducto(e);
-    });
-    console.log("Event listener de productoForm configurado");
-  }
-});
+// Conectar los formularios de Producto, Categoría, Marca y Unidad
+document.addEventListener("DOMContentLoaded", _vincularFormulariosCatalogo);
 
 // Recargas específicas por sección
 window.recargarProductos = recargarProductos;

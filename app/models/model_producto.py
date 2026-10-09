@@ -10,6 +10,7 @@ class Categoria(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     nombre = Column(String(100)) 
     descripcion = Column(Text)
+    activo = Column(Integer, default=1, server_default="1")  # 1=activa, 0=dada de baja
 
     productos = relationship("Producto", back_populates="categoria")
 
@@ -20,6 +21,7 @@ class Marca(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     nombre = Column(String(100))  
     descripcion = Column(Text)
+    activo = Column(Integer, default=1, server_default="1")  # 1=activa, 0=dada de baja
 
     productos = relationship("Producto", back_populates="marca")
 
@@ -31,6 +33,7 @@ class UnidadMedida(Base):
     nombre = Column(String(50)) 
     abreviatura = Column(String(10))  
     descripcion = Column(Text)
+    activo = Column(Integer, default=1, server_default="1")  # 1=activa, 0=dada de baja
 
 
 class Producto(Base):

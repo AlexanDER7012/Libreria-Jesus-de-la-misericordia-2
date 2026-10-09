@@ -11,6 +11,31 @@
   let skipTurnos = 0;
   const LIMITE_TURNOS = 10;
 
+  // El modal "cajaModal" de index.html lo usan Abrir/Cerrar turno y también
+  // los formularios de Caja Chica, Gastos y Tipos. Estos últimos reemplazaban
+  // su contenido y nunca lo devolvían: después de abrir uno de ellos, el
+  // modal de Abrir Turno ya no tenía su formulario ni su botón "Abrir Turno".
+  // Aquí se guarda el contenido original y se restaura cada vez que se abre.
+  let _cuerpoOriginalCajaModal = null;
+  function _cuerpoCajaModal() {
+    const modal = document.getElementById("cajaModal");
+    const body = modal ? modal.querySelector(".modal-body") : null;
+    if (body && _cuerpoOriginalCajaModal === null) {
+      _cuerpoOriginalCajaModal = body.innerHTML;
+    }
+    return body;
+  }
+  function _restaurarCajaModal() {
+    const body = _cuerpoCajaModal();
+    if (body && _cuerpoOriginalCajaModal !== null) {
+      body.innerHTML = _cuerpoOriginalCajaModal;
+    }
+    const btnAbrir = document.getElementById("btnAbrirTurno");
+    const btnCerrar = document.getElementById("btnCerrarTurno");
+    if (btnAbrir) btnAbrir.style.display = "";
+    if (btnCerrar) btnCerrar.style.display = "none";
+  }
+
   // HELPER
   function getCurrentUser() {
     try {
@@ -145,7 +170,21 @@
       loadGastos(),
       loadTiposGasto(),
       loadTiposPago(),
+      cargarUbicacionesCaja(),
     ]);
+  }
+
+  // Ubicaciones para los formularios de Caja Chica y Gastos. Antes solo
+  // existían si se había entrado antes a Ventas o Compras; si se abría
+  // Caja directo, el campo Ubicación salía vacío y no se podía guardar.
+  async function cargarUbicacionesCaja() {
+    if (window.ubicacionesData && window.ubicacionesData.length > 0) return;
+    try {
+      const ubicaciones = await api.request("/ubicaciones");
+      window.ubicacionesData = (ubicaciones || []).filter((u) => u.activo !== 0);
+    } catch (error) {
+      console.error("Error cargando ubicaciones:", error);
+    }
   }
 
   // CARGA PARA CONTENEDOR (desde Ventas)
@@ -449,6 +488,7 @@
       showToast("Error: Modal de caja no encontrado", "error");
       return;
     }
+    _restaurarCajaModal();
 
     const title = document.getElementById("cajaModalTitle");
     if (title) title.textContent = "Abrir Turno de Caja";
@@ -486,6 +526,24 @@
     const btnCerrar = document.getElementById("btnCerrarTurno");
     if (btnCerrar) btnCerrar.style.display = "none";
 
+    // El turno se abre en la ubicación configurada en Configuración (así lo
+    // hace abrirTurno). Antes este campo salía vacío y confundía; ahora
+    // muestra esa ubicación, sin dejar cambiarla.
+    const ubicacionSelect = document.getElementById("cajaUbicacion");
+    if (ubicacionSelect) {
+      ubicacionSelect.innerHTML = '<option value="">Cargando ubicación...</option>';
+      ubicacionSelect.disabled = true;
+      Promise.all([
+        api.request("/configuracion").catch(() => ({})),
+        api.request("/ubicaciones").catch(() => []),
+      ]).then(([config, ubicaciones]) => {
+        const ub = (ubicaciones || []).find((u) => u.id === config?.id_ubicacion);
+        ubicacionSelect.innerHTML = ub
+          ? `<option value="${ub.id}">${ub.nombre || ub.id}</option>`
+          : '<option value="">Sin ubicación configurada (Configuración)</option>';
+      });
+    }
+
     const modalInstance = new bootstrap.Modal(modal);
     modalInstance.show();
   }
@@ -516,6 +574,7 @@
         showToast("Error: Modal de caja no encontrado", "error");
         return;
       }
+      _restaurarCajaModal();
 
       const title = document.getElementById("cajaModalTitle");
       if (title) title.textContent = `Cerrar Turno #${turnoParaCerrar.id}`;
@@ -960,6 +1019,7 @@
       showToast("Error: Modal de caja no encontrado", "error");
       return;
     }
+    _restaurarCajaModal();
 
     document.getElementById("cajaModalTitle").textContent =
       "Registrar Movimiento de Caja Chica";
@@ -968,7 +1028,7 @@
     document.getElementById("btnAbrirTurno").style.display = "none";
     document.getElementById("btnCerrarTurno").style.display = "none";
 
-    const body = document.getElementById("cajaModalBody");
+    const body = _cuerpoCajaModal();
     body.innerHTML = `
             <form id="cajaForm">
                 <input type="hidden" id="cajaId" />
@@ -1113,6 +1173,7 @@
       showToast("Error: Modal de caja no encontrado", "error");
       return;
     }
+    _restaurarCajaModal();
 
     document.getElementById("cajaModalTitle").textContent = "Registrar Gasto";
     document.getElementById("cajaDenominacionesContainer").style.display =
@@ -1120,7 +1181,7 @@
     document.getElementById("btnAbrirTurno").style.display = "none";
     document.getElementById("btnCerrarTurno").style.display = "none";
 
-    const body = document.getElementById("cajaModalBody");
+    const body = _cuerpoCajaModal();
     body.innerHTML = `
             <form id="cajaForm">
                 <div class="mb-3">
@@ -1224,8 +1285,9 @@
       showToast("Error: Modal de caja no encontrado", "error");
       return;
     }
+    _restaurarCajaModal();
 
-    const body = modal.querySelector(".modal-body");
+    const body = _cuerpoCajaModal();
     if (!body) {
       showToast("Error: Cuerpo del modal no encontrado", "error");
       return;
@@ -1335,8 +1397,9 @@
       showToast("Error: Modal de caja no encontrado", "error");
       return;
     }
+    _restaurarCajaModal();
 
-    const body = modal.querySelector(".modal-body");
+    const body = _cuerpoCajaModal();
     if (!body) {
       showToast("Error: Cuerpo del modal no encontrado", "error");
       return;
