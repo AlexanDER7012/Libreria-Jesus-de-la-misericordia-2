@@ -49,29 +49,18 @@ function getToken() {
 }
 
 // ✅ Función para recargar permisos manualmente
+// Vuelve a pedir al servidor los permisos del usuario. Devuelve true si
+// cambiaron respecto a los guardados. Antes los permisos solo se leían al
+// iniciar sesión: si un administrador le asignaba un permiso nuevo a un rol,
+// el usuario no lo veía hasta cerrar sesión y volver a entrar.
 async function recargarPermisos() {
   try {
-    const token = localStorage.getItem("token");
-    if (!token) return false;
-
-    const response = await fetch(
-      "http://localhost:8000/usuarios/mis-permisos",
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
-    );
-
-    if (!response.ok) {
-      console.warn("No se pudieron recargar permisos");
-      return false;
-    }
-
-    const permisos = await response.json();
-    localStorage.setItem("user_permisos", JSON.stringify(permisos));
-    console.log("✅ Permisos recargados:", permisos);
-    return true;
+    if (!localStorage.getItem("token")) return false;
+    const permisos = await window.api.request("/usuarios/mis-permisos");
+    const nuevos = JSON.stringify(permisos || []);
+    const anteriores = localStorage.getItem("user_permisos") || "[]";
+    localStorage.setItem("user_permisos", nuevos);
+    return nuevos !== anteriores;
   } catch (error) {
     console.error("Error recargando permisos:", error);
     return false;

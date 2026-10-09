@@ -1473,6 +1473,11 @@
       showToast("Tipo de pago creado correctamente", "success");
       bootstrap.Modal.getInstance(document.getElementById("cajaModal")).hide();
       await loadTiposPago();
+      // Si se creó desde Ventas → pestaña Caja, refrescar también esa vista
+      // (antes el tipo nuevo no aparecía ahí hasta recargar la página)
+      if (window.cajaContainer && document.body.contains(window.cajaContainer)) {
+        await cargarCajaEnContainer(window.cajaContainer);
+      }
     } catch (error) {
       showToast(error.message || "Error al crear tipo de pago", "error");
     }
