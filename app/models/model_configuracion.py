@@ -19,6 +19,8 @@ class ConfiguracionGeneral(Base):
     moneda = Column(String(10), default="GTQ")
     fecha_actualizacion = Column(DateTime, server_default=func.now(), onupdate=func.now())
     id_ubicacion = Column(Integer, ForeignKey("ubicacion.id"), nullable=True)
+    # Días que se conserva la bitácora (log_actividad). 0 = no borrar nunca.
+    dias_retencion_bitacora = Column(Integer, default=0, server_default="0")
 
 
 class MetaFinanciera(Base):

@@ -27,6 +27,7 @@ class ConfiguracionGeneralBase(BaseModel):
     logo_ruta: Optional[str] = None
     moneda: Optional[str] = None
     id_ubicacion: Optional[int] = None
+    dias_retencion_bitacora: Optional[int] = None  # 0 = no borrar nunca
 
 
 class ConfiguracionGeneralUpdate(ConfiguracionGeneralBase, TelefonoValidatorMixin):
