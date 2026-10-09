@@ -581,14 +581,15 @@ def listar_pagos(
 
 @router_pago.post("", response_model=HistoricoPagoEmpleadoResponse, status_code=201)
 def registrar_pago(datos: HistoricoPagoEmpleadoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Crear"))):
-    if not db.query(Empleado).filter(Empleado.id == datos.id_empleado).first():
+    empleado = db.query(Empleado).filter(Empleado.id == datos.id_empleado).first()
+    if not empleado:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
     nuevo = HistoricoPagoEmpleado(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "HistoricoPagoEmpleado",
-        detalle=f"Registró un pago de Q{datos.monto} ({datos.concepto}) al empleado id={datos.id_empleado}",
+        detalle=f"Registró un pago de Q{datos.monto} ({datos.concepto}) al empleado '{empleado.nombre}'",
     )
     db.commit()
     db.refresh(nuevo)

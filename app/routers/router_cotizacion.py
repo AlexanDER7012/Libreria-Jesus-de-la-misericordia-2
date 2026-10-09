@@ -82,7 +82,7 @@ def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db), usu
     for d in datos.detalles:
         producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
         if not producto:
-            raise HTTPException(status_code=404, detail=f"Producto id={d.id_producto} no encontrado")
+            raise HTTPException(status_code=404, detail="Uno de los productos ya no existe en el sistema. Quítalo de la lista e intenta de nuevo.")
         productos[d.id_producto] = producto
 
     total = sum(float(productos[d.id_producto].precio_venta or 0) * d.cantidad for d in datos.detalles)

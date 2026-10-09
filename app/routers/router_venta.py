@@ -166,7 +166,7 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
     for d in datos.detalles:
         producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
         if not producto:
-            raise HTTPException(status_code=404, detail=f"Producto id={d.id_producto} no encontrado")
+            raise HTTPException(status_code=404, detail="Uno de los productos ya no existe en el sistema. Quítalo de la lista e intenta de nuevo.")
         if float(producto.stock_actual or 0) < d.cantidad:
             raise HTTPException(
                 status_code=400,

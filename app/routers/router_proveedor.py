@@ -226,7 +226,7 @@ def crear_pedido(datos: PedidoCreate, db: Session = Depends(get_db), usuario_act
     db.flush()
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "Pedido",
-        detalle=f"Creó el pedido #{nuevo.id} a proveedor id={datos.id_proveedor}",
+        detalle=f"Creó el pedido #{nuevo.id} al proveedor '{(db.query(Proveedor).filter(Proveedor.id == datos.id_proveedor).first() or Proveedor(nombre='sin nombre')).nombre}'",
     )
     db.commit()
     db.refresh(nuevo)
@@ -260,7 +260,7 @@ def agregar_producto_a_pedido(pedido_id: int, datos: DetallePedidoCreate, db: Se
     db.add(nuevo_detalle)
     registrar_actividad(
         db, usuario_actual.id, "EDITAR", "Pedido",
-        detalle=f"Agregó el producto id={datos.id_producto} (cantidad {datos.cantidad_pedida}) al pedido #{pedido_id}",
+        detalle=f"Agregó el producto '{(db.query(Producto).filter(Producto.id == datos.id_producto).first() or Producto(nombre='sin nombre')).nombre}' (cantidad {datos.cantidad_pedida}) al pedido #{pedido_id}",
     )
     db.commit()
     db.refresh(nuevo_detalle)
@@ -274,7 +274,9 @@ def quitar_producto_de_pedido(pedido_id: int, detalle_id: int, db: Session = Dep
     ).first()
     if not detalle:
         raise HTTPException(status_code=404, detail="Detalle no encontrado en este pedido")
-    detalle_quitar_pedido = f"Quitó el producto id={detalle.id_producto} del pedido #{pedido_id}"
+    producto_quitado = db.query(Producto).filter(Producto.id == detalle.id_producto).first()
+    nombre_quitado = producto_quitado.nombre if producto_quitado else "sin nombre"
+    detalle_quitar_pedido = f"Quitó el producto '{nombre_quitado}' del pedido #{pedido_id}"
     db.delete(detalle)
     registrar_actividad(db, usuario_actual.id, "EDITAR", "Pedido", detalle=detalle_quitar_pedido)
     db.commit()
