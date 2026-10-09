@@ -401,11 +401,20 @@ function aplicarControlAccesoPorPestana(idContenedorTabs, mapaPermisos, catalogo
  * no existe en el catálogo, o no se puede leer localStorage, no se oculta
  * nada (para no romper pantallas antes de que alguien configure permisos).
  */
+// Caja no tiene permisos propios: usa los de Ventas
+// (debe coincidir con ALIAS_PERMISOS en app/security.py).
+const ALIAS_PERMISOS = { caja: "ventas" };
+
+function moduloDePermiso(modulo) {
+  const m = (modulo || "").toLowerCase();
+  return ALIAS_PERMISOS[m] || m;
+}
+
 function tienePermiso(modulo, accion) {
   try {
     const misPermisos = JSON.parse(localStorage.getItem("user_permisos") || "[]");
     if (!misPermisos.length) return true; // todavía no hay permisos configurados: no restringir
-    const moduloLower = (modulo || "").toLowerCase();
+    const moduloLower = moduloDePermiso(modulo);
     const accionLower = (accion || "").toLowerCase();
     // Comparacion sin distinguir mayusculas/minusculas: en la base de
     // datos los nombres vienen en minuscula ("ver", "crear", ...).
@@ -423,6 +432,7 @@ function tienePermiso(modulo, accion) {
 // EXPONER FUNCIONES GLOBALES
 
 window.showToast = showToast;
+window.moduloDePermiso = moduloDePermiso;
 window.mostrarErrorCampo = mostrarErrorCampo;
 window.limpiarErrorCampo = limpiarErrorCampo;
 window.limpiarErroresFormulario = limpiarErroresFormulario;

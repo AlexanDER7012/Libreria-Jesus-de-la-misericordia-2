@@ -74,6 +74,18 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return usuario
 
 
+# Caja no tiene permisos propios: usa los de Ventas. Quien tiene permisos
+# de Ventas puede abrir y cerrar turnos, registrar gastos, etc.
+# (debe coincidir con ALIAS_PERMISOS en frontend/js/components.js).
+ALIAS_PERMISOS = {
+    "caja": "Ventas",
+}
+
+
+def _modulo_real(modulo: str) -> str:
+    return ALIAS_PERMISOS.get((modulo or "").strip().lower(), modulo)
+
+
 def requiere_permiso(modulo: str, accion: str):
     """
     Fábrica de dependencias de FastAPI: exige que el usuario logueado tenga
@@ -96,6 +108,8 @@ def requiere_permiso(modulo: str, accion: str):
     ninguna lógica -- así que aunque alguien llame al endpoint directo
     (Postman, curl, etc.) sin pasar por el frontend, igual queda bloqueado.
     """
+
+    modulo = _modulo_real(modulo)
 
     def _dependencia(
         usuario_actual=Depends(get_current_user),
@@ -146,6 +160,8 @@ def requiere_permiso_alguno(pares: list):
             ("Ventas", "Crear"),
         ])),
     """
+
+    pares = [(_modulo_real(modulo), accion) for modulo, accion in pares]
 
     def _dependencia(
         usuario_actual=Depends(get_current_user),
