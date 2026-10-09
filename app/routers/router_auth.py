@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from app.bitacora import limpiar_bitacora_antigua
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -51,6 +52,9 @@ def login(datos: LoginRequest, db: Session = Depends(get_db)):
         detalles=f"Inicio de sesión de '{usuario.nombre_usuario}'",
     ))
     db.commit()
+
+    # Borra la bitácora vieja según Configuración (máximo una vez al día)
+    limpiar_bitacora_antigua(db, id_usuario=usuario.id)
 
     token = create_access_token(data={"sub": str(usuario.id), "nombre_usuario": usuario.nombre_usuario})
 

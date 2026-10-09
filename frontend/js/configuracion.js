@@ -154,6 +154,7 @@ function renderConfiguracion(config) {
                         <div class="mb-2"><strong>Moneda:</strong> ${config.moneda || "Q"}</div>
                         <div class="mb-2"><strong>Formato Impresión:</strong> ${config.formato_impresion || "--"}</div>
                         <div class="mb-2"><strong>Ubicación por Defecto:</strong> ${config.id_ubicacion ? getNombreUbicacion(config.id_ubicacion) : "--"}</div>
+                        <div class="mb-2"><strong>Conservar bitácora:</strong> ${config.dias_retencion_bitacora > 0 ? `${config.dias_retencion_bitacora} días` : "Siempre (no se borra)"}</div>
                     </div>
                 </div>
                 ${config.logo_ruta ? `<div class="mt-3"><strong>Logo:</strong> <img src="${config.logo_ruta}" style="max-height:100px;" /></div>` : ""}
@@ -206,6 +207,9 @@ function showEditConfigModal() {
       configuracionData.moneda || "Q";
     document.getElementById("configFormato").value =
       configuracionData.formato_impresion || "";
+    document.getElementById("configRetencionBitacora").value = String(
+      configuracionData.dias_retencion_bitacora || 0,
+    );
     document.getElementById("configLogo").value =
       configuracionData.logo_ruta || "";
   }
@@ -248,10 +252,36 @@ async function saveConfig(event) {
       parseInt(document.getElementById("configDiasAlerta").value) || 0,
     moneda: document.getElementById("configMoneda").value || "Q",
     formato_impresion: document.getElementById("configFormato").value || null,
+    dias_retencion_bitacora:
+      parseInt(document.getElementById("configRetencionBitacora").value) || 0,
     logo_ruta: document.getElementById("configLogo").value || null,
     id_ubicacion:
       parseInt(document.getElementById("configUbicacion").value) || null,
   };
+
+  const diasNuevos = data.dias_retencion_bitacora;
+  const diasActuales = parseInt(configuracionData?.dias_retencion_bitacora) || 0;
+  if (diasNuevos > 0 && (diasActuales === 0 || diasNuevos < diasActuales)) {
+    let cantidad = null;
+    try {
+      const r = await api.request(`/configuracion/bitacora-a-borrar?dias=${diasNuevos}`);
+      cantidad = r?.cantidad;
+    }catch(e) {}
+    const fechaLimite = new Date(Date.now() - diasNuevos * 24 * 60 * 60 * 1000).toLocaleDateString();
+    const cuantos =
+      cantidad === null || cantidad === undefined
+        ? "Se borrarán"
+        : cantidad === 0
+          ? "Por ahora no hay registros tan viejos, pero se borrarán"
+          : `Se borrarán ahora ${cantidad} registro(s) y, de aquí en adelante,`;
+    const ok = await confirmarAccion(
+      `Vas a conservar la bitácora solo ${diasNuevos} días.\n\n` +
+        `${cuantos} los registros anteriores al ${fechaLimite} (cada día se borra lo que pase de ${diasNuevos} días).\n\n` +
+        `Lo borrado NO se puede recuperar. ¿Continuar?`,
+      { titulo: "Borrar bitácora antigua", textoAceptar: "Sí, guardar" },
+    );
+    if (!ok) return;
+  }
 
   try {
     await api.request("/configuracion", "PUT", data);
@@ -486,6 +516,19 @@ function crearModalConfig() {
                     <option value="carta">Carta</option>
                     <option value="media">Media</option>
                   </select>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-12 mb-3">
+                  <label class="form-label">Conservar bitácora</label>
+                  <select class="form-select" id="configRetencionBitacora">
+                    <option value="0">Siempre (no borrar nunca)</option>
+                    <option value="30">30 días (1 mes)</option>
+                    <option value="90">90 días (3 meses)</option>
+                    <option value="180">180 días (6 meses)</option>
+                    <option value="365">365 días (1 año)</option>
+                  </select>
+                  <small class="text-muted">Los registros de la bitácora más viejos que esto se borran solos (se revisa una vez al día).</small>
                 </div>
               </div>
               <div class="row">

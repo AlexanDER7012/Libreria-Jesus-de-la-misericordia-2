@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.security import get_current_user, requiere_permiso
-from app.bitacora import registrar_actividad
+from app.bitacora import registrar_actividad, limpiar_bitacora_antigua, contar_bitacora_a_borrar
 from app.models.model_usuario import Usuario
 from app.models.model_configuracion import ConfiguracionGeneral, MetaFinanciera
 from app.schemas.schema_configuracion import (
@@ -39,10 +39,19 @@ def obtener_configuracion(db: Session = Depends(get_db), usuario_actual: Usuario
     return _obtener_o_crear_configuracion(db)
 
 
+@router.get("/bitacora-a-borrar")
+def bitacora_a_borrar(dias: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    """Cuántos registros de bitácora se borrarían al conservar solo 'dias' días
+    (para avisar antes de guardar el cambio)."""
+    return {"dias": dias, "cantidad": contar_bitacora_a_borrar(db, dias)}
+
+
 @router.put("", response_model=ConfiguracionGeneralResponse)
 def actualizar_configuracion(datos: ConfiguracionGeneralUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Editar"))):
     config = _obtener_o_crear_configuracion(db)
     cambios = datos.model_dump(exclude_unset=True)
+    if cambios.get("dias_retencion_bitacora") is not None and cambios["dias_retencion_bitacora"] < 0:
+        raise HTTPException(status_code=400, detail="Los días de la bitácora no pueden ser negativos (usa 0 para no borrar nunca)")
     for campo, valor in cambios.items():
         setattr(config, campo, valor)
     cambios_texto = ", ".join(f"{campo}: {valor}" for campo, valor in cambios.items()) or "sin cambios"
@@ -52,6 +61,11 @@ def actualizar_configuracion(datos: ConfiguracionGeneralUpdate, db: Session = De
     )
     db.commit()
     db.refresh(config)
+
+    # Si se cambió cuánto tiempo se guarda la bitácora, aplicarlo de una vez
+    if "dias_retencion_bitacora" in cambios:
+        limpiar_bitacora_antigua(db, forzar=True, id_usuario=usuario_actual.id)
+
     return config
 
 
