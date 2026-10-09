@@ -1,5 +1,5 @@
 // api.js
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = window.location.origin;
 
 class ApiClient {
   constructor() {
@@ -105,7 +105,10 @@ class ApiClient {
     this.token = data.access_token;
     localStorage.setItem("token", data.access_token);
     // "id" = id del usuario (el resto del sistema usa getCurrentUser().id)
-    localStorage.setItem("user", JSON.stringify({ ...data, id: data.usuario_id }));
+    localStorage.setItem(
+      "user",
+      JSON.stringify({ ...data, id: data.usuario_id }),
+    );
 
     // ✅ Cargar permisos del usuario
     try {
