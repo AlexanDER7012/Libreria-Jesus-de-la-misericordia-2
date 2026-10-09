@@ -69,6 +69,12 @@ def obtener_turno(turno_id: int, db: Session = Depends(get_db), usuario_actual=D
     return turno
 
 
+def _nombre_ubicacion(db: Session, id_ubicacion) -> str:
+    from app.models.model_ubicacion import Ubicacion
+    ub = db.query(Ubicacion).filter(Ubicacion.id == id_ubicacion).first() if id_ubicacion else None
+    return f"la ubicación '{ub.nombre}'" if ub and ub.nombre else "la ubicación configurada"
+
+
 @router.post("/abrir", response_model=CajaTurnoResponse, status_code=201)
 def abrir_turno(datos: CajaTurnoAbrir, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Caja", "Crear"))):
     """Abre un nuevo turno de caja. No permite dos turnos abiertos a la vez en la misma sucursal."""
@@ -76,9 +82,11 @@ def abrir_turno(datos: CajaTurnoAbrir, db: Session = Depends(get_db), usuario_ac
         CajaTurno.id_ubicacion == datos.id_ubicacion, CajaTurno.estado == "Abierto"
     ).first()
     if turno_abierto:
+        quien = db.query(Usuario).filter(Usuario.id == turno_abierto.id_usuario).first()
+        abierto_por = f" (lo abrió {quien.nombre_usuario})" if quien and quien.nombre_usuario else ""
         raise HTTPException(
             status_code=400,
-            detail=f"Ya hay un turno abierto (id={turno_abierto.id}) en esta ubicación. Ciérralo antes de abrir otro.",
+            detail=f"Ya hay un turno abierto en esta ubicación{abierto_por}. Ciérralo antes de abrir otro.",
         )
 
     nuevo = CajaTurno(**datos.model_dump(), estado="Abierto")
@@ -86,7 +94,7 @@ def abrir_turno(datos: CajaTurnoAbrir, db: Session = Depends(get_db), usuario_ac
     db.flush()
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "CajaTurno",
-        detalle=f"Abrió el turno #{nuevo.id} en la ubicación id={datos.id_ubicacion}",
+        detalle=f"Abrió el turno #{nuevo.id} en {_nombre_ubicacion(db, datos.id_ubicacion)}",
     )
     db.commit()
     db.refresh(nuevo)

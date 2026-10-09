@@ -149,7 +149,7 @@ def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(ge
     for d in datos.detalles:
         producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
         if not producto:
-            raise HTTPException(status_code=404, detail=f"Producto id={d.id_producto} no encontrado")
+            raise HTTPException(status_code=404, detail="Uno de los productos ya no existe en el sistema. Quítalo de la lista e intenta de nuevo.")
         productos[d.id_producto] = producto
 
     # ✅ Verificar stock suficiente para SALIDAS (signo = 2)
@@ -228,7 +228,7 @@ def crear_tipo_movimiento(datos: TipoMovimientoInventarioCreate, db: Session = D
     db.flush()
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "TipoMovimientoInventario",
-        detalle=f"Creó el tipo de movimiento '{nuevo.nombre}' (id={nuevo.id})",
+        detalle=f"Creó el tipo de movimiento '{nuevo.nombre}'",
     )
     db.commit()
     db.refresh(nuevo)
@@ -356,7 +356,7 @@ def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db),
     db.flush()
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "TrasladoSucursal",
-        detalle=f"Registró el traslado #{nuevo.id} del producto id={datos.id_producto}",
+        detalle=f"Registró el traslado #{nuevo.id} del producto '{(db.query(Producto).filter(Producto.id == datos.id_producto).first() or Producto(nombre='sin nombre')).nombre}'",
     )
     db.commit()
     db.refresh(nuevo)
@@ -378,7 +378,7 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: int, db: Session = 
 
     registrar_actividad(
         db, usuario_actual.id, "EDITAR", "TrasladoSucursal",
-        detalle=f"Confirmó la recepción del traslado #{traslado.id} (recibido por usuario id={id_usuario_recibe})",
+        detalle=f"Confirmó la recepción del traslado #{traslado.id} (recibido por {(db.query(Usuario).filter(Usuario.id == id_usuario_recibe).first() or Usuario(nombre_usuario='usuario desconocido')).nombre_usuario})",
     )
     db.commit()
     db.refresh(traslado)

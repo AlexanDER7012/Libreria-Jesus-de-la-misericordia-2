@@ -117,6 +117,12 @@ def obtener_compra(compra_id: int, db: Session = Depends(get_db), usuario_actual
     return compra
 
 
+def _nombre_proveedor(db: Session, id_proveedor) -> str:
+    from app.models.model_proveedor import Proveedor
+    prov = db.query(Proveedor).filter(Proveedor.id == id_proveedor).first() if id_proveedor else None
+    return prov.nombre if prov and prov.nombre else "sin nombre"
+
+
 @router.post("", response_model=CompraResponse, status_code=201)
 def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
     if not datos.detalles:
@@ -124,13 +130,13 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
 
     for d in datos.detalles:
         if not db.query(Producto).filter(Producto.id == d.id_producto).first():
-            raise HTTPException(status_code=404, detail=f"Producto id={d.id_producto} no encontrado")
+            raise HTTPException(status_code=404, detail="Uno de los productos ya no existe en el sistema. Quítalo de la lista e intenta de nuevo.")
 
     pedido = None
     if datos.id_pedido:
         pedido = db.query(Pedido).filter(Pedido.id == datos.id_pedido).first()
         if not pedido:
-            raise HTTPException(status_code=404, detail=f"Pedido id={datos.id_pedido} no encontrado")
+            raise HTTPException(status_code=404, detail=f"No existe el pedido número {datos.id_pedido}")
         if pedido.estado == "Cancelado":
             raise HTTPException(status_code=400, detail="No se puede crear compra desde un pedido cancelado")
         compra_existente = db.query(Compra).filter(Compra.id_pedido == datos.id_pedido).first()
@@ -195,7 +201,7 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
 
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "Compra",
-        detalle=f"Registró la compra #{nueva_compra.id} a proveedor id={datos.id_proveedor} (factura {datos.numero_factura or 's/n'}) por Q{total_factura}",
+        detalle=f"Registró la compra #{nueva_compra.id} al proveedor '{_nombre_proveedor(db, datos.id_proveedor)}' (factura {datos.numero_factura or 's/n'}) por Q{total_factura}",
     )
     db.commit()
     db.refresh(nueva_compra)
