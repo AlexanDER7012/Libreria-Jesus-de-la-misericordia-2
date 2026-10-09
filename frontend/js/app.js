@@ -39,6 +39,23 @@ class App {
     this.buildSidebar();
     this.setupFloatingButton();
     this.showHome();
+    this.refrescarPermisos();
+  }
+
+  // Actualiza los permisos desde el servidor al abrir el sistema; si
+  // cambiaron, vuelve a dibujar el menú y la pantalla actual.
+  async refrescarPermisos() {
+    if (typeof recargarPermisos !== "function") return;
+    const cambiaron = await recargarPermisos();
+    if (!cambiaron) return;
+    this.buildSidebar();
+    const actual = this.currentModule;
+    if (actual) {
+      this.currentModule = null;
+      await this.loadModule(actual);
+    } else {
+      this.showHome();
+    }
   }
 
   // =============================================
