@@ -12,6 +12,10 @@ class App {
     console.log("👤 Usuario actual:", this.user);
     this.sidebarVisible = false;
 
+    // Módulos que NO salen en el menú ni en la pantalla de inicio.
+    // Caja se usa solo desde Ventas → pestaña Caja (con los permisos de Ventas).
+    this.ocultosDelMenu = ["caja"];
+
     this.modules = [
       { id: "reportes", label: "Reportes", icon: "fa-chart-bar" },
       { id: "ventas", label: "Ventas", icon: "fa-shopping-cart" },
@@ -102,7 +106,11 @@ class App {
       return false;
     }
 
-    const moduleLower = moduleId.toLowerCase();
+    // Caja usa los permisos de Ventas (ver ALIAS_PERMISOS en components.js)
+    const moduleLower =
+      typeof moduloDePermiso === "function"
+        ? moduloDePermiso(moduleId)
+        : moduleId.toLowerCase();
     const tieneAcceso = permisos.some((p) => {
       const nombreModulo = p.modulo_nombre;
       const moduloLower = nombreModulo ? nombreModulo.toLowerCase() : "";
@@ -178,6 +186,7 @@ class App {
     console.log("📋 Permisos del usuario:", permisos);
 
     this.modules.forEach((mod) => {
+      if (this.ocultosDelMenu.includes(mod.id)) return;
       if (this.tienePermiso(mod.id)) {
         const a = document.createElement("a");
         a.href = "#";
@@ -329,7 +338,9 @@ class App {
       },
     ];
 
-    const mainModules = allModules.filter((mod) => this.tienePermiso(mod.id));
+    const mainModules = allModules.filter(
+      (mod) => !this.ocultosDelMenu.includes(mod.id) && this.tienePermiso(mod.id),
+    );
 
     if (mainModules.length === 0) {
       mainContent.innerHTML = `
