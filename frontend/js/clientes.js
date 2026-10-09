@@ -199,7 +199,7 @@ async function saveCliente(event) {
 
 // ELIMINAR CLIENTE
 async function deleteCliente(id) {
-  if (!confirm("¿Estás seguro de eliminar este cliente?")) return;
+  if (!await confirmarAccion("¿Estás seguro de eliminar este cliente?")) return;
 
   try {
     await api.deleteCliente(id);

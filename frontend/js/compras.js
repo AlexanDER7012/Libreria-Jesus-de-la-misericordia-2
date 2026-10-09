@@ -114,9 +114,32 @@ async function registrarMovimientoInventario(
 // CARGA DEL MÓDULO PRINCIPAL
 // =============================================
 
+// Pestañas abiertas en Compras (incluidas las internas, como Caja Chica o
+// Gastos). Antes, después de guardar algo, el módulo se volvía a dibujar y
+// regresaba siempre a la primera pestaña ("Compras"), y no se podía volver
+// a donde se estaba trabajando. Ahora se recuerdan y se vuelven a abrir.
+function _capturarPestanasCompras(container) {
+  if (!container || !container.querySelector("#tab-compras")) return [];
+  return Array.from(
+    container.querySelectorAll('[data-bs-toggle="tab"].active, [data-bs-toggle="pill"].active'),
+  )
+    .map((el) => el.id)
+    .filter(Boolean);
+}
+
+function _restaurarPestanasCompras(ids) {
+  (ids || []).forEach((id) => {
+    const el = document.getElementById(id);
+    if (el && typeof bootstrap !== "undefined") {
+      bootstrap.Tab.getOrCreateInstance(el).show();
+    }
+  });
+}
+
 async function loadComprasModule() {
   const container = document.getElementById("mainContent");
   if (!container) return;
+  const pestanasPrevias = _capturarPestanasCompras(container);
 
   container.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -344,6 +367,7 @@ async function loadComprasModule() {
     cargarGastosTabla();
     renderTiposGastoTab(tiposGastoData);
     renderTiposPagoCompras(comprasTiposPagoData);
+    _restaurarPestanasCompras(pestanasPrevias);
   } catch (error) {
     document.getElementById("comprasTableContainer").innerHTML = `
             <div class="alert alert-danger">Error al cargar datos: ${error.message}</div>

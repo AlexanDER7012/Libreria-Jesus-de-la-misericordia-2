@@ -1,9 +1,19 @@
 // api.js
-const API_BASE_URL = window.location.origin;
+const API_BASE_URL = "http://localhost:8000";
 
 class ApiClient {
   constructor() {
     this.token = localStorage.getItem("token");
+    // Sesiones guardadas antes de este cambio: el usuario no tenía "id"
+    // (solo "usuario_id"), y varias pantallas registraban todo a nombre del
+    // usuario 1. Se corrige una sola vez aquí.
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || "null");
+      if (u && u.id == null && u.usuario_id != null) {
+        u.id = u.usuario_id;
+        localStorage.setItem("user", JSON.stringify(u));
+      }
+    } catch (e) {}
   }
 
   // MÉTODO PRINCIPAL
@@ -13,6 +23,9 @@ class ApiClient {
       "Content-Type": "application/json",
     };
 
+    // Se lee siempre el token más reciente: si otra pestaña lo renovó,
+    // esta pestaña no debe seguir usando el viejo (que ya venció).
+    this.token = localStorage.getItem("token") || this.token;
     if (requiresAuth && this.token) {
       headers["Authorization"] = `Bearer ${this.token}`;
     }
@@ -91,7 +104,8 @@ class ApiClient {
     const data = await response.json();
     this.token = data.access_token;
     localStorage.setItem("token", data.access_token);
-    localStorage.setItem("user", JSON.stringify(data));
+    // "id" = id del usuario (el resto del sistema usa getCurrentUser().id)
+    localStorage.setItem("user", JSON.stringify({ ...data, id: data.usuario_id }));
 
     // ✅ Cargar permisos del usuario
     try {
@@ -131,6 +145,7 @@ class ApiClient {
   // ✅ Renovar el token mientras el usuario sigue activo (sin pedir contraseña)
   async renovarToken() {
     try {
+      this.token = localStorage.getItem("token") || this.token;
       const response = await fetch(`${API_BASE_URL}/login/renovar`, {
         method: "POST",
         headers: {

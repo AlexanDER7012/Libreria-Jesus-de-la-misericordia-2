@@ -2,7 +2,11 @@
 
 class App {
   constructor() {
-    if (!checkAuth()) return;
+    // requireAuth (y no solo checkAuth) para que se active el control de
+    // sesión: renovar el token mientras el usuario trabaja y cerrar la
+    // sesión tras 15 minutos sin actividad. Antes nunca se activaba, y el
+    // sistema sacaba al usuario a los 60 minutos aunque estuviera trabajando.
+    if (!requireAuth()) return;
     this.currentModule = null;
     this.user = getCurrentUser();
     console.log("👤 Usuario actual:", this.user);

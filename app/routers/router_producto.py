@@ -1,5 +1,6 @@
 from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
@@ -9,9 +10,9 @@ from app.models.model_producto import Producto, Categoria, Marca, UnidadMedida, 
 from app.models.model_usuario import Usuario
 from app.schemas.schema_producto import (
     ProductoCreate, ProductoUpdate, ProductoResponse,
-    CategoriaCreate, CategoriaResponse,
-    MarcaCreate, MarcaResponse,
-    UnidadMedidaCreate, UnidadMedidaResponse,
+    CategoriaCreate, CategoriaUpdate, CategoriaResponse,
+    MarcaCreate, MarcaUpdate, MarcaResponse,
+    UnidadMedidaCreate, UnidadMedidaUpdate, UnidadMedidaResponse,
     HistoricoPrecioResponse,
 )
 
@@ -265,6 +266,12 @@ def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db), usuar
     return nueva
 
 
+@router_categoria.put("/{categoria_id}", response_model=CategoriaResponse)
+def actualizar_categoria(categoria_id: int, datos: CategoriaUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Editar"))):
+    """Edita la categoría o la da de baja / reactiva (activo 0/1). No se borra para no dejar productos huérfanos."""
+    return _actualizar_catalogo(db, Categoria, categoria_id, datos, "categoría", "Categoria", usuario_actual)
+
+
 # ===================================================================
 # MARCA (catálogo simple)
 # ===================================================================
@@ -294,6 +301,12 @@ def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db), usuario_actua
     return nueva
 
 
+@router_marca.put("/{marca_id}", response_model=MarcaResponse)
+def actualizar_marca(marca_id: int, datos: MarcaUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Editar"))):
+    """Edita la marca o la da de baja / reactiva (activo 0/1). No se borra para no dejar productos huérfanos."""
+    return _actualizar_catalogo(db, Marca, marca_id, datos, "marca", "Marca", usuario_actual)
+
+
 # ===================================================================
 # UNIDAD_MEDIDA (catálogo simple)
 # ===================================================================
@@ -321,3 +334,47 @@ def crear_unidad_medida(datos: UnidadMedidaCreate, db: Session = Depends(get_db)
     db.commit()
     db.refresh(nueva)
     return nueva
+
+
+@router_unidad.put("/{unidad_id}", response_model=UnidadMedidaResponse)
+def actualizar_unidad(unidad_id: int, datos: UnidadMedidaUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Editar"))):
+    """Edita la unidad de medida o la da de baja / reactiva (activo 0/1). No se borra para no dejar productos huérfanos."""
+    return _actualizar_catalogo(db, UnidadMedida, unidad_id, datos, "unidad de medida", "UnidadMedida", usuario_actual)
+
+def _actualizar_catalogo(db: Session, Modelo, item_id: int, datos, etiqueta: str, nombre_modulo: str, usuario_actual):
+    """Edición común para Categoría, Marca y Unidad de medida."""
+    item = db.query(Modelo).filter(Modelo.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail=f"{etiqueta.capitalize()} no encontrada")
+
+    cambios = datos.model_dump(exclude_unset=True)
+    if "nombre" in cambios:
+        nombre = (cambios["nombre"] or "").strip()
+        if not nombre:
+            raise HTTPException(status_code=400, detail="El nombre es obligatorio")
+        duplicado = (
+            db.query(Modelo)
+            .filter(func.lower(Modelo.nombre) == nombre.lower(), Modelo.id != item_id)
+            .first()
+        )
+        if duplicado:
+            raise HTTPException(status_code=400, detail=f"Ya existe otra {etiqueta} con ese nombre")
+        cambios["nombre"] = nombre
+    if "activo" in cambios and cambios["activo"] not in (0, 1):
+        raise HTTPException(status_code=400, detail="activo debe ser 0 o 1")
+
+    nombre_anterior = item.nombre
+    for campo, valor in cambios.items():
+        setattr(item, campo, valor)
+
+    if set(cambios) == {"activo"}:
+        accion_txt = "Reactivó" if cambios["activo"] == 1 else "Dio de baja"
+        detalle = f"{accion_txt} {etiqueta} '{item.nombre}'"
+    else:
+        detalle = f"Editó {etiqueta} '{nombre_anterior}'" + (
+            f" (ahora '{item.nombre}')" if item.nombre != nombre_anterior else ""
+        )
+    registrar_actividad(db, usuario_actual.id, "EDITAR", nombre_modulo, detalle=detalle)
+    db.commit()
+    db.refresh(item)
+    return item

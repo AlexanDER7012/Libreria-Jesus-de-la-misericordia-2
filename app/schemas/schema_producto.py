@@ -12,11 +12,18 @@ class CategoriaBase(BaseModel):
 
 class CategoriaCreate(CategoriaBase):
     nombre: str
+    activo: Optional[int] = 1
+
+
+class CategoriaUpdate(CategoriaBase):
+    nombre: Optional[str] = None
+    activo: Optional[int] = None
 
 
 class CategoriaResponse(CategoriaBase):
     id: int
     nombre: Optional[str] = None
+    activo: Optional[int] = 1
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -28,11 +35,18 @@ class MarcaBase(BaseModel):
 
 class MarcaCreate(MarcaBase):
     nombre: str
+    activo: Optional[int] = 1
+
+
+class MarcaUpdate(MarcaBase):
+    nombre: Optional[str] = None
+    activo: Optional[int] = None
 
 
 class MarcaResponse(MarcaBase):
     id: int
     nombre: Optional[str] = None
+    activo: Optional[int] = 1
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -45,11 +59,18 @@ class UnidadMedidaBase(BaseModel):
 
 class UnidadMedidaCreate(UnidadMedidaBase):
     nombre: str
+    activo: Optional[int] = 1
+
+
+class UnidadMedidaUpdate(UnidadMedidaBase):
+    nombre: Optional[str] = None
+    activo: Optional[int] = None
 
 
 class UnidadMedidaResponse(UnidadMedidaBase):
     id: int
     nombre: Optional[str] = None
+    activo: Optional[int] = 1
     model_config = ConfigDict(from_attributes=True)
 
 

@@ -208,7 +208,7 @@ async function loadInventarioModule() {
   if (!container) return;
 
   await obtenerProductosParaInventario();
-  console.log("Productos cargados:", window.productosData);
+  await obtenerUbicacionesParaInventario();
 
   container.innerHTML = `
           <div class="d-flex justify-content-end align-items-center mb-3">
@@ -298,6 +298,27 @@ async function loadInventarioModule() {
 // RECARGA ESPECÍFICA POR SECCIÓN
 // ============================================================
 
+// Ubicaciones (sucursales/bodegas) para Conteo físico y Traslados.
+// Antes solo se leían de una copia guardada por el módulo de Ventas: si no
+// se había entrado antes a Ventas, los selects de ubicación salían vacíos y
+// no se podía guardar ni un conteo ni un traslado.
+async function obtenerUbicacionesParaInventario() {
+  try {
+    const ubicaciones = await api.request("/ubicaciones");
+    window.ubicacionesData = (ubicaciones || []).filter((u) => u.activo !== 0);
+    try {
+      localStorage.setItem("ubicaciones_backup", JSON.stringify(window.ubicacionesData));
+    } catch (e) {}
+  } catch (error) {
+    console.error("Error cargando ubicaciones:", error);
+    try {
+      const backup = JSON.parse(localStorage.getItem("ubicaciones_backup") || "[]");
+      if (Array.isArray(backup)) window.ubicacionesData = backup;
+    } catch (e) {}
+  }
+  return window.ubicacionesData || [];
+}
+
 async function recargarResumenInventario() {
   try {
     await obtenerProductosParaInventario();
@@ -350,8 +371,19 @@ async function recargarTiposMovimiento() {
 function buscarEnInventario() {
   const input = document.getElementById("buscarInventario");
   if (input) {
+    const teniaFoco = document.activeElement === input;
     filtroBusqueda = input.value;
     renderResumenInventario();
+    // La tabla se vuelve a dibujar completa (incluido este campo). Antes se
+    // perdía lo escrito y el cursor después de la primera letra.
+    if (teniaFoco) {
+      const nuevo = document.getElementById("buscarInventario");
+      if (nuevo) {
+        nuevo.focus();
+        const fin = nuevo.value.length;
+        nuevo.setSelectionRange(fin, fin);
+      }
+    }
   }
 }
 
@@ -377,8 +409,9 @@ function renderResumenInventario() {
             <div class="col-md-6 col-lg-4">
                 <div class="input-group">
                     <span class="input-group-text"><i class="fas fa-search"></i></span>
-                    <input type="text" class="form-control" id="buscarInventario" 
-                           placeholder="Buscar por ID, nombre, código..." 
+                    <input type="text" class="form-control" id="buscarInventario"
+                           placeholder="Buscar por ID, nombre, código..."
+                           value="${String(filtroBusqueda || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;")}"
                            oninput="buscarEnInventario()">
                     <button class="btn btn-outline-secondary" onclick="document.getElementById('buscarInventario').value='';buscarEnInventario();">
                         <i class="fas fa-times"></i>
@@ -707,11 +740,17 @@ function populateSelectsInventario() {
   });
 
   const ubicacionSelects = document.querySelectorAll(".inv-ubicacion-select");
+  const ubicaciones = window.ubicacionesData || [];
   ubicacionSelects.forEach((select) => {
     select.innerHTML = '<option value="">Seleccionar ubicación</option>';
-    (window.ubicacionesData || []).forEach((u) => {
+    ubicaciones.forEach((u) => {
       select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
     });
+    // Con una sola ubicación no tiene sentido obligar a elegirla (excepto
+    // en Traslados, donde origen y destino deben ser distintas)
+    if (ubicaciones.length === 1 && !select.id.startsWith("traslado")) {
+      select.value = String(ubicaciones[0].id);
+    }
   });
 }
 
@@ -853,6 +892,13 @@ function crearModalesInventario() {
                                     <label class="form-label">Cantidad *</label>
                                     <input type="number" step="0.01" class="form-control" id="trasladoCantidad" required />
                                     <div class="invalid-feedback" id="trasladoCantidadError">Ingrese una cantidad válida</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Método de traslado *</label>
+                                    <select class="form-select" id="trasladoMetodo">
+                                        <option value="Empleado Interno">Empleado Interno</option>
+                                        <option value="Uber Moto">Uber Moto</option>
+                                    </select>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Observaciones</label>
@@ -1121,12 +1167,14 @@ async function saveMovimiento(event) {
 
   if (!valid) return;
 
+  // El servidor espera la cabecera del movimiento + la lista "detalles"
+  // (antes se mandaban los campos sueltos y respondía "Field required").
   const data = {
-    id_producto: idProducto,
+    id_usuario: getCurrentUser()?.id || getCurrentUser()?.usuario_id || null,
     id_tipo_movimiento: idTipo,
-    cantidad: cantidad,
-    observacion:
+    observaciones:
       document.getElementById("movimientoObservacion").value.trim() || null,
+    detalles: [{ id_producto: idProducto, cantidad: cantidad }],
   };
 
   try {
@@ -1185,7 +1233,8 @@ async function saveConteoFisico(event) {
   const data = {
     id_producto: idProducto,
     id_ubicacion: idUbicacion,
-    cantidad_contada: cantidad,
+    stock_real: cantidad,
+    id_usuario: getCurrentUser()?.id || getCurrentUser()?.usuario_id || null,
     observaciones:
       document.getElementById("conteoObservacion").value.trim() || null,
   };
@@ -1203,6 +1252,23 @@ async function saveConteoFisico(event) {
     await recargarResumenInventario();
   } catch (error) {
     showToast(error.message || "Error al registrar conteo", "error");
+  }
+}
+
+// Aplica un conteo: el stock del sistema pasa a ser lo que se contó.
+async function aplicarAjusteConteo(idConteo) {
+  const ok = await confirmarAccion(
+    "El stock del sistema se cambiará para que sea igual a lo que se contó físicamente.\n¿Aplicar el ajuste?",
+    { titulo: "Aplicar ajuste de inventario", textoAceptar: "Aplicar ajuste", peligro: false },
+  );
+  if (!ok) return;
+  try {
+    await api.request(`/inventario-fisico/${idConteo}/aplicar-ajuste`, "PATCH");
+    showToast("Ajuste aplicado: el stock quedó igual a lo contado", "success");
+    await recargarConteo();
+    await recargarResumenInventario();
+  } catch (error) {
+    showToast(error.message || "Error al aplicar el ajuste", "error");
   }
 }
 
@@ -1266,9 +1332,11 @@ async function saveTraslado(event) {
     cantidad: cantidad,
     id_ubicacion_origen: idOrigen,
     id_ubicacion_destino: idDestino,
+    metodo_traslado:
+      document.getElementById("trasladoMetodo")?.value || "Empleado Interno",
     observaciones:
       document.getElementById("trasladoObservacion").value.trim() || null,
-    id_usuario_envia: getCurrentUser()?.id || 1,
+    id_usuario_autoriza: getCurrentUser()?.id || getCurrentUser()?.usuario_id || null,
   };
 
   console.log("📦 Enviando traslado:", data);
@@ -1354,6 +1422,7 @@ function renderConteoFisico(conteos) {
                         <th>Stock Sistema</th>
                         <th>Diferencia</th>
                         <th>Fecha</th>
+                        <th>Ajuste</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1366,7 +1435,11 @@ function renderConteoFisico(conteos) {
     const ubicacion =
       ubicacionesMap[String(c.id_ubicacion)] ||
       ubicacionesMap[Number(c.id_ubicacion)];
-    const diferencia = (c.cantidad_contada || 0) - (c.stock_sistema || 0);
+    const contado = parseFloat(c.stock_real ?? c.cantidad_contada ?? 0) || 0;
+    const diferencia =
+      c.diferencia != null
+        ? parseFloat(c.diferencia) || 0
+        : contado - (parseFloat(c.stock_sistema) || 0);
     const esDiferencia = diferencia !== 0;
 
     html += `
@@ -1374,12 +1447,23 @@ function renderConteoFisico(conteos) {
                 <td>${c.id}</td>
                 <td>${producto ? producto.nombre : "--"}</td>
                 <td>${ubicacion ? ubicacion.nombre || ubicacion.id : "--"}</td>
-                <td>${c.cantidad_contada || 0}</td>
+                <td>${contado}</td>
                 <td>${c.stock_sistema || 0}</td>
                 <td class="${esDiferencia ? (diferencia > 0 ? "text-success" : "text-danger") : ""}">
                     ${diferencia !== 0 ? (diferencia > 0 ? "+" : "") + diferencia : "0"}
                 </td>
                 <td>${c.fecha ? new Date(c.fecha).toLocaleString() : "--"}</td>
+                <td>${
+                  c.ajustado === 1
+                    ? '<span class="badge bg-success">Aplicado</span>'
+                    : diferencia === 0
+                      ? '<span class="text-muted small">Sin diferencia</span>'
+                      : tienePermiso("Inventario", "Editar")
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="aplicarAjusteConteo(${c.id})" title="Dejar el stock del sistema igual a lo contado">
+                             <i class="fas fa-check me-1"></i>Aplicar ajuste
+                           </button>`
+                        : '<span class="badge bg-warning text-dark">Pendiente</span>'
+                }</td>
             </tr>
         `;
   });
