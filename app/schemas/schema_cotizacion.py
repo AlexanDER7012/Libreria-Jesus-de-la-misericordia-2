@@ -45,10 +45,18 @@ class CotizacionParaVentaDetalleItem(BaseModel):
     producto: str
     cantidad: float
     precio_unitario: float  # precio ACTUAL del producto, no el congelado en la cotizacion
+    # Campos que usa la pantalla de Nueva Venta (antes no venían y salía "undefined")
+    nombre_producto: Optional[str] = None
+    stock_disponible: float = 0
+    stock_suficiente: bool = True
 
 
 class CotizacionParaVentaResponse(BaseModel):
     id_cotizacion: int
+    id: Optional[int] = None  # mismo valor que id_cotizacion (lo usa el frontend)
     id_cliente: Optional[int] = None
     numero_expediente: Optional[str] = None
+    total: float = 0
+    observaciones: Optional[str] = None
+    tiene_stock_suficiente: bool = True
     detalles: List[CotizacionParaVentaDetalleItem]
