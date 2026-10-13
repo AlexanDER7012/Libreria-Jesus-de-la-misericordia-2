@@ -23,9 +23,47 @@ let _ventasSearchTimeout = null;
 // ============================================================
 // CARGA DEL MODULO PRINCIPAL
 // ============================================================
+
+function _capturarPestanasVentas(container) {
+  if (!container || !container.querySelector("#ventasSubTabs")) return [];
+  return Array.from(
+    container.querySelectorAll(
+      '[data-bs-toggle="tab"].active, [data-bs-toggle="pill"].active',
+    ),
+  )
+    .map((el) =>
+      el.id
+        ? { id: el.id }
+        : { href: el.getAttribute("href") || el.getAttribute("data-bs-target") },
+    )
+    .filter((p) => p.id || p.href);
+}
+
+function _restaurarPestanasVentas(pestanas) {
+  if (typeof bootstrap === "undefined") return;
+  (pestanas || []).forEach((p) => {
+    let el = null;
+    if (p.id) {
+      el = document.getElementById(p.id);
+    } else {
+      el = Array.from(
+        document.querySelectorAll(
+          '#mainContent [data-bs-toggle="tab"], #mainContent [data-bs-toggle="pill"]',
+        ),
+      ).find(
+        (t) =>
+          t.getAttribute("href") === p.href ||
+          t.getAttribute("data-bs-target") === p.href,
+      );
+    }
+    if (el) bootstrap.Tab.getOrCreateInstance(el).show();
+  });
+}
+
 async function loadVentasModule() {
   const container = document.getElementById("mainContent");
   if (!container) return;
+  const pestanasPrevias = _capturarPestanasVentas(container);
 
   container.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -180,6 +218,7 @@ async function loadVentasModule() {
         cargarSubCajaBasico(cajaContainer);
       }
     }
+    _restaurarPestanasVentas(pestanasPrevias);
   } catch (error) {
     document.getElementById("ventasTableContainer").innerHTML = `
             <div class="alert alert-danger">Error al cargar datos: ${error.message}</div>
@@ -993,53 +1032,88 @@ async function buscarCotizacionParaVenta() {
 
   try {
     const data = await api.request(`/cotizaciones/${id}/para-venta`);
+    const numero = data.id ?? data.id_cotizacion ?? id;
+    const esc = escaparHtmlEscaner;
+    const nombreDetalle = (d) => d.nombre_producto || d.producto || "Producto";
 
-    if (!data.tiene_stock_suficiente) {
-      const sinStock = data.detalles.filter((d) => !d.stock_suficiente);
+    const resumen = `
+        <div class="text-success small mb-1">
+          <i class="fas fa-check-circle me-1"></i>
+          Cotización #${esc(numero)}${data.numero_expediente ? ` - Exp. ${esc(data.numero_expediente)}` : ""}
+          - Total: Q${Number(data.total || 0).toFixed(2)}
+        </div>`;
+
+    if (data.tiene_stock_suficiente === false) {
+      const sinStock = (data.detalles || []).filter((d) => !d.stock_suficiente);
       document.getElementById("ventaCotizacionInfo").innerHTML = `
+        ${resumen}
         <div class="alert alert-warning small mb-2">
           <i class="fas fa-exclamation-triangle me-1"></i>
           <strong>Alerta:</strong> Los siguientes productos no tienen stock suficiente:
           <ul class="mb-0">
             ${sinStock
               .map(
-                (d) => `
-              <li>${d.nombre_producto}: solicitado ${d.cantidad}, disponible ${d.stock_disponible}</li>
-            `,
+                (d) =>
+                  `<li>${esc(nombreDetalle(d))}: solicitado ${Number(d.cantidad || 0)}, disponible ${Number(d.stock_disponible || 0)}</li>`,
               )
               .join("")}
           </ul>
         </div>
       `;
     } else {
-      document.getElementById("ventaCotizacionInfo").innerHTML = `
-        <div class="text-success small">
-          <i class="fas fa-check-circle me-1"></i>
-          Cotización #${data.id} - ${data.numero_expediente} - Total: Q${data.total.toFixed(2)}
-          ${data.observaciones ? `<br><span class="text-muted">${data.observaciones}</span>` : ""}
-        </div>
-      `;
+      document.getElementById("ventaCotizacionInfo").innerHTML = resumen;
     }
 
+    // El cliente puede no estar entre los clientes ya cargados (límite de 50)
     if (data.id_cliente && window.__ventaClienteSelector) {
+      window.clientesData = window.clientesData || [];
+      if (!window.clientesData.some((c) => c.id === data.id_cliente)) {
+        try {
+          const cli = await api.request(`/clientes/${data.id_cliente}`);
+          if (cli) window.clientesData.push(cli);
+        } catch (e) {}
+      }
       window.__ventaClienteSelector.setValue(data.id_cliente);
     }
 
     ventaDetallesTemp = [];
+    const noAgregados = [];
 
-    data.detalles.forEach((d) => {
-      const producto = (window.productosData || []).find(
+    for (const d of data.detalles || []) {
+      let producto = (window.productosData || []).find(
         (p) => p.id === d.id_producto,
       );
-      if (producto) {
+      // Puede no estar entre los productos ya cargados (límite de 50)
+      if (!producto) {
+        try {
+          producto = await api.request(`/productos/${d.id_producto}`);
+          if (producto) {
+            window.productosData = window.productosData || [];
+            window.productosData.push(producto);
+          }
+        } catch (e) {
+          producto = null;
+        }
+      }
+      if (producto && producto.activo !== 0) {
         ventaDetallesTemp.push({
           id_producto: d.id_producto,
           cantidad: d.cantidad,
           producto: producto,
           precio_unitario: d.precio_unitario,
         });
+      } else {
+        noAgregados.push(nombreDetalle(d));
       }
-    });
+    }
+
+    if (noAgregados.length) {
+      document.getElementById("ventaCotizacionInfo").innerHTML += `
+        <div class="alert alert-danger small mb-2">
+          <i class="fas fa-times-circle me-1"></i>
+          No se agregaron (ya no existen o están inactivos): ${noAgregados.map(esc).join(", ")}
+        </div>`;
+    }
 
     renderDetallesVenta();
 
@@ -1052,7 +1126,7 @@ async function buscarCotizacionParaVenta() {
       document.getElementById("ventaObservaciones").value = data.observaciones;
     }
 
-    showToast(`Cotización #${data.id} cargada correctamente`, "success");
+    showToast(`Cotización #${numero} cargada correctamente`, "success");
   } catch (error) {
     document.getElementById("ventaCotizacionInfo").innerHTML = `
       <div class="text-danger small">
@@ -1928,8 +2002,9 @@ async function registrarPagoVenta(event, idVenta) {
 // ============================================================
 // BUSCAR CLIENTE POR NIT
 // ============================================================
-function buscarClientePorNit(event) {
+async function buscarClientePorNit(event) {
   if (event && event.key !== "Enter") return;
+  if (event) event.preventDefault();
 
   const input = document.getElementById("ventaBuscarNit");
   const nit = input.value.trim();
@@ -1940,15 +2015,34 @@ function buscarClientePorNit(event) {
     return;
   }
 
-  const cliente = (window.clientesData || []).find((c) => c.nit === nit);
+  const mismoNit = (c) =>
+    String(c.nit || "").trim().toLowerCase() === nit.toLowerCase();
+  let cliente = (window.clientesData || []).find(mismoNit);
+
+  // Puede no estar entre los clientes ya cargados (límite de 50): se busca
+  // en el servidor.
+  if (!cliente) {
+    try {
+      const encontrados =
+        (await api.request(
+          `/clientes?buscar=${encodeURIComponent(nit)}&limit=20`,
+        )) || [];
+      cliente = encontrados.find(mismoNit);
+      if (cliente) {
+        window.clientesData = window.clientesData || [];
+        window.clientesData.push(cliente);
+      }
+    } catch (e) {}
+  }
 
   if (cliente) {
+    const esc = escaparHtmlEscaner;
     infoDiv.innerHTML = `
       <div class="alert alert-success small py-1 px-2 mb-0">
         <i class="fas fa-check-circle me-1"></i>
-        <strong>${cliente.nombre}</strong>
-        ${cliente.telefono ? ` - ${cliente.telefono}` : ""}
-        ${cliente.email ? ` - ${cliente.email}` : ""}
+        <strong>${esc(cliente.nombre || "Sin nombre")}</strong>
+        - Tel: ${esc(cliente.telefono || "Sin teléfono")}
+        - Email: ${esc(cliente.email || "Sin email")}
       </div>
     `;
     if (window.__ventaClienteSelector) {
@@ -1959,7 +2053,7 @@ function buscarClientePorNit(event) {
     infoDiv.innerHTML = `
       <div class="alert alert-warning small py-1 px-2 mb-0">
         <i class="fas fa-exclamation-triangle me-1"></i>
-        No se encontró cliente con NIT: ${nit}
+        No se encontró cliente con NIT: ${escaparHtmlEscaner(nit)}
       </div>
     `;
     if (window.__ventaClienteSelector) {
@@ -2376,10 +2470,21 @@ function crearModalCotizacion() {
             <div class="row">
               <div class="col-md-6">
                 <div class="mb-3">
-                  <label class="form-label">Cliente *</label>
-                  <select class="form-select" id="cotizacionCliente" required>
-                    <option value="">Seleccionar cliente</option>
-                  </select>
+                  <label class="form-label">Cliente * <small class="text-muted">(busca por NIT o nombre)</small></label>
+                  <input type="hidden" id="cotizacionCliente" value="">
+                  <div class="position-relative">
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="fas fa-search"></i></span>
+                      <input type="text" class="form-control" id="cotizacionClienteBuscar"
+                             placeholder="Escribe el NIT o el nombre y presiona Enter" autocomplete="off">
+                      <button class="btn btn-outline-secondary" type="button" id="cotizacionClienteLimpiar" title="Limpiar">
+                        <i class="fas fa-times"></i>
+                      </button>
+                    </div>
+                    <ul class="list-group position-absolute w-100 shadow-sm" id="cotizacionClienteLista"
+                        style="z-index: 1060; max-height: 220px; overflow-y: auto; display: none; top: 100%;"></ul>
+                  </div>
+                  <div id="cotizacionClienteInfo" class="mt-2"></div>
                 </div>
               </div>
               <div class="col-md-6">
@@ -2399,9 +2504,17 @@ function crearModalCotizacion() {
 
             <div class="row mb-2" id="cotizacionProductoRow">
               <div class="col-md-5">
-                <select class="form-select form-select-sm" id="cotizacionProductoSelect">
-                  <option value="">Seleccionar producto</option>
-                </select>
+                <input type="hidden" id="cotizacionProductoSelect" value="">
+                <div class="position-relative">
+                  <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+                    <input type="text" class="form-control" id="cotizacionProductoBuscar"
+                           placeholder="Nombre, código o escanea el código de barras" autocomplete="off">
+                  </div>
+                  <ul class="list-group position-absolute w-100 shadow-sm" id="cotizacionProductoLista"
+                      style="z-index: 1060; max-height: 220px; overflow-y: auto; display: none; top: 100%;"></ul>
+                </div>
+                <div id="cotizacionProductoInfo" class="small mt-1"></div>
               </div>
               <div class="col-md-3">
                 <input type="number" class="form-control form-control-sm" id="cotizacionProductoCantidad" value="1" step="1" min="1">
@@ -2439,7 +2552,206 @@ function crearModalCotizacion() {
   `;
 
   document.body.appendChild(modal);
+  _configurarBuscadoresCotizacion();
   return modal;
+}
+
+// ------------------------------------------------------------
+// Buscador con resultados del servidor (no depende de la lista de 50
+// clientes/productos ya cargada). Se usa en Nueva Cotización.
+// ------------------------------------------------------------
+function crearBuscadorRemoto(config) {
+  const input = document.getElementById(config.inputId);
+  const lista = document.getElementById(config.listaId);
+  if (!input || !lista) return null;
+
+  let resultados = [];
+  let temporizador = null;
+  let ultimaBusqueda = 0;
+
+  async function buscar(texto) {
+    const termino = (texto || "").trim();
+    if (!termino) {
+      resultados = [];
+      lista.style.display = "none";
+      return [];
+    }
+    const numero = ++ultimaBusqueda;
+    let datos = [];
+    try {
+      datos = (await api.request(config.url(termino))) || [];
+    } catch (e) {
+      datos = [];
+    }
+    if (numero !== ultimaBusqueda) return resultados; // llegó una búsqueda más nueva
+    resultados = datos;
+    if (datos.length === 0) {
+      lista.innerHTML = `<li class="list-group-item text-muted small">Sin resultados</li>`;
+    } else {
+      lista.innerHTML = datos
+        .map(
+          (item, i) =>
+            `<li class="list-group-item list-group-item-action py-1 px-2 small" style="cursor:pointer;" data-i="${i}">${config.etiqueta(item)}</li>`,
+        )
+        .join("");
+    }
+    lista.style.display = "block";
+    return datos;
+  }
+
+  function elegir(item) {
+    lista.style.display = "none";
+    config.onSelect(item);
+  }
+
+  input.addEventListener("input", () => {
+    clearTimeout(temporizador);
+    temporizador = setTimeout(() => buscar(input.value), 250);
+  });
+
+  input.addEventListener("keydown", async (event) => {
+    if (event.key !== "Enter") return;
+    // Sin esto, el Enter (también el del lector de barras) enviaría el formulario
+    event.preventDefault();
+    clearTimeout(temporizador);
+    const texto = input.value.trim();
+    if (!texto) return;
+    if (config.onEnter && (await config.onEnter(texto))) {
+      lista.style.display = "none";
+      return;
+    }
+    const datos = await buscar(texto);
+    const exacto = config.coincideExacto
+      ? datos.find((d) => config.coincideExacto(d, texto))
+      : null;
+    if (exacto) elegir(exacto);
+    else if (datos.length === 1) elegir(datos[0]);
+  });
+
+  lista.addEventListener("mousedown", (e) => {
+    const li = e.target.closest("li[data-i]");
+    if (!li) return;
+    e.preventDefault();
+    const item = resultados[parseInt(li.dataset.i)];
+    if (item) elegir(item);
+  });
+
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      lista.style.display = "none";
+    }, 150);
+  });
+
+  return {
+    ocultar: () => {
+      lista.style.display = "none";
+    },
+  };
+}
+
+function _mostrarClienteCotizacion(cliente) {
+  const info = document.getElementById("cotizacionClienteInfo");
+  const hidden = document.getElementById("cotizacionCliente");
+  const input = document.getElementById("cotizacionClienteBuscar");
+  if (!cliente) {
+    hidden.value = "";
+    info.innerHTML = "";
+    return;
+  }
+  const esc = escaparHtmlEscaner;
+  hidden.value = cliente.id;
+  input.value = cliente.nit
+    ? `${cliente.nit} - ${cliente.nombre || ""}`
+    : cliente.nombre || "";
+  info.innerHTML = `
+    <div class="alert alert-success small py-2 px-2 mb-0">
+      <div><i class="fas fa-check-circle me-1"></i><strong>${esc(cliente.nombre || "Sin nombre")}</strong></div>
+      <div><strong>NIT:</strong> ${esc(cliente.nit || "Sin NIT")}</div>
+      <div><strong>Teléfono:</strong> ${esc(cliente.telefono || "Sin teléfono")}</div>
+      <div><strong>Email:</strong> ${esc(cliente.email || "Sin email")}</div>
+      <div><strong>Dirección:</strong> ${esc(cliente.direccion || "Sin dirección")}</div>
+    </div>`;
+}
+
+function _seleccionarProductoCotizacion(producto) {
+  const hidden = document.getElementById("cotizacionProductoSelect");
+  const input = document.getElementById("cotizacionProductoBuscar");
+  const precio = document.getElementById("cotizacionProductoPrecio");
+  const info = document.getElementById("cotizacionProductoInfo");
+  if (!producto) {
+    hidden.value = "";
+    precio.value = "";
+    info.innerHTML = "";
+    return;
+  }
+  window.productosData = window.productosData || [];
+  if (!window.productosData.some((p) => p.id === producto.id)) {
+    window.productosData.push(producto);
+  }
+  hidden.value = producto.id;
+  input.value = `${producto.codigo || ""} - ${producto.nombre}`;
+  precio.value = `Q${parseFloat(producto.precio_venta || 0).toFixed(2)}`;
+  info.innerHTML = `<span class="text-muted">Stock: ${Number(producto.stock_actual || 0)}</span>`;
+}
+
+function _configurarBuscadoresCotizacion() {
+  const esc = escaparHtmlEscaner;
+
+  crearBuscadorRemoto({
+    inputId: "cotizacionClienteBuscar",
+    listaId: "cotizacionClienteLista",
+    url: (t) => `/clientes?buscar=${encodeURIComponent(t)}&limit=20`,
+    etiqueta: (c) =>
+      `<strong>${esc(c.nit || "Sin NIT")}</strong> - ${esc(c.nombre || "")}`,
+    coincideExacto: (c, t) =>
+      String(c.nit || "").trim().toLowerCase() === t.toLowerCase(),
+    onSelect: _mostrarClienteCotizacion,
+  });
+
+  document
+    .getElementById("cotizacionClienteBuscar")
+    .addEventListener("input", () => {
+      // Si se cambia el texto, el cliente elegido antes ya no aplica
+      document.getElementById("cotizacionCliente").value = "";
+      document.getElementById("cotizacionClienteInfo").innerHTML = "";
+    });
+
+  document
+    .getElementById("cotizacionClienteLimpiar")
+    .addEventListener("click", () => {
+      document.getElementById("cotizacionClienteBuscar").value = "";
+      _mostrarClienteCotizacion(null);
+      document.getElementById("cotizacionClienteBuscar").focus();
+    });
+
+  crearBuscadorRemoto({
+    inputId: "cotizacionProductoBuscar",
+    listaId: "cotizacionProductoLista",
+    url: (t) => `/productos?buscar=${encodeURIComponent(t)}&limit=20`,
+    etiqueta: (p) =>
+      `${esc(p.codigo || "")} - ${esc(p.nombre || "")} <span class="text-muted">(Q${parseFloat(p.precio_venta || 0).toFixed(2)} · stock ${Number(p.stock_actual || 0)})</span>`,
+    // Lector de barras: código exacto -> se agrega directo a la lista
+    onEnter: async (texto) => {
+      try {
+        const producto = await buscarProductoPorCodigo(texto);
+        if (producto.activo === 0) return false;
+        _seleccionarProductoCotizacion(producto);
+        agregarProductoCotizacionLista();
+        return true;
+      } catch (e) {
+        return false; // no es un código: se busca por nombre
+      }
+    },
+    onSelect: _seleccionarProductoCotizacion,
+  });
+
+  document
+    .getElementById("cotizacionProductoBuscar")
+    .addEventListener("input", () => {
+      document.getElementById("cotizacionProductoSelect").value = "";
+      document.getElementById("cotizacionProductoPrecio").value = "";
+      document.getElementById("cotizacionProductoInfo").innerHTML = "";
+    });
 }
 
 function showCreateCotizacionModal() {
@@ -2448,28 +2760,10 @@ function showCreateCotizacionModal() {
   const modal = crearModalCotizacion();
   if (!modal) return;
 
-  const clienteSelect = document.getElementById("cotizacionCliente");
-  clienteSelect.innerHTML = '<option value="">Seleccionar cliente</option>';
-  (window.clientesData || []).forEach((c) => {
-    clienteSelect.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
-  });
-
-  const productoSelect = document.getElementById("cotizacionProductoSelect");
-  productoSelect.innerHTML = '<option value="">Seleccionar producto</option>';
-  (window.productosData || []).forEach((p) => {
-    productoSelect.innerHTML += `
-      <option value="${p.id}" data-precio="${p.precio_venta || 0}" data-nombre="${p.nombre}">
-        ${p.codigo} - ${p.nombre} (Q${p.precio_venta || 0})
-      </option>
-    `;
-  });
-
-  productoSelect.onchange = function () {
-    const selected = this.options[this.selectedIndex];
-    const precio = selected.dataset.precio || 0;
-    document.getElementById("cotizacionProductoPrecio").value =
-      `Q${parseFloat(precio).toFixed(2)}`;
-  };
+  document.getElementById("cotizacionClienteBuscar").value = "";
+  _mostrarClienteCotizacion(null);
+  document.getElementById("cotizacionProductoBuscar").value = "";
+  _seleccionarProductoCotizacion(null);
 
   document.getElementById("cotizacionObservaciones").value = "";
   document.getElementById("cotizacionProductoCantidad").value = 1;
@@ -2509,16 +2803,25 @@ function agregarProductoCotizacionLista() {
     return;
   }
 
-  cotizacionItemsTemp.push({
-    id_producto: id_producto,
-    cantidad: cantidad,
-    nombre: producto.nombre,
-    precio_unitario: parseFloat(producto.precio_venta || 0),
-  });
+  // Si el producto ya está en la lista, se suma la cantidad
+  const existente = cotizacionItemsTemp.find(
+    (item) => item.id_producto === id_producto,
+  );
+  if (existente) {
+    existente.cantidad += cantidad;
+  } else {
+    cotizacionItemsTemp.push({
+      id_producto: id_producto,
+      cantidad: cantidad,
+      nombre: producto.nombre,
+      precio_unitario: parseFloat(producto.precio_venta || 0),
+    });
+  }
 
-  select.value = "";
+  _seleccionarProductoCotizacion(null);
+  document.getElementById("cotizacionProductoBuscar").value = "";
   document.getElementById("cotizacionProductoCantidad").value = 1;
-  document.getElementById("cotizacionProductoPrecio").value = "";
+  document.getElementById("cotizacionProductoBuscar").focus();
 
   renderCotizacionItems();
   calcularTotalCotizacion();
@@ -2540,13 +2843,13 @@ function renderCotizacionItems() {
     html += `
       <li class="list-group-item d-flex justify-content-between align-items-center">
         <div>
-          <strong>${item.nombre}</strong>
+          <strong>${escaparHtmlEscaner(item.nombre)}</strong>
           <span class="text-muted small"> x ${item.cantidad}</span>
           <span class="text-muted small"> Q${item.precio_unitario.toFixed(2)} c/u</span>
         </div>
         <div>
           <span class="fw-bold">Q${subtotal.toFixed(2)}</span>
-          <button class="btn btn-sm btn-outline-danger ms-2" onclick="eliminarItemCotizacion(${index})">
+          <button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="eliminarItemCotizacion(${index})">
             <i class="fas fa-times"></i>
           </button>
         </div>
@@ -3721,18 +4024,34 @@ async function cargarSubVendedores() {
       empleadosMap[e.id] = e;
     });
 
-    const vendedoresUsuarios = usuarios.filter((u) => u.id_rol === 3);
+    // Antes solo se mostraban los usuarios con id_rol === 3 (fijo en el
+    // código) y que tuvieran empleado; si el rol "Vendedor" tenía otro id,
+    // la pestaña salía vacía. Ahora se muestran todos los usuarios con su
+    // rol, y primero los que más ventas tienen.
+    const roles = await api.getRoles().catch(() => []);
+    const rolesMap = {};
+    (roles || []).forEach((r) => {
+      rolesMap[r.id] = r.nombre;
+    });
 
-    const resultado = vendedoresUsuarios
-      .filter((u) => u.id_empleado !== null)
+    const resultado = (usuarios || [])
       .map((u) => {
-        const empleado = empleadosMap[u.id_empleado];
+        const empleado = empleadosMap[u.id_empleado] || {};
         return {
-          ...u,
-          ...empleado,
           id_usuario: u.id,
+          nombre: empleado.nombre || u.nombre_usuario,
+          nombre_usuario: u.nombre_usuario,
+          email: empleado.email,
+          telefono: empleado.telefono,
+          rol: rolesMap[u.id_rol] || "--",
+          activo: u.activo,
         };
-      });
+      })
+      .sort(
+        (a, b) =>
+          (conteoVentasPorVendedor[b.id_usuario] || 0) -
+          (conteoVentasPorVendedor[a.id_usuario] || 0),
+      );
 
     console.log("📋 Vendedores encontrados:", resultado);
 
@@ -3741,7 +4060,7 @@ async function cargarSubVendedores() {
         <div class="text-center py-5">
           <i class="fas fa-user-tie fa-3x text-muted mb-3"></i>
           <p class="text-muted">No hay vendedores registrados</p>
-          <button class="btn btn-info btn-sm" onclick="cargarModulo('usuarios')">
+          <button class="btn btn-info btn-sm" onclick="window.app.loadModule('usuarios')">
             <i class="fas fa-plus me-2"></i>Ir a Usuarios
           </button>
         </div>
@@ -3758,9 +4077,9 @@ async function cargarSubVendedores() {
         <table class="table table-hover table-striped">
           <thead class="table-light">
             <tr>
-              <th>ID</th>
               <th>Nombre</th>
               <th>Usuario</th>
+              <th>Rol</th>
               <th>Email</th>
               <th>Teléfono</th>
               <th>Ventas</th>
@@ -3776,11 +4095,11 @@ async function cargarSubVendedores() {
 
       html += `
         <tr>
-          <td>${v.id}</td>
-          <td><strong>${v.nombre || "--"}</strong></td>
-          <td>${v.nombre_usuario || "--"}</td>
-          <td>${v.email || "--"}</td>
-          <td>${v.telefono || "--"}</td>
+          <td><strong>${escaparHtmlEscaner(v.nombre || "--")}</strong></td>
+          <td>${escaparHtmlEscaner(v.nombre_usuario || "--")}</td>
+          <td>${escaparHtmlEscaner(v.rol)}</td>
+          <td>${escaparHtmlEscaner(v.email || "Sin email")}</td>
+          <td>${escaparHtmlEscaner(v.telefono || "Sin teléfono")}</td>
           <td><span class="badge bg-warning">${totalVentasVendedor}</span></td>
           <td>
             <span class="badge ${activo ? "bg-success" : "bg-danger"}">

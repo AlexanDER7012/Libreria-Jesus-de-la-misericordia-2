@@ -146,18 +146,31 @@ def cotizacion_para_venta(cotizacion_id: int, db: Session = Depends(get_db), usu
         )
 
     detalles = []
+    total = 0.0
     for d in cotizacion.detalles:
         producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
+        nombre = producto.nombre if producto else "(producto no encontrado)"
+        cantidad = float(d.cantidad or 0)
+        precio = float(producto.precio_venta) if producto and producto.precio_venta else 0.0
+        stock = float(producto.stock_actual or 0) if producto else 0.0
+        total += cantidad * precio
         detalles.append(CotizacionParaVentaDetalleItem(
             id_producto=d.id_producto,
-            producto=producto.nombre if producto else "(producto no encontrado)",
-            cantidad=float(d.cantidad or 0),
-            precio_unitario=float(producto.precio_venta) if producto and producto.precio_venta else 0.0,
+            producto=nombre,
+            nombre_producto=nombre,
+            cantidad=cantidad,
+            precio_unitario=precio,
+            stock_disponible=stock,
+            stock_suficiente=bool(producto) and stock >= cantidad,
         ))
 
     return CotizacionParaVentaResponse(
         id_cotizacion=cotizacion.id,
+        id=cotizacion.id,
         id_cliente=cotizacion.id_cliente,
         numero_expediente=cotizacion.numero_expediente,
+        total=round(total, 2),
+        observaciones=cotizacion.observaciones,
+        tiene_stock_suficiente=all(item.stock_suficiente for item in detalles),
         detalles=detalles,
-    )
+    )
