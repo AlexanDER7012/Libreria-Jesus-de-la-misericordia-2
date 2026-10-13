@@ -10,6 +10,7 @@ from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
 from app.models.model_usuario import Usuario
 from app.models.model_proveedor import Proveedor, TipoProveedor, Pedido, DetallePedido
+from app.schemas.validators import normalizar_nit
 from app.schemas.schema_proveedor import (
     ProveedorCreate, ProveedorUpdate, ProveedorResponse,
     TipoProveedorCreate, TipoProveedorResponse,
@@ -44,6 +45,21 @@ def _calcular_total_pedido(db: Session, pedido: Pedido) -> float:
 # PROVEEDOR
 # ===================================================================
 
+
+def _nit_repetido(db: Session, modelo, nit, excluir_id=None):
+    """
+    Devuelve el registro que ya usa ese NIT (sin importar guiones, espacios
+    o mayúsculas), o None. "CF" (consumidor final) se puede repetir.
+    """
+    limpio = normalizar_nit(nit)
+    if not limpio or limpio in ("CF", "C/F"):
+        return None
+    columna = func.upper(func.replace(func.replace(modelo.nit, "-", ""), " ", ""))
+    query = db.query(modelo).filter(columna == limpio)
+    if excluir_id is not None:
+        query = query.filter(modelo.id != excluir_id)
+    return query.first()
+
 @router.get("", response_model=List[ProveedorResponse])
 def listar_proveedores(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
@@ -76,6 +92,9 @@ def obtener_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuario_
 
 @router.post("", response_model=ProveedorResponse, status_code=201)
 def crear_proveedor(datos: ProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
+    repetido = _nit_repetido(db, Proveedor, datos.nit)
+    if repetido:
+        raise HTTPException(status_code=400, detail=f"Ya existe un proveedor con ese NIT ({repetido.nombre})")
     nuevo = Proveedor(**datos.model_dump(), activo=1)
     db.add(nuevo)
     registrar_actividad(
@@ -92,6 +111,10 @@ def actualizar_proveedor(proveedor_id: int, datos: ProveedorUpdate, db: Session 
     proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+    if datos.nit is not None:
+        repetido = _nit_repetido(db, Proveedor, datos.nit, excluir_id=proveedor_id)
+        if repetido:
+            raise HTTPException(status_code=400, detail=f"Ya existe otro proveedor con ese NIT ({repetido.nombre})")
     cambios = datos.model_dump(exclude_unset=True)
     for campo, valor in cambios.items():
         setattr(proveedor, campo, valor)
@@ -314,4 +337,4 @@ def cambiar_estado_pedido(
     )
     db.commit()
     db.refresh(pedido)
-    return pedido
+    return pedido

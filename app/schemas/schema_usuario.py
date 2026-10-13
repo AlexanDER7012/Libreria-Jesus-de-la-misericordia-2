@@ -9,7 +9,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.validators import TelefonoValidatorMixin
+from app.schemas.validators import TelefonoValidatorMixin, EmailValidatorMixin, DpiValidatorMixin
 
 
 # ===================== Modulo =====================
@@ -132,12 +132,14 @@ class EmpleadoBase(BaseModel):
     id_turno: Optional[int] = None
 
 
-class EmpleadoCreate(EmpleadoBase, TelefonoValidatorMixin):
+class EmpleadoCreate(EmpleadoBase, TelefonoValidatorMixin, EmailValidatorMixin, DpiValidatorMixin):
     nombre: str
     dpi: str
 
 
-class EmpleadoUpdate(EmpleadoBase, TelefonoValidatorMixin):
+class EmpleadoUpdate(EmpleadoBase, TelefonoValidatorMixin, EmailValidatorMixin):
+    # El DPI se valida en el router SOLO si cambia, para que un empleado
+    # viejo con DPI mal guardado se pueda seguir editando.
     nombre: Optional[str] = None
     dpi: Optional[str] = None
     activo: Optional[int] = None
@@ -212,4 +214,4 @@ class LogActividadResponse(BaseModel):
     modulo: Optional[str] = None
     ip: Optional[str] = None
     detalles: Optional[str] = None
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)

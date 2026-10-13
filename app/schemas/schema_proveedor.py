@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict
-from app.schemas.validators import TelefonoValidatorMixin
+from app.schemas.validators import TelefonoValidatorMixin, EmailValidatorMixin
 
 
 # ===================== TipoProveedor =====================
@@ -34,11 +34,11 @@ class ProveedorBase(BaseModel):
     dias_credito: Optional[int] = None
 
 
-class ProveedorCreate(ProveedorBase, TelefonoValidatorMixin):
+class ProveedorCreate(ProveedorBase, TelefonoValidatorMixin, EmailValidatorMixin):
     nombre: str
 
 
-class ProveedorUpdate(ProveedorBase, TelefonoValidatorMixin):
+class ProveedorUpdate(ProveedorBase, TelefonoValidatorMixin, EmailValidatorMixin):
     nombre: Optional[str] = None
     activo: Optional[int] = None
 
@@ -89,4 +89,4 @@ class PedidoResponse(BaseModel):
 class PedidoTotalResponse(BaseModel):
     id_pedido: int
     total: float
-    alcanza_minimo: bool  # True si total >= Q500
+    alcanza_minimo: bool  # True si total >= Q500

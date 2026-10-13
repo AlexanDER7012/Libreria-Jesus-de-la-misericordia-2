@@ -7,6 +7,7 @@ Endpoints CRUD del recurso Cliente.
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -16,8 +17,24 @@ from app.bitacora import registrar_actividad
 from app.models.model_cliente import Cliente
 from app.models.model_usuario import Usuario
 from app.schemas.schema_cliente import ClienteCreate, ClienteUpdate, ClienteResponse
+from app.schemas.validators import normalizar_nit
 
 router = APIRouter()
+
+
+def _nit_repetido(db: Session, modelo, nit, excluir_id=None):
+    """
+    Devuelve el registro que ya usa ese NIT (sin importar guiones, espacios
+    o mayúsculas), o None. "CF" (consumidor final) se puede repetir.
+    """
+    limpio = normalizar_nit(nit)
+    if not limpio or limpio in ("CF", "C/F"):
+        return None
+    columna = func.upper(func.replace(func.replace(modelo.nit, "-", ""), " ", ""))
+    query = db.query(modelo).filter(columna == limpio)
+    if excluir_id is not None:
+        query = query.filter(modelo.id != excluir_id)
+    return query.first()
 
 
 @router.get("", response_model=List[ClienteResponse])
@@ -65,6 +82,9 @@ def obtener_cliente(cliente_id: int, db: Session = Depends(get_db), usuario_actu
 @router.post("", response_model=ClienteResponse, status_code=201)
 def crear_cliente(datos: ClienteCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Crear"))):
     """Crea un nuevo cliente (siempre queda activo=1)."""
+    repetido = _nit_repetido(db, Cliente, datos.nit)
+    if repetido:
+        raise HTTPException(status_code=400, detail=f"Ya existe un cliente con ese NIT ({repetido.nombre})")
     nuevo_cliente = Cliente(**datos.model_dump(), activo=1)
     db.add(nuevo_cliente)
     registrar_actividad(
@@ -82,6 +102,11 @@ def actualizar_cliente(cliente_id: int, datos: ClienteUpdate, db: Session = Depe
     cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    if datos.nit is not None:
+        repetido = _nit_repetido(db, Cliente, datos.nit, excluir_id=cliente_id)
+        if repetido:
+            raise HTTPException(status_code=400, detail=f"Ya existe otro cliente con ese NIT ({repetido.nombre})")
 
     cambios = datos.model_dump(exclude_unset=True)
     for campo, valor in cambios.items():
@@ -127,4 +152,4 @@ def reactivar_cliente(cliente_id: int, db: Session = Depends(get_db), usuario_ac
     )
     db.commit()
     db.refresh(cliente)
-    return cliente
+    return cliente

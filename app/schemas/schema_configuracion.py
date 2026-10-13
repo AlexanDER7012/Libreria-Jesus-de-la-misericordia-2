@@ -9,7 +9,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.validators import TelefonoValidatorMixin
+from app.schemas.validators import TelefonoValidatorMixin, EmailValidatorMixin
 
 
 # ===================== ConfiguracionGeneral =====================
@@ -30,7 +30,7 @@ class ConfiguracionGeneralBase(BaseModel):
     dias_retencion_bitacora: Optional[int] = None  # 0 = no borrar nunca
 
 
-class ConfiguracionGeneralUpdate(ConfiguracionGeneralBase, TelefonoValidatorMixin):
+class ConfiguracionGeneralUpdate(ConfiguracionGeneralBase, TelefonoValidatorMixin, EmailValidatorMixin):
     pass
 
 
@@ -53,4 +53,4 @@ class MetaFinancieraCreate(BaseModel):
 class MetaFinancieraResponse(MetaFinancieraCreate):
     id: int
     fecha_registro: Optional[datetime] = None
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
