@@ -10,7 +10,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.validators import TelefonoValidatorMixin
+from app.schemas.validators import TelefonoValidatorMixin, EmailValidatorMixin
 
 
 class ClienteBase(BaseModel):
@@ -21,13 +21,13 @@ class ClienteBase(BaseModel):
     tipo_cliente: Optional[str] = None
 
 
-class ClienteCreate(ClienteBase, TelefonoValidatorMixin):
+class ClienteCreate(ClienteBase, TelefonoValidatorMixin, EmailValidatorMixin):
     # Aunque la BD permite nombre vacío, aquí sí lo exigimos: no tiene
     # sentido dejar crear un cliente sin nombre desde la API.
     nombre: str
 
 
-class ClienteUpdate(ClienteBase, TelefonoValidatorMixin):
+class ClienteUpdate(ClienteBase, TelefonoValidatorMixin, EmailValidatorMixin):
     nombre: Optional[str] = None
     activo: Optional[int] = None
 

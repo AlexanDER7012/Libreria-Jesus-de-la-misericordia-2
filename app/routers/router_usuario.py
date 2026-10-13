@@ -13,6 +13,7 @@ from app.models.model_usuario import (
     Usuario, Empleado, Rol, RolPermiso, Puesto, Turno,
     Modulo, Permiso, HistoricoPagoEmpleado, LogActividad,
 )
+from app.schemas.validators import solo_digitos, validar_dpi
 from app.schemas.schema_usuario import (
     UsuarioCreate, UsuarioUpdate, UsuarioResponse,
     EmpleadoCreate, EmpleadoUpdate, EmpleadoResponse,
@@ -224,11 +225,23 @@ def obtener_empleado(empleado_id: int, db: Session = Depends(get_db), usuario_ac
     return empleado
 
 
+def _dpi_repetido(db: Session, dpi, excluir_id=None):
+    """Busca otro empleado con el mismo DPI, sin importar espacios o guiones."""
+    digitos = solo_digitos(dpi)
+    if not digitos:
+        return None
+    columna = func.replace(func.replace(Empleado.dpi, " ", ""), "-", "")
+    query = db.query(Empleado).filter(columna == digitos)
+    if excluir_id is not None:
+        query = query.filter(Empleado.id != excluir_id)
+    return query.first()
+
+
 @router_empleado.post("", response_model=EmpleadoResponse, status_code=201)
 def crear_empleado(datos: EmpleadoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Crear"))):
-    existente = db.query(Empleado).filter(Empleado.dpi == datos.dpi).first()
+    existente = _dpi_repetido(db, datos.dpi)
     if existente:
-        raise HTTPException(status_code=400, detail="Ya existe un empleado con ese DPI")
+        raise HTTPException(status_code=400, detail=f"Ya existe un empleado con ese DPI ({existente.nombre})")
 
     nuevo = Empleado(**datos.model_dump(), activo=1)
     db.add(nuevo)
@@ -248,6 +261,21 @@ def actualizar_empleado(empleado_id: int, datos: EmpleadoUpdate, db: Session = D
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
     cambios = datos.model_dump(exclude_unset=True)
+    # El DPI solo se valida si cambió: así un empleado viejo con DPI mal
+    # guardado se puede seguir editando sin tocarle el DPI.
+    if "dpi" in cambios:
+        if solo_digitos(cambios["dpi"]) == solo_digitos(empleado.dpi):
+            cambios.pop("dpi")
+        else:
+            try:
+                cambios["dpi"] = validar_dpi(cambios["dpi"])
+            except ValueError as e:
+                raise HTTPException(status_code=422, detail=str(e))
+            if not cambios["dpi"]:
+                raise HTTPException(status_code=422, detail="El DPI es obligatorio")
+            existente = _dpi_repetido(db, cambios["dpi"], excluir_id=empleado_id)
+            if existente:
+                raise HTTPException(status_code=400, detail=f"Ya existe otro empleado con ese DPI ({existente.nombre})")
     for campo, valor in cambios.items():
         setattr(empleado, campo, valor)
 
@@ -605,4 +633,4 @@ def listar_logs(id_usuario: int | None = None, db: Session = Depends(get_db), us
     query = db.query(LogActividad).order_by(LogActividad.fecha.desc())
     if id_usuario is not None:
         query = query.filter(LogActividad.id_usuario == id_usuario)
-    return query.limit(200).all()
+    return query.limit(200).all()
