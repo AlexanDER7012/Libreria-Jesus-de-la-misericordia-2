@@ -1212,13 +1212,25 @@
                     <i class="fas fa-download me-1"></i>Cargar
                   </button>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-5">
                   <label class="form-label fw-bold mb-1"
                     >Proveedor <span class="text-danger">*</span></label
                   >
-                  <div id="compraProveedorSelectorWrapper"></div>
+                  <div class="d-flex gap-1 align-items-start">
+                    <div
+                      id="compraProveedorSelectorWrapper"
+                      class="flex-grow-1"
+                    ></div>
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-primary text-nowrap"
+                      onclick="showCreateProveedorDesdeCompra()"
+                    >
+                      <i class="fas fa-plus me-1"></i>Añadir proveedor
+                    </button>
+                  </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                   <label class="form-label fw-bold mb-1">N° Factura</label>
                   <input
                     type="text"
@@ -1272,9 +1284,7 @@
                 <div class="row g-2 align-items-end" id="compraDetalleRow">
                   <div class="col-md-5">
                     <label class="form-label mb-1">Producto</label>
-                    <select
-                      class="form-select form-select-sm compra-detalle-producto"
-                    ></select>
+                    <div id="compraProductoSelectorWrapper"></div>
                   </div>
                   <div class="col-md-2">
                     <label class="form-label mb-1">Cantidad</label>
