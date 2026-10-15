@@ -708,11 +708,7 @@ function mostrarHistorialModal(producto, movimientos) {
 function showMovimientoModalConProducto(idProducto) {
   showMovimientoModal();
   setTimeout(() => {
-    const select = document.getElementById("movimientoProducto");
-    if (select) {
-      select.value = idProducto;
-      select.dispatchEvent(new Event("change"));
-    }
+    window.__movimientoProductoSelector?.setValue(idProducto);
   }, 300);
 }
 
@@ -721,16 +717,6 @@ function showMovimientoModalConProducto(idProducto) {
 // =============================================
 
 function populateSelectsInventario() {
-  const productos = window.productosData || [];
-
-  const productSelects = document.querySelectorAll(".inv-producto-select");
-  productSelects.forEach((select) => {
-    select.innerHTML = '<option value="">Seleccionar producto</option>';
-    productos.forEach((p) => {
-      select.innerHTML += `<option value="${p.id}">${p.codigo || ""} - ${p.nombre} (Stock: ${p.stock_actual || 0})</option>`;
-    });
-  });
-
   const tipoSelects = document.querySelectorAll(".inv-tipo-movimiento");
   tipoSelects.forEach((select) => {
     select.innerHTML = '<option value="">Seleccionar tipo</option>';
@@ -774,7 +760,7 @@ function crearModalesInventario() {
                                 <input type="hidden" id="movimientoId" />
                                 <div class="mb-3">
                                     <label class="form-label">Producto *</label>
-                                    <select class="form-select inv-producto-select" id="movimientoProducto" required></select>
+                                    <div id="movimientoProductoSelectorWrapper"></div>
                                     <div class="invalid-feedback" id="movimientoProductoError">Seleccione un producto</div>
                                 </div>
                                 <div class="mb-3">
@@ -816,7 +802,7 @@ function crearModalesInventario() {
                                 <input type="hidden" id="conteoId" />
                                 <div class="mb-3">
                                     <label class="form-label">Producto *</label>
-                                    <select class="form-select inv-producto-select" id="conteoProducto" required></select>
+                                    <div id="conteoProductoSelectorWrapper"></div>
                                     <div class="invalid-feedback" id="conteoProductoError">Seleccione un producto</div>
                                 </div>
                                 <div class="mb-3">
@@ -845,17 +831,6 @@ function crearModalesInventario() {
             </div>
         `;
     document.body.insertAdjacentHTML("beforeend", html);
-
-    document
-      .getElementById("conteoProducto")
-      .addEventListener("change", function () {
-        const producto = (window.productosData || []).find(
-          (p) => String(p.id) === String(this.value),
-        );
-        document.getElementById("conteoStockSistema").value = producto
-          ? producto.stock_actual || 0
-          : 0;
-      });
   }
 
   // Modal Traslado
@@ -873,7 +848,7 @@ function crearModalesInventario() {
                                 <input type="hidden" id="trasladoId" />
                                 <div class="mb-3">
                                     <label class="form-label">Producto *</label>
-                                    <select class="form-select inv-producto-select" id="trasladoProducto" required></select>
+                                    <div id="trasladoProductoSelectorWrapper"></div>
                                     <div class="invalid-feedback" id="trasladoProductoError">Seleccione un producto</div>
                                 </div>
                                 <div class="mb-3">
@@ -966,7 +941,10 @@ function showMovimientoModal() {
   document.getElementById("movimientoForm").reset();
   document.getElementById("movimientoId").value = "";
   limpiarErroresFormulario("movimientoForm");
+  const productoError = document.getElementById("movimientoProductoError");
+  if (productoError) productoError.style.display = "";
   populateSelectsInventario();
+  llenarSelectorProductoMovimiento();
   prepararEscanerInventario(
     "movimientoProducto",
     seleccionarProductoEscaneadoMovimiento,
@@ -991,7 +969,16 @@ function showConteoFisicoModal() {
   document.getElementById("conteoId").value = "";
   document.getElementById("conteoStockSistema").value = 0;
   limpiarErroresFormulario("conteoForm");
+  limpiarErrorSelectorProductoInventario("conteoProducto");
+  window.__conteoProductoSelector?.reset();
   populateSelectsInventario();
+  window.__conteoProductoSelector = llenarSelectorProductoInventario(
+    "conteo",
+    (producto) => {
+      const stockInput = document.getElementById("conteoStockSistema");
+      if (stockInput) stockInput.value = producto?.stock_actual || 0;
+    },
+  );
   prepararEscanerInventario("conteoProducto", contarProductoEscaneado);
   modal.addEventListener(
     "shown.bs.modal",
@@ -1012,7 +999,10 @@ function showTrasladoModal() {
   document.getElementById("trasladoForm").reset();
   document.getElementById("trasladoId").value = "";
   limpiarErroresFormulario("trasladoForm");
+  limpiarErrorSelectorProductoInventario("trasladoProducto");
+  window.__trasladoProductoSelector?.reset();
   populateSelectsInventario();
+  window.__trasladoProductoSelector = llenarSelectorProductoInventario("traslado");
   prepararEscanerInventario(
     "trasladoProducto",
     seleccionarProductoEscaneadoTraslado,
@@ -1024,6 +1014,56 @@ function showTrasladoModal() {
   );
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
+}
+
+function llenarSelectorProductoMovimiento() {
+  window.__movimientoProductoSelector =
+    llenarSelectorProductoInventario("movimiento");
+}
+
+function llenarSelectorProductoInventario(prefijo, onSelect) {
+  if (typeof crearSelectorBusqueda !== "function") return;
+  return crearSelectorBusqueda({
+    wrapperId: `${prefijo}ProductoSelectorWrapper`,
+    hiddenInputId: `${prefijo}Producto`,
+    searchInputId: `${prefijo}ProductoSearchTxt`,
+    dropdownId: `${prefijo}ProductoDropdown`,
+    getData: () => window.productosData || [],
+    getId: (producto) => producto.id,
+    getLabel: (producto) =>
+      `${producto.codigo || ""} - ${producto.nombre} (Stock: ${producto.stock_actual || 0})`,
+    getSearchText: (producto) =>
+      `${producto.codigo || ""} ${producto.nombre || ""} ${producto.descripcion || ""}`,
+    placeholder: "Buscar producto por código, nombre o descripción...",
+    emptyText: "Escribe código, nombre o descripción para buscar...",
+    maxResultados: 30,
+    small: true,
+    onSelect,
+  });
+}
+
+function limpiarErrorSelectorProductoInventario(selectId) {
+  limpiarErrorCampo(selectId);
+  document
+    .getElementById(`${selectId}SearchTxt`)
+    ?.classList.remove("is-invalid");
+  const errorEl = document.getElementById(`${selectId}Error`);
+  if (errorEl) errorEl.style.display = "";
+}
+
+function validarSelectorProductoInventario(selectId) {
+  const input = document.getElementById(selectId);
+  const searchInput = document.getElementById(`${selectId}SearchTxt`);
+  const errorEl = document.getElementById(`${selectId}Error`);
+  if (!input?.value) {
+    mostrarErrorCampo(selectId, "Seleccione un producto");
+    searchInput?.classList.add("is-invalid");
+    if (errorEl) errorEl.style.display = "block";
+    return false;
+  }
+
+  limpiarErrorSelectorProductoInventario(selectId);
+  return true;
 }
 
 // =============================================
@@ -1060,6 +1100,20 @@ function prepararEscanerInventario(selectId, onProducto) {
 }
 
 function _seleccionarProductoInventario(selectId, producto) {
+  const selector = {
+    movimientoProducto: window.__movimientoProductoSelector,
+    conteoProducto: window.__conteoProductoSelector,
+    trasladoProducto: window.__trasladoProductoSelector,
+  }[selectId];
+  if (selector) {
+    selector.setValue(producto.id);
+    if (selectId === "conteoProducto") {
+      const stockInput = document.getElementById("conteoStockSistema");
+      if (stockInput) stockInput.value = producto.stock_actual || 0;
+    }
+    return Boolean(document.getElementById(selectId)?.value);
+  }
+
   const select = document.getElementById(selectId);
   if (!select) return false;
   asegurarOpcionProducto(
@@ -1136,12 +1190,7 @@ async function saveMovimiento(event) {
   const idProducto = parseInt(
     document.getElementById("movimientoProducto").value,
   );
-  if (!idProducto) {
-    mostrarErrorCampo("movimientoProducto", "Seleccione un producto");
-    valid = false;
-  } else {
-    limpiarErrorCampo("movimientoProducto");
-  }
+  if (!validarSelectorProductoInventario("movimientoProducto")) valid = false;
 
   const idTipo = parseInt(document.getElementById("movimientoTipo").value);
   if (!idTipo) {
@@ -1199,12 +1248,7 @@ async function saveConteoFisico(event) {
   let valid = true;
 
   const idProducto = parseInt(document.getElementById("conteoProducto").value);
-  if (!idProducto) {
-    mostrarErrorCampo("conteoProducto", "Seleccione un producto");
-    valid = false;
-  } else {
-    limpiarErrorCampo("conteoProducto");
-  }
+  if (!validarSelectorProductoInventario("conteoProducto")) valid = false;
 
   const idUbicacion = parseInt(
     document.getElementById("conteoUbicacion").value,
@@ -1279,12 +1323,7 @@ async function saveTraslado(event) {
   const idProducto = parseInt(
     document.getElementById("trasladoProducto").value,
   );
-  if (!idProducto) {
-    mostrarErrorCampo("trasladoProducto", "Seleccione un producto");
-    valid = false;
-  } else {
-    limpiarErrorCampo("trasladoProducto");
-  }
+  if (!validarSelectorProductoInventario("trasladoProducto")) valid = false;
 
   const idOrigen = parseInt(document.getElementById("trasladoOrigen").value);
   if (!idOrigen) {
