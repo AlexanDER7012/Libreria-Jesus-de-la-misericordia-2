@@ -2446,7 +2446,7 @@ function showCreatePedidoModal() {
               <div class="row g-2 align-items-end mb-2" id="pedidoDetalleRow">
                 <div class="col-md-4">
                   <label class="form-label small mb-0">Producto</label>
-                  <select class="form-select form-select-sm pedido-detalle-producto" onchange="actualizarCostoPedido()"></select>
+                  <div id="pedidoProductoSelectorWrapper"></div>
                 </div>
                 <div class="col-md-2">
                   <label class="form-label small mb-0">Cant. pedida</label>
@@ -2500,26 +2500,49 @@ function showCreatePedidoModal() {
 }
 
 function llenarSelectProductoPedido() {
-  const select = document.querySelector(".pedido-detalle-producto");
-  if (!select) return;
-  select.innerHTML = '<option value="">Seleccionar producto</option>';
-  (window.productosData || []).forEach((p) => {
-    if (p.activo !== 0) {
-      select.innerHTML += `<option value="${p.id}">${p.codigo} - ${p.nombre}</option>`;
-    }
+  if (typeof crearSelectorBusqueda !== "function") return;
+  window.__pedidoProductoSelector = crearSelectorBusqueda({
+    wrapperId: "pedidoProductoSelectorWrapper",
+    hiddenInputId: "pedidoProducto",
+    searchInputId: "pedidoProductoSearchTxt",
+    dropdownId: "pedidoProductoDropdown",
+    getData: () => (window.productosData || []).filter((p) => p.activo !== 0),
+    getId: (p) => p.id,
+    getLabel: (p) => `${p.codigo || ""} - ${p.nombre}`,
+    getSearchText: (p) =>
+      `${p.codigo || ""} ${p.nombre || ""} ${p.descripcion || ""}`,
+    searchData: async (termino) =>
+      ((await api.request(
+        `/productos?buscar=${encodeURIComponent(termino)}&limit=30`,
+      )) || []).filter((p) => p.activo !== 0),
+    emptyText: "Escribe código, nombre o descripción para buscar...",
+    placeholder: "Buscar producto por código, nombre o descripción...",
+    maxResultados: 30,
+    small: true,
+    onSelect: (producto) => {
+      if (producto) {
+        window.productosData = window.productosData || [];
+        const indice = window.productosData.findIndex(
+          (p) => String(p.id) === String(producto.id),
+        );
+        if (indice === -1) window.productosData.push(producto);
+        else window.productosData[indice] = producto;
+      }
+      actualizarCostoPedido();
+    },
   });
 }
 
 function actualizarCostoPedido() {
   const row = document.getElementById("pedidoDetalleRow");
   if (!row) return;
-  const id_producto = parseInt(
-    row.querySelector(".pedido-detalle-producto").value,
+  const idProducto = parseInt(
+    document.getElementById("pedidoProducto")?.value,
   );
-  if (!id_producto) return;
+  if (!idProducto) return;
 
   const producto = (window.productosData || []).find(
-    (p) => p.id === id_producto,
+    (p) => Number(p.id) === idProducto,
   );
   if (!producto) return;
 
@@ -2569,7 +2592,7 @@ function agregarDetallePedido(event) {
 
   const row = document.getElementById("pedidoDetalleRow");
   const id_producto = parseInt(
-    row.querySelector(".pedido-detalle-producto").value,
+    document.getElementById("pedidoProducto")?.value,
   );
   const cantidad_pedida =
     parseFloat(row.querySelector(".pedido-detalle-cantidad").value) || 0;
@@ -2583,8 +2606,9 @@ function agregarDetallePedido(event) {
     return showToast("El costo debe ser mayor a 0", "error");
 
   const producto = (window.productosData || []).find(
-    (p) => p.id === id_producto,
+    (p) => Number(p.id) === id_producto,
   );
+  if (!producto) return showToast("Producto no encontrado", "error");
 
   pedidoDetallesTemp.push({
     id_producto,
@@ -2598,7 +2622,7 @@ function agregarDetallePedido(event) {
   renderDetallesPedido();
   actualizarTotalesPedidoPreview();
 
-  row.querySelector(".pedido-detalle-producto").value = "";
+  window.__pedidoProductoSelector?.reset();
   row.querySelector(".pedido-detalle-cantidad").value = 1;
   row.querySelector(".pedido-detalle-costo").value = 0;
   row.querySelector(".pedido-detalle-subtotal").value = "Q0.00";
