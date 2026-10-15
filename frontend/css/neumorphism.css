@@ -613,13 +613,13 @@ body.dark-mode .login-field .input-group:focus-within {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  min-height: 180px;
+  min-height: clamp(200px, 27vw, 280px);
   transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
 }
 
 .modulo-card .modulo-icon {
-  width: 220px !important;
-  height: 220px !important;
+  width: clamp(140px, 22vw, 220px) !important;
+  height: clamp(140px, 22vw, 220px) !important;
   border-radius: 20px !important;
   display: flex;
   align-items: center;
@@ -674,13 +674,7 @@ body.dark-mode .login-field .input-group:focus-within {
 
 @media (max-width: 576px) {
   .modulo-card {
-    min-height: 200px;
     padding: 1rem 0.75rem !important;
-  }
-
-  .modulo-card .modulo-icon {
-    width: 140px !important;
-    height: 140px !important;
   }
 
   .modulo-card h6 {
