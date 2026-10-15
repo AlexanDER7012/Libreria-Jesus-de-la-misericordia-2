@@ -142,7 +142,8 @@ async function loadComprasModule() {
   const pestanasPrevias = _capturarPestanasCompras(container);
 
   container.innerHTML = `
-        <div class="d-flex justify-content-between align-items-center mb-4">
+      <div class="compras-module">
+        <div class="compras-header d-flex justify-content-between align-items-center mb-4">
             <h4><i class="fas fa-truck me-2 text-info"></i>Compras</h4>
             ${
               tienePermiso("Compras", "Crear")
@@ -317,6 +318,7 @@ async function loadComprasModule() {
                 </div>
             </div>
         </div>
+      </div>
     `;
 
   try {
@@ -533,7 +535,7 @@ function renderComprasTable(compras) {
     .join("");
 
   let html = `
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Compras</h6>
             ${
               tienePermiso("Compras", "Crear")
@@ -571,7 +573,7 @@ function renderComprasTable(compras) {
                     <option value="Cancelada">Cancelada</option>
                 </select>
             </div>
-            <div class="col-md-3 d-flex align-items-end gap-1">
+            <div class="col-md-3 compras-filter-actions d-flex align-items-end gap-1">
                 <button class="btn btn-sm btn-primary w-100" onclick="filtrarCompras()">
                     <i class="fas fa-search me-1"></i>Filtrar
                 </button>
@@ -813,7 +815,7 @@ function renderProveedoresTab(proveedores) {
   }
 
   let html = `
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
       <h6 class="mb-0">Listado de Proveedores</h6>
       ${
         tienePermiso("Compras", "Crear")
@@ -949,7 +951,7 @@ function renderTiposProveedorTab(tipos) {
   }
 
   let html = `
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Tipos de Proveedor</h6>
             ${
               tienePermiso("Compras", "Crear")
@@ -1030,7 +1032,7 @@ function renderPedidosTab(pedidos) {
     .join("");
 
   let html = `
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Pedidos</h6>
             ${
               tienePermiso("Compras", "Crear")
@@ -1068,7 +1070,7 @@ function renderPedidosTab(pedidos) {
                     <option value="Cancelado">Cancelado</option>
                 </select>
             </div>
-            <div class="col-md-3 d-flex align-items-end gap-1">
+            <div class="col-md-3 compras-filter-actions d-flex align-items-end gap-1">
                 <button class="btn btn-sm btn-primary w-100" onclick="filtrarPedidos()">
                     <i class="fas fa-search me-1"></i>Filtrar
                 </button>
@@ -1346,7 +1348,7 @@ function renderCajaChicaTab(movimientos) {
   }
 
   let html = `
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Movimientos de Caja Chica</h6>
             ${
               tienePermiso("Compras", "Crear")
@@ -1537,7 +1539,7 @@ function renderGastosTab(gastos) {
   }
 
   let html = `
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Gastos</h6>
             ${
               tienePermiso("Compras", "Crear")
@@ -1754,7 +1756,7 @@ function renderTiposGastoTab(tipos) {
   }
 
   let html = `
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Tipos de Gasto</h6>
             ${
               tienePermiso("Compras", "Crear")
@@ -1849,7 +1851,7 @@ function renderTiposPagoCompras(tipos) {
   }
 
   let html = `
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Tipos de Pago para Compras</h6>
             ${
               tienePermiso("Compras", "Crear") ||
