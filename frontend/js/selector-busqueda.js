@@ -13,6 +13,8 @@
 //     getData: () => window.datos || [],
 //     getId: (item) => item.id,
 //     getLabel: (item) => item.nombre,
+//     getSearchText: (item) => `${item.codigo} ${item.nombre}`, // opcional
+//     searchData: async (texto) => api.request(`/items?buscar=${texto}`), // opcional
 //     placeholder: "Buscar...",
 //   });
 //
@@ -28,8 +30,11 @@ function crearSelectorBusqueda(config) {
     dropdownId,
     getData,
     getLabel,
+    getSearchText,
     getId,
     placeholder,
+    emptyText,
+    searchData,
     maxResultados,
     small,
     onSelect,
@@ -64,22 +69,51 @@ function crearSelectorBusqueda(config) {
   const hiddenInput = document.getElementById(hiddenInputId);
   const dropdown = document.getElementById(dropdownId);
   const clearBtn = document.getElementById(`${searchInputId}_clear`);
+  let resultadosActuales = [];
+  let solicitudActual = 0;
+  let temporizadorBusqueda = null;
+  let entradaEnfocada = false;
 
-  function renderLista(filtro) {
-    const data = getData() || [];
+  async function renderLista(filtro) {
+    const solicitud = ++solicitudActual;
     const termino = (filtro || "").toLowerCase().trim();
-    let filtrados = termino
-      ? data.filter((item) =>
-          (getLabel(item) || "").toLowerCase().includes(termino),
-        )
-      : data;
-    const totalEncontrados = filtrados.length;
-    filtrados = filtrados.slice(0, limite);
+    if (searchData && !termino) {
+      resultadosActuales = [];
+      dropdown.innerHTML = `<li class="list-group-item text-muted small">${emptyText || "Escribe para buscar..."}</li>`;
+      dropdown.style.display = "block";
+      return;
+    }
 
-    if (filtrados.length === 0) {
+    let data;
+    try {
+      data = searchData ? await searchData(termino) : getData() || [];
+    } catch (error) {
+      if (solicitud !== solicitudActual || !entradaEnfocada) return;
+      console.error("Error al buscar opciones:", error);
+      resultadosActuales = [];
+      dropdown.innerHTML =
+        '<li class="list-group-item text-danger small">No se pudo completar la búsqueda</li>';
+      dropdown.style.display = "block";
+      return;
+    }
+    if (solicitud !== solicitudActual) return;
+
+    const filtrados = searchData
+      ? data || []
+      : termino
+        ? (data || []).filter((item) =>
+            (getSearchText ? getSearchText(item) : getLabel(item) || "")
+              .toLowerCase()
+              .includes(termino),
+          )
+        : data || [];
+    const totalEncontrados = filtrados.length;
+    resultadosActuales = filtrados.slice(0, limite);
+
+    if (resultadosActuales.length === 0) {
       dropdown.innerHTML = `<li class="list-group-item text-muted small">Sin resultados</li>`;
     } else {
-      dropdown.innerHTML = filtrados
+      dropdown.innerHTML = resultadosActuales
         .map(
           (item) =>
             `<li class="${itemClase}" style="cursor:pointer;" data-id="${getId(item)}">${getLabel(item)}</li>`,
@@ -92,8 +126,27 @@ function crearSelectorBusqueda(config) {
     dropdown.style.display = "block";
   }
 
-  searchInput.addEventListener("input", () => renderLista(searchInput.value));
-  searchInput.addEventListener("focus", () => renderLista(searchInput.value));
+  searchInput.addEventListener("input", () => {
+    solicitudActual++;
+    clearTimeout(temporizadorBusqueda);
+    hiddenInput.value = "";
+    if (typeof onSelect === "function") onSelect(null);
+    if (searchData) {
+      temporizadorBusqueda = setTimeout(
+        () => renderLista(searchInput.value),
+        250,
+      );
+    } else {
+      renderLista(searchInput.value);
+    }
+  });
+  searchInput.addEventListener("focus", () => {
+    entradaEnfocada = true;
+    renderLista(searchInput.value);
+  });
+  searchInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") event.preventDefault();
+  });
 
   // Se usa "mousedown" (y no "click") para que el evento se dispare antes
   // del "blur" del input de búsqueda, y así la selección no se pierda.
@@ -102,9 +155,11 @@ function crearSelectorBusqueda(config) {
     if (!li) return;
     e.preventDefault();
     const id = li.dataset.id;
-    const data = getData() || [];
-    const item = data.find((d) => String(getId(d)) === String(id));
+    const item = resultadosActuales.find(
+      (d) => String(getId(d)) === String(id),
+    );
     if (!item) return;
+    solicitudActual++;
     hiddenInput.value = id;
     searchInput.value = getLabel(item);
     dropdown.style.display = "none";
@@ -113,6 +168,8 @@ function crearSelectorBusqueda(config) {
 
   searchInput.addEventListener("blur", () => {
     setTimeout(() => {
+      entradaEnfocada = false;
+      solicitudActual++;
       dropdown.style.display = "none";
     }, 150);
   });
@@ -121,6 +178,9 @@ function crearSelectorBusqueda(config) {
     hiddenInput.value = "";
     searchInput.value = "";
     dropdown.style.display = "none";
+    resultadosActuales = [];
+    solicitudActual++;
+    clearTimeout(temporizadorBusqueda);
     searchInput.focus();
     if (typeof onSelect === "function") onSelect(null);
   });

@@ -164,14 +164,37 @@ async function saveCliente(event) {
     return;
   }
 
+  let result;
+  const actualizarCacheCliente = () => {
+    if (!result) return;
+    const clienteIndex = clientesData.findIndex(
+      (cliente) => String(cliente.id) === String(result.id),
+    );
+    if (clienteIndex === -1) clientesData.push(result);
+    else clientesData[clienteIndex] = result;
+
+    window.clientesData = window.clientesData || [];
+    const clienteVentaIndex = window.clientesData.findIndex(
+      (cliente) => String(cliente.id) === String(result.id),
+    );
+    if (clienteVentaIndex === -1) window.clientesData.push(result);
+    else window.clientesData[clienteVentaIndex] = result;
+  };
+
   try {
-    let result;
     if (id) {
       result = await api.updateCliente(id, data);
       showToast("Cliente actualizado correctamente", "success");
     } else {
       result = await api.createCliente(data);
       showToast("Cliente creado correctamente", "success");
+    }
+
+    if (result) {
+      actualizarCacheCliente();
+      if (!id && window.__crearClienteDesdeVenta) {
+        window.__clienteVentaCreado = result;
+      }
     }
 
     // Cerrar modal y recargar
@@ -191,6 +214,7 @@ async function saveCliente(event) {
     } else {
       await loadClientesModule();
     }
+    actualizarCacheCliente();
   } catch (error) {
     console.error("Error guardando cliente:", error);
     showToast(error.message || "Error al guardar el cliente", "error");
