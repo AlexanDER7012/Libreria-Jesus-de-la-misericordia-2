@@ -2411,9 +2411,6 @@ function showCreatePedidoModal() {
     showToast("No hay proveedores activos. Crea uno primero.", "warning");
     return;
   }
-  const options = proveedores
-    .map((p) => `<option value="${p.id}">${p.nombre}</option>`)
-    .join("");
 
   const html = `
     <div class="modal fade" id="pedidoModal" tabindex="-1">
@@ -2428,10 +2425,7 @@ function showCreatePedidoModal() {
               <div class="row g-3 mb-3">
                 <div class="col-md-6">
                   <label class="form-label fw-bold">Proveedor <span class="text-danger">*</span></label>
-                  <select class="form-select" id="pedidoProveedor" required>
-                    <option value="">Seleccionar proveedor</option>
-                    ${options}
-                  </select>
+                  <div id="pedidoProveedorSelectorWrapper"></div>
                 </div>
               </div>
 
@@ -2493,10 +2487,31 @@ function showCreatePedidoModal() {
   document
     .getElementById("pedidoForm")
     .addEventListener("submit", savePedidoCompleto);
+  llenarSelectProveedorPedido();
   llenarSelectProductoPedido();
   renderDetallesPedido();
   actualizarTotalesPedidoPreview();
   new bootstrap.Modal(document.getElementById("pedidoModal")).show();
+}
+
+function llenarSelectProveedorPedido() {
+  if (typeof crearSelectorBusqueda !== "function") return;
+  window.__pedidoProveedorSelector = crearSelectorBusqueda({
+    wrapperId: "pedidoProveedorSelectorWrapper",
+    hiddenInputId: "pedidoProveedor",
+    searchInputId: "pedidoProveedorSearchTxt",
+    dropdownId: "pedidoProveedorDropdown",
+    getData: () => (window.proveedoresData || []).filter((p) => p.activo !== 0),
+    getId: (p) => p.id,
+    getLabel: (p) =>
+      `${p.nombre}${p.codigo_proveedor ? ` (${p.codigo_proveedor})` : ""}${p.nit ? ` - NIT: ${p.nit}` : ""}`,
+    getSearchText: (p) =>
+      `${p.nombre || ""} ${p.codigo_proveedor || ""} ${p.nit || ""}`,
+    placeholder: "Buscar proveedor por nombre, código o NIT...",
+    emptyText: "Escribe nombre, código o NIT para buscar...",
+    maxResultados: 30,
+    small: true,
+  });
 }
 
 function llenarSelectProductoPedido() {
@@ -2511,10 +2526,25 @@ function llenarSelectProductoPedido() {
     getLabel: (p) => `${p.codigo || ""} - ${p.nombre}`,
     getSearchText: (p) =>
       `${p.codigo || ""} ${p.nombre || ""} ${p.descripcion || ""}`,
-    searchData: async (termino) =>
-      ((await api.request(
-        `/productos?buscar=${encodeURIComponent(termino)}&limit=30`,
-      )) || []).filter((p) => p.activo !== 0),
+    searchData: async (termino) => {
+      const terminoNormalizado = termino.toLocaleLowerCase();
+      const productosLocales = (window.productosData || []).filter(
+        (producto) =>
+          producto.activo !== 0 &&
+          `${producto.codigo || ""} ${producto.nombre || ""} ${producto.descripcion || ""}`
+            .toLocaleLowerCase()
+            .includes(terminoNormalizado),
+      );
+      const productosRemotos =
+        ((await api.request(
+          `/productos?buscar=${encodeURIComponent(termino)}&limit=30`,
+        )) || []).filter((producto) => producto.activo !== 0);
+      const productosPorId = new Map();
+      [...productosLocales, ...productosRemotos].forEach((producto) => {
+        productosPorId.set(String(producto.id), producto);
+      });
+      return Array.from(productosPorId.values());
+    },
     emptyText: "Escribe código, nombre o descripción para buscar...",
     placeholder: "Buscar producto por código, nombre o descripción...",
     maxResultados: 30,
