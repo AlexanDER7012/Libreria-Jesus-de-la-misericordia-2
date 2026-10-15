@@ -773,27 +773,15 @@ function crearModalVenta() {
             <input type="hidden" id="ventaId" value="">
             
             <div class="row">
-              <div class="col-md-4">
-                <div class="mb-3">
-                  <label class="form-label">Buscar Cliente por NIT</label>
-                  <div class="input-group">
-                    <input type="text" class="form-control" id="ventaBuscarNit" 
-                           placeholder="Ingresa NIT del cliente" 
-                           onkeydown="if(event.key === 'Enter'){ event.preventDefault(); buscarClientePorNit(); }">
-                    <button class="btn btn-outline-primary" type="button" onclick="buscarClientePorNit()">
-                      <i class="fas fa-search"></i>
-                    </button>
-                    <button class="btn btn-outline-secondary" type="button" onclick="limpiarBusquedaCliente()">
-                      <i class="fas fa-times"></i>
-                    </button>
-                  </div>
-                  <div id="ventaClienteInfo" class="mt-1"></div>
-                </div>
-              </div>
-              <div class="col-md-4">
+              <div class="col-md-8">
                 <div class="mb-3">
                   <label class="form-label">Cliente</label>
-                  <div id="ventaClienteSelectorWrapper"></div>
+                  <div class="d-flex align-items-start gap-2">
+                    <div class="flex-grow-1 min-width-0" id="ventaClienteSelectorWrapper"></div>
+                    <button class="btn btn-outline-primary text-nowrap" type="button" onclick="crearClienteDesdeVenta()">
+                      <i class="fas fa-user-plus me-1"></i>Nuevo cliente
+                    </button>
+                  </div>
                 </div>
               </div>
               <div class="col-md-4">
@@ -860,9 +848,7 @@ function crearModalVenta() {
 
             <div class="row mb-2" id="ventaDetalleRow">
               <div class="col-md-5">
-                <select class="form-select form-select-sm" id="ventaProductoSelect">
-                  <option value="">Seleccionar producto</option>
-                </select>
+                <div id="ventaProductoSelectorWrapper"></div>
               </div>
               <div class="col-md-3">
                 <input type="number" class="form-control form-control-sm" id="ventaDetalleCantidad" value="1" step="1" min="1">
@@ -976,16 +962,12 @@ async function showCreateVentaModal() {
   const ventaCotizacion = document.getElementById("ventaCotizacion");
   const ventaCotizacionInfo = document.getElementById("ventaCotizacionInfo");
   const ventaDetallesList = document.getElementById("ventaDetallesList");
-  const ventaBuscarNit = document.getElementById("ventaBuscarNit");
-  const ventaClienteInfo = document.getElementById("ventaClienteInfo");
 
   if (ventaId) ventaId.value = "";
   if (ventaDescuento) ventaDescuento.value = 0;
   if (ventaObservaciones) ventaObservaciones.value = "";
   if (ventaCotizacion) ventaCotizacion.value = "";
   if (ventaCotizacionInfo) ventaCotizacionInfo.innerHTML = "";
-  if (ventaBuscarNit) ventaBuscarNit.value = "";
-  if (ventaClienteInfo) ventaClienteInfo.innerHTML = "";
 
   limpiarErroresFormulario("ventaForm");
 
@@ -1407,7 +1389,34 @@ function llenarSelectCliente() {
     getId: (c) => c.id,
     getLabel: (c) =>
       `${c.nombre}${c.nit ? " - NIT: " + c.nit : ""}${c.activo !== 0 ? "" : " (Inactivo)"}`,
-    placeholder: "Buscar cliente por nombre o NIT...",
+    getSearchText: (c) => `${c.nombre} ${c.nit || ""} ${c.id}`,
+    searchData: async (termino) => {
+      const encontrados =
+        (await api.request(
+          `/clientes?buscar=${encodeURIComponent(termino)}&limit=30`,
+        )) || [];
+      if (
+        /^\d+$/.test(termino) &&
+        Number.isSafeInteger(Number(termino)) &&
+        !encontrados.some((c) => String(c.id) === termino)
+      ) {
+        const cliente = await api.getCliente(termino).catch((error) => {
+          if (error.message === "Cliente no encontrado") return null;
+          throw error;
+        });
+        if (cliente) encontrados.unshift(cliente);
+      }
+      return encontrados;
+    },
+    emptyText: "Escribe nombre, NIT o ID para buscar",
+    placeholder: "Buscar cliente por nombre, NIT o ID...",
+    onSelect: (cliente) => {
+      if (!cliente) return;
+      window.clientesData = window.clientesData || [];
+      if (!window.clientesData.some((c) => String(c.id) === String(cliente.id))) {
+        window.clientesData.push(cliente);
+      }
+    },
   });
 }
 
@@ -1438,24 +1447,41 @@ async function llenarSelectCajaTurno() {
 }
 
 function llenarSelectProductoDetalle() {
-  const select = document.getElementById("ventaProductoSelect");
-  if (!select) return;
-
-  select.innerHTML = '<option value="">Seleccionar producto</option>';
-  (window.productosData || []).forEach((p) => {
-    select.innerHTML += `<option value="${p.id}" data-precio="${p.precio_venta || 0}">
-      ${p.codigo} - ${p.nombre} (Stock: ${p.stock_actual || 0})
-    </option>`;
+  if (typeof crearSelectorBusqueda !== "function") return;
+  window.__ventaProductoSelector = crearSelectorBusqueda({
+    wrapperId: "ventaProductoSelectorWrapper",
+    hiddenInputId: "ventaProductoSelect",
+    searchInputId: "ventaProductoSearchTxt",
+    dropdownId: "ventaProductoDropdown",
+    getData: () => window.productosData || [],
+    getId: (p) => p.id,
+    getLabel: (p) =>
+      `${p.codigo} - ${p.nombre} (Stock: ${p.stock_actual || 0})`,
+    getSearchText: (p) => `${p.codigo || ""} ${p.nombre || ""} ${p.id}`,
+    searchData: async (termino) =>
+      (await api.request(
+        `/productos?buscar=${encodeURIComponent(termino)}&limit=30`,
+      )) || [],
+    emptyText: "Escribe el nombre o código del producto para buscar",
+    placeholder: "Buscar producto por nombre o código...",
+    maxResultados: 30,
+    small: true,
+    onSelect: (producto) => {
+      if (producto) {
+        window.productosData = window.productosData || [];
+        const indice = window.productosData.findIndex(
+          (p) => String(p.id) === String(producto.id),
+        );
+        if (indice === -1) window.productosData.push(producto);
+        else window.productosData[indice] = producto;
+      }
+      const precio = producto ? producto.precio_venta || 0 : 0;
+      const precioField = document.getElementById("ventaDetallePrecio");
+      if (precioField) {
+        precioField.value = `Q${parseFloat(precio).toFixed(2)}`;
+      }
+    },
   });
-
-  select.onchange = function () {
-    const selected = this.options[this.selectedIndex];
-    const precio = selected.dataset.precio || 0;
-    const precioField = document.getElementById("ventaDetallePrecio");
-    if (precioField) {
-      precioField.value = `Q${parseFloat(precio).toFixed(2)}`;
-    }
-  };
 }
 
 // ============================================================
@@ -1507,7 +1533,7 @@ function agregarDetalleVenta(event) {
 
   renderDetallesVenta();
   cantidadInput.value = 1;
-  productSelect.value = "";
+  window.__ventaProductoSelector?.reset();
   document.getElementById("ventaDetallePrecio").value = "";
   document.getElementById("ventaScanInput")?.focus();
 }
@@ -1999,75 +2025,49 @@ async function registrarPagoVenta(event, idVenta) {
   }
 }
 
-// ============================================================
-// BUSCAR CLIENTE POR NIT
-// ============================================================
-async function buscarClientePorNit(event) {
-  if (event && event.key !== "Enter") return;
-  if (event) event.preventDefault();
+function crearClienteDesdeVenta() {
+  const ventaModal = document.getElementById("ventaModal");
+  const clienteModal = document.getElementById("clienteModal");
+  if (!ventaModal || !clienteModal || typeof bootstrap === "undefined") return;
 
-  const input = document.getElementById("ventaBuscarNit");
-  const nit = input.value.trim();
-  const infoDiv = document.getElementById("ventaClienteInfo");
+  const idClienteSeleccionado =
+    document.getElementById("ventaCliente")?.value || "";
+  const instanciaVenta = bootstrap.Modal.getInstance(ventaModal);
+  if (!instanciaVenta) return;
 
-  if (!nit) {
-    infoDiv.innerHTML = "";
-    return;
-  }
+  window.__crearClienteDesdeVenta = true;
+  window.__clienteVentaCreado = null;
 
-  const mismoNit = (c) =>
-    String(c.nit || "").trim().toLowerCase() === nit.toLowerCase();
-  let cliente = (window.clientesData || []).find(mismoNit);
-
-  // Puede no estar entre los clientes ya cargados (límite de 50): se busca
-  // en el servidor.
-  if (!cliente) {
-    try {
-      const encontrados =
-        (await api.request(
-          `/clientes?buscar=${encodeURIComponent(nit)}&limit=20`,
-        )) || [];
-      cliente = encontrados.find(mismoNit);
-      if (cliente) {
-        window.clientesData = window.clientesData || [];
-        window.clientesData.push(cliente);
+  clienteModal.addEventListener(
+    "hidden.bs.modal",
+    () => {
+      const clienteCreado = window.__clienteVentaCreado;
+      window.__crearClienteDesdeVenta = false;
+      window.__clienteVentaCreado = null;
+      window.clientesData = window.clientesData || [];
+      if (
+        clienteCreado &&
+        !window.clientesData.some(
+          (cliente) => String(cliente.id) === String(clienteCreado.id),
+        )
+      ) {
+        window.clientesData.push(clienteCreado);
       }
-    } catch (e) {}
-  }
+      llenarSelectCliente();
+      window.__ventaClienteSelector?.setValue(
+        clienteCreado?.id || idClienteSeleccionado,
+      );
+      bootstrap.Modal.getOrCreateInstance(ventaModal).show();
+    },
+    { once: true },
+  );
 
-  if (cliente) {
-    const esc = escaparHtmlEscaner;
-    infoDiv.innerHTML = `
-      <div class="alert alert-success small py-1 px-2 mb-0">
-        <i class="fas fa-check-circle me-1"></i>
-        <strong>${esc(cliente.nombre || "Sin nombre")}</strong>
-        - Tel: ${esc(cliente.telefono || "Sin teléfono")}
-        - Email: ${esc(cliente.email || "Sin email")}
-      </div>
-    `;
-    if (window.__ventaClienteSelector) {
-      window.__ventaClienteSelector.setValue(cliente.id);
-    }
-    showToast(`Cliente encontrado: ${cliente.nombre}`, "success");
-  } else {
-    infoDiv.innerHTML = `
-      <div class="alert alert-warning small py-1 px-2 mb-0">
-        <i class="fas fa-exclamation-triangle me-1"></i>
-        No se encontró cliente con NIT: ${escaparHtmlEscaner(nit)}
-      </div>
-    `;
-    if (window.__ventaClienteSelector) {
-      window.__ventaClienteSelector.reset();
-    }
-  }
-}
-
-function limpiarBusquedaCliente() {
-  document.getElementById("ventaBuscarNit").value = "";
-  document.getElementById("ventaClienteInfo").innerHTML = "";
-  if (window.__ventaClienteSelector) {
-    window.__ventaClienteSelector.reset();
-  }
+  ventaModal.addEventListener(
+    "hidden.bs.modal",
+    () => showCreateClienteModal(),
+    { once: true },
+  );
+  instanciaVenta.hide();
 }
 
 // ============================================================
@@ -4979,14 +4979,13 @@ window.serviciosAdicionalesData = serviciosAdicionalesData;
 window.cotizacionesData = cotizacionesData;
 window.mostrarModalPago = mostrarModalPago;
 window.registrarPagoVenta = registrarPagoVenta;
-window.buscarClientePorNit = buscarClientePorNit;
-window.limpiarBusquedaCliente = limpiarBusquedaCliente;
 window.imprimirVenta = imprimirVenta;
 window.exportarVentasExcel = exportarVentasExcel;
 window.exportarVentasPDF = exportarVentasPDF;
 window.pagarServicio = pagarServicio;
 window.pagarServicioIndependiente = pagarServicioIndependiente;
 window.eliminarPagoVenta = eliminarPagoVenta;
+window.crearClienteDesdeVenta = crearClienteDesdeVenta;
 window.showCreateTipoPagoModal = showCreateTipoPagoModal;
 window.showCrearTipoPagoModal = showCrearTipoPagoModal;
 window.showCargaMasivaVentasModal = showCargaMasivaVentasModal;
