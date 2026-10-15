@@ -2011,6 +2011,36 @@ function showCreateProveedorModal() {
   new bootstrap.Modal(document.getElementById("proveedorModal")).show();
 }
 
+function showCreateProveedorDesdeCompra() {
+  const abrirModalProveedor = () => {
+    showCreateProveedorModal();
+    const modal = document.getElementById("proveedorModal");
+    if (!modal) return;
+
+    modal.dataset.seleccionarEnCompra = "true";
+    modal.addEventListener(
+      "hidden.bs.modal",
+      () => {
+        const compraModal = document.getElementById("compraModal");
+        if (compraModal) {
+          bootstrap.Modal.getOrCreateInstance(compraModal).show();
+        }
+      },
+      { once: true },
+    );
+  };
+
+  const compraModal = document.getElementById("compraModal");
+  if (compraModal?.classList.contains("show")) {
+    compraModal.addEventListener("hidden.bs.modal", abrirModalProveedor, {
+      once: true,
+    });
+    bootstrap.Modal.getOrCreateInstance(compraModal).hide();
+  } else {
+    abrirModalProveedor();
+  }
+}
+
 async function showEditProveedorModal(id) {
   const proveedor = (window.proveedoresData || []).find((p) => p.id === id);
   if (!proveedor) return showToast("Proveedor no encontrado", "error");
@@ -2119,6 +2149,8 @@ async function saveProveedor(event) {
   event.preventDefault();
 
   const id = document.getElementById("proveedorId").value;
+  const modalProveedor = document.getElementById("proveedorModal");
+  const desdeCompra = modalProveedor?.dataset.seleccionarEnCompra === "true";
   const data = {
     nombre: document.getElementById("proveedorNombre").value.trim(),
     contacto: document.getElementById("proveedorContacto").value.trim() || null,
@@ -2138,18 +2170,71 @@ async function saveProveedor(event) {
   if (!data.nombre) return showToast("El nombre es obligatorio", "error");
 
   try {
+    let proveedorCreado = null;
     if (id) {
       data.activo = parseInt(document.getElementById("proveedorActivo").value);
       await api.request(`/proveedores/${id}`, "PUT", data);
       showToast("Proveedor actualizado correctamente", "success");
     } else {
-      await api.request("/proveedores", "POST", data);
-      showToast("Proveedor creado correctamente", "success");
+      proveedorCreado = await api.request("/proveedores", "POST", data);
+    }
+
+    if (desdeCompra && !id) {
+      bootstrap.Modal.getInstance(modalProveedor).hide();
+      let proveedores;
+      try {
+        proveedores = await api.getProveedores();
+      } catch (error) {
+        showToast(
+          `Proveedor creado, pero no se pudo actualizar la lista: ${error.message}`,
+          "warning",
+        );
+        return;
+      }
+
+      proveedoresData = proveedores || [];
+      window.proveedoresData = proveedoresData;
+      const proveedorCreadoId = Number(
+        proveedorCreado?.id ||
+          proveedorCreado?.id_proveedor ||
+          proveedorCreado?.proveedor?.id,
+      );
+      const nombreNormalizado = data.nombre.toLocaleLowerCase();
+      const candidatos = proveedoresData.filter(
+        (proveedor) =>
+          String(proveedor.nombre || "").trim().toLocaleLowerCase() ===
+          nombreNormalizado,
+      );
+      const proveedorSeleccionado =
+        proveedoresData.find(
+          (proveedor) => Number(proveedor.id) === proveedorCreadoId,
+        ) ||
+        candidatos.find(
+          (proveedor) =>
+            (data.nit && proveedor.nit === data.nit) ||
+            (data.codigo_proveedor &&
+              proveedor.codigo_proveedor === data.codigo_proveedor),
+        ) ||
+        candidatos[0];
+
+      llenarSelectProveedor();
+      if (proveedorSeleccionado) {
+        window.__compraProveedorSelector?.setValue(proveedorSeleccionado.id);
+        showToast("Proveedor creado y seleccionado correctamente", "success");
+      } else {
+        showToast(
+          "Proveedor creado, pero no se encontró en la lista para seleccionarlo.",
+          "warning",
+        );
+      }
+      renderProveedoresTab(proveedoresData);
+      return;
     }
 
     bootstrap.Modal.getInstance(
       document.getElementById("proveedorModal"),
     ).hide();
+    if (!id) showToast("Proveedor creado correctamente", "success");
     await loadComprasModule();
   } catch (error) {
     showToast(error.message || "Error al guardar proveedor", "error");
@@ -3516,12 +3601,10 @@ function seleccionarProductoEscaneadoCompra(producto) {
   const row = document.getElementById("compraDetalleRow");
   if (!row) return { tipo: "error", texto: "No se encontró la fila de detalle" };
 
-  const productSelect = row.querySelector(".compra-detalle-producto");
   const cantidadInput = row.querySelector(".compra-detalle-cantidad");
   const costoInput = row.querySelector(".compra-detalle-costo");
 
-  asegurarOpcionProducto(productSelect, producto);
-  productSelect.value = String(producto.id);
+  window.__compraProductoSelector?.setValue(producto.id);
 
   const ultimoCosto = parseFloat(producto.precio_compra) || 0;
   if (costoInput) costoInput.value = ultimoCosto ? ultimoCosto.toFixed(2) : "";
@@ -3626,14 +3709,31 @@ function llenarSelectProveedor() {
 }
 
 function llenarSelectProductoCompra() {
-  const selects = document.querySelectorAll(".compra-detalle-producto");
-  selects.forEach((select) => {
-    select.innerHTML = '<option value="">Seleccionar producto</option>';
-    (window.productosData || []).forEach((p) => {
-      if (p.activo !== 0) {
-        select.innerHTML += `<option value="${p.id}">${p.codigo} - ${p.nombre}</option>`;
+  if (typeof crearSelectorBusqueda !== "function") return;
+  window.__compraProductoSelector = crearSelectorBusqueda({
+    wrapperId: "compraProductoSelectorWrapper",
+    hiddenInputId: "compraProducto",
+    searchInputId: "compraProductoSearchTxt",
+    dropdownId: "compraProductoDropdown",
+    getData: () => (window.productosData || []).filter((p) => p.activo !== 0),
+    getId: (p) => p.id,
+    getLabel: (p) => `${p.codigo || ""} - ${p.nombre}`,
+    getSearchText: (p) =>
+      `${p.codigo || ""} ${p.nombre || ""} ${p.descripcion || ""}`,
+    placeholder: "Buscar producto por código, nombre o descripción...",
+    emptyText: "Escribe código, nombre o descripción para buscar...",
+    maxResultados: 30,
+    small: true,
+    onSelect: (producto) => {
+      if (!producto) return;
+      const costoInput = document.querySelector(
+        "#compraDetalleRow .compra-detalle-costo",
+      );
+      const ultimoCosto = parseFloat(producto.precio_compra) || 0;
+      if (costoInput) {
+        costoInput.value = ultimoCosto ? ultimoCosto.toFixed(2) : "";
       }
-    });
+    },
   });
 }
 
@@ -3643,7 +3743,7 @@ function agregarDetalleCompra(event) {
   const row = document.getElementById("compraDetalleRow");
   if (!row) return;
 
-  const productSelect = row.querySelector(".compra-detalle-producto");
+  const productSelect = document.getElementById("compraProducto");
   const cantidadInput = row.querySelector(".compra-detalle-cantidad");
   const costoInput = row.querySelector(".compra-detalle-costo");
 
@@ -3681,7 +3781,7 @@ function agregarDetalleCompra(event) {
   renderDetallesCompra();
   cantidadInput.value = 1;
   costoInput.value = 0;
-  productSelect.value = "";
+  window.__compraProductoSelector?.reset();
 
   const info = document.getElementById("compraScanInfo");
   if (info) info.innerHTML = "";
