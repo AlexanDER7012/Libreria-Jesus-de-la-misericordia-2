@@ -130,8 +130,8 @@
    5. LOGO
    ============================================ */
 .login-logo-container {
-  width: 120px;
-  height: 120px;
+  width: 140px;
+  height: 140px;
   margin: 0 auto 18px;
   border-radius: 50%;
   background: #e8ecf1;
@@ -141,7 +141,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 14px;
+  padding: 8px;
   transition: all 0.4s ease;
   position: relative;
 }
@@ -708,9 +708,9 @@ body.dark-mode .login-footer-link a i {
   }
 
   .login-logo-container {
-    width: 90px;
-    height: 90px;
-    padding: 10px;
+    width: 100px;
+    height: 100px;
+    padding: 7px;
     margin-bottom: 14px;
   }
 
@@ -755,9 +755,9 @@ body.dark-mode .login-footer-link a i {
   }
 
   .login-logo-container {
-    width: 70px;
-    height: 70px;
-    padding: 8px;
+    width: 80px;
+    height: 80px;
+    padding: 6px;
   }
 
   .theme-toggle-login {

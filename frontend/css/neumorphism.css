@@ -618,8 +618,8 @@ body.dark-mode .login-field .input-group:focus-within {
 }
 
 .modulo-card .modulo-icon {
-  width: 170px !important;
-  height: 170px !important;
+  width: 220px !important;
+  height: 220px !important;
   border-radius: 20px !important;
   display: flex;
   align-items: center;
@@ -674,13 +674,13 @@ body.dark-mode .login-field .input-group:focus-within {
 
 @media (max-width: 576px) {
   .modulo-card {
-    min-height: 150px;
+    min-height: 200px;
     padding: 1rem 0.75rem !important;
   }
 
   .modulo-card .modulo-icon {
-    width: 75px !important;
-    height: 75px !important;
+    width: 140px !important;
+    height: 140px !important;
   }
 
   .modulo-card h6 {
