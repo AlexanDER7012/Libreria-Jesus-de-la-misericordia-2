@@ -604,6 +604,67 @@ body.dark-mode .login-field .input-group:focus-within {
 }
 
 /* ============================================
+   MODULO COMPRAS - AJUSTE RESPONSIVE
+   ============================================ */
+.compras-module {
+  width: 100%;
+  min-width: 0;
+}
+
+.compras-module .tab-content,
+.compras-module .tab-pane {
+  min-width: 0;
+}
+
+.compras-module .nav-tabs {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.compras-module .nav-tabs .nav-item {
+  min-width: 0;
+}
+
+.compras-module .nav-tabs .nav-link {
+  justify-content: center;
+  white-space: normal;
+}
+
+.compras-header,
+.compras-section-header {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.compras-header .btn,
+.compras-section-header .btn {
+  white-space: nowrap;
+}
+
+.compras-filter-actions {
+  flex-wrap: wrap;
+}
+
+.compras-module .compras-filter-actions > .btn {
+  width: auto !important;
+  min-width: 0;
+  flex: 1 1 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 576px) {
+  .compras-header,
+  .compras-section-header {
+    align-items: stretch !important;
+  }
+
+  .compras-header .btn,
+  .compras-section-header .btn {
+    width: 100%;
+  }
+}
+
+/* ============================================
    MODULO-CARDS INICIO - IMAGEN GRANDE
    ============================================ */
 .modulo-card {
