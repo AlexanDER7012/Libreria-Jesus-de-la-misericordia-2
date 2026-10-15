@@ -608,6 +608,7 @@ body.dark-mode .login-field .input-group:focus-within {
    ============================================ */
 .compras-module {
   width: 100%;
+  max-width: 100%;
   min-width: 0;
 }
 
