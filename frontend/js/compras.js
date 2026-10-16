@@ -2421,7 +2421,7 @@ function showCreatePedidoModal() {
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <form id="pedidoForm">
+            <form id="pedidoForm" class="pedido-compact-form">
               <div class="row g-3 mb-3">
                 <div class="col-md-6">
                   <label class="form-label fw-bold">Proveedor <span class="text-danger">*</span></label>
@@ -2436,6 +2436,14 @@ function showCreatePedidoModal() {
 
               <hr />
               <h6 class="fw-bold"><i class="fas fa-boxes me-1"></i>Productos del pedido</h6>
+
+              <div class="input-group input-group-sm mb-1">
+                <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+                <input type="text" class="form-control" id="pedidoScanInput"
+                       placeholder="Escanea o escribe el código de barras y presiona Enter"
+                       autocomplete="off">
+              </div>
+              <div id="pedidoScanInfo" class="small mb-2"></div>
 
               <div class="row g-2 align-items-end mb-2" id="pedidoDetalleRow">
                 <div class="col-md-4">
@@ -2473,10 +2481,13 @@ function showCreatePedidoModal() {
                 </div>
               </div>
 
-              <button type="submit" class="btn btn-primary w-100 mt-2">
-                <i class="fas fa-save me-2"></i>Guardar Pedido
-              </button>
             </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary" form="pedidoForm">
+              <i class="fas fa-save me-2"></i>Guardar Pedido
+            </button>
           </div>
         </div>
       </div>
@@ -2491,7 +2502,32 @@ function showCreatePedidoModal() {
   llenarSelectProductoPedido();
   renderDetallesPedido();
   actualizarTotalesPedidoPreview();
+  crearEscanerCodigo({
+    input: "pedidoScanInput",
+    info: "pedidoScanInfo",
+    onProducto: seleccionarProductoEscaneadoPedido,
+  });
+  document.getElementById("pedidoModal").addEventListener(
+    "shown.bs.modal",
+    () => document.getElementById("pedidoScanInput")?.focus(),
+    { once: true },
+  );
   new bootstrap.Modal(document.getElementById("pedidoModal")).show();
+}
+
+function seleccionarProductoEscaneadoPedido(producto) {
+  const row = document.getElementById("pedidoDetalleRow");
+  if (!row) return { tipo: "error", texto: "No se encontró el detalle del pedido" };
+
+  window.__pedidoProductoSelector?.setValue(producto.id);
+  actualizarCostoPedido();
+  const cantidadInput = row.querySelector(".pedido-detalle-cantidad");
+  cantidadInput?.focus();
+  cantidadInput?.select();
+  return {
+    tipo: "ok",
+    texto: `${producto.nombre} seleccionado; completa la cantidad y el costo estimado`,
+  };
 }
 
 function llenarSelectProveedorPedido() {
@@ -3179,7 +3215,7 @@ function showCreateGastoModal() {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="gastoForm">
+                        <form id="gastoForm" class="gasto-form-grid">
                             <div class="mb-3">
                                 <label class="form-label">Tipo de Gasto *</label>
                                 <select class="form-select" id="gasto-tipo" required>
@@ -3206,8 +3242,11 @@ function showCreateGastoModal() {
                                 <label class="form-label">Observaciones</label>
                                 <textarea class="form-control" id="gastoObservaciones" rows="2"></textarea>
                             </div>
-                            <button type="submit" class="btn btn-primary w-100">Registrar Gasto</button>
                         </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" form="gastoForm">Registrar Gasto</button>
                     </div>
                 </div>
             </div>

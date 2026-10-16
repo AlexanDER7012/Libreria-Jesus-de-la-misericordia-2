@@ -260,6 +260,105 @@ body {
   overscroll-behavior: contain;
 }
 
+.modal-producto .modal-body {
+  padding: 0.75rem 1rem;
+}
+
+.producto-compact-form .row {
+  --bs-gutter-y: 0.4rem;
+  margin-bottom: 0.45rem !important;
+}
+
+.producto-compact-form .form-label {
+  margin-bottom: 0.15rem;
+  line-height: 1.15;
+}
+
+.producto-compact-form .form-control,
+.producto-compact-form .form-select,
+.producto-compact-form .input-group-text {
+  min-height: 34px;
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+
+.producto-compact-form small {
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.pedido-compact-form > .row,
+.pedido-compact-form > .mb-3 {
+  margin-bottom: 0.5rem !important;
+}
+
+.pedido-compact-form textarea {
+  min-height: 54px;
+}
+
+.gasto-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+}
+
+.gasto-form-grid > .mb-3 {
+  margin-bottom: 0 !important;
+}
+
+.gasto-form-grid > .mb-3:nth-of-type(5),
+.gasto-form-grid > button {
+  grid-column: 1 / -1;
+}
+
+.modal-venta .modal-body,
+.modal-servicio .modal-body {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.modal-venta .modal-body .mb-3,
+.modal-servicio .modal-body .mb-3 {
+  margin-bottom: 0.5rem !important;
+}
+
+.modal-venta .modal-footer,
+.modal-servicio .modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 0.75rem 1rem;
+  background: var(--bs-modal-bg, #fff);
+}
+
+.modal-venta textarea,
+.modal-servicio textarea {
+  min-height: 52px;
+}
+
+.compras-table-responsive {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.compras-list-table th:last-child,
+.compras-list-table td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--bs-table-bg, #fff);
+  box-shadow: -5px 0 8px -6px rgba(0, 0, 0, 0.35);
+}
+
+.compras-list-table {
+  min-width: 1050px;
+  white-space: nowrap;
+}
+
+.compras-list-table thead th:last-child {
+  z-index: 2;
+}
+
 .modal-landscape .inventory-modal-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -273,20 +372,6 @@ body {
 
 .modal-dialog.modal-landscape {
   --bs-modal-width: min(96vw, 1000px);
-}
-
-.compras-table-responsive {
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-.compras-list-table {
-  min-width: 1050px;
-  white-space: nowrap;
-}
-
-.compras-list-table td:last-child {
-  white-space: nowrap;
 }
 
 @media (max-width: 575.98px) {
@@ -307,6 +392,14 @@ body {
   .modal-workspace .modal-body,
   .modal-workspace .modal-footer {
     padding: 1rem;
+  }
+
+  .gasto-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gasto-form-grid > * {
+    grid-column: 1;
   }
 }
 

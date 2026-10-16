@@ -26,6 +26,7 @@
     return body;
   }
   function _restaurarCajaModal() {
+    document.getElementById("cajaGastoFooter")?.remove();
     const body = _cuerpoCajaModal();
     if (body && _cuerpoOriginalCajaModal !== null) {
       body.innerHTML = _cuerpoOriginalCajaModal;
@@ -1030,7 +1031,7 @@
 
     const body = _cuerpoCajaModal();
     body.innerHTML = `
-            <form id="cajaForm">
+            <form id="cajaForm" class="gasto-form-grid">
                 <input type="hidden" id="cajaId" />
                 <div class="mb-3">
                     <label class="form-label">Ubicación</label>
@@ -1210,9 +1211,20 @@
                     <label class="form-label">Observaciones</label>
                     <textarea class="form-control" id="gastoObservaciones" rows="2"></textarea>
                 </div>
-                <button type="submit" class="btn btn-danger w-100" onclick="window.registrarGasto(event)">Registrar Gasto</button>
             </form>
         `;
+
+    let footer = modal.querySelector(".modal-footer");
+    if (!footer) {
+      footer = document.createElement("div");
+      footer.id = "cajaGastoFooter";
+      footer.className = "modal-footer";
+      modal.querySelector(".modal-content").appendChild(footer);
+    }
+    footer.innerHTML = `
+      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+      <button type="submit" class="btn btn-danger" form="cajaForm" onclick="window.registrarGasto(event)">Registrar Gasto</button>
+    `;
 
     const modalInstance = new bootstrap.Modal(modal);
     modalInstance.show();
