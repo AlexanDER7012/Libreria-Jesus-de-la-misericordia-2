@@ -513,3 +513,80 @@
     font-size: 1.25rem;
   }
 }
+
+/* Inicio: tarjetas compactas con imágenes aprovechando el espacio disponible. */
+.main-content.home-screen {
+  height: calc(100dvh - 56px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.home-module-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.5rem, 1.4vw, 1.25rem);
+}
+
+.home-module-item {
+  min-width: 0;
+  min-height: 0;
+}
+
+.home-module-item .modulo-card {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0.5rem !important;
+  gap: 0.25rem;
+  overflow: hidden;
+}
+
+.home-module-item .modulo-icon {
+  width: min(100%, 32vh) !important;
+  height: min(100%, 32vh) !important;
+  max-width: 100%;
+  max-height: calc(100% - 1.5rem);
+  flex: 1 1 auto;
+}
+
+.home-module-item .modulo-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.home-module-item .modulo-card h6 {
+  flex: 0 0 auto;
+  margin: 0 !important;
+}
+
+@media (max-width: 991.98px) {
+  .home-module-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 575.98px) {
+  .main-content.home-screen {
+    padding: 0.75rem;
+  }
+
+  .home-module-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .home-module-item .modulo-card {
+    padding: 0.35rem !important;
+  }
+
+  .home-module-item .modulo-icon {
+    width: min(100%, 18vh) !important;
+    max-height: calc(100% - 1.25rem);
+  }
+}
