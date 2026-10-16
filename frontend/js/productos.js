@@ -6,6 +6,74 @@ let marcasData = [];
 let unidadesData = [];
 
 // CARGA DEL MÓDULO PRINCIPAL CON PESTAÑAS
+// Trae TODOS los productos (el servidor da máximo 200 por petición). Antes
+// esta tabla solo mostraba los primeros 50 sin avisar.
+async function obtenerTodosLosProductosCatalogo() {
+  const todos = [];
+  for (let skip = 0; skip < 20000; skip += 200) {
+    const pagina = (await api.request(`/productos?limit=200&skip=${skip}`)) || [];
+    todos.push(...pagina);
+    if (pagina.length < 200) break;
+  }
+  return todos;
+}
+
+// Búsqueda y paginación de la tabla de productos (Catálogo)
+let busquedaProductosCatalogo = "";
+let paginaProductosCatalogo = 1;
+let porPaginaProductosCatalogo = 50;
+
+function cambiarPaginaProductosCatalogo(delta) {
+  paginaProductosCatalogo += delta;
+  renderProductosTable(productosData);
+}
+
+function cambiarPorPaginaProductosCatalogo(valor) {
+  porPaginaProductosCatalogo = parseInt(valor) || 0; // 0 = todos
+  paginaProductosCatalogo = 1;
+  renderProductosTable(productosData);
+}
+
+function buscarProductosCatalogo(valor) {
+  busquedaProductosCatalogo = valor || "";
+  paginaProductosCatalogo = 1;
+  renderProductosTable(productosData);
+  const input = document.getElementById("buscarProductosCatalogo");
+  if (input) {
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+}
+
+// Controles comunes: "Mostrar N por página", "Mostrando X–Y de Z",
+// Anterior / Página N de M / Siguiente
+function htmlControlesPaginacion(o) {
+  const opciones = [10, 25, 50, 100, 0]
+    .map(
+      (n) =>
+        `<option value="${n}" ${n === o.porPagina ? "selected" : ""}>${n === 0 ? "Todos" : n}</option>`,
+    )
+    .join("");
+  return `
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 my-2">
+      <div class="d-flex align-items-center gap-2">
+        <small class="text-muted">Mostrar</small>
+        <select class="form-select form-select-sm" style="width:auto" onchange="${o.onPorPagina}(this.value)">${opciones}</select>
+        <small class="text-muted">por página</small>
+      </div>
+      <small class="text-muted">Mostrando ${o.total ? o.desde + 1 : 0}–${o.desde + o.cantidad} de ${o.total} productos</small>
+      <div class="btn-group btn-group-sm">
+        <button class="btn btn-outline-secondary" onclick="${o.onPagina}(-1)" ${o.pagina <= 1 ? "disabled" : ""}>
+          <i class="fas fa-chevron-left me-1"></i>Anterior
+        </button>
+        <span class="btn btn-outline-secondary disabled">Página ${o.pagina} de ${o.totalPaginas}</span>
+        <button class="btn btn-outline-secondary" onclick="${o.onPagina}(1)" ${o.pagina >= o.totalPaginas ? "disabled" : ""}>
+          Siguiente<i class="fas fa-chevron-right ms-1"></i>
+        </button>
+      </div>
+    </div>`;
+}
+
 async function loadProductosModule() {
   const container =
     document.getElementById("productosTableContainer") ||
@@ -25,7 +93,7 @@ async function loadProductosModule() {
   // Cargar todos los datos
   try {
     const [productos, categorias, marcas, unidades] = await Promise.all([
-      api.getProductos().catch(() => []),
+      obtenerTodosLosProductosCatalogo().catch(() => []),
       api.getCategorias().catch(() => []),
       api.getMarcas().catch(() => []),
       api.getUnidadesMedida().catch(() => []),
@@ -67,7 +135,8 @@ async function loadProductosModule() {
 
 async function recargarProductos() {
   try {
-    const productos = (await api.getProductos().catch(() => [])) || [];
+    const productos =
+      (await obtenerTodosLosProductosCatalogo().catch(() => [])) || [];
     productosData = productos;
     window.productosData = productosData;
     renderProductosTable(productosData);
@@ -478,6 +547,40 @@ function renderProductosTable(productos) {
     return;
   }
 
+  // Búsqueda (código, nombre, categoría o marca) + paginación
+  const termino = busquedaProductosCatalogo.trim().toLowerCase();
+  const nombreCat = (p) =>
+    (categoriasData.find((c) => c.id === p.id_categoria) || {}).nombre || "";
+  const nombreMarca = (p) =>
+    (marcasData.find((m) => m.id === p.id_marca) || {}).nombre || "";
+  const filtrados = termino
+    ? productos.filter((p) =>
+        `${p.codigo || ""} ${p.nombre || ""} ${nombreCat(p)} ${nombreMarca(p)}`
+          .toLowerCase()
+          .includes(termino),
+      )
+    : productos;
+  const tamPagina =
+    porPaginaProductosCatalogo > 0 ? porPaginaProductosCatalogo : filtrados.length || 1;
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / tamPagina));
+  if (paginaProductosCatalogo > totalPaginas) paginaProductosCatalogo = totalPaginas;
+  if (paginaProductosCatalogo < 1) paginaProductosCatalogo = 1;
+  const desde = (paginaProductosCatalogo - 1) * tamPagina;
+  const productosPagina = filtrados.slice(desde, desde + tamPagina);
+  const controles = htmlControlesPaginacion({
+    pagina: paginaProductosCatalogo,
+    totalPaginas,
+    desde,
+    cantidad: productosPagina.length,
+    total: filtrados.length,
+    porPagina: porPaginaProductosCatalogo,
+    onPagina: "cambiarPaginaProductosCatalogo",
+    onPorPagina: "cambiarPorPaginaProductosCatalogo",
+  });
+  const valorBusqueda = busquedaProductosCatalogo
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;");
+
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Productos</h6>
@@ -505,6 +608,18 @@ function renderProductosTable(productos) {
                 }
             </div>
         </div>
+        <div class="row mb-2">
+            <div class="col-md-6 col-lg-4">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control" id="buscarProductosCatalogo"
+                           placeholder="Buscar por código, nombre, categoría o marca..."
+                           value="${valorBusqueda}"
+                           oninput="buscarProductosCatalogo(this.value)">
+                </div>
+            </div>
+        </div>
+        ${controles}
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -523,7 +638,7 @@ function renderProductosTable(productos) {
                 <tbody>
     `;
 
-  productos.forEach((producto) => {
+  productosPagina.forEach((producto) => {
     const categoria = categoriasData.find(
       (c) => c.id === producto.id_categoria,
     );
@@ -574,9 +689,7 @@ function renderProductosTable(productos) {
                 </tbody>
             </table>
         </div>
-        <div class="text-end">
-            <small class="text-muted">Total: ${productos.length} productos</small>
-        </div>
+        ${controles}
     `;
 
   container.innerHTML = html;
@@ -2718,3 +2831,6 @@ window.recargarProductos = recargarProductos;
 window.recargarCategorias = recargarCategorias;
 window.recargarMarcas = recargarMarcas;
 window.recargarUnidades = recargarUnidades;
+window.cambiarPaginaProductosCatalogo = cambiarPaginaProductosCatalogo;
+window.cambiarPorPaginaProductosCatalogo = cambiarPorPaginaProductosCatalogo;
+window.buscarProductosCatalogo = buscarProductosCatalogo;

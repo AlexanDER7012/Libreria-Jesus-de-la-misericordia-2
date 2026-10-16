@@ -85,7 +85,36 @@ class TrasladoSucursal(Base):
     estado = Column(String(20), default="EnProceso")  
     observaciones = Column(Text)
 
+    # Nota de envío y cobro a precio de costo a la sucursal destino
+    numero_nota_envio = Column(String(30), unique=True, index=True)
+    monto_total = Column(DECIMAL(12, 2), default=0)    # cantidad x costo_unitario
+    monto_pagado = Column(DECIMAL(12, 2), default=0)   # suma de pagos vigentes
+    estado_pago = Column(String(20), default="Pendiente")  # Pendiente, Parcial, Pagado, No aplica
+
     producto = relationship("Producto")
+    pagos = relationship("TrasladoPago", back_populates="traslado", order_by="TrasladoPago.id")
+
+
+class TrasladoPago(Base):
+    """
+    Pago que hace la sucursal destino por un traslado (a precio de costo).
+    Igual que en Compras, un pago nunca se borra: se anula (anulado=1) y
+    deja de contar para el saldo.
+    """
+    __tablename__ = "traslado_pago"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    id_traslado = Column(Integer, ForeignKey("traslado_sucursal.id"), nullable=False, index=True)
+    id_tipo_pago = Column(Integer, ForeignKey("tipo_pago.id"))
+    fecha_pago = Column(DateTime, server_default=func.now())
+    monto = Column(DECIMAL(12, 2), nullable=False)
+    referencia = Column(String(100))
+    observaciones = Column(Text)
+    id_usuario = Column(Integer, ForeignKey("usuario.id"))
+    anulado = Column(Integer, default=0, server_default="0")
+    motivo_anulacion = Column(Text)
+
+    traslado = relationship("TrasladoSucursal", back_populates="pagos")
 
 
 class Alerta(Base):

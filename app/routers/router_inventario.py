@@ -11,7 +11,7 @@ from app.models.model_producto import Producto
 from app.models.model_usuario import Usuario
 from app.models.model_inventario import (
     MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario,
-    InventarioFisico, TrasladoSucursal, Alerta, InventarioUbicacion,
+    InventarioFisico, TrasladoSucursal, Alerta, InventarioUbicacion, TrasladoPago,
 )
 from app.models.model_ubicacion import Ubicacion
 from app.stock import (
@@ -24,6 +24,7 @@ from app.schemas.schema_inventario import (
     InventarioFisicoCreate, InventarioFisicoResponse,
     TrasladoSucursalCreate, TrasladoSucursalResponse,
     AlertaResponse, StockUbicacionResponse,
+    TrasladoPagoCreate, TrasladoPagoResponse,
 )
 
 router = APIRouter()            # /movimientos-inventario
@@ -376,6 +377,8 @@ def aplicar_ajuste(conteo_id: int, db: Session = Depends(get_db), usuario_actual
 @router_traslado.get("", response_model=List[TrasladoSucursalResponse])
 def listar_traslados(
     estado: Optional[Literal["EnProceso", "Recibido", "Completado", "Cancelado"]] = None,
+    estado_pago: Optional[Literal["Pendiente", "Parcial", "Pagado", "No aplica", "Con saldo"]] = None,
+    numero_nota: Optional[str] = None,
     id_producto: Optional[int] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
@@ -383,10 +386,19 @@ def listar_traslados(
     db: Session = Depends(get_db),
     usuario_actual: Usuario = Depends(get_current_user),
 ):
-    """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
-    query = db.query(TrasladoSucursal).order_by(TrasladoSucursal.fecha.desc())
+    """
+    Filtra por estado, estado de pago ("Con saldo" = Pendiente o Parcial),
+    número de nota de envío y fechas. Paginado: ?skip=0&limit=50.
+    """
+    query = db.query(TrasladoSucursal).order_by(TrasladoSucursal.fecha.desc(), TrasladoSucursal.id.desc())
     if estado is not None:
         query = query.filter(TrasladoSucursal.estado == estado)
+    if estado_pago == "Con saldo":
+        query = query.filter(TrasladoSucursal.estado_pago.in_(["Pendiente", "Parcial"]))
+    elif estado_pago is not None:
+        query = query.filter(TrasladoSucursal.estado_pago == estado_pago)
+    if numero_nota:
+        query = query.filter(TrasladoSucursal.numero_nota_envio.ilike(f"%{numero_nota.strip()}%"))
     if id_producto is not None:
         query = query.filter(TrasladoSucursal.id_producto == id_producto)
     if fecha_desde is not None:
@@ -427,12 +439,23 @@ def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db),
         )
 
     valores = datos.model_dump()
+    cobrar = valores.pop("cobrar", True)
     valores["id_usuario_autoriza"] = usuario_actual.id
+    # Siempre a precio de costo (el de compra del producto si no se indica)
     if valores.get("costo_unitario") is None:
-        valores["costo_unitario"] = producto.precio_compra
-    nuevo = TrasladoSucursal(**valores, estado="EnProceso")
+        valores["costo_unitario"] = float(producto.precio_compra or 0)
+    monto_total = round(float(datos.cantidad) * float(valores["costo_unitario"] or 0), 2)
+    nuevo = TrasladoSucursal(
+        **valores,
+        estado="EnProceso",
+        monto_total=monto_total,
+        monto_pagado=0,
+        estado_pago="Pendiente" if cobrar and monto_total > 0 else "No aplica",
+    )
     db.add(nuevo)
     db.flush()
+    # Número de nota de envío correlativo (NE-000001, NE-000002...)
+    nuevo.numero_nota_envio = f"NE-{nuevo.id:06d}"
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "TrasladoSucursal",
         detalle=(
@@ -511,11 +534,130 @@ def cancelar_traslado(traslado_id: int, db: Session = Depends(get_db), usuario_a
         raise HTTPException(status_code=404, detail="Traslado no encontrado")
     if traslado.estado != "EnProceso":
         raise HTTPException(status_code=400, detail="Solo se puede cancelar un traslado que no se ha recibido")
+    if any(not p.anulado for p in traslado.pagos):
+        raise HTTPException(
+            status_code=400,
+            detail="Este traslado tiene pagos registrados. Anula los pagos antes de cancelarlo.",
+        )
     traslado.estado = "Cancelado"
+    traslado.estado_pago = "No aplica"
     registrar_actividad(db, usuario_actual.id, "CANCELAR", "TrasladoSucursal", detalle=f"Canceló el traslado #{traslado.id}")
     db.commit()
     db.refresh(traslado)
     return traslado
+
+
+def _buscar_por_nota(db: Session, numero_nota: str) -> TrasladoSucursal:
+    limpio = (numero_nota or "").strip().upper()
+    if limpio.isdigit():  # permite escribir solo el número: 15 -> NE-000015
+        limpio = f"NE-{int(limpio):06d}"
+    traslado = (
+        db.query(TrasladoSucursal)
+        .filter(func.upper(TrasladoSucursal.numero_nota_envio) == limpio)
+        .first()
+    )
+    if not traslado:
+        raise HTTPException(status_code=404, detail=f"No existe ningún traslado con la nota de envío {numero_nota}")
+    return traslado
+
+
+@router_traslado.get("/nota/{numero_nota}", response_model=TrasladoSucursalResponse)
+def obtener_por_nota(numero_nota: str, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    """Busca un traslado por su número de nota de envío (ej. NE-000015 o solo 15)."""
+    return _buscar_por_nota(db, numero_nota)
+
+
+@router_traslado.patch("/nota/{numero_nota}/recibir", response_model=TrasladoSucursalResponse)
+def recibir_por_nota(numero_nota: str, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar"))):
+    """La sucursal destino recibe el traslado escribiendo/escaneando el número de la nota de envío."""
+    traslado = _buscar_por_nota(db, numero_nota)
+    return confirmar_recepcion(traslado.id, None, db, usuario_actual)
+
+
+def _recalcular_pago_traslado(traslado: TrasladoSucursal):
+    pagado = round(sum(float(p.monto or 0) for p in traslado.pagos if not p.anulado), 2)
+    total = round(float(traslado.monto_total or 0), 2)
+    traslado.monto_pagado = pagado
+    if traslado.estado_pago == "No aplica" and pagado == 0:
+        return
+    if pagado <= 0:
+        traslado.estado_pago = "Pendiente"
+    elif pagado + 0.009 < total:
+        traslado.estado_pago = "Parcial"
+    else:
+        traslado.estado_pago = "Pagado"
+
+
+@router_traslado.get("/{traslado_id}/pagos", response_model=List[TrasladoPagoResponse])
+def listar_pagos_traslado(traslado_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).first()
+    if not traslado:
+        raise HTTPException(status_code=404, detail="Traslado no encontrado")
+    return traslado.pagos
+
+
+@router_traslado.post("/{traslado_id}/pagos", response_model=TrasladoPagoResponse, status_code=201)
+def registrar_pago_traslado(traslado_id: int, datos: TrasladoPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar"))):
+    """La sucursal destino paga (total o parcial) el traslado, a precio de costo."""
+    traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).first()
+    if not traslado:
+        raise HTTPException(status_code=404, detail="Traslado no encontrado")
+    if traslado.estado == "Cancelado":
+        raise HTTPException(status_code=400, detail="No se pueden registrar pagos a un traslado cancelado")
+    if traslado.estado_pago == "No aplica":
+        raise HTTPException(status_code=400, detail="Este traslado no se cobra (se registró sin cobro a la sucursal)")
+    monto = round(float(datos.monto or 0), 2)
+    if monto <= 0:
+        raise HTTPException(status_code=400, detail="El monto del pago debe ser mayor a 0")
+    saldo = round(float(traslado.monto_total or 0) - float(traslado.monto_pagado or 0), 2)
+    if saldo <= 0:
+        raise HTTPException(status_code=400, detail="Este traslado ya está pagado")
+    if monto > saldo + 0.009:
+        raise HTTPException(status_code=400, detail=f"El pago (Q{monto:.2f}) es mayor que el saldo pendiente (Q{saldo:.2f})")
+
+    pago = TrasladoPago(
+        id_traslado=traslado.id,
+        id_tipo_pago=datos.id_tipo_pago,
+        monto=monto,
+        referencia=datos.referencia,
+        observaciones=datos.observaciones,
+        id_usuario=usuario_actual.id,
+        anulado=0,
+    )
+    db.add(pago)
+    db.flush()
+    db.refresh(traslado)
+    _recalcular_pago_traslado(traslado)
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "TrasladoPago",
+        detalle=f"Registró pago de Q{monto:.2f} del traslado {traslado.numero_nota_envio} (saldo antes: Q{saldo:.2f})",
+    )
+    db.commit()
+    db.refresh(pago)
+    return pago
+
+
+@router_traslado.delete("/{traslado_id}/pagos/{pago_id}", response_model=TrasladoPagoResponse)
+def anular_pago_traslado(traslado_id: int, pago_id: int, motivo: Optional[str] = None, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar"))):
+    """Anula un pago (no se borra: queda como constancia y deja de contar para el saldo)."""
+    pago = db.query(TrasladoPago).filter(TrasladoPago.id == pago_id, TrasladoPago.id_traslado == traslado_id).first()
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    if pago.anulado:
+        raise HTTPException(status_code=400, detail="Este pago ya está anulado")
+    pago.anulado = 1
+    pago.motivo_anulacion = (motivo or "").strip() or None
+    traslado = pago.traslado
+    db.flush()
+    db.refresh(traslado)
+    _recalcular_pago_traslado(traslado)
+    registrar_actividad(
+        db, usuario_actual.id, "ANULAR", "TrasladoPago",
+        detalle=f"Anuló pago de Q{float(pago.monto):.2f} del traslado {traslado.numero_nota_envio}" + (f" (motivo: {pago.motivo_anulacion})" if pago.motivo_anulacion else ""),
+    )
+    db.commit()
+    db.refresh(pago)
+    return pago
 
 
 # ===================================================================

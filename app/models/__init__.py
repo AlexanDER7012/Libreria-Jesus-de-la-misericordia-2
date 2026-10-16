@@ -7,7 +7,7 @@ from app.models.model_usuario import (
 from app.models.model_producto import Producto, Categoria, Marca, UnidadMedida, HistoricoPrecio
 from app.models.model_inventario import (
     TipoMovimientoInventario, MovimientoInventario, MovimientoInventarioDetalle,
-    InventarioFisico, TrasladoSucursal, Alerta, InventarioUbicacion,
+    InventarioFisico, TrasladoSucursal, Alerta, InventarioUbicacion, TrasladoPago,
 )
 from app.models.model_proveedor import Proveedor, TipoProveedor, Pedido, DetallePedido
 from app.models.model_compra import Compra, DetalleCompra, CompraPago, NotaEntrega, DevolucionCompra
