@@ -515,13 +515,16 @@ function _badgeRecepcionCompra(c) {
   const r = _estadoRecepcionCompra(c);
   if (r.tipo === "recibida") {
     const fecha = r.fecha ? new Date(r.fecha).toLocaleDateString() : "";
-    return `<span class="badge bg-success"><i class="fas fa-check me-1"></i>Recibida ${fecha}</span>`;
+    return `<div class="compras-recepcion-cell">
+      <span class="badge bg-success"><i class="fas fa-check me-1"></i>Recibida</span>
+      ${fecha ? `<small class="text-muted">${fecha}</small>` : ""}
+    </div>`;
   }
   if (r.tipo === "no_conforme") {
-    return `<span class="badge bg-danger" title="Hay una nota de entrega NO conforme; el stock no se sumó">No conforme</span>`;
+    return `<div class="compras-recepcion-cell"><span class="badge bg-danger" title="Hay una nota de entrega NO conforme; el stock no se sumó">No conforme</span></div>`;
   }
   if (r.tipo === "pendiente") {
-    return `<span class="badge bg-warning text-dark">Pendiente de recibir</span>`;
+    return `<div class="compras-recepcion-cell"><span class="badge bg-warning text-dark">Pendiente</span></div>`;
   }
   return `<span class="text-muted">--</span>`;
 }
@@ -630,6 +633,19 @@ function renderComprasTable(compras) {
   html += `
         <div class="table-responsive compras-table-responsive">
             <table class="table table-hover table-striped compras-list-table">
+                <colgroup>
+                    <col class="compras-col-id">
+                    <col class="compras-col-proveedor">
+                    <col class="compras-col-factura">
+                    <col class="compras-col-fecha">
+                    <col class="compras-col-monto">
+                    <col class="compras-col-monto">
+                    <col class="compras-col-monto">
+                    <col class="compras-col-estado">
+                    <col class="compras-col-recepcion">
+                    <col class="compras-col-monto">
+                    <col class="compras-col-acciones">
+                </colgroup>
                 <thead class="table-light">
                     <tr>
                         <th>ID</th>
@@ -682,44 +698,39 @@ function renderComprasTable(compras) {
                 <td>${_badgeRecepcionCompra(c)}</td>
                 <td>Q${c.saldo_pendiente || 0}</td>
                 <td>
-                    <div class="dropdown">
-                        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            Acciones
+                    <div class="compras-row-actions">
+                        <button class="btn btn-sm btn-outline-info" onclick="verCompra(${c.id})" title="Ver detalle" aria-label="Ver detalle">
+                            <i class="fas fa-eye"></i>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><button class="dropdown-item" type="button" onclick="verCompra(${c.id})">
-                                <i class="fas fa-eye text-info"></i> Ver detalle
-                            </button></li>
-                            <li><button class="dropdown-item" type="button" onclick="imprimirCompra(${c.id})">
-                                <i class="fas fa-print text-secondary"></i> Imprimir reporte
-                            </button></li>
-                            ${
-                              tienePermiso("Compras", "Editar") &&
-                              _estadoRecepcionCompra(c).tipo !== "recibida" &&
-                              _estadoRecepcionCompra(c).tipo !== "cancelada"
-                                ? `<li><button class="dropdown-item" type="button" onclick="registrarNotaEntrega(${c.id})">
-                                    <i class="fas fa-file-signature text-success"></i> Recibir mercadería
-                                </button></li>`
-                                : ""
-                            }
-                            ${
-                              tienePermiso("Compras", "Editar") &&
-                              c.estado !== "Cancelada" &&
-                              parseFloat(c.saldo_pendiente || 0) > 0
-                                ? `<li><button class="dropdown-item" type="button" onclick="registrarPagoCompra(${c.id})">
-                                    <i class="fas fa-money-bill-wave text-warning"></i> Registrar pago
-                                </button></li>`
-                                : ""
-                            }
-                            ${
-                              c.estado !== "Cancelada" &&
-                              tienePermiso("Compras", "Editar")
-                                ? `<li><button class="dropdown-item" type="button" onclick="cancelarCompra(${c.id})">
-                                    <i class="fas fa-ban text-danger"></i> Cancelar compra
-                                </button></li>`
-                                : ""
-                            }
-                        </ul>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="imprimirCompra(${c.id})" title="Imprimir reporte" aria-label="Imprimir reporte">
+                            <i class="fas fa-print"></i>
+                        </button>
+                        ${
+                          tienePermiso("Compras", "Editar") &&
+                          _estadoRecepcionCompra(c).tipo !== "recibida" &&
+                          _estadoRecepcionCompra(c).tipo !== "cancelada"
+                            ? `<button class="btn btn-sm btn-outline-success" onclick="registrarNotaEntrega(${c.id})" title="Recibir mercadería" aria-label="Recibir mercadería">
+                                <i class="fas fa-file-signature"></i>
+                            </button>`
+                            : ""
+                        }
+                        ${
+                          tienePermiso("Compras", "Editar") &&
+                          c.estado !== "Cancelada" &&
+                          parseFloat(c.saldo_pendiente || 0) > 0
+                            ? `<button class="btn btn-sm btn-outline-warning" onclick="registrarPagoCompra(${c.id})" title="Registrar pago" aria-label="Registrar pago">
+                                <i class="fas fa-money-bill-wave"></i>
+                            </button>`
+                            : ""
+                        }
+                        ${
+                          c.estado !== "Cancelada" &&
+                          tienePermiso("Compras", "Editar")
+                            ? `<button class="btn btn-sm btn-outline-danger" onclick="cancelarCompra(${c.id})" title="Cancelar compra" aria-label="Cancelar compra">
+                                <i class="fas fa-ban"></i>
+                            </button>`
+                            : ""
+                        }
                     </div>
                 </td>
             </tr>
