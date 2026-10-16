@@ -195,7 +195,7 @@ class App {
         a.innerHTML = `<i class="fas ${mod.icon} sidebar-icon"></i><span class="sidebar-label">${mod.label}</span>`;
         a.addEventListener("click", (e) => {
           e.preventDefault();
-          this.loadModule(mod.id);
+          this.loadModule(mod.id, undefined, true);
         });
         nav.appendChild(a);
       }
@@ -226,9 +226,11 @@ class App {
 
   hideSidebar() {
     const sidebar = document.getElementById("sidebar");
+    const icon = document.getElementById("sidebarCollapseIcon");
     if (sidebar) {
       sidebar.classList.remove("active");
       this.sidebarVisible = false;
+      if (icon) icon.className = "fas fa-chevron-right";
     }
     document.getElementById("sidebarToggleBtn")?.classList.add("d-none");
     this.updateFloatingButton();
@@ -415,7 +417,7 @@ class App {
     document.title = `${displayName} - Librería`;
   }
 
-  async loadModule(moduleName, tabId) {
+  async loadModule(moduleName, tabId, collapseSidebar = false) {
     if (!moduleName) return;
 
     // Resolver redirección si aplica
@@ -438,7 +440,11 @@ class App {
     }
 
     this.currentModule = realModule;
-    this.showSidebar();
+    if (collapseSidebar) {
+      this.hideSidebar();
+    } else {
+      this.showSidebar();
+    }
     this.updateActiveNav(realModule);
     this.updateTitle(realModule);
     this.updateFloatingButton();
