@@ -138,11 +138,11 @@ function ensureAllModals() {
                 <div class="row g-3 mb-3">
                   <div class="col-md-6">
                     <label class="form-label fw-bold">Código / Código de barras <span class="text-danger">*</span></label>
-                    <div class="input-group">
+                    <div class="input-group has-validation">
                       <span class="input-group-text"><i class="fas fa-barcode"></i></span>
                       <input type="text" class="form-control" id="productoCodigo" placeholder="Escanea o ingresa el código" autocomplete="off" required />
+                      <div class="invalid-feedback" id="productoCodigoError">El código es obligatorio</div>
                     </div>
-                    <div class="invalid-feedback" id="productoCodigoError">El código es obligatorio</div>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>

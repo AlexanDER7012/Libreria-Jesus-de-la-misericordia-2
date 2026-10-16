@@ -24,7 +24,12 @@ function mostrarErrorCampo(id, mensaje) {
   if (el) {
     el.classList.add("is-invalid");
     const errorEl = document.getElementById(id + "Error");
-    if (errorEl) errorEl.textContent = mensaje;
+    if (errorEl) {
+      errorEl.textContent = mensaje;
+      // Se muestra aunque el mensaje no quede justo después del campo
+      // (por ejemplo, cuando el campo está dentro de un input-group)
+      errorEl.style.display = "block";
+    }
   }
 }
 
@@ -33,7 +38,10 @@ function limpiarErrorCampo(id) {
   if (el) {
     el.classList.remove("is-invalid");
     const errorEl = document.getElementById(id + "Error");
-    if (errorEl) errorEl.textContent = "";
+    if (errorEl) {
+      errorEl.textContent = "";
+      errorEl.style.display = "";
+    }
   }
 }
 
