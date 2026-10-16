@@ -682,38 +682,45 @@ function renderComprasTable(compras) {
                 <td>${_badgeRecepcionCompra(c)}</td>
                 <td>Q${c.saldo_pendiente || 0}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-info" onclick="verCompra(${c.id})" title="Ver detalle">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="imprimirCompra(${c.id})" title="Imprimir reporte">
-                        <i class="fas fa-print"></i>
-                    </button>
-                    ${
-                      tienePermiso("Compras", "Editar") &&
-                      _estadoRecepcionCompra(c).tipo !== "recibida" &&
-                      _estadoRecepcionCompra(c).tipo !== "cancelada"
-                        ? `<button class="btn btn-sm btn-outline-success" onclick="registrarNotaEntrega(${c.id})" title="Nota de entrega (recibir mercadería)">
-                        <i class="fas fa-file-signature"></i>
-                    </button>`
-                        : ""
-                    }
-                    ${
-                      tienePermiso("Compras", "Editar") &&
-                      c.estado !== "Cancelada" &&
-                      parseFloat(c.saldo_pendiente || 0) > 0
-                        ? `<button class="btn btn-sm btn-outline-warning" onclick="registrarPagoCompra(${c.id})" title="Registrar pago">
-                        <i class="fas fa-money-bill-wave"></i>
-                    </button>`
-                        : ""
-                    }
-                    ${
-                      c.estado !== "Cancelada" &&
-                      tienePermiso("Compras", "Editar")
-                        ? `<button class="btn btn-sm btn-outline-danger" onclick="cancelarCompra(${c.id})" title="Cancelar compra">
-                          <i class="fas fa-ban"></i>
-                         </button>`
-                        : ""
-                    }
+                    <div class="dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Acciones
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><button class="dropdown-item" type="button" onclick="verCompra(${c.id})">
+                                <i class="fas fa-eye text-info"></i> Ver detalle
+                            </button></li>
+                            <li><button class="dropdown-item" type="button" onclick="imprimirCompra(${c.id})">
+                                <i class="fas fa-print text-secondary"></i> Imprimir reporte
+                            </button></li>
+                            ${
+                              tienePermiso("Compras", "Editar") &&
+                              _estadoRecepcionCompra(c).tipo !== "recibida" &&
+                              _estadoRecepcionCompra(c).tipo !== "cancelada"
+                                ? `<li><button class="dropdown-item" type="button" onclick="registrarNotaEntrega(${c.id})">
+                                    <i class="fas fa-file-signature text-success"></i> Recibir mercadería
+                                </button></li>`
+                                : ""
+                            }
+                            ${
+                              tienePermiso("Compras", "Editar") &&
+                              c.estado !== "Cancelada" &&
+                              parseFloat(c.saldo_pendiente || 0) > 0
+                                ? `<li><button class="dropdown-item" type="button" onclick="registrarPagoCompra(${c.id})">
+                                    <i class="fas fa-money-bill-wave text-warning"></i> Registrar pago
+                                </button></li>`
+                                : ""
+                            }
+                            ${
+                              c.estado !== "Cancelada" &&
+                              tienePermiso("Compras", "Editar")
+                                ? `<li><button class="dropdown-item" type="button" onclick="cancelarCompra(${c.id})">
+                                    <i class="fas fa-ban text-danger"></i> Cancelar compra
+                                </button></li>`
+                                : ""
+                            }
+                        </ul>
+                    </div>
                 </td>
             </tr>
         `;

@@ -369,13 +369,14 @@ body {
   overflow-x: auto;
 }
 
-.compras-list-table th:last-child,
 .compras-list-table td:last-child {
-  position: sticky;
-  right: 0;
-  z-index: 1;
-  background: var(--bs-table-bg, #fff);
-  box-shadow: -5px 0 8px -6px rgba(0, 0, 0, 0.35);
+  min-width: 112px;
+  text-align: center;
+}
+
+.compras-list-table td:last-child .dropdown-toggle {
+  min-height: 38px;
+  min-width: 100px;
 }
 
 .compras-list-table {
@@ -383,8 +384,15 @@ body {
   white-space: nowrap;
 }
 
-.compras-list-table thead th:last-child {
-  z-index: 2;
+.compras-list-table .dropdown-menu {
+  min-width: 190px;
+}
+
+.compras-list-table .dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
 }
 
 .modal-landscape .inventory-modal-grid {
