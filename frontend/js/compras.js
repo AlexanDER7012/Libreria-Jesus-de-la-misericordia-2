@@ -516,7 +516,7 @@ function _badgeRecepcionCompra(c) {
   if (r.tipo === "recibida") {
     const fecha = r.fecha ? new Date(r.fecha).toLocaleDateString() : "";
     return `<div class="compras-recepcion-cell">
-      <span class="badge bg-success"><i class="fas fa-check me-1"></i>Recibida</span>
+      <span class="badge bg-success">Recibida</span>
       ${fecha ? `<small class="text-muted">${fecha}</small>` : ""}
     </div>`;
   }
