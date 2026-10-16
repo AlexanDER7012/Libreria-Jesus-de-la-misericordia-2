@@ -838,27 +838,23 @@ function crearModalVenta() {
               <h6 class="fw-bold">Productos</h6>
             </div>
 
-            <div class="input-group input-group-sm mb-1">
-              <span class="input-group-text"><i class="fas fa-barcode"></i></span>
-              <input type="text" class="form-control" id="ventaScanInput"
-                     placeholder="Escanea el código de barras aquí (o escríbelo y presiona Enter)"
-                     autocomplete="off">
-            </div>
-            <div id="ventaScanInfo" class="small mb-2"></div>
-
             <div class="row mb-2" id="ventaDetalleRow">
-              <div class="col-md-5">
+              <div class="col-md-5 mb-2 mb-md-0">
                 <div id="ventaProductoSelectorWrapper"></div>
+                <div id="ventaProductoSearchInfo" class="small mt-1"></div>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-2">
+                <label class="form-label small mb-1" for="ventaDetalleCantidad">Cantidad</label>
                 <input type="number" class="form-control form-control-sm" id="ventaDetalleCantidad" value="1" step="1" min="1">
               </div>
               <div class="col-md-3">
+                <label class="form-label small mb-1" for="ventaDetallePrecio">Precio</label>
                 <input type="text" class="form-control form-control-sm" id="ventaDetallePrecio" readonly>
               </div>
-              <div class="col-md-1">
-                <button type="button" class="btn btn-sm btn-success" onclick="agregarDetalleVenta(event)">
+              <div class="col-md-2 d-flex align-items-end">
+                <button type="button" class="btn btn-sm btn-success w-100" onclick="agregarDetalleVenta(event)">
                   <i class="fas fa-plus"></i>
+                  <span class="ms-1">Agregar</span>
                 </button>
               </div>
             </div>
@@ -978,14 +974,9 @@ async function showCreateVentaModal() {
 
   if (ventaDetallesList) ventaDetallesList.innerHTML = "";
 
-  crearEscanerCodigo({
-    input: "ventaScanInput",
-    info: "ventaScanInfo",
-    onProducto: agregarProductoEscaneadoVenta,
-  });
   modal.addEventListener(
     "shown.bs.modal",
-    () => document.getElementById("ventaScanInput")?.focus(),
+    () => document.getElementById("ventaProductoSearchTxt")?.focus(),
     { once: true },
   );
 
@@ -1457,16 +1448,19 @@ function llenarSelectProductoDetalle() {
     getId: (p) => p.id,
     getLabel: (p) =>
       `${p.codigo} - ${p.nombre} (Stock: ${p.stock_actual || 0})`,
-    getSearchText: (p) => `${p.codigo || ""} ${p.nombre || ""} ${p.id}`,
+    getSearchText: (p) =>
+      `${p.codigo || ""} ${p.nombre || ""} ${p.descripcion || ""} ${p.id}`,
     searchData: async (termino) =>
       (await api.request(
         `/productos?buscar=${encodeURIComponent(termino)}&limit=30`,
       )) || [],
-    emptyText: "Escribe el nombre o código del producto para buscar",
-    placeholder: "Buscar producto por nombre o código...",
+    emptyText: "Escribe nombre, código o descripción, o escanea el código de barras",
+    placeholder: "Nombre, código, descripción o escanea el código de barras...",
     maxResultados: 30,
     small: true,
     onSelect: (producto) => {
+      const infoField = document.getElementById("ventaProductoSearchInfo");
+      if (infoField) infoField.innerHTML = "";
       if (producto) {
         window.productosData = window.productosData || [];
         const indice = window.productosData.findIndex(
@@ -1481,6 +1475,58 @@ function llenarSelectProductoDetalle() {
         precioField.value = `Q${parseFloat(precio).toFixed(2)}`;
       }
     },
+  });
+
+  const searchInput = document.getElementById("ventaProductoSearchTxt");
+  const icon = document.querySelector(
+    "#ventaProductoSelectorWrapper .input-group-text",
+  );
+  if (icon) icon.innerHTML = '<i class="fas fa-barcode"></i>';
+  searchInput?.addEventListener("keydown", async (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const codigo = searchInput.value.trim();
+    if (!codigo) return;
+
+    try {
+      const producto = await buscarProductoPorCodigo(codigo);
+      if (producto.activo === 0) {
+        mostrarAvisoEscaner(
+          "ventaProductoSearchInfo",
+          "aviso",
+          `${producto.nombre} está inactivo`,
+        );
+        return;
+      }
+
+      const resultado = agregarProductoEscaneadoVenta(producto);
+      if (resultado.tipo === "error") {
+        mostrarAvisoEscaner(
+          "ventaProductoSearchInfo",
+          "error",
+          resultado.texto,
+        );
+        return;
+      }
+
+      window.__ventaProductoSelector?.reset();
+      document.getElementById("ventaDetallePrecio").value = "";
+      mostrarAvisoEscaner(
+        "ventaProductoSearchInfo",
+        "ok",
+        resultado.texto,
+      );
+    } catch (error) {
+      if (/no existe|no encontrado|código vacío|404/i.test(error.message || "")) {
+        return;
+      }
+      console.error("Error buscando producto escaneado en Nueva Venta:", error);
+      mostrarAvisoEscaner(
+        "ventaProductoSearchInfo",
+        "error",
+        error.message || "No se pudo buscar el código de barras",
+      );
+    }
   });
 }
 
@@ -1535,7 +1581,7 @@ function agregarDetalleVenta(event) {
   cantidadInput.value = 1;
   window.__ventaProductoSelector?.reset();
   document.getElementById("ventaDetallePrecio").value = "";
-  document.getElementById("ventaScanInput")?.focus();
+  document.getElementById("ventaProductoSearchTxt")?.focus();
 }
 
 // ============================================================
