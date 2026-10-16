@@ -192,6 +192,7 @@ class App {
         a.href = "#";
         a.className = "sidebar-link";
         a.dataset.module = mod.id;
+        a.dataset.label = mod.label;
         a.innerHTML = `<i class="fas ${mod.icon} sidebar-icon"></i><span class="sidebar-label">${mod.label}</span>`;
         a.addEventListener("click", (e) => {
           e.preventDefault();
@@ -209,6 +210,17 @@ class App {
         </div>
       `;
     }
+    this.setSidebarTooltips(!this.sidebarVisible);
+  }
+
+  setSidebarTooltips(enabled) {
+    document.querySelectorAll("#sidebarNav .sidebar-link").forEach((link) => {
+      if (enabled) {
+        link.title = link.dataset.label || "";
+      } else {
+        link.removeAttribute("title");
+      }
+    });
   }
 
   showSidebar() {
@@ -220,6 +232,7 @@ class App {
       this.sidebarVisible = true;
       if (icon) icon.className = "fas fa-chevron-left";
     }
+    this.setSidebarTooltips(false);
     document.getElementById("sidebarToggleBtn")?.classList.remove("d-none");
     this.updateFloatingButton();
   }
@@ -232,6 +245,7 @@ class App {
       this.sidebarVisible = false;
       if (icon) icon.className = "fas fa-chevron-right";
     }
+    this.setSidebarTooltips(true);
     document.getElementById("sidebarToggleBtn")?.classList.add("d-none");
     this.updateFloatingButton();
   }
@@ -250,6 +264,7 @@ class App {
       this.sidebarVisible = true;
       if (icon) icon.className = "fas fa-chevron-left";
     }
+    this.setSidebarTooltips(!this.sidebarVisible);
     this.updateFloatingButton();
   }
 
