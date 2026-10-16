@@ -723,14 +723,38 @@ class App {
               <div id="conteoContainer"></div>
             </div>
             <div class="tab-pane fade" id="panel-inv-traslados" role="tabpanel">
+              <div class="row mb-2 g-2 align-items-center">
+                <div class="col-md-5">
+                  <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="fas fa-barcode me-1"></i>Recibir por nota de envío</span>
+                    <input type="text" class="form-control" id="trasladoNotaRecibir" placeholder="Ej. NE-000015 o 15"
+                           autocomplete="off"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();recibirPorNotaEnvio();}">
+                    <button class="btn btn-success" type="button" onclick="recibirPorNotaEnvio()">
+                      <i class="fas fa-check me-1"></i>Recibir
+                    </button>
+                  </div>
+                </div>
+              </div>
               <div class="row mb-2 g-2 justify-content-end">
                 <div class="col-auto">
                   <select class="form-select form-select-sm" id="trasladosFiltroEstado"
                           onchange="skipTraslados=0;cargarTrasladosTabla()">
                     <option value="">Todos los estados</option>
-                    <option value="EnProceso">En Proceso</option>
-                    <option value="Recibido">Recibido</option>
-                    <option value="Completado">Completado</option>
+                    <option value="EnProceso">En camino</option>
+                    <option value="Completado">Recibido</option>
+                    <option value="Cancelado">Cancelado</option>
+                  </select>
+                </div>
+                <div class="col-auto">
+                  <select class="form-select form-select-sm" id="trasladosFiltroPago"
+                          onchange="skipTraslados=0;cargarTrasladosTabla()">
+                    <option value="">Todos los pagos</option>
+                    <option value="Con saldo">Con saldo pendiente</option>
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="Parcial">Parcial</option>
+                    <option value="Pagado">Pagado</option>
+                    <option value="No aplica">No se cobra</option>
                   </select>
                 </div>
                 <div class="col-auto">
@@ -879,4 +903,4 @@ document.addEventListener("DOMContentLoaded", () => {
 // Exponer funciones para uso global
 window.goHome = () => window.app?.goHome();
 window.toggleSidebar = () => window.app?.toggleSidebar();
-window.loadModule = (mod, tab) => window.app?.loadModule(mod, tab);
+window.loadModule = (mod, tab) => window.app?.loadModule(mod, tab);

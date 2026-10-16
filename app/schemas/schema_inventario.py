@@ -103,6 +103,9 @@ class TrasladoSucursalCreate(BaseModel):
     metodo_traslado: str  # "Uber Moto" o "Empleado Interno"
     id_usuario_autoriza: Optional[int] = None
     observaciones: Optional[str] = None
+    # True: la sucursal destino paga el traslado a precio de costo.
+    # False: no se cobra (ej. Bodega -> Área de ventas de la misma tienda).
+    cobrar: bool = True
 
 class TrasladoSucursalResponse(BaseModel):
     id: int
@@ -120,6 +123,31 @@ class TrasladoSucursalResponse(BaseModel):
     fecha_recepcion: Optional[datetime] = None
     estado: Optional[str] = None
     observaciones: Optional[str] = None
+    numero_nota_envio: Optional[str] = None
+    monto_total: Optional[float] = None
+    monto_pagado: Optional[float] = None
+    estado_pago: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TrasladoPagoCreate(BaseModel):
+    monto: float
+    id_tipo_pago: Optional[int] = None
+    referencia: Optional[str] = None
+    observaciones: Optional[str] = None
+
+
+class TrasladoPagoResponse(BaseModel):
+    id: int
+    id_traslado: int
+    id_tipo_pago: Optional[int] = None
+    fecha_pago: Optional[datetime] = None
+    monto: float
+    referencia: Optional[str] = None
+    observaciones: Optional[str] = None
+    id_usuario: Optional[int] = None
+    anulado: Optional[int] = 0
+    motivo_anulacion: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 # ===================== Alerta =====================

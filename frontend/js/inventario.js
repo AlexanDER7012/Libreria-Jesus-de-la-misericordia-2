@@ -7,6 +7,24 @@ let trasladosData = [];
 let alertasData = [];
 let filtroBusqueda = "";
 
+// Paginación del Resumen de inventario (en el navegador)
+let paginaResumen = 1;
+let porPaginaResumen = 50;
+
+function cambiarPaginaResumen(delta) {
+  paginaResumen += delta;
+  renderResumenInventario();
+  document
+    .getElementById("movimientosContainer")
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function cambiarPorPaginaResumen(valor) {
+  porPaginaResumen = parseInt(valor) || 0; // 0 = todos
+  paginaResumen = 1;
+  renderResumenInventario();
+}
+
 // Stock por ubicación (Bodega, Área de ventas, sucursales...)
 let stockUbicacionesData = [];
 let filtroUbicacionResumen = "";
@@ -494,6 +512,7 @@ function buscarEnInventario() {
   if (input) {
     const teniaFoco = document.activeElement === input;
     filtroBusqueda = input.value;
+    paginaResumen = 1; // cada búsqueda empieza en la primera página
     renderResumenInventario();
     // La tabla se vuelve a dibujar completa (incluido este campo). Antes se
     // perdía lo escrito y el cursor después de la primera letra.
@@ -519,6 +538,44 @@ function renderResumenInventario() {
   const productos = window.productosData || [];
   const productosFiltrados = filtrarProductos(productos, filtroBusqueda);
   const stockMapa = _mapaStockUbicaciones();
+
+  // Paginación: solo se dibujan los productos de la página actual
+  const totalFiltrados = productosFiltrados.length;
+  const tamPagina = porPaginaResumen > 0 ? porPaginaResumen : totalFiltrados || 1;
+  const totalPaginas = Math.max(1, Math.ceil(totalFiltrados / tamPagina));
+  if (paginaResumen > totalPaginas) paginaResumen = totalPaginas;
+  if (paginaResumen < 1) paginaResumen = 1;
+  const desde = (paginaResumen - 1) * tamPagina;
+  const productosPagina = productosFiltrados.slice(desde, desde + tamPagina);
+  const opcionesPorPagina = [10, 25, 50, 100, 0]
+    .map(
+      (n) =>
+        `<option value="${n}" ${n === porPaginaResumen ? "selected" : ""}>${n === 0 ? "Todos" : n}</option>`,
+    )
+    .join("");
+  const controlesPaginacion = `
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+            <div class="d-flex align-items-center gap-2">
+                <small class="text-muted">Mostrar</small>
+                <select class="form-select form-select-sm" style="width:auto"
+                        onchange="cambiarPorPaginaResumen(this.value)">
+                    ${opcionesPorPagina}
+                </select>
+                <small class="text-muted">por página</small>
+            </div>
+            <small class="text-muted">
+                Mostrando ${totalFiltrados ? desde + 1 : 0}–${desde + productosPagina.length} de ${totalFiltrados} productos
+            </small>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" onclick="cambiarPaginaResumen(-1)" ${paginaResumen <= 1 ? "disabled" : ""}>
+                    <i class="fas fa-chevron-left me-1"></i>Anterior
+                </button>
+                <span class="btn btn-outline-secondary disabled">Página ${paginaResumen} de ${totalPaginas}</span>
+                <button class="btn btn-outline-secondary" onclick="cambiarPaginaResumen(1)" ${paginaResumen >= totalPaginas ? "disabled" : ""}>
+                    Siguiente<i class="fas fa-chevron-right ms-1"></i>
+                </button>
+            </div>
+        </div>`;
   const ubicacionesResumen = window.ubicacionesData || [];
   const opcionesUbicacion = ubicacionesResumen
     .map(
@@ -551,7 +608,7 @@ function renderResumenInventario() {
                 <div class="input-group">
                     <span class="input-group-text"><i class="fas fa-warehouse"></i></span>
                     <select class="form-select" id="filtroUbicacionResumen"
-                            onchange="filtroUbicacionResumen=this.value;renderResumenInventario()">
+                            onchange="filtroUbicacionResumen=this.value;paginaResumen=1;renderResumenInventario()">
                         <option value="">Todas las ubicaciones (total)</option>
                         ${opcionesUbicacion}
                     </select>
@@ -583,6 +640,7 @@ function renderResumenInventario() {
   }
 
   html += `
+        ${controlesPaginacion}
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -600,7 +658,7 @@ function renderResumenInventario() {
                 <tbody>
     `;
 
-  productosFiltrados.forEach((p) => {
+  productosPagina.forEach((p) => {
     const porUbicacion = stockMapa[String(p.id)] || {};
     const stock = filtroUbicacionResumen
       ? porUbicacion[String(filtroUbicacionResumen)] || 0
@@ -651,9 +709,7 @@ function renderResumenInventario() {
                 </tbody>
             </table>
         </div>
-        <div class="text-end">
-            <small class="text-muted">Total: ${productosFiltrados.length} productos</small>
-        </div>
+        ${controlesPaginacion}
     `;
 
   container.innerHTML = html;
@@ -1035,6 +1091,11 @@ function crearModalesInventario() {
                                     <div class="invalid-feedback" id="trasladoCantidadError">Ingrese una cantidad válida</div>
                                 </div>
                                 <div class="mb-3">
+                                    <label class="form-label">Costo unitario (precio de costo)</label>
+                                    <input type="text" class="form-control" id="trasladoCosto" readonly />
+                                    <div class="form-text" id="trasladoTotal"></div>
+                                </div>
+                                <div class="mb-3">
                                     <label class="form-label">Método de traslado *</label>
                                     <select class="form-select" id="trasladoMetodo">
                                         <option value="Empleado Interno">Empleado Interno</option>
@@ -1053,6 +1114,15 @@ function crearModalesInventario() {
                                         </label>
                                     </div>
                                     <div class="form-text">Desmárcalo si el producto va en camino (ej. a otra sucursal): el stock se moverá cuando se confirme la recepción.</div>
+                                </div>
+                                <div class="mb-3 inventory-grid-wide">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="trasladoCobrar" checked>
+                                        <label class="form-check-label" for="trasladoCobrar">
+                                            Cobrar a la sucursal destino (a precio de costo)
+                                        </label>
+                                    </div>
+                                    <div class="form-text">Desmárcalo si es un movimiento interno que no se cobra (ej. Bodega → Área de ventas de la misma tienda).</div>
                                 </div>
                                 <button type="submit" class="btn btn-info w-100">Guardar Traslado</button>
                             </form>
@@ -1192,6 +1262,8 @@ function showTrasladoModal() {
     };
   }
   if (destinoTraslado) destinoTraslado.onchange = bloquearMismaUbicacionTraslado;
+  const cantidadTraslado = document.getElementById("trasladoCantidad");
+  if (cantidadTraslado) cantidadTraslado.oninput = actualizarCostoTraslado;
   bloquearMismaUbicacionTraslado();
   actualizarDisponibleTraslado();
   prepararEscanerInventario(
@@ -1356,8 +1428,28 @@ function bloquearMismaUbicacionTraslado() {
   if (destino.value && destino.value === origen.value) destino.value = "";
 }
 
+// Traslado: costo unitario (precio de compra) y total a cobrar
+function actualizarCostoTraslado() {
+  const idProducto = document.getElementById("trasladoProducto")?.value;
+  const cantidad = parseFloat(document.getElementById("trasladoCantidad")?.value) || 0;
+  const producto = (window.productosData || []).find(
+    (p) => String(p.id) === String(idProducto),
+  );
+  const costo = producto ? parseFloat(producto.precio_compra) || 0 : 0;
+  const costoInput = document.getElementById("trasladoCosto");
+  const totalInfo = document.getElementById("trasladoTotal");
+  if (costoInput) costoInput.value = producto ? `Q${costo.toFixed(2)}` : "";
+  if (totalInfo) {
+    totalInfo.innerHTML =
+      producto && cantidad > 0
+        ? `Total a costo: <strong>Q${(costo * cantidad).toFixed(2)}</strong>`
+        : "";
+  }
+}
+
 // Traslado: muestra cuánto hay en la ubicación de origen
 function actualizarDisponibleTraslado() {
+  actualizarCostoTraslado();
   const idProducto = document.getElementById("trasladoProducto")?.value;
   const idOrigen = document.getElementById("trasladoOrigen")?.value;
   const info = document.getElementById("trasladoDisponible");
@@ -1637,25 +1729,35 @@ async function saveTraslado(event) {
     observaciones:
       document.getElementById("trasladoObservacion").value.trim() || null,
     id_usuario_autoriza: getCurrentUser()?.id || getCurrentUser()?.usuario_id || null,
+    cobrar: document.getElementById("trasladoCobrar")?.checked !== false,
   };
 
   console.log("📦 Enviando traslado:", data);
 
   try {
     const result = await api.request("/traslados", "POST", data);
+    const nota = result.numero_nota_envio || `#${result.id}`;
     if (document.getElementById("trasladoRecibidoYa")?.checked) {
       // Entrega inmediata (ej. Bodega -> Área de ventas en la misma tienda)
       await api.request(`/traslados/${result.id}/confirmar-recepcion`, "PATCH");
       showToast(
-        `Traslado #${result.id} realizado: el stock ya se movió de ${nombreUbicacionInv(idOrigen)} a ${nombreUbicacionInv(idDestino)}`,
+        `Traslado ${nota} realizado: el stock ya se movió de ${nombreUbicacionInv(idOrigen)} a ${nombreUbicacionInv(idDestino)}`,
         "success",
       );
     } else {
       showToast(
-        `Traslado #${result.id} registrado: queda en camino hasta que se confirme la recepción`,
+        `Traslado ${nota} registrado: queda en camino hasta que se reciba con la nota de envío`,
         "success",
       );
     }
+    // Se ofrece imprimir la nota de envío que acompaña la mercadería
+    setTimeout(async () => {
+      const imprimir = await confirmarAccion(
+        `Se generó la nota de envío ${nota}.\n¿Quieres imprimirla para que acompañe la mercadería?`,
+        { titulo: "Nota de envío", textoAceptar: "Imprimir nota", peligro: false },
+      );
+      if (imprimir) imprimirNotaEnvio(result.id);
+    }, 400);
 
     const modal = bootstrap.Modal.getInstance(
       document.getElementById("trasladoModal"),
@@ -1796,6 +1898,19 @@ function renderConteoFisico(conteos) {
 // RENDER: TRASLADOS
 // =============================================
 
+function _infoPagoTraslado(t) {
+  const total = parseFloat(t.monto_total) || 0;
+  const pagado = parseFloat(t.monto_pagado) || 0;
+  const saldo = Math.max(0, total - pagado);
+  const clases = {
+    Pendiente: "bg-danger",
+    Parcial: "bg-warning text-dark",
+    Pagado: "bg-success",
+    "No aplica": "bg-light text-muted border",
+  };
+  return { total, pagado, saldo, estado: t.estado_pago || "No aplica", clase: clases[t.estado_pago] || "bg-secondary" };
+}
+
 function renderTraslados(traslados) {
   const container = document.getElementById("trasladosContainer");
   if (!container) return;
@@ -1817,45 +1932,30 @@ function renderTraslados(traslados) {
     return;
   }
 
-  const productosMap = {};
-  (window.productosData || []).forEach((p) => {
-    productosMap[String(p.id)] = p;
-    productosMap[Number(p.id)] = p;
-  });
-
-  const ubicacionesMap = {};
-  (window.ubicacionesData || []).forEach((u) => {
-    ubicacionesMap[String(u.id)] = u;
-    ubicacionesMap[Number(u.id)] = u;
-  });
-
+  const puedeEditar = tienePermiso("Inventario", "Editar");
   let html = `
         <div class="table-responsive">
-            <table class="table table-hover table-striped">
+            <table class="table table-hover table-striped align-middle">
                 <thead class="table-light">
                     <tr>
-                        <th>ID</th>
+                        <th>Nota de envío</th>
                         <th>Producto</th>
-                        <th>Origen</th>
-                        <th>Destino</th>
-                        <th>Cantidad</th>
+                        <th>Origen → Destino</th>
+                        <th class="text-end">Cant.</th>
+                        <th class="text-end">Total (costo)</th>
+                        <th>Pago</th>
                         <th>Estado</th>
                         <th>Fecha</th>
+                        <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
 
   traslados.forEach((t) => {
-    const producto =
-      productosMap[String(t.id_producto)] ||
-      productosMap[Number(t.id_producto)];
-    const origen =
-      ubicacionesMap[String(t.id_ubicacion_origen)] ||
-      ubicacionesMap[Number(t.id_ubicacion_origen)];
-    const destino =
-      ubicacionesMap[String(t.id_ubicacion_destino)] ||
-      ubicacionesMap[Number(t.id_ubicacion_destino)];
+    const producto = (window.productosData || []).find(
+      (p) => String(p.id) === String(t.id_producto),
+    );
     const estado = t.estado || "EnProceso";
     const estadoInfo =
       {
@@ -1864,31 +1964,43 @@ function renderTraslados(traslados) {
         Recibido: { texto: "Recibido", clase: "bg-success" },
         Cancelado: { texto: "Cancelado", clase: "bg-secondary" },
       }[estado] || { texto: estado, clase: "bg-secondary" };
+    const pago = _infoPagoTraslado(t);
 
     html += `
             <tr>
-                <td>${t.id}</td>
+                <td><strong>${escInv(t.numero_nota_envio || "#" + t.id)}</strong></td>
                 <td>${escInv(producto ? producto.nombre : "--")}</td>
-                <td>${escInv(origen ? origen.nombre || origen.id : "--")}</td>
-                <td>${escInv(destino ? destino.nombre || destino.id : "--")}</td>
-                <td>${t.cantidad || 0}</td>
+                <td><small>${escInv(nombreUbicacionInv(t.id_ubicacion_origen))} → ${escInv(nombreUbicacionInv(t.id_ubicacion_destino))}</small></td>
+                <td class="text-end">${t.cantidad || 0}</td>
+                <td class="text-end">Q${pago.total.toFixed(2)}</td>
                 <td>
-                    <span class="badge ${estadoInfo.clase}">${estadoInfo.texto}</span>
+                    <span class="badge ${pago.clase}">${pago.estado}</span>
+                    ${pago.estado === "Pendiente" || pago.estado === "Parcial" ? `<div class="small text-muted">Saldo Q${pago.saldo.toFixed(2)}</div>` : ""}
+                </td>
+                <td><span class="badge ${estadoInfo.clase}">${estadoInfo.texto}</span></td>
+                <td><small>${t.fecha ? new Date(t.fecha).toLocaleString() : "--"}</small></td>
+                <td class="text-nowrap">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="imprimirNotaEnvio(${t.id})" title="Imprimir nota de envío">
+                        <i class="fas fa-print"></i>
+                    </button>
                     ${
-                      estado === "EnProceso" &&
-                      tienePermiso("Inventario", "Editar")
-                        ? `
-                        <button class="btn btn-sm btn-outline-success ms-1" onclick="recibirTraslado(${t.id})" title="Confirmar que llegó">
-                            <i class="fas fa-check me-1"></i>Recibir
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary ms-1" onclick="cancelarTraslado(${t.id})" title="Cancelar traslado">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    `
+                      pago.estado !== "No aplica" && estado !== "Cancelado"
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="mostrarPagosTraslado(${t.id})" title="Pagos del traslado">
+                        <i class="fas fa-money-bill-wave"></i>
+                    </button>`
+                        : ""
+                    }
+                    ${
+                      estado === "EnProceso" && puedeEditar
+                        ? `<button class="btn btn-sm btn-outline-success" onclick="recibirTraslado(${t.id})" title="Confirmar que llegó">
+                        <i class="fas fa-check me-1"></i>Recibir
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="cancelarTraslado(${t.id})" title="Cancelar traslado">
+                        <i class="fas fa-times"></i>
+                    </button>`
                         : ""
                     }
                 </td>
-                <td>${t.fecha ? new Date(t.fecha).toLocaleString() : "--"}</td>
             </tr>
         `;
   });
@@ -1903,6 +2015,276 @@ function renderTraslados(traslados) {
     `;
 
   container.innerHTML = html;
+}
+
+// =============================================
+// RECIBIR POR NÚMERO DE NOTA DE ENVÍO
+// =============================================
+async function recibirPorNotaEnvio() {
+  const input = document.getElementById("trasladoNotaRecibir");
+  const numero = (input?.value || "").trim();
+  if (!numero) {
+    showToast("Escribe o escanea el número de la nota de envío", "warning");
+    input?.focus();
+    return;
+  }
+  let traslado;
+  try {
+    traslado = await api.request(`/traslados/nota/${encodeURIComponent(numero)}`);
+  } catch (error) {
+    showToast(error.message || "No se encontró la nota de envío", "error");
+    return;
+  }
+  if (traslado.estado !== "EnProceso") {
+    showToast(
+      `La nota ${traslado.numero_nota_envio} ya está ${traslado.estado === "Cancelado" ? "cancelada" : "recibida"}`,
+      "warning",
+    );
+    return;
+  }
+  await asegurarProductosCargados([traslado.id_producto]);
+  const producto = (window.productosData || []).find(
+    (p) => String(p.id) === String(traslado.id_producto),
+  );
+  const ok = await confirmarAccion(
+    `Nota ${traslado.numero_nota_envio}\n` +
+      `${traslado.cantidad} × ${producto ? producto.nombre : "producto"}\n` +
+      `De ${nombreUbicacionInv(traslado.id_ubicacion_origen)} a ${nombreUbicacionInv(traslado.id_ubicacion_destino)}\n\n` +
+      "¿Confirmar que llegó la mercadería?",
+    { titulo: "Recibir traslado", textoAceptar: "Recibir", peligro: false },
+  );
+  if (!ok) return;
+  try {
+    await api.request(
+      `/traslados/nota/${encodeURIComponent(traslado.numero_nota_envio)}/recibir`,
+      "PATCH",
+    );
+    showToast(`Nota ${traslado.numero_nota_envio} recibida: el stock ya está en el destino`, "success");
+    if (input) input.value = "";
+    await recargarTraslados();
+    await recargarResumenInventario();
+  } catch (error) {
+    showToast(error.message || "No se pudo recibir el traslado", "error");
+  }
+}
+
+// =============================================
+// NOTA DE ENVÍO (impresión)
+// =============================================
+async function imprimirNotaEnvio(id) {
+  try {
+    const [traslados, config] = await Promise.all([
+      api.request(`/traslados?limit=200`),
+      api.request("/configuracion").catch(() => ({})),
+    ]);
+    let t = (traslados || []).find((x) => x.id === id);
+    if (!t) {
+      const desde = (trasladosData || []).find((x) => x.id === id);
+      if (desde && desde.numero_nota_envio) {
+        t = await api.request(`/traslados/nota/${encodeURIComponent(desde.numero_nota_envio)}`);
+      }
+    }
+    if (!t) throw new Error("No se encontró el traslado");
+    await asegurarProductosCargados([t.id_producto]);
+    const producto =
+      (window.productosData || []).find((p) => String(p.id) === String(t.id_producto)) || {};
+    const pago = _infoPagoTraslado(t);
+    const negocio = escInv((config && config.nombre_negocio) || "Librería y Papelería");
+    const fecha = t.fecha ? new Date(t.fecha).toLocaleString() : "";
+
+    const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
+      <title>Nota de envío ${escInv(t.numero_nota_envio || "")}</title>
+      <style>
+        body{font-family:Arial,sans-serif;margin:30px;color:#222}
+        h1{font-size:20px;margin:0}h2{font-size:16px;margin:4px 0 16px}
+        table{width:100%;border-collapse:collapse;margin:12px 0}
+        th,td{border:1px solid #999;padding:6px 8px;font-size:13px;text-align:left}
+        th{background:#eee}.der{text-align:right}
+        .datos td{border:none;padding:2px 8px 2px 0}
+        .firmas{display:flex;justify-content:space-between;margin-top:60px}
+        .firma{width:40%;border-top:1px solid #333;text-align:center;padding-top:4px;font-size:12px}
+      </style></head><body>
+      <h1>${negocio}</h1>
+      <h2>NOTA DE ENVÍO — ${escInv(t.numero_nota_envio || "#" + t.id)}</h2>
+      <table class="datos">
+        <tr><td><strong>Fecha:</strong></td><td>${fecha}</td></tr>
+        <tr><td><strong>Origen:</strong></td><td>${escInv(nombreUbicacionInv(t.id_ubicacion_origen))}</td></tr>
+        <tr><td><strong>Destino:</strong></td><td>${escInv(nombreUbicacionInv(t.id_ubicacion_destino))}</td></tr>
+        <tr><td><strong>Método de envío:</strong></td><td>${escInv(t.metodo_traslado || "")}</td></tr>
+        <tr><td><strong>Estado de pago:</strong></td><td>${escInv(pago.estado)}</td></tr>
+      </table>
+      <table>
+        <thead><tr><th>Código</th><th>Producto</th><th class="der">Cantidad</th><th class="der">Costo unitario</th><th class="der">Total</th></tr></thead>
+        <tbody><tr>
+          <td>${escInv(producto.codigo || "")}</td>
+          <td>${escInv(producto.nombre || "")}</td>
+          <td class="der">${t.cantidad}</td>
+          <td class="der">Q${(parseFloat(t.costo_unitario) || 0).toFixed(2)}</td>
+          <td class="der">Q${pago.total.toFixed(2)}</td>
+        </tr></tbody>
+        <tfoot><tr><th colspan="4" class="der">Total a precio de costo</th><th class="der">Q${pago.total.toFixed(2)}</th></tr></tfoot>
+      </table>
+      ${t.observaciones ? `<p><strong>Observaciones:</strong> ${escInv(t.observaciones)}</p>` : ""}
+      <p style="font-size:12px">Para recibir, la sucursal destino ingresa el número <strong>${escInv(t.numero_nota_envio || "")}</strong> en Inventario → Traslados → "Recibir por nota de envío".</p>
+      <div class="firmas"><div class="firma">Entrega</div><div class="firma">Recibe</div></div>
+      </body></html>`;
+    const win = window.open("", "_blank");
+    if (!win) {
+      showToast("El navegador bloqueó la ventana de impresión. Permite ventanas emergentes.", "warning");
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
+  } catch (error) {
+    showToast(error.message || "No se pudo generar la nota de envío", "error");
+  }
+}
+
+// =============================================
+// PAGOS DEL TRASLADO (a precio de costo)
+// =============================================
+let _trasladoPagosActual = null;
+
+async function mostrarPagosTraslado(id) {
+  try {
+    const [pagos, tiposPago] = await Promise.all([
+      api.request(`/traslados/${id}/pagos`),
+      api.request("/tipos-pago").catch(() => []),
+    ]);
+    const lista = await api.request(`/traslados?limit=200`);
+    let t = (lista || []).find((x) => x.id === id);
+    if (!t) t = (trasladosData || []).find((x) => x.id === id);
+    if (!t) throw new Error("No se encontró el traslado");
+    _trasladoPagosActual = t;
+    const pago = _infoPagoTraslado(t);
+    const tipos = (tiposPago || []).filter((tp) => tp.activo !== 0);
+    const nombreTipo = (idTipo) =>
+      (tiposPago || []).find((tp) => tp.id === idTipo)?.nombre || "--";
+    const puedeEditar = tienePermiso("Inventario", "Editar");
+
+    let modal = document.getElementById("trasladoPagosModal");
+    if (!modal) {
+      document.body.insertAdjacentHTML(
+        "beforeend",
+        `<div class="modal fade" id="trasladoPagosModal" tabindex="-1">
+           <div class="modal-dialog modal-lg"><div class="modal-content">
+             <div class="modal-header">
+               <h5 class="modal-title" id="trasladoPagosTitulo">Pagos del traslado</h5>
+               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+             </div>
+             <div class="modal-body" id="trasladoPagosBody"></div>
+           </div></div>
+         </div>`,
+      );
+      modal = document.getElementById("trasladoPagosModal");
+    }
+
+    document.getElementById("trasladoPagosTitulo").textContent =
+      `Pagos del traslado ${t.numero_nota_envio || "#" + t.id}`;
+    const filas = (pagos || [])
+      .map(
+        (p) => `<tr class="${p.anulado ? "text-muted text-decoration-line-through" : ""}">
+            <td><small>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleString() : "--"}</small></td>
+            <td class="text-end">Q${(parseFloat(p.monto) || 0).toFixed(2)}</td>
+            <td>${escInv(nombreTipo(p.id_tipo_pago))}</td>
+            <td>${escInv(p.referencia || "--")}</td>
+            <td>${p.anulado ? `<span class="badge bg-secondary">Anulado</span>${p.motivo_anulacion ? `<div class="small">${escInv(p.motivo_anulacion)}</div>` : ""}` : `<span class="badge bg-success">Vigente</span>`}</td>
+            <td>${!p.anulado && puedeEditar ? `<button class="btn btn-sm btn-outline-danger" onclick="anularPagoTraslado(${t.id}, ${p.id})" title="Anular pago"><i class="fas fa-ban"></i></button>` : ""}</td>
+          </tr>`,
+      )
+      .join("");
+
+    document.getElementById("trasladoPagosBody").innerHTML = `
+      <div class="row g-2 mb-3 text-center">
+        <div class="col"><div class="border rounded p-2"><small class="text-muted d-block">Total a costo</small><strong>Q${pago.total.toFixed(2)}</strong></div></div>
+        <div class="col"><div class="border rounded p-2"><small class="text-muted d-block">Pagado</small><strong class="text-success">Q${pago.pagado.toFixed(2)}</strong></div></div>
+        <div class="col"><div class="border rounded p-2"><small class="text-muted d-block">Saldo</small><strong class="text-danger">Q${pago.saldo.toFixed(2)}</strong></div></div>
+        <div class="col"><div class="border rounded p-2"><small class="text-muted d-block">Estado</small><span class="badge ${pago.clase}">${pago.estado}</span></div></div>
+      </div>
+      <h6>Pagos registrados</h6>
+      ${
+        filas
+          ? `<div class="table-responsive"><table class="table table-sm"><thead class="table-light"><tr><th>Fecha</th><th class="text-end">Monto</th><th>Forma de pago</th><th>Referencia</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table></div>`
+          : `<p class="text-muted small">Todavía no hay pagos.</p>`
+      }
+      ${
+        pago.saldo > 0 && puedeEditar
+          ? `<hr><h6>Registrar pago</h6>
+        <form id="trasladoPagoForm" onsubmit="registrarPagoTraslado(event)" class="row g-2" novalidate>
+          <div class="col-md-3">
+            <label class="form-label small">Monto *</label>
+            <input type="number" step="0.01" min="0.01" max="${pago.saldo.toFixed(2)}" class="form-control form-control-sm" id="trasladoPagoMonto" value="${pago.saldo.toFixed(2)}" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small">Forma de pago</label>
+            <select class="form-select form-select-sm" id="trasladoPagoTipo">
+              ${tipos.map((tp) => `<option value="${tp.id}">${escInv(tp.nombre)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small">Referencia</label>
+            <input type="text" class="form-control form-control-sm" id="trasladoPagoReferencia" placeholder="No. de boleta, transferencia...">
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <button type="submit" class="btn btn-success btn-sm w-100"><i class="fas fa-save me-1"></i>Registrar pago</button>
+          </div>
+        </form>`
+          : ""
+      }`;
+
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+  } catch (error) {
+    showToast(error.message || "No se pudieron cargar los pagos", "error");
+  }
+}
+
+async function registrarPagoTraslado(event) {
+  event.preventDefault();
+  const t = _trasladoPagosActual;
+  if (!t) return;
+  const monto = parseFloat(document.getElementById("trasladoPagoMonto").value);
+  const saldo = _infoPagoTraslado(t).saldo;
+  if (!monto || monto <= 0) {
+    showToast("El monto debe ser mayor a 0", "warning");
+    return;
+  }
+  if (monto > saldo + 0.009) {
+    showToast(`El monto no puede ser mayor al saldo (Q${saldo.toFixed(2)})`, "warning");
+    return;
+  }
+  try {
+    await api.request(`/traslados/${t.id}/pagos`, "POST", {
+      monto,
+      id_tipo_pago: parseInt(document.getElementById("trasladoPagoTipo")?.value) || null,
+      referencia: document.getElementById("trasladoPagoReferencia")?.value.trim() || null,
+    });
+    showToast(`Pago de Q${monto.toFixed(2)} registrado`, "success");
+    await recargarTraslados();
+    await mostrarPagosTraslado(t.id);
+  } catch (error) {
+    showToast(error.message || "No se pudo registrar el pago", "error");
+  }
+}
+
+async function anularPagoTraslado(idTraslado, idPago) {
+  const motivo = await pedirTextoModal(
+    "El pago no se borra: queda como anulado y deja de contar para el saldo.\n¿Por qué se anula?",
+    { titulo: "Anular pago", textoAceptar: "Anular pago", placeholder: "Motivo (opcional)" },
+  );
+  if (motivo === null || motivo === undefined) return;
+  try {
+    await api.request(
+      `/traslados/${idTraslado}/pagos/${idPago}?motivo=${encodeURIComponent(motivo || "")}`,
+      "DELETE",
+    );
+    showToast("Pago anulado", "success");
+    await recargarTraslados();
+    await mostrarPagosTraslado(idTraslado);
+  } catch (error) {
+    showToast(error.message || "No se pudo anular el pago", "error");
+  }
 }
 
 // =============================================
@@ -2104,10 +2486,12 @@ async function cargarConteoTabla() {
 async function cargarTrasladosTabla() {
   try {
     const estado = document.getElementById("trasladosFiltroEstado")?.value;
+    const estadoPago = document.getElementById("trasladosFiltroPago")?.value;
     const desde = document.getElementById("trasladosFechaDesde")?.value;
     const hasta = document.getElementById("trasladosFechaHasta")?.value;
     let url = `/traslados?skip=${skipTraslados}&limit=${LIMITE_TRASLADOS}`;
     if (estado) url += `&estado=${estado}`;
+    if (estadoPago) url += `&estado_pago=${encodeURIComponent(estadoPago)}`;
     if (desde) url += `&fecha_desde=${desde}`;
     if (hasta) url += `&fecha_hasta=${hasta}`;
     trasladosData = (await api.request(url)) || [];
@@ -2953,3 +3337,10 @@ window.recargarTiposMovimiento = recargarTiposMovimiento;
 window.cancelarTraslado = cancelarTraslado;
 window.actualizarStockSistemaConteo = actualizarStockSistemaConteo;
 window.actualizarDisponibleTraslado = actualizarDisponibleTraslado;
+window.cambiarPaginaResumen = cambiarPaginaResumen;
+window.cambiarPorPaginaResumen = cambiarPorPaginaResumen;
+window.recibirPorNotaEnvio = recibirPorNotaEnvio;
+window.imprimirNotaEnvio = imprimirNotaEnvio;
+window.mostrarPagosTraslado = mostrarPagosTraslado;
+window.registrarPagoTraslado = registrarPagoTraslado;
+window.anularPagoTraslado = anularPagoTraslado;
