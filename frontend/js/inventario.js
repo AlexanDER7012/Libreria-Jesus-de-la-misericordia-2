@@ -848,7 +848,7 @@ function mostrarHistorialModal(producto, movimientos) {
     const movimientosOrdenados = [...movimientos].reverse();
 
     movimientosOrdenados.forEach((m) => {
-      const fecha = m.fecha ? new Date(m.fecha).toLocaleString() : "--";
+      const fecha = m.fecha ? new Date(m.fecha).toLocaleString("es-GT") : "--";
       const entrada = m.esEntrada === true ? m.cantidad : "-";
       const salida = m.esEntrada === false ? m.cantidad : "-";
       const neutral = m.esEntrada === null;
@@ -922,20 +922,35 @@ function showMovimientoModalConProducto(idProducto) {
   showMovimientoModal();
   setTimeout(() => {
     window.__movimientoProductoSelector?.setValue(idProducto);
+    actualizarInfoStockMovimiento();
   }, 300);
 }
 
 // =============================================
 // POBLAR SELECTS
 // =============================================
+const TIPOS_AUTOMATICOS_INV = [
+  "compra", "venta", "traslado",
+  "ajuste por conteo (entrada)", "ajuste por conteo (salida)",
+  "cancelación de venta", "cancelación de compra",
+];
+function tipoMovimientoManualInv(t) {
+  const signo = Number(t.signo);
+  if (signo !== 1 && signo !== 2) return false;
+  if (t.activo === 0 || t.activo === false) return false;
+  return !TIPOS_AUTOMATICOS_INV.includes(String(t.nombre || "").trim().toLowerCase());
+}
 
 function populateSelectsInventario() {
   const tipoSelects = document.querySelectorAll(".inv-tipo-movimiento");
   tipoSelects.forEach((select) => {
     select.innerHTML = '<option value="">Seleccionar tipo</option>';
-    tiposMovimientoData.forEach((t) => {
-      select.innerHTML += `<option value="${t.id}">${t.nombre}</option>`;
-    });
+    tiposMovimientoData
+      .filter(tipoMovimientoManualInv)
+      .forEach((t) => {
+        const efecto = Number(t.signo) === 1 ? "➕ suma al stock" : "➖ resta del stock";
+        select.innerHTML += `<option value="${t.id}">${escInv(t.nombre)} (${efecto})</option>`;
+      });
   });
 
   const ubicacionSelects = document.querySelectorAll(".inv-ubicacion-select");
@@ -989,6 +1004,7 @@ function crearModalesInventario() {
                                     <label class="form-label">Ubicación *</label>
                                     <select class="form-select inv-ubicacion-select" id="movimientoUbicacion" required></select>
                                     <div class="form-text">Donde entra (entrada) o de donde sale (salida) el producto.</div>
+                                    <div class="form-text" id="movimientoStockInfo"></div>
                                     <div class="invalid-feedback" id="movimientoUbicacionError">Seleccione una ubicación</div>
                                 </div>
                                 <div class="mb-3">
@@ -1280,8 +1296,50 @@ function showTrasladoModal() {
 }
 
 function llenarSelectorProductoMovimiento() {
-  window.__movimientoProductoSelector =
-    llenarSelectorProductoInventario("movimiento");
+  window.__movimientoProductoSelector = llenarSelectorProductoInventario(
+    "movimiento",
+    () => actualizarInfoStockMovimiento(),
+  );
+  ["movimientoTipo", "movimientoUbicacion"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.onchange = actualizarInfoStockMovimiento;
+  });
+  const cantidad = document.getElementById("movimientoCantidad");
+  if (cantidad) cantidad.oninput = actualizarInfoStockMovimiento;
+  actualizarInfoStockMovimiento();
+}
+
+// Movimiento: muestra cuánto hay en la ubicación elegida y cuánto quedará
+function actualizarInfoStockMovimiento() {
+  const info = document.getElementById("movimientoStockInfo");
+  if (!info) return;
+  const idProducto = document.getElementById("movimientoProducto")?.value;
+  const idUbicacion = document.getElementById("movimientoUbicacion")?.value;
+  if (!idProducto || !idUbicacion) {
+    info.innerHTML = "";
+    return;
+  }
+  const hay = stockEnUbicacionInv(idProducto, idUbicacion);
+  const lugar = escInv(nombreUbicacionInv(idUbicacion));
+  const tipo = tiposMovimientoData.find(
+    (t) => String(t.id) === String(document.getElementById("movimientoTipo")?.value),
+  );
+  const cantidad = parseFloat(document.getElementById("movimientoCantidad")?.value) || 0;
+  let texto = `En ${lugar} hay: <strong>${hay}</strong>`;
+  let clase = "form-text";
+  if (tipo && cantidad > 0) {
+    const signo = Number(tipo.signo);
+    const quedara = signo === 1 ? hay + cantidad : signo === 2 ? hay - cantidad : hay;
+    if (signo === 2 && quedara < 0) {
+      texto += ` · <strong>no alcanza</strong> para sacar ${cantidad}`;
+      clase += " text-danger";
+    } else {
+      texto += ` · quedará: <strong>${quedara}</strong>`;
+      clase += signo === 1 ? " text-success" : " text-warning";
+    }
+  }
+  info.innerHTML = texto;
+  info.className = clase;
 }
 
 function llenarSelectorProductoInventario(prefijo, onSelect) {
@@ -1463,20 +1521,30 @@ function actualizarDisponibleTraslado() {
   info.className = `form-text ${disponible > 0 ? "text-success" : "text-danger"}`;
 }
 
+// Texto del stock para los avisos del escáner: el de la ubicación elegida
+// (antes mostraba el total de todas las ubicaciones)
+function textoStockEscaneoInv(producto, idUbicacion) {
+  if (!idUbicacion) return `stock total: ${producto.stock_actual || 0}`;
+  return `en ${nombreUbicacionInv(idUbicacion)}: ${stockEnUbicacionInv(producto.id, idUbicacion)}`;
+}
+
 function seleccionarProductoEscaneadoMovimiento(producto) {
   _seleccionarProductoInventario("movimientoProducto", producto);
+  actualizarInfoStockMovimiento();
   document.getElementById("movimientoCantidad")?.focus();
+  const idUbicacion = document.getElementById("movimientoUbicacion")?.value;
   return {
     tipo: "ok",
-    texto: `${producto.nombre} seleccionado (stock actual: ${producto.stock_actual || 0})`,
+    texto: `${producto.nombre} seleccionado (${textoStockEscaneoInv(producto, idUbicacion)})`,
   };
 }
 
 function seleccionarProductoEscaneadoTraslado(producto) {
   _seleccionarProductoInventario("trasladoProducto", producto);
+  const idOrigen = document.getElementById("trasladoOrigen")?.value;
   return {
     tipo: "ok",
-    texto: `${producto.nombre} seleccionado (stock actual: ${producto.stock_actual || 0})`,
+    texto: `${producto.nombre} seleccionado (${textoStockEscaneoInv(producto, idOrigen)})`,
   };
 }
 
@@ -1510,7 +1578,7 @@ function contarProductoEscaneado(producto) {
 
   return {
     tipo: "ok",
-    texto: `${producto.nombre}: contadas ${nuevaCantidad} (en sistema: ${producto.stock_actual || 0})`,
+    texto: `${producto.nombre}: contadas ${nuevaCantidad} (en sistema ${textoStockEscaneoInv(producto, document.getElementById("conteoUbicacion")?.value)})`,
   };
 }
 
@@ -1554,6 +1622,19 @@ async function saveMovimiento(event) {
     valid = false;
   } else {
     limpiarErrorCampo("movimientoUbicacion");
+  }
+
+  const tipoElegido = tiposMovimientoData.find((t) => t.id === idTipo);
+  if (
+    valid &&
+    Number(tipoElegido?.signo) === 2 &&
+    cantidad > stockEnUbicacionInv(idProducto, idUbicacionMov)
+  ) {
+    mostrarErrorCampo(
+      "movimientoCantidad",
+      `Solo hay ${stockEnUbicacionInv(idProducto, idUbicacionMov)} en ${nombreUbicacionInv(idUbicacionMov)}`,
+    );
+    valid = false;
   }
 
   if (!valid) return;
@@ -1866,7 +1947,7 @@ function renderConteoFisico(conteos) {
                 <td class="${esDiferencia ? (diferencia > 0 ? "text-success" : "text-danger") : ""}">
                     ${diferencia !== 0 ? (diferencia > 0 ? "+" : "") + diferencia : "0"}
                 </td>
-                <td>${c.fecha ? new Date(c.fecha).toLocaleString() : "--"}</td>
+                <td>${c.fecha ? new Date(c.fecha).toLocaleString("es-GT") : "--"}</td>
                 <td>${
                   c.ajustado === 1
                     ? '<span class="badge bg-success">Aplicado</span>'
@@ -1978,7 +2059,7 @@ function renderTraslados(traslados) {
                     ${pago.estado === "Pendiente" || pago.estado === "Parcial" ? `<div class="small text-muted">Saldo Q${pago.saldo.toFixed(2)}</div>` : ""}
                 </td>
                 <td><span class="badge ${estadoInfo.clase}">${estadoInfo.texto}</span></td>
-                <td><small>${t.fecha ? new Date(t.fecha).toLocaleString() : "--"}</small></td>
+                <td><small>${t.fecha ? new Date(t.fecha).toLocaleString("es-GT") : "--"}</small></td>
                 <td class="text-nowrap">
                     <button class="btn btn-sm btn-outline-secondary" onclick="imprimirNotaEnvio(${t.id})" title="Imprimir nota de envío">
                         <i class="fas fa-print"></i>
@@ -2090,7 +2171,7 @@ async function imprimirNotaEnvio(id) {
       (window.productosData || []).find((p) => String(p.id) === String(t.id_producto)) || {};
     const pago = _infoPagoTraslado(t);
     const negocio = escInv((config && config.nombre_negocio) || "Librería y Papelería");
-    const fecha = t.fecha ? new Date(t.fecha).toLocaleString() : "";
+    const fecha = t.fecha ? new Date(t.fecha).toLocaleString("es-GT") : "";
 
     const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
       <title>Nota de envío ${escInv(t.numero_nota_envio || "")}</title>
@@ -2186,7 +2267,7 @@ async function mostrarPagosTraslado(id) {
     const filas = (pagos || [])
       .map(
         (p) => `<tr class="${p.anulado ? "text-muted text-decoration-line-through" : ""}">
-            <td><small>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleString() : "--"}</small></td>
+            <td><small>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleString("es-GT") : "--"}</small></td>
             <td class="text-end">Q${(parseFloat(p.monto) || 0).toFixed(2)}</td>
             <td>${escInv(nombreTipo(p.id_tipo_pago))}</td>
             <td>${escInv(p.referencia || "--")}</td>
