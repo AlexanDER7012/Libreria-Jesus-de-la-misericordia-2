@@ -122,7 +122,7 @@ function ensureAllModals() {
   if (!document.getElementById("productoModal")) {
     const productoModalHTML = `
       <div class="modal fade" id="productoModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace modal-producto">
           <div class="modal-content">
             <div class="modal-header bg-success text-white">
               <h5 class="modal-title" id="productoModalTitle">
@@ -131,14 +131,17 @@ function ensureAllModals() {
               <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                  <form id="productoForm" onsubmit="saveProducto(event)" novalidate>
+                  <form id="productoForm" class="producto-compact-form" onsubmit="saveProducto(event)" novalidate>
                 <input type="hidden" id="productoId" />
                 
                 <!-- FILA 1: Código y Nombre -->
                 <div class="row g-3 mb-3">
                   <div class="col-md-6">
-                    <label class="form-label fw-bold">Código <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="productoCodigo" placeholder="Ej: PROD-001" required />
+                    <label class="form-label fw-bold">Código / Código de barras <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+                      <input type="text" class="form-control" id="productoCodigo" placeholder="Escanea o ingresa el código" autocomplete="off" required />
+                    </div>
                     <div class="invalid-feedback" id="productoCodigoError">El código es obligatorio</div>
                   </div>
                   <div class="col-md-6">

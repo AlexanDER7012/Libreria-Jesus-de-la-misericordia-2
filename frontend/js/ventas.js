@@ -762,7 +762,7 @@ function crearModalVenta() {
   modal.setAttribute("aria-hidden", "true");
 
   modal.innerHTML = `
-    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace modal-venta">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="ventaModalTitle">Nueva Venta</h5>
@@ -865,13 +865,13 @@ function crearModalVenta() {
 
             <div id="ventaDetallesList" class="mb-3"></div>
 
-            <div class="text-end">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-              <button type="submit" class="btn btn-warning">
-                <i class="fas fa-save me-2"></i>Guardar Venta
-              </button>
-            </div>
           </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-warning" form="ventaForm">
+            <i class="fas fa-save me-2"></i>Guardar Venta
+          </button>
         </div>
       </div>
     </div>
@@ -3383,7 +3383,7 @@ async function showCreateServicioModal() {
   modal.className = "modal fade";
   modal.id = "servicioModal";
   modal.innerHTML = `
-    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace modal-servicio">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">Registrar Servicio Adicional</h5>
@@ -3510,13 +3510,13 @@ async function showCreateServicioModal() {
               </div>
             </div>
 
-            <div class="text-end">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-              <button type="submit" class="btn btn-info">
-                <i class="fas fa-save me-2"></i>Guardar Servicio
-              </button>
-            </div>
           </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-info" form="servicioForm">
+            <i class="fas fa-save me-2"></i>Guardar Servicio
+          </button>
         </div>
       </div>
     </div>
