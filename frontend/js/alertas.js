@@ -57,7 +57,7 @@
             <i id="alertaModalIcono" class="fas fa-2x me-3"></i>
             <h5 class="mb-0" id="alertaModalTitulo"></h5>
           </div>
-          <div id="alertaModalLista" style="white-space:pre-line;"></div>
+          <div id="alertaModalLista" style="white-space:pre-line;max-height:60vh;overflow-y:auto;"></div>
           <div class="text-end mt-3">
             <button type="button" class="btn btn-primary px-4" id="alertaModalOk">Ok</button>
           </div>
@@ -120,6 +120,19 @@
   }
 
   window.mostrarAlertaModal = mostrarAlertaModal;
+
+  function mostrarResumenCargaMasiva(accion, ok, fallidos, errores) {
+    const lista = (errores || []).slice(0, 30);
+    const resto = (errores || []).length - lista.length;
+    let mensaje =
+      `${ok} ${accion} correctamente y ${fallidos} con error.\n` +
+      `Corrige estas filas en el Excel y vuelve a subir solo esas:\n\n` +
+      lista.map((e) => `• ${e}`).join("\n");
+    if (resto > 0) mensaje += `\n• ... y ${resto} filas más con error`;
+    mostrarAlertaModal(mensaje, "warning");
+  }
+
+  window.mostrarResumenCargaMasiva = mostrarResumenCargaMasiva;
 
   // ==========================================================
   // Diálogos que reemplazan a confirm() y prompt() del navegador

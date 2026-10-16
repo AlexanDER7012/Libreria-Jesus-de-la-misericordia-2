@@ -15,6 +15,12 @@ const LIMITE_TRASLADOS = 10;
 let skipAlertas = 0;
 const LIMITE_ALERTAS = 10;
 
+function _reiniciarPaginacionInventario() {
+  skipConteo = 0;
+  skipTraslados = 0;
+  skipAlertas = 0;
+}
+
 // =============================================
 // FUNCIONES AUXILIARES
 // =============================================
@@ -134,7 +140,11 @@ async function obtenerProductosParaInventario() {
     // Siempre se piden al servidor: antes se reutilizaba la lista que ya
     // estaba en memoria y el stock mostrado podía estar desactualizado
     // (por ejemplo, decía "Agotado" aunque ya se hubiera recibido mercadería).
-    const productos = await api.request("/productos?limit=200");
+    const [productos, categorias] = await Promise.all([
+      api.request("/productos?limit=200"),
+      api.request("/categorias").catch(() => null),
+    ]);
+    if (Array.isArray(categorias)) window.categoriasInventario = categorias;
     window.productosData = productos || [];
     try {
       localStorage.setItem(
@@ -189,6 +199,29 @@ if (typeof api !== "undefined") {
 // FUNCIÓN PARA FILTRAR PRODUCTOS
 // =============================================
 
+// Nombre de la categoría de un producto. El servidor solo manda
+// id_categoria, por eso antes la columna "Categoría" salía siempre "--".
+function nombreCategoriaProducto(p) {
+  if (!p) return "";
+  if (p.categoria_nombre) return p.categoria_nombre;
+  const lista =
+    window.categoriasInventario ||
+    window.categoriasData ||
+    (typeof categoriasData !== "undefined" ? categoriasData : []);
+  const cat = (lista || []).find(
+    (c) => String(c.id) === String(p.id_categoria),
+  );
+  return cat ? cat.nombre || "" : "";
+}
+
+function escInv(texto) {
+  return String(texto ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function filtrarProductos(productos, termino) {
   if (!termino || termino.trim() === "") {
     return productos;
@@ -199,8 +232,7 @@ function filtrarProductos(productos, termino) {
       (p.id && String(p.id).includes(busqueda)) ||
       (p.codigo && p.codigo.toLowerCase().includes(busqueda)) ||
       (p.nombre && p.nombre.toLowerCase().includes(busqueda)) ||
-      (p.categoria_nombre &&
-        p.categoria_nombre.toLowerCase().includes(busqueda))
+      nombreCategoriaProducto(p).toLowerCase().includes(busqueda)
     );
   });
 }
@@ -210,6 +242,8 @@ function filtrarProductos(productos, termino) {
 // =============================================
 
 async function loadInventarioModule() {
+  // Al volver a entrar a Inventario se empieza desde la primera página
+  _reiniciarPaginacionInventario();
   const container =
     document.getElementById("inventarioTableContainer") ||
     document.getElementById("mainContent");
@@ -482,7 +516,7 @@ function renderResumenInventario() {
                 <td><code>${p.id}</code></td>
                 <td><code>${p.codigo || "--"}</code></td>
                 <td><strong>${p.nombre || "--"}</strong></td>
-                <td>${p.categoria_nombre || p.categoria || "--"}</td>
+                <td>${escInv(nombreCategoriaProducto(p) || "--")}</td>
                 <td class="fw-bold text-${estadoStock}">${stock}</td>
                 <td>${minStock}</td>
                 <td>
@@ -920,8 +954,9 @@ function crearModalesInventario() {
                                 <div class="mb-3">
                                     <label class="form-label">Signo</label>
                                     <select class="form-select" id="tipoMovimientoSigno">
-                                        <option value="+">Entrada (+)</option>
-                                        <option value="-">Salida (-)</option>
+                                        <option value="+">Entrada (+) — suma stock</option>
+                                        <option value="-">Salida (-) — resta stock</option>
+                                        <option value="0">Neutral — no cambia el stock</option>
                                     </select>
                                 </div>
                                 <button type="submit" class="btn btn-success w-100">Guardar</button>
@@ -1711,23 +1746,21 @@ function renderAlertas(alertas) {
                 </td>
                 <td>${stockMinimo}</td>
                 <td>
-                    <span class="badge ${leida || yaResuelta ? "bg-secondary" : "bg-danger"}">
-                        ${leida || yaResuelta ? "Leída" : "Pendiente"}
+                    <span class="badge ${leida ? "bg-secondary" : yaResuelta ? "bg-success" : "bg-danger"}">
+                        ${leida ? "Leída" : yaResuelta ? "Stock repuesto" : "Pendiente"}
                     </span>
                 </td>
                 <td>
                     ${
-                      !leida &&
-                      !yaResuelta &&
-                      tienePermiso("Inventario", "Editar")
-                        ? `
+                      leida
+                        ? `<span class="text-muted small">Cerrada</span>`
+                        : tienePermiso("Inventario", "Editar")
+                          ? `
                         <button class="btn btn-sm btn-outline-success" onclick="marcarAlertaLeida(${a.id})">
-                            <i class="fas fa-check"></i> Marcar Leída
+                            <i class="fas fa-check"></i> ${yaResuelta ? "Cerrar alerta" : "Marcar Leída"}
                         </button>
                     `
-                        : `
-                        <span class="text-muted small">Resuelta</span>
-                    `
+                          : `<span class="text-muted small">--</span>`
                     }
                 </td>
             </tr>
@@ -1754,9 +1787,16 @@ function _agregarControlesPaginacionInventario(
   onAnterior,
   onSiguiente,
   skipActual,
+  cantidadPagina,
+  limite,
 ) {
   const container = document.getElementById(containerId);
   if (!container) return;
+  // Si la página vino incompleta, ya no hay más: "Siguiente" se desactiva
+  // (antes dejaba avanzar a páginas vacías)
+  const hayMas = cantidadPagina >= limite;
+  if (skipActual === 0 && !hayMas) return; // todo cabe en una página
+  const pagina = Math.floor(skipActual / limite) + 1;
   container.insertAdjacentHTML(
     "beforeend",
     `
@@ -1764,12 +1804,19 @@ function _agregarControlesPaginacionInventario(
             <button class="btn btn-sm btn-outline-secondary" onclick="${onAnterior}" ${skipActual === 0 ? "disabled" : ""}>
                 <i class="fas fa-chevron-left me-1"></i>Anterior
             </button>
-            <button class="btn btn-sm btn-outline-secondary" onclick="${onSiguiente}">
+            <small class="text-muted">Página ${pagina}</small>
+            <button class="btn btn-sm btn-outline-secondary" onclick="${onSiguiente}" ${hayMas ? "" : "disabled"}>
                 Siguiente<i class="fas fa-chevron-right ms-1"></i>
             </button>
         </div>
     `,
   );
+}
+
+// Si se avanzó a una página que quedó vacía (por ejemplo, porque se
+// cerraron alertas), se regresa a la anterior.
+function _paginaVaciaInventario(datos, skip) {
+  return Array.isArray(datos) && datos.length === 0 && skip > 0;
 }
 
 async function cargarConteoTabla() {
@@ -1780,12 +1827,18 @@ async function cargarConteoTabla() {
     if (desde) url += `&fecha_desde=${desde}`;
     if (hasta) url += `&fecha_hasta=${hasta}`;
     inventarioFisicoData = (await api.request(url)) || [];
+    if (_paginaVaciaInventario(inventarioFisicoData, skipConteo)) {
+      skipConteo = Math.max(0, skipConteo - LIMITE_CONTEO);
+      return cargarConteoTabla();
+    }
     renderConteoFisico(inventarioFisicoData);
     _agregarControlesPaginacionInventario(
       "conteoContainer",
       `skipConteo=Math.max(0,skipConteo-${LIMITE_CONTEO});cargarConteoTabla()`,
       `skipConteo+=${LIMITE_CONTEO};cargarConteoTabla()`,
       skipConteo,
+      inventarioFisicoData.length,
+      LIMITE_CONTEO,
     );
   } catch (error) {
     document.getElementById("conteoContainer").innerHTML =
@@ -1803,12 +1856,18 @@ async function cargarTrasladosTabla() {
     if (desde) url += `&fecha_desde=${desde}`;
     if (hasta) url += `&fecha_hasta=${hasta}`;
     trasladosData = (await api.request(url)) || [];
+    if (_paginaVaciaInventario(trasladosData, skipTraslados)) {
+      skipTraslados = Math.max(0, skipTraslados - LIMITE_TRASLADOS);
+      return cargarTrasladosTabla();
+    }
     renderTraslados(trasladosData);
     _agregarControlesPaginacionInventario(
       "trasladosContainer",
       `skipTraslados=Math.max(0,skipTraslados-${LIMITE_TRASLADOS});cargarTrasladosTabla()`,
       `skipTraslados+=${LIMITE_TRASLADOS};cargarTrasladosTabla()`,
       skipTraslados,
+      trasladosData.length,
+      LIMITE_TRASLADOS,
     );
   } catch (error) {
     document.getElementById("trasladosContainer").innerHTML =
@@ -1824,12 +1883,18 @@ async function cargarAlertasTabla() {
     if (desde) url += `&fecha_desde=${desde}`;
     if (hasta) url += `&fecha_hasta=${hasta}`;
     alertasData = (await api.request(url).catch(() => [])) || [];
+    if (_paginaVaciaInventario(alertasData, skipAlertas)) {
+      skipAlertas = Math.max(0, skipAlertas - LIMITE_ALERTAS);
+      return cargarAlertasTabla();
+    }
     renderAlertas(alertasData);
     _agregarControlesPaginacionInventario(
       "alertasContainer",
       `skipAlertas=Math.max(0,skipAlertas-${LIMITE_ALERTAS});cargarAlertasTabla()`,
       `skipAlertas+=${LIMITE_ALERTAS};cargarAlertasTabla()`,
       skipAlertas,
+      alertasData.length,
+      LIMITE_ALERTAS,
     );
   } catch (error) {
     document.getElementById("alertasContainer").innerHTML =
@@ -1843,34 +1908,11 @@ async function cargarAlertasTabla() {
 
 async function marcarAlertaLeida(id) {
   try {
-    await api.request(`/alertas/${id}`, "PATCH", { leida: 1 });
-    showToast("Alerta marcada como leída", "success");
+    await api.request(`/alertas/${id}/marcar-leida`, "PATCH");
+    showToast("Alerta cerrada", "success");
     await recargarAlertas();
-  } catch (error1) {
-    try {
-      await api.request(`/alertas/${id}/leer`, "PATCH");
-      showToast("Alerta marcada como leída", "success");
-      await recargarAlertas();
-    } catch (error2) {
-      try {
-        await api.request(`/alertas/${id}`, "PUT", { leida: 1 });
-        showToast("Alerta marcada como leída", "success");
-        await recargarAlertas();
-      } catch (error3) {
-        const confirmado = await mostrarConfirmacion(
-          "Error al marcar alerta",
-          "No se pudo conectar con el servidor. ¿Deseas marcar la alerta como leída localmente?",
-        );
-        if (confirmado) {
-          const alerta = alertasData.find((a) => a.id === id);
-          if (alerta) {
-            alerta.leida = 1;
-            renderAlertas(alertasData);
-            showToast("Alerta marcada como leída (solo local)", "warning");
-          }
-        }
-      }
-    }
+  } catch (error) {
+    showToast(error.message || "No se pudo cerrar la alerta", "error");
   }
 }
 
@@ -2029,7 +2071,7 @@ async function saveTipoMovimiento(event) {
 
   const signoVal = document.getElementById("tipoMovimientoSigno").value;
   // ✅ CORREGIDO: + = 1 (entrada), - = 2 (salida)
-  const signo = signoVal === "+" ? 1 : 2;
+  const signo = signoVal === "+" ? 1 : signoVal === "0" ? 0 : 2;
 
   const data = {
     nombre: nombre,
@@ -2452,20 +2494,17 @@ async function confirmarCargaMasivaMovimientos() {
     return;
   }
 
-  if (fail === 0) {
-    showToast(`✅ ${ok} movimientos creados correctamente`, "success");
-  } else {
-    showToast(
-      `⚠ ${ok} creados, ${fail} fallidos. Revisa la consola.`,
-      "warning",
-    );
-    console.warn("Errores carga masiva movimientos:", errores);
-  }
-
   const modal = bootstrap.Modal.getInstance(
     document.getElementById("cargaMasivaMovimientosModal"),
   );
   if (modal) modal.hide();
+
+  if (fail === 0) {
+    showToast(`✅ ${ok} movimientos creados correctamente`, "success");
+  } else {
+    mostrarResumenCargaMasiva("creados", ok, fail, errores);
+    console.warn("Errores carga masiva movimientos:", errores);
+  }
 
   // Recargar solo las secciones afectadas
   await recargarResumenInventario();
