@@ -242,6 +242,74 @@ body {
     border-color 0.3s ease;
 }
 
+.modal-dialog.modal-workspace {
+  --bs-modal-width: min(96vw, 1440px);
+}
+
+.modal-dialog.modal-medium-workspace {
+  --bs-modal-width: min(96vw, 1040px);
+}
+
+.modal-workspace .modal-content {
+  max-height: calc(100dvh - 2rem);
+}
+
+.modal-workspace .modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.modal-landscape .inventory-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 1rem;
+}
+
+.modal-landscape .inventory-modal-grid > .inventory-grid-wide,
+.modal-landscape .inventory-modal-grid > button[type="submit"] {
+  grid-column: 1 / -1;
+}
+
+.modal-dialog.modal-landscape {
+  --bs-modal-width: min(96vw, 1000px);
+}
+
+.compras-table-responsive {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.compras-list-table {
+  min-width: 1050px;
+  white-space: nowrap;
+}
+
+.compras-list-table td:last-child {
+  white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+  .modal-dialog.modal-workspace {
+    --bs-modal-width: calc(100vw - 1rem);
+    margin: 0.5rem;
+  }
+
+  .modal-landscape .inventory-modal-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .modal-landscape .inventory-modal-grid > * {
+    grid-column: 1;
+  }
+
+  .modal-workspace .modal-header,
+  .modal-workspace .modal-body,
+  .modal-workspace .modal-footer {
+    padding: 1rem;
+  }
+}
+
 /* ================================================================
    FORMULARIOS - PREMIUM
    ================================================================ */

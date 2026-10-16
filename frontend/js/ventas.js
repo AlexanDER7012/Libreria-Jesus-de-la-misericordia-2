@@ -762,7 +762,7 @@ function crearModalVenta() {
   modal.setAttribute("aria-hidden", "true");
 
   modal.innerHTML = `
-    <div class="modal-dialog modal-xl">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="ventaModalTitle">Nueva Venta</h5>
@@ -3383,7 +3383,7 @@ async function showCreateServicioModal() {
   modal.className = "modal fade";
   modal.id = "servicioModal";
   modal.innerHTML = `
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">Registrar Servicio Adicional</h5>

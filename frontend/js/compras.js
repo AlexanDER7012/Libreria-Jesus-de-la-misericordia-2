@@ -628,8 +628,8 @@ function renderComprasTable(compras) {
   }
 
   html += `
-        <div class="table-responsive">
-            <table class="table table-hover table-striped">
+        <div class="table-responsive compras-table-responsive">
+            <table class="table table-hover table-striped compras-list-table">
                 <thead class="table-light">
                     <tr>
                         <th>ID</th>
@@ -1927,15 +1927,15 @@ function showCreateProveedorModal() {
 
   const html = `
         <div class="modal fade" id="proveedorModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-lg modal-dialog-scrollable" style="max-height: 90vh;">
-                <div class="modal-content" style="max-height: 90vh;">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace modal-medium-workspace">
+                <div class="modal-content">
                     <div class="modal-header bg-primary text-white sticky-top">
                         <h5 class="modal-title">
                             <i class="fas fa-building me-2"></i>Nuevo Proveedor
                         </h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
-                    <div class="modal-body" style="overflow-y: auto; max-height: calc(90vh - 130px);">
+                    <div class="modal-body">
                         <form id="proveedorForm">
                             <input type="hidden" id="proveedorId" value="" />
                             <div class="row g-3 mb-3">
@@ -2050,7 +2050,7 @@ async function showEditProveedorModal(id) {
 
   const html = `
         <div class="modal fade" id="proveedorModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace modal-medium-workspace">
                 <div class="modal-content">
                     <div class="modal-header bg-primary text-white">
                         <h5 class="modal-title">
@@ -2414,13 +2414,13 @@ function showCreatePedidoModal() {
 
   const html = `
     <div class="modal fade" id="pedidoModal" tabindex="-1">
-      <div class="modal-dialog modal-lg modal-dialog-scrollable" style="max-height:90vh;">
-        <div class="modal-content" style="max-height:90vh;">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace">
+        <div class="modal-content">
           <div class="modal-header bg-primary text-white sticky-top">
             <h5 class="modal-title"><i class="fas fa-clipboard-list me-2"></i>Nuevo Pedido</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-body" style="overflow-y:auto; max-height:calc(90vh - 130px);">
+          <div class="modal-body">
             <form id="pedidoForm">
               <div class="row g-3 mb-3">
                 <div class="col-md-6">
@@ -3172,7 +3172,7 @@ function showCreateGastoModal() {
 
   const html = `
         <div class="modal fade" id="gastoModal" tabindex="-1">
-            <div class="modal-dialog">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable modal-workspace modal-medium-workspace">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Registrar Gasto</h5>
@@ -4185,7 +4185,7 @@ async function verCompra(id) {
     const modalDiv = document.createElement("div");
     modalDiv.className = "modal fade";
     modalDiv.id = "compraDetalleModal";
-    modalDiv.innerHTML = `<div class="modal-dialog modal-lg"><div class="modal-content">${modalContent}</div></div>`;
+    modalDiv.innerHTML = `<div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace"><div class="modal-content">${modalContent}</div></div>`;
     document.body.appendChild(modalDiv);
     new bootstrap.Modal(modalDiv).show();
     modalDiv.addEventListener("hidden.bs.modal", function () {

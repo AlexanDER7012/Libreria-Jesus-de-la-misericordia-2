@@ -791,16 +791,16 @@ function crearModalesInventario() {
   if (!document.getElementById("conteoModal")) {
     const html = `
             <div class="modal fade" id="conteoModal" tabindex="-1">
-                <div class="modal-dialog">
+                <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-workspace modal-landscape">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title">Conteo Físico de Inventario</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                              <form id="conteoForm" onsubmit="saveConteoFisico(event)" novalidate>
+                              <form id="conteoForm" class="inventory-modal-grid" onsubmit="saveConteoFisico(event)" novalidate>
                                 <input type="hidden" id="conteoId" />
-                                <div class="mb-3">
+                                <div class="mb-3 inventory-grid-wide">
                                     <label class="form-label">Producto *</label>
                                     <div id="conteoProductoSelectorWrapper"></div>
                                     <div class="invalid-feedback" id="conteoProductoError">Seleccione un producto</div>
@@ -819,7 +819,7 @@ function crearModalesInventario() {
                                     <label class="form-label">Stock en Sistema</label>
                                     <input type="number" step="0.01" class="form-control" id="conteoStockSistema" readonly />
                                 </div>
-                                <div class="mb-3">
+                                <div class="mb-3 inventory-grid-wide">
                                     <label class="form-label">Observaciones</label>
                                     <textarea class="form-control" id="conteoObservacion" rows="2"></textarea>
                                 </div>
@@ -837,16 +837,16 @@ function crearModalesInventario() {
   if (!document.getElementById("trasladoModal")) {
     const html = `
             <div class="modal fade" id="trasladoModal" tabindex="-1">
-                <div class="modal-dialog">
+                <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-workspace modal-landscape">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title">Traslado de Inventario</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                              <form id="trasladoForm" onsubmit="saveTraslado(event)" novalidate>
+                              <form id="trasladoForm" class="inventory-modal-grid" onsubmit="saveTraslado(event)" novalidate>
                                 <input type="hidden" id="trasladoId" />
-                                <div class="mb-3">
+                                <div class="mb-3 inventory-grid-wide">
                                     <label class="form-label">Producto *</label>
                                     <div id="trasladoProductoSelectorWrapper"></div>
                                     <div class="invalid-feedback" id="trasladoProductoError">Seleccione un producto</div>
@@ -873,7 +873,7 @@ function crearModalesInventario() {
                                         <option value="Uber Moto">Uber Moto</option>
                                     </select>
                                 </div>
-                                <div class="mb-3">
+                                <div class="mb-3 inventory-grid-wide">
                                     <label class="form-label">Observaciones</label>
                                     <textarea class="form-control" id="trasladoObservacion" rows="2"></textarea>
                                 </div>

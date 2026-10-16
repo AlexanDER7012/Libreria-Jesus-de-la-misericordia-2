@@ -122,7 +122,7 @@ function ensureAllModals() {
   if (!document.getElementById("productoModal")) {
     const productoModalHTML = `
       <div class="modal fade" id="productoModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace">
           <div class="modal-content">
             <div class="modal-header bg-success text-white">
               <h5 class="modal-title" id="productoModalTitle">
