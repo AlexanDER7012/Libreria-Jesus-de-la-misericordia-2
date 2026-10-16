@@ -111,6 +111,8 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
     if not datos.denominaciones:
         raise HTTPException(status_code=400, detail="Debes registrar el conteo de denominaciones para cerrar el turno")
 
+    if any(d.cantidad < 0 or d.denominacion <= 0 for d in datos.denominaciones):
+        raise HTTPException(status_code=400, detail="Las denominaciones y cantidades no pueden ser negativas")
     total_contado = 0.0
     for d in datos.denominaciones:
         total = round(d.denominacion * d.cantidad, 2)
@@ -182,6 +184,22 @@ def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Sessio
     )
     saldo_anterior = float(ultimo.saldo) if ultimo else 0.0
 
+    # Se acepta "Ingreso"/"Egreso" y un egreso mandado en negativo (pantalla vieja de caja)
+    datos.tipo = (datos.tipo or "").strip().lower()
+    if datos.tipo == "egreso" and float(datos.monto or 0) < 0:
+        datos.monto = abs(float(datos.monto))
+    if datos.tipo not in ("ingreso", "egreso"):
+        raise HTTPException(status_code=400, detail="El tipo debe ser ingreso o egreso")
+    if float(datos.monto or 0) <= 0:
+        raise HTTPException(status_code=400, detail="El monto debe ser mayor a Q0.00")
+    # Un egreso no puede sacar más de lo que hay en caja chica (el saldo
+    # quedaba en negativo)
+    if datos.tipo == "egreso" and float(datos.monto) > saldo_anterior + 0.009:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No hay suficiente en caja chica: el egreso es de Q{float(datos.monto):.2f} y el saldo es Q{saldo_anterior:.2f}",
+        )
+
     signo = -1 if datos.tipo == "egreso" else 1
     nuevo_saldo = round(saldo_anterior + (signo * float(datos.monto)), 2)
 
@@ -236,6 +254,8 @@ def obtener_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual=D
 
 @router_gasto.post("", response_model=GastoResponse, status_code=201)
 def registrar_gasto(datos: GastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Crear"), ("Caja", "Crear")]))):
+    if float(datos.monto or 0) <= 0:
+        raise HTTPException(status_code=400, detail="El monto del gasto debe ser mayor a Q0.00")
     nuevo = Gasto(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(
@@ -365,4 +385,4 @@ def actualizar_tipo_pago(tipo_id: int, datos: TipoPagoCreate, db: Session = Depe
     )
     db.commit()
     db.refresh(tipo)
-    return tipo
+    return tipo

@@ -189,6 +189,8 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
     descuento = round(subtotal * (datos.descuento_porcentaje or 0) / 100, 2)
     total = round(subtotal - descuento, 2)
 
+    if any(float(p.monto or 0) <= 0 for p in datos.pagos or []):
+        raise HTTPException(status_code=400, detail="Cada pago debe ser mayor a Q0.00")
     total_pagado = round(sum(p.monto for p in datos.pagos), 2) if datos.pagos else 0
     if datos.pagos and abs(total_pagado - total) > 0.01:
         raise HTTPException(
@@ -337,6 +339,23 @@ def registrar_pago_venta(venta_id: int, pago_data: MetodoPagoVentaCreate, db: Se
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if venta.estado in ("Cancelada", "Anulada"):
+        raise HTTPException(status_code=400, detail=f"No se pueden registrar pagos a una venta {venta.estado.lower()}")
+
+    # No se puede pagar más de lo que se debe (antes lo aceptaba y el saldo
+    # quedaba en negativo)
+    monto = round(float(pago_data.monto or 0), 2)
+    if monto <= 0:
+        raise HTTPException(status_code=400, detail="El monto del pago debe ser mayor a Q0.00")
+    pagado = round(sum(float(p.monto or 0) for p in venta.pagos), 2)
+    saldo = round(float(venta.total or 0) - pagado, 2)
+    if saldo <= 0:
+        raise HTTPException(status_code=400, detail="Esta venta ya está pagada por completo")
+    if monto > saldo + 0.009:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El pago (Q{monto:.2f}) es mayor que el saldo pendiente (Q{saldo:.2f})",
+        )
 
     nuevo_pago = MetodoPagoVenta(
         id_venta=venta_id,

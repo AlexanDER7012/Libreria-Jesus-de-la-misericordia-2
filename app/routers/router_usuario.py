@@ -612,6 +612,8 @@ def registrar_pago(datos: HistoricoPagoEmpleadoCreate, db: Session = Depends(get
     empleado = db.query(Empleado).filter(Empleado.id == datos.id_empleado).first()
     if not empleado:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
+    if float(datos.monto or 0) <= 0:
+        raise HTTPException(status_code=400, detail="El monto del pago debe ser mayor a Q0.00")
 
     nuevo = HistoricoPagoEmpleado(**datos.model_dump())
     db.add(nuevo)
