@@ -525,8 +525,8 @@
   display: grid;
   width: 100%;
   height: 100%;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
   gap: clamp(0.5rem, 1.4vw, 1.25rem);
 }
 
@@ -565,8 +565,7 @@
 
 @media (max-width: 991.98px) {
   .home-module-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
