@@ -253,9 +253,30 @@ def listar_categorias(
     return query.all()
 
 
+def _validar_nombre_nuevo_catalogo(db: Session, Modelo, nombre, etiqueta: str) -> str:
+    """
+    Al crear categoría, marca o unidad: quita espacios y no deja repetir el
+    nombre (sin importar mayúsculas). Antes solo se revisaba al editar.
+    """
+    limpio = (nombre or "").strip()
+    if not limpio:
+        raise HTTPException(status_code=400, detail="El nombre es obligatorio")
+    clave = limpio.casefold()
+    existente = next(
+        (c for c in db.query(Modelo).all() if (c.nombre or "").strip().casefold() == clave),
+        None,
+    )
+    if existente:
+        estado = "" if getattr(existente, "activo", 1) != 0 else " (está dada de baja; puedes reactivarla)"
+        raise HTTPException(status_code=400, detail=f"Ya existe una {etiqueta} con ese nombre{estado}")
+    return limpio
+
+
 @router_categoria.post("", response_model=CategoriaResponse, status_code=201)
 def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
-    nueva = Categoria(**datos.model_dump())
+    valores = datos.model_dump()
+    valores["nombre"] = _validar_nombre_nuevo_catalogo(db, Categoria, valores.get("nombre"), "categoría")
+    nueva = Categoria(**valores)
     db.add(nueva)
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "Categoria",
@@ -290,7 +311,9 @@ def listar_marcas(
 
 @router_marca.post("", response_model=MarcaResponse, status_code=201)
 def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
-    nueva = Marca(**datos.model_dump())
+    valores = datos.model_dump()
+    valores["nombre"] = _validar_nombre_nuevo_catalogo(db, Marca, valores.get("nombre"), "marca")
+    nueva = Marca(**valores)
     db.add(nueva)
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "Marca",
@@ -325,7 +348,9 @@ def listar_unidades_medida(
 
 @router_unidad.post("", response_model=UnidadMedidaResponse, status_code=201)
 def crear_unidad_medida(datos: UnidadMedidaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
-    nueva = UnidadMedida(**datos.model_dump())
+    valores = datos.model_dump()
+    valores["nombre"] = _validar_nombre_nuevo_catalogo(db, UnidadMedida, valores.get("nombre"), "unidad de medida")
+    nueva = UnidadMedida(**valores)
     db.add(nueva)
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "UnidadMedida",

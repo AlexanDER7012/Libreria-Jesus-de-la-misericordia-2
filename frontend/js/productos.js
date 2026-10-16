@@ -1939,20 +1939,17 @@ async function confirmarCargaMasivaProductos() {
     }
   }
 
-  if (fail === 0) {
-    showToast(`✅ ${ok} productos creados correctamente`, "success");
-  } else {
-    showToast(
-      `⚠ ${ok} creados, ${fail} fallidos. Revisa la consola.`,
-      "warning",
-    );
-    console.warn("Errores carga masiva productos:", errores);
-  }
-
   const modal = bootstrap.Modal.getInstance(
     document.getElementById("cargaMasivaProductosModal"),
   );
   if (modal) modal.hide();
+
+  if (fail === 0) {
+    showToast(`✅ ${ok} productos creados correctamente`, "success");
+  } else {
+    mostrarResumenCargaMasiva("creados", ok, fail, errores);
+    console.warn("Errores carga masiva productos:", errores);
+  }
 
   // Recargar cada sección por separado (porque la carga puede crear
   // categorías/marcas/unidades nuevas)
@@ -2631,18 +2628,17 @@ async function confirmarActualizacionMasivaProductos() {
     showToast(`🧪 Modo prueba: ${ok} productos serían actualizados`, "info");
   } else if (fail === 0) {
     showToast(`✅ ${ok} productos actualizados correctamente`, "success");
-  } else {
-    showToast(
-      `⚠ ${ok} actualizados, ${fail} fallidos. Revisa la consola.`,
-      "warning",
-    );
-    console.warn("Errores actualización masiva productos:", errores);
   }
 
   const modal = bootstrap.Modal.getInstance(
     document.getElementById("actualizacionMasivaProductosModal"),
   );
   if (modal) modal.hide();
+
+  if (!modoPrueba && fail > 0) {
+    mostrarResumenCargaMasiva("actualizados", ok, fail, errores);
+    console.warn("Errores actualización masiva productos:", errores);
+  }
 
   if (!modoPrueba) {
     await recargarProductos();
