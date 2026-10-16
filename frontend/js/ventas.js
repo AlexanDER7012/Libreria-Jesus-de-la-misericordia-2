@@ -4726,7 +4726,9 @@ function descargarPlantillaVentas() {
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "PlantillaVentas");
-  XLSX.writeFile(wb, "Plantilla_Carga_Masiva_Ventas.xlsx");
+  descargarExcelConColores(wb, "Plantilla_Carga_Masiva_Ventas.xlsx", {
+    obligatorias: ["Codigo_Producto", "Cantidad"],
+  });
   showToast("Plantilla descargada", "success");
 }
 
