@@ -3829,14 +3829,23 @@ function llenarSelectProductoCompra() {
     getData: () => (window.productosData || []).filter((p) => p.activo !== 0),
     getId: (p) => p.id,
     getLabel: (p) => `${p.codigo || ""} - ${p.nombre}`,
-    getSearchText: (p) =>
-      `${p.codigo || ""} ${p.nombre || ""} ${p.descripcion || ""}`,
-    placeholder: "Buscar producto por código, nombre o descripción...",
-    emptyText: "Escribe código, nombre o descripción para buscar...",
+    getSearchText: (p) => `${p.codigo || ""} ${p.nombre || ""}`,
+    // Se busca en el servidor: antes solo encontraba entre los primeros 50
+    // productos cargados.
+    searchData: async (termino) =>
+      ((await api.request(
+        `/productos?buscar=${encodeURIComponent(termino)}&limit=30`,
+      )) || []).filter((p) => p.activo !== 0),
+    placeholder: "Buscar producto por código o nombre...",
+    emptyText: "Escribe código o nombre para buscar...",
     maxResultados: 30,
     small: true,
     onSelect: (producto) => {
       if (!producto) return;
+      window.productosData = window.productosData || [];
+      if (!window.productosData.some((p) => String(p.id) === String(producto.id))) {
+        window.productosData.push(producto);
+      }
       const costoInput = document.querySelector(
         "#compraDetalleRow .compra-detalle-costo",
       );
@@ -4995,4 +5004,4 @@ window.toggleTipoGastoEstado = toggleTipoGastoEstado;
 window.confirmarAdmin = confirmarAdmin;
 window.showEditTipoPagoModal = showEditTipoPagoModal;
 window.filtrarCajaChicaTabla = filtrarCajaChicaTabla;
-window.filtrarGastosTabla = filtrarGastosTabla;
+window.filtrarGastosTabla = filtrarGastosTabla;

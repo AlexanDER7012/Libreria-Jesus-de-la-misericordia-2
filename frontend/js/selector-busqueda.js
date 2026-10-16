@@ -159,6 +159,9 @@ function crearSelectorBusqueda(config) {
       (d) => String(getId(d)) === String(id),
     );
     if (!item) return;
+    // Cancela una búsqueda pendiente (si se eligió justo después de teclear),
+    // para que la lista no vuelva a abrirse sola
+    clearTimeout(temporizadorBusqueda);
     solicitudActual++;
     hiddenInput.value = id;
     searchInput.value = getLabel(item);
@@ -191,6 +194,9 @@ function crearSelectorBusqueda(config) {
         this.reset();
         return;
       }
+      clearTimeout(temporizadorBusqueda);
+      solicitudActual++;
+      dropdown.style.display = "none";
       const data = getData() || [];
       const item = data.find((d) => String(getId(d)) === String(id));
       if (item) {
@@ -213,4 +219,4 @@ function crearSelectorBusqueda(config) {
   return controlador;
 }
 
-window.crearSelectorBusqueda = crearSelectorBusqueda;
+window.crearSelectorBusqueda = crearSelectorBusqueda;

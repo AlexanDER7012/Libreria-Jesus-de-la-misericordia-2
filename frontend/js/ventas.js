@@ -1409,6 +1409,35 @@ function llenarSelectCliente() {
       }
     },
   });
+
+  // NIT + Enter: elige directo el cliente con ese NIT exacto (o el único
+  // resultado), sin tener que darle clic en la lista.
+  const clienteInput = document.getElementById("ventaClienteSearchTxt");
+  clienteInput?.addEventListener("keydown", async (event) => {
+    if (event.key !== "Enter") return;
+    const texto = clienteInput.value.trim();
+    if (!texto || document.getElementById("ventaCliente").value) return;
+    let encontrados = [];
+    try {
+      encontrados =
+        (await api.request(
+          `/clientes?buscar=${encodeURIComponent(texto)}&limit=30`,
+        )) || [];
+    } catch (e) {
+      return;
+    }
+    const limpio = (v) => String(v || "").replace(/[\s-]/g, "").toUpperCase();
+    const elegido =
+      encontrados.find((c) => limpio(c.nit) === limpio(texto)) ||
+      (encontrados.length === 1 ? encontrados[0] : null);
+    if (!elegido || clienteInput.value.trim() !== texto) return;
+    window.clientesData = window.clientesData || [];
+    if (!window.clientesData.some((c) => String(c.id) === String(elegido.id))) {
+      window.clientesData.push(elegido);
+    }
+    window.__ventaClienteSelector.setValue(elegido.id);
+    document.getElementById("ventaClienteDropdown").style.display = "none";
+  });
 }
 
 async function llenarSelectCajaTurno() {
@@ -1454,8 +1483,8 @@ function llenarSelectProductoDetalle() {
       (await api.request(
         `/productos?buscar=${encodeURIComponent(termino)}&limit=30`,
       )) || [],
-    emptyText: "Escribe nombre, código o descripción, o escanea el código de barras",
-    placeholder: "Nombre, código, descripción o escanea el código de barras...",
+    emptyText: "Escribe nombre o código, o escanea el código de barras",
+    placeholder: "Nombre, código o escanea el código de barras...",
     maxResultados: 30,
     small: true,
     onSelect: (producto) => {
@@ -1482,12 +1511,13 @@ function llenarSelectProductoDetalle() {
     "#ventaProductoSelectorWrapper .input-group-text",
   );
   if (icon) icon.innerHTML = '<i class="fas fa-barcode"></i>';
-  searchInput?.addEventListener("keydown", async (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    const codigo = searchInput.value.trim();
-    if (!codigo) return;
+  // Lector de barras: al dar Enter el campo se vacía de inmediato y el
+  // código se procesa en cola. Así, si se escanean dos productos seguidos,
+  // los dígitos del segundo no se pegan al primero mientras el servidor
+  // responde, y ninguno se pierde.
+  let colaEscaneo = Promise.resolve();
 
+  async function procesarCodigoVenta(codigo) {
     try {
       const producto = await buscarProductoPorCodigo(codigo);
       if (producto.activo === 0) {
@@ -1509,7 +1539,6 @@ function llenarSelectProductoDetalle() {
         return;
       }
 
-      window.__ventaProductoSelector?.reset();
       document.getElementById("ventaDetallePrecio").value = "";
       mostrarAvisoEscaner(
         "ventaProductoSearchInfo",
@@ -1518,6 +1547,17 @@ function llenarSelectProductoDetalle() {
       );
     } catch (error) {
       if (/no existe|no encontrado|código vacío|404/i.test(error.message || "")) {
+        // No es un código: puede que estuvieran buscando por nombre. Se
+        // devuelve el texto al campo (si no se escribió otra cosa) y se avisa.
+        if (searchInput && !searchInput.value) {
+          searchInput.value = codigo;
+          searchInput.dispatchEvent(new Event("input"));
+        }
+        mostrarAvisoEscaner(
+          "ventaProductoSearchInfo",
+          "aviso",
+          `No existe ningún producto con el código "${codigo}". Si buscas por nombre, elígelo de la lista.`,
+        );
         return;
       }
       console.error("Error buscando producto escaneado en Nueva Venta:", error);
@@ -1527,6 +1567,15 @@ function llenarSelectProductoDetalle() {
         error.message || "No se pudo buscar el código de barras",
       );
     }
+  }
+
+  searchInput?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const codigo = searchInput.value.trim();
+    if (!codigo) return;
+    window.__ventaProductoSelector?.reset();
+    colaEscaneo = colaEscaneo.then(() => procesarCodigoVenta(codigo));
   });
 }
 
@@ -1720,6 +1769,19 @@ async function saveVenta(event) {
   const id_usuario = getCurrentUser()?.id || 1;
   const id_cliente =
     parseInt(document.getElementById("ventaCliente").value) || null;
+  // Se escribió algo en Cliente pero no se eligió de la lista: antes la
+  // venta se guardaba sin cliente y sin avisar.
+  const textoCliente = (
+    document.getElementById("ventaClienteSearchTxt")?.value || ""
+  ).trim();
+  if (!id_cliente && textoCliente) {
+    showToast(
+      "Elige el cliente de la lista (o presiona Enter con su NIT). Si es consumidor final, borra el campo Cliente.",
+      "warning",
+    );
+    document.getElementById("ventaClienteSearchTxt")?.focus();
+    return;
+  }
   const descuento_porcentaje =
     parseFloat(document.getElementById("ventaDescuento").value) || 0;
   const observaciones =
