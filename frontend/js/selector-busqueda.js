@@ -202,6 +202,8 @@ function crearSelectorBusqueda(config) {
       }
     },
     reset: function () {
+      clearTimeout(temporizadorBusqueda);
+      solicitudActual++;
       hiddenInput.value = "";
       searchInput.value = "";
       dropdown.style.display = "none";
