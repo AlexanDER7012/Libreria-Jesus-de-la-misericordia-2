@@ -2158,12 +2158,13 @@ function showCargaMasivaMovimientosModal() {
           <div class="alert alert-info small">
             <strong>Formato esperado del archivo (fila de encabezados obligatoria):</strong>
             <div class="mt-1" style="font-family: monospace; font-size: 0.85rem;">
-              Codigo_Producto | Tipo_Movimiento | Cantidad | Observacion
+              Codigo_Producto | Tipo_Movimiento | Cantidad | Costo_Unitario | Observacion
             </div>
             <ul class="mb-0 mt-2 small">
               <li><strong>Codigo_Producto:</strong> debe existir en el catálogo.</li>
-              <li><strong>Tipo_Movimiento:</strong> por nombre (ej. "Entrada por compra"). Debe existir.</li>
-              <li><strong>Cantidad:</strong> número positivo (el tipo define si es entrada o salida).</li>
+              <li><strong>Tipo_Movimiento:</strong> por nombre, tal como está en "Tipos de movimiento" (la plantilla trae la lista en la hoja "Tipos").</li>
+              <li><strong>Cantidad:</strong> número positivo (el tipo define si es entrada o salida). Las salidas no pueden dejar el stock en negativo.</li>
+              <li><strong>Costo_Unitario:</strong> opcional (útil para el inventario inicial).</li>
               <li><strong>Observacion:</strong> opcional.</li>
               <li>El usuario que registra es <strong>${getCurrentUser()?.nombre_usuario || "el usuario actual"}</strong>.</li>
             </ul>
@@ -2212,32 +2213,76 @@ function showCargaMasivaMovimientosModal() {
 // ------------------------------------------------------------
 // PLANTILLA
 // ------------------------------------------------------------
-function descargarPlantillaMovimientos() {
+async function descargarPlantillaMovimientos() {
+  // Los tipos se leen de la base de datos: antes la plantilla traía nombres
+  // de ejemplo ("Entrada por compra"...) que no existían y todas las filas
+  // salían con "tipo de movimiento no encontrado".
+  let tipos = tiposMovimientoData;
+  if (!tipos || tipos.length === 0) {
+    tipos = (await api.getTiposMovimiento().catch(() => [])) || [];
+    tiposMovimientoData = tipos;
+  }
+  // Para el ejemplo se prefieren tipos manuales (no "Compra"/"Venta", que
+  // usa el sistema solo) y, si existe, el de inventario inicial.
+  const manual = (t) => !/^(compra|venta)$/i.test((t.nombre || "").trim());
+  const entrada =
+    tipos.find((t) => t.signo === 1 && /inicial/i.test(t.nombre || "")) ||
+    tipos.find((t) => t.signo === 1 && manual(t)) ||
+    tipos.find((t) => t.signo === 1);
+  const salida =
+    tipos.find((t) => t.signo === 2 && manual(t)) ||
+    tipos.find((t) => t.signo === 2);
+  const productos = (window.productosData || []).filter((p) => p.activo !== 0);
+  const codigo = (i, ejemplo) => (productos[i] && productos[i].codigo) || ejemplo;
+
   const data = [
     {
-      Codigo_Producto: "PROD-001",
-      Tipo_Movimiento: "Entrada por compra",
+      Codigo_Producto: codigo(0, "PROD-001"),
+      Tipo_Movimiento: entrada ? entrada.nombre : "(nombre de un tipo de entrada)",
       Cantidad: 50,
-      Observacion: "Compra a proveedor ABC",
-    },
-    {
-      Codigo_Producto: "PROD-002",
-      Tipo_Movimiento: "Ajuste entrada",
-      Cantidad: 10,
-      Observacion: "Corrección de inventario físico",
-    },
-    {
-      Codigo_Producto: "PROD-003",
-      Tipo_Movimiento: "Salida por venta",
-      Cantidad: 3,
-      Observacion: "Venta #1234",
+      Costo_Unitario: 8.5,
+      Observacion: "Inventario inicial",
     },
   ];
+  if (salida) {
+    data.push({
+      Codigo_Producto: codigo(1, "PROD-002"),
+      Tipo_Movimiento: salida.nombre,
+      Cantidad: 2,
+      Costo_Unitario: "",
+      Observacion: "Producto dañado",
+    });
+  }
 
-  const ws = XLSX.utils.json_to_sheet(data);
+  const signoTexto = (t) =>
+    t.signo === 1
+      ? "Entrada (suma stock)"
+      : t.signo === 2
+        ? "Salida (resta stock)"
+        : "Neutral (no cambia stock)";
+  const hojaTipos = tipos.map((t) => ({
+    Tipo_Movimiento: t.nombre,
+    Efecto: signoTexto(t),
+    Descripcion: t.descripcion || "",
+  }));
+
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Movimientos");
-  XLSX.writeFile(wb, "Plantilla_Carga_Masiva_Movimientos.xlsx");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "Movimientos");
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(
+      hojaTipos.length
+        ? hojaTipos
+        : [{ Tipo_Movimiento: "(no hay tipos creados)", Efecto: "", Descripcion: "" }],
+    ),
+    "Tipos",
+  );
+  descargarExcelConColores(wb, "Plantilla_Carga_Masiva_Movimientos.xlsx", {
+    Movimientos: {
+      obligatorias: ["Codigo_Producto", "Tipo_Movimiento", "Cantidad"],
+    },
+    Tipos: { informativas: ["Tipo_Movimiento", "Efecto", "Descripcion"] },
+  });
   showToast("Plantilla descargada", "success");
 }
 
@@ -2290,36 +2335,69 @@ async function validarYPrevisualizarMovimientos() {
 
   const errores = [];
   const filasValidas = [];
+  // Stock que va quedando por producto, aplicando las filas en orden, para
+  // avisar en la vista previa si una salida deja el stock en negativo.
+  const stockSimulado = {};
 
-  cargaMasivaMovimientosFilas.forEach((row, idx) => {
+  const info = document.getElementById("cmMovResumen");
+  if (info) {
+    info.innerHTML =
+      '<div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Revisando el archivo...</div>';
+  }
+
+  for (let idx = 0; idx < cargaMasivaMovimientosFilas.length; idx++) {
+    const row = cargaMasivaMovimientosFilas[idx];
     const numFila = idx + 2;
     const codigoProducto = String(row.Codigo_Producto || "").trim();
     const nombreTipo = String(row.Tipo_Movimiento || "").trim();
     const cantidad = parseFloat(row.Cantidad);
     const observacion = String(row.Observacion || "").trim() || null;
+    const costoTexto = String(row.Costo_Unitario ?? "").trim();
+    const costo = costoTexto === "" ? null : parseFloat(costoTexto);
 
     if (!codigoProducto) {
       errores.push(`Fila ${numFila}: falta Codigo_Producto`);
-      return;
+      continue;
     }
     if (!nombreTipo) {
       errores.push(`Fila ${numFila}: falta Tipo_Movimiento`);
-      return;
+      continue;
     }
     if (!cantidad || cantidad <= 0 || isNaN(cantidad)) {
       errores.push(`Fila ${numFila}: cantidad inválida (${row.Cantidad})`);
-      return;
+      continue;
+    }
+    if (costo !== null && (isNaN(costo) || costo < 0)) {
+      errores.push(`Fila ${numFila}: costo inválido (${row.Costo_Unitario})`);
+      continue;
     }
 
-    // Buscar producto por código
-    const producto = productos.find(
+    // Buscar producto por código: primero en lo cargado y, si no está
+    // (solo se cargan los primeros productos), en el servidor.
+    let producto = productos.find(
       (p) => (p.codigo || "").toLowerCase() === codigoProducto.toLowerCase(),
     );
+    if (!producto) {
+      try {
+        producto = await api.request(
+          `/productos/buscar-codigo/${encodeURIComponent(codigoProducto)}`,
+        );
+        if (producto) productos.push(producto);
+      } catch (e) {
+        producto = null;
+      }
+    }
     if (!producto) {
       errores.push(
         `Fila ${numFila}: producto "${codigoProducto}" no encontrado`,
       );
-      return;
+      continue;
+    }
+    if (producto.activo === 0) {
+      errores.push(
+        `Fila ${numFila}: el producto "${codigoProducto}" está inactivo`,
+      );
+      continue;
     }
 
     // Buscar tipo por nombre (case-insensitive)
@@ -2328,9 +2406,9 @@ async function validarYPrevisualizarMovimientos() {
     );
     if (!tipo) {
       errores.push(
-        `Fila ${numFila}: tipo de movimiento "${nombreTipo}" no encontrado`,
+        `Fila ${numFila}: tipo de movimiento "${nombreTipo}" no encontrado (mira la hoja "Tipos" de la plantilla)`,
       );
-      return;
+      continue;
     }
 
     // Interpretar signo
@@ -2339,6 +2417,21 @@ async function validarYPrevisualizarMovimientos() {
     else if (tipo.signo === 2) esEntrada = false;
     else esEntrada = null; // neutral
 
+    const clave = String(producto.id);
+    if (!(clave in stockSimulado)) {
+      stockSimulado[clave] = parseFloat(producto.stock_actual || 0);
+    }
+    if (esEntrada === true) stockSimulado[clave] += cantidad;
+    if (esEntrada === false) {
+      if (stockSimulado[clave] < cantidad) {
+        errores.push(
+          `Fila ${numFila}: stock insuficiente de "${producto.nombre}" (disponible ${stockSimulado[clave]}, salida ${cantidad})`,
+        );
+        continue;
+      }
+      stockSimulado[clave] -= cantidad;
+    }
+
     filasValidas.push({
       numFila,
       codigoProducto,
@@ -2346,9 +2439,11 @@ async function validarYPrevisualizarMovimientos() {
       tipo,
       esEntrada,
       cantidad,
+      costo,
       observacion,
+      stockFinal: stockSimulado[clave],
     });
-  });
+  }
 
   cargaMasivaMovimientosValidadas = filasValidas;
   renderPreviewMovimientos(errores, filasValidas);
@@ -2392,7 +2487,7 @@ function renderPreviewMovimientos(errores, filas) {
         ? `
       <div class="alert alert-danger small mt-2 mb-0" style="max-height:150px; overflow:auto;">
         <strong>Errores detectados (corrige el archivo y vuelve a cargarlo):</strong>
-        <ul class="mb-0">${errores.map((e) => `<li>${e}</li>`).join("")}</ul>
+        <ul class="mb-0">${errores.map((e) => `<li>${escInv(e)}</li>`).join("")}</ul>
       </div>`
         : ""
     }
@@ -2414,6 +2509,8 @@ function renderPreviewMovimientos(errores, filas) {
           <th>Tipo</th>
           <th>Signo</th>
           <th class="text-end">Cantidad</th>
+          <th class="text-end">Costo</th>
+          <th class="text-end">Stock final</th>
           <th>Observación</th>
         </tr>
       </thead>
@@ -2430,12 +2527,14 @@ function renderPreviewMovimientos(errores, filas) {
     html += `
       <tr>
         <td>${i + 1}</td>
-        <td><code>${f.codigoProducto}</code></td>
-        <td>${f.producto.nombre}</td>
-        <td>${f.tipo.nombre}</td>
+        <td><code>${escInv(f.codigoProducto)}</code></td>
+        <td>${escInv(f.producto.nombre)}</td>
+        <td>${escInv(f.tipo.nombre)}</td>
         <td>${badge}</td>
         <td class="text-end">${f.cantidad}</td>
-        <td>${f.observacion || "--"}</td>
+        <td class="text-end">${f.costo !== null && f.costo !== undefined ? "Q" + f.costo.toFixed(2) : "--"}</td>
+        <td class="text-end">${f.stockFinal}</td>
+        <td>${escInv(f.observacion || "--")}</td>
       </tr>
     `;
   });
@@ -2470,11 +2569,21 @@ async function confirmarCargaMasivaMovimientos() {
         continue;
       }
 
+      // Formato que espera el servidor: una cabecera con la lista de
+      // productos en "detalles" (antes se mandaba el formato viejo y el
+      // servidor rechazaba todas las filas).
       const data = {
-        id_producto: f.producto.id,
+        id_usuario:
+          getCurrentUser()?.id || getCurrentUser()?.usuario_id || null,
         id_tipo_movimiento: f.tipo.id,
-        cantidad: f.cantidad,
-        observacion: f.observacion,
+        observaciones: f.observacion || "Carga masiva",
+        detalles: [
+          {
+            id_producto: f.producto.id,
+            cantidad: f.cantidad,
+            costo_unitario: f.costo,
+          },
+        ],
       };
 
       await api.request("/movimientos-inventario", "POST", data);
@@ -2502,6 +2611,7 @@ async function confirmarCargaMasivaMovimientos() {
   if (fail === 0) {
     showToast(`✅ ${ok} movimientos creados correctamente`, "success");
   } else {
+    // Se muestra la lista de filas con error (antes solo iba a la consola)
     mostrarResumenCargaMasiva("creados", ok, fail, errores);
     console.warn("Errores carga masiva movimientos:", errores);
   }

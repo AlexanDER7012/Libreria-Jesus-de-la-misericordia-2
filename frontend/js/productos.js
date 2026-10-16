@@ -1568,7 +1568,9 @@ function descargarPlantillaProductos() {
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Productos");
-  XLSX.writeFile(wb, "Plantilla_Carga_Masiva_Productos.xlsx");
+  descargarExcelConColores(wb, "Plantilla_Carga_Masiva_Productos.xlsx", {
+    obligatorias: ["Codigo", "Nombre"],
+  });
   showToast("Plantilla descargada", "success");
 }
 
@@ -1947,16 +1949,20 @@ async function confirmarCargaMasivaProductos() {
   if (fail === 0) {
     showToast(`✅ ${ok} productos creados correctamente`, "success");
   } else {
+    // Se muestra la lista de filas con error (antes solo iba a la consola)
     mostrarResumenCargaMasiva("creados", ok, fail, errores);
     console.warn("Errores carga masiva productos:", errores);
   }
 
   // Recargar cada sección por separado (porque la carga puede crear
   // categorías/marcas/unidades nuevas)
-  await recargarProductos();
+  // Primero los catálogos y DESPUÉS los productos: la carga puede crear
+  // categorías/marcas/unidades nuevas, y si la tabla de productos se dibuja
+  // antes, esas columnas salen "--" hasta recargar la página.
   await recargarCategorias();
   await recargarMarcas();
   await recargarUnidades();
+  await recargarProductos();
 }
 
 // ============================================================
@@ -2084,9 +2090,10 @@ function descargarInventarioActual() {
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Inventario");
-  XLSX.writeFile(
+  descargarExcelConColores(
     wb,
     `Inventario_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    { obligatorias: ["Actualizar", "Codigo"], informativas: ["Stock_Actual"] },
   );
   showToast("Inventario descargado", "success");
 }
@@ -2636,15 +2643,17 @@ async function confirmarActualizacionMasivaProductos() {
   if (modal) modal.hide();
 
   if (!modoPrueba && fail > 0) {
+    // Se muestra la lista de filas con error (antes solo iba a la consola)
     mostrarResumenCargaMasiva("actualizados", ok, fail, errores);
     console.warn("Errores actualización masiva productos:", errores);
   }
 
   if (!modoPrueba) {
-    await recargarProductos();
+    // Catálogos primero (ver nota en la carga masiva)
     await recargarCategorias();
     await recargarMarcas();
     await recargarUnidades();
+    await recargarProductos();
   } else {
     btn.disabled = false;
     btn.innerHTML = textoOriginal;
