@@ -369,30 +369,87 @@ body {
   overflow-x: auto;
 }
 
+.compras-list-table {
+  min-width: 970px;
+  table-layout: fixed;
+  white-space: normal;
+}
+
+.compras-list-table th,
+.compras-list-table td {
+  padding: 0.4rem 0.45rem;
+  vertical-align: middle;
+}
+
+.compras-list-table .compras-col-id {
+  width: 5%;
+}
+
+.compras-list-table .compras-col-proveedor {
+  width: 13%;
+}
+
+.compras-list-table .compras-col-factura {
+  width: 12%;
+}
+
+.compras-list-table .compras-col-fecha {
+  width: 8%;
+}
+
+.compras-list-table .compras-col-monto {
+  width: 8%;
+}
+
+.compras-list-table .compras-col-estado {
+  width: 9%;
+}
+
+.compras-list-table .compras-col-recepcion {
+  width: 11%;
+}
+
+.compras-list-table .compras-col-acciones {
+  width: 7%;
+}
+
+.compras-list-table td:nth-child(2),
+.compras-list-table td:nth-child(3) {
+  overflow-wrap: anywhere;
+}
+
 .compras-list-table td:last-child {
-  min-width: 112px;
   text-align: center;
 }
 
-.compras-list-table td:last-child .dropdown-toggle {
-  min-height: 38px;
-  min-width: 100px;
-}
-
-.compras-list-table {
-  min-width: 1050px;
-  white-space: nowrap;
-}
-
-.compras-list-table .dropdown-menu {
-  min-width: 190px;
-}
-
-.compras-list-table .dropdown-item {
+.compras-row-actions {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  gap: 0.2rem;
+}
+
+.compras-row-actions .btn {
+  width: 32px;
+  height: 29px;
+  padding: 0.15rem;
+}
+
+.compras-recepcion-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+}
+
+.compras-recepcion-cell .badge {
+  white-space: normal;
+  text-align: left;
+}
+
+.compras-recepcion-cell small {
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .modal-landscape .inventory-modal-grid {
