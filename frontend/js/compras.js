@@ -3644,6 +3644,7 @@ function showCreateCompraModal() {
 
   llenarSelectProveedor();
   llenarSelectProductoCompra();
+  prepararUbicacionDestinoCompra();
 
   const lista = document.getElementById("compraDetallesList");
   if (lista) lista.innerHTML = "";
@@ -3656,6 +3657,43 @@ function showCreateCompraModal() {
   );
 
   new bootstrap.Modal(modal).show();
+}
+
+// ============================================================
+// UBICACIÓN DESTINO (Nueva Compra)
+// A dónde entra la mercadería al recibirla (ej. Bodega). Por defecto la
+// ubicación de Configuración general.
+// ============================================================
+async function prepararUbicacionDestinoCompra() {
+  const info = document.getElementById("compraPedidoInfo");
+  if (!info) return;
+  if (!document.getElementById("compraUbicacionDestino")) {
+    info.parentElement.insertAdjacentHTML(
+      "afterend",
+      `
+      <div class="row g-2 mb-2">
+        <div class="col-md-5">
+          <label class="form-label fw-bold mb-1">Ubicación de destino <span class="text-danger">*</span></label>
+          <select class="form-select form-select-sm" id="compraUbicacionDestino"></select>
+          <div class="form-text">Donde se guardará la mercadería al recibirla (ej. Bodega).</div>
+        </div>
+      </div>
+    `,
+    );
+  }
+  const select = document.getElementById("compraUbicacionDestino");
+  try {
+    const [ubicaciones, config] = await Promise.all([
+      api.request("/ubicaciones").catch(() => []),
+      api.request("/configuracion").catch(() => ({})),
+    ]);
+    const activas = (ubicaciones || []).filter((u) => u.activo !== 0);
+    select.innerHTML = activas
+      .map((u) => `<option value="${u.id}">${escaparHtmlEscaner(u.nombre || u.id)}</option>`)
+      .join("");
+    const porDefecto = (config && config.id_ubicacion) || (activas[0] && activas[0].id);
+    if (porDefecto) select.value = String(porDefecto);
+  } catch (e) {}
 }
 
 // ============================================================
@@ -4008,9 +4046,10 @@ async function saveCompra(event) {
   if (compraDetallesTemp.length === 0)
     return showToast("Agrega al menos un producto", "error");
 
-  // ✅ UBICACIÓN DESDE CONFIGURACIÓN (igual que ventas)
-  let id_ubicacion_destino = null;
-  try {
+  // Ubicación elegida en el formulario; si no hay, la de Configuración
+  let id_ubicacion_destino =
+    parseInt(document.getElementById("compraUbicacionDestino")?.value) || null;
+  if (!id_ubicacion_destino) try {
     const config = await api.request("/configuracion").catch(() => ({}));
     id_ubicacion_destino = config.id_ubicacion || null;
     if (!id_ubicacion_destino) {

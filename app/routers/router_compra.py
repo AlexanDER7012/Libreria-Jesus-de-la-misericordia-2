@@ -13,6 +13,7 @@ from app.models.model_usuario import Usuario
 from app.models.model_proveedor import Pedido
 from app.models.model_compra import Compra, DetalleCompra, CompraPago, NotaEntrega, DevolucionCompra
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario
+from app.stock import mover_stock, resolver_ubicacion, tipo_movimiento
 from app.schemas.schema_compra import (
     CompraCreate, CompraResponse, CompraCancelar,
     NotaEntregaCreate, NotaEntregaResponse,
@@ -221,13 +222,8 @@ def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db
     if compra.estado == "Cancelada":
         raise HTTPException(status_code=400, detail="Esta compra ya está cancelada")
 
-    tipo_ajuste = db.query(TipoMovimientoInventario).filter(
-        TipoMovimientoInventario.nombre == "Ajuste"
-    ).first()
-    if not tipo_ajuste:
-        tipo_ajuste = db.query(TipoMovimientoInventario).filter(
-            TipoMovimientoInventario.nombre == "Compra"
-        ).first()
+    # Tipo de SALIDA (antes se registraba como "Compra", que es una entrada)
+    tipo_ajuste = tipo_movimiento(db, "Cancelación de compra", 2)
 
     # Solo se resta stock si la mercadería SÍ se recibió (nota de entrega
     # conforme). Si nunca se recibió, el stock nunca se sumó, y restarlo
@@ -237,10 +233,11 @@ def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db
     ).first() is not None
 
     if fue_recibida and tipo_ajuste and compra.detalles:
+        id_ubicacion = resolver_ubicacion(db, compra.id_ubicacion_destino)
         movimiento = MovimientoInventario(
             id_usuario=usuario_actual.id,
             id_tipo_movimiento=tipo_ajuste.id,
-            id_ubicacion_destino=compra.id_ubicacion_destino,
+            id_ubicacion_origen=id_ubicacion,
             tabla_referencia="compra",
             id_referencia=compra.id,
             referencia=f"Reversión por cancelación de compra #{compra.id}",
@@ -258,7 +255,9 @@ def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db
             ))
             producto = db.query(Producto).filter(Producto.id == detalle.id_producto).first()
             if producto:
-                producto.stock_actual = float(producto.stock_actual or 0) - float(detalle.cantidad_unidades)
+                # Si ya se vendió o trasladó parte de lo recibido, no se puede
+                # revertir: mover_stock avisa en vez de dejar stock negativo.
+                mover_stock(db, producto, id_ubicacion, -float(detalle.cantidad_unidades))
 
     # Anular pagos SIN borrarlos -- quedan como constancia de que el dinero
     # sí salió, pero ya no cuentan para saldo/estado de la compra.
@@ -362,19 +361,14 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
     db.add(nueva_nota)
 
     if datos.conforme == 1:
-        tipo_compra = db.query(TipoMovimientoInventario).filter(
-            TipoMovimientoInventario.nombre == "Compra"
-        ).first()
-        if not tipo_compra:
-            raise HTTPException(
-                status_code=400,
-                detail="No existe el tipo de movimiento 'Compra' en tipos-movimiento. Créalo primero (nombre='Compra', signo=1).",
-            )
+        tipo_compra = tipo_movimiento(db, "Compra", 1)
+        # La mercadería entra a la ubicación destino de la compra
+        id_ubicacion = resolver_ubicacion(db, compra.id_ubicacion_destino)
 
         movimiento = MovimientoInventario(
             id_usuario=datos.id_usuario_receptor,
             id_tipo_movimiento=tipo_compra.id,
-            id_ubicacion_destino=compra.id_ubicacion_destino,
+            id_ubicacion_destino=id_ubicacion,
             tabla_referencia="compra",
             id_referencia=compra.id,
             referencia=compra.numero_factura,
@@ -392,7 +386,7 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
             ))
             producto = db.query(Producto).filter(Producto.id == detalle.id_producto).first()
             if producto:
-                producto.stock_actual = float(producto.stock_actual or 0) + float(detalle.cantidad_unidades)
+                mover_stock(db, producto, id_ubicacion, float(detalle.cantidad_unidades))
 
         compra.fecha_recepcion = datetime.now()
         if compra.estado == "Pendiente":
@@ -482,4 +476,4 @@ def registrar_devolucion(datos: DevolucionCompraCreate, db: Session = Depends(ge
     )
     db.commit()
     db.refresh(nueva)
-    return nueva
+    return nueva

@@ -7,6 +7,46 @@ let trasladosData = [];
 let alertasData = [];
 let filtroBusqueda = "";
 
+// Stock por ubicación (Bodega, Área de ventas, sucursales...)
+let stockUbicacionesData = [];
+let filtroUbicacionResumen = "";
+
+function _mapaStockUbicaciones() {
+  const mapa = {};
+  (stockUbicacionesData || []).forEach((f) => {
+    const p = String(f.id_producto);
+    mapa[p] = mapa[p] || {};
+    mapa[p][String(f.id_ubicacion)] = parseFloat(f.cantidad) || 0;
+  });
+  return mapa;
+}
+
+function stockEnUbicacionInv(idProducto, idUbicacion) {
+  if (!idProducto || !idUbicacion) return 0;
+  const fila = (stockUbicacionesData || []).find(
+    (f) =>
+      String(f.id_producto) === String(idProducto) &&
+      String(f.id_ubicacion) === String(idUbicacion),
+  );
+  return fila ? parseFloat(fila.cantidad) || 0 : 0;
+}
+
+function nombreUbicacionInv(id) {
+  const u = (window.ubicacionesData || []).find(
+    (x) => String(x.id) === String(id),
+  );
+  return u ? u.nombre || `Ubicación ${u.id}` : "--";
+}
+
+async function cargarStockUbicaciones() {
+  try {
+    stockUbicacionesData = (await api.request("/stock-ubicaciones")) || [];
+  } catch (e) {
+    stockUbicacionesData = [];
+  }
+  return stockUbicacionesData;
+}
+
 // Paginación (server-side) de Conteo Físico, Traslados y Alertas
 let skipConteo = 0;
 const LIMITE_CONTEO = 10;
@@ -135,14 +175,45 @@ function mostrarConfirmacion(titulo, mensaje) {
 // EXTENDER API
 // =============================================
 
+// Trae TODOS los productos activos, de 200 en 200 (el máximo por petición).
+// Antes solo se pedían los primeros 200: con más productos, los demás no
+// salían en el Resumen ni en las tablas de traslados/conteos ("--").
+async function obtenerTodosLosProductos() {
+  const todos = [];
+  const porPagina = 200;
+  for (let skip = 0; skip < 20000; skip += porPagina) {
+    const pagina =
+      (await api.request(`/productos?limit=${porPagina}&skip=${skip}`)) || [];
+    todos.push(...pagina);
+    if (pagina.length < porPagina) break;
+  }
+  return todos;
+}
+
+// Productos que aparecen en traslados/conteos/alertas pero ya no están en la
+// lista (por ejemplo, inactivos): se traen uno por uno para mostrar su nombre.
+async function asegurarProductosCargados(ids) {
+  window.productosData = window.productosData || [];
+  const conocidos = new Set(window.productosData.map((p) => String(p.id)));
+  const faltan = [...new Set((ids || []).map(String))].filter(
+    (id) => id && id !== "null" && id !== "undefined" && !conocidos.has(id),
+  );
+  if (faltan.length === 0) return;
+  const encontrados = await Promise.all(
+    faltan.map((id) => api.request(`/productos/${id}`).catch(() => null)),
+  );
+  encontrados.filter(Boolean).forEach((p) => window.productosData.push(p));
+}
+
 async function obtenerProductosParaInventario() {
   try {
     // Siempre se piden al servidor: antes se reutilizaba la lista que ya
     // estaba en memoria y el stock mostrado podía estar desactualizado
     // (por ejemplo, decía "Agotado" aunque ya se hubiera recibido mercadería).
     const [productos, categorias] = await Promise.all([
-      api.request("/productos?limit=200"),
+      obtenerTodosLosProductos(),
       api.request("/categorias").catch(() => null),
+      cargarStockUbicaciones(),
     ]);
     if (Array.isArray(categorias)) window.categoriasInventario = categorias;
     window.productosData = productos || [];
@@ -346,8 +417,16 @@ async function loadInventarioModule() {
 // no se podía guardar ni un conteo ni un traslado.
 async function obtenerUbicacionesParaInventario() {
   try {
-    const ubicaciones = await api.request("/ubicaciones");
+    const [ubicaciones, config] = await Promise.all([
+      api.request("/ubicaciones"),
+      api.request("/configuracion").catch(() => null),
+    ]);
     window.ubicacionesData = (ubicaciones || []).filter((u) => u.activo !== 0);
+    // Ubicación que se propone por defecto (la de Configuración general)
+    window.ubicacionPrincipalId =
+      (config && config.id_ubicacion) ||
+      (window.ubicacionesData[0] && window.ubicacionesData[0].id) ||
+      null;
     try {
       localStorage.setItem("ubicaciones_backup", JSON.stringify(window.ubicacionesData));
     } catch (e) {}
@@ -439,6 +518,14 @@ function renderResumenInventario() {
 
   const productos = window.productosData || [];
   const productosFiltrados = filtrarProductos(productos, filtroBusqueda);
+  const stockMapa = _mapaStockUbicaciones();
+  const ubicacionesResumen = window.ubicacionesData || [];
+  const opcionesUbicacion = ubicacionesResumen
+    .map(
+      (u) =>
+        `<option value="${u.id}" ${String(u.id) === String(filtroUbicacionResumen) ? "selected" : ""}>${escInv(u.nombre || u.id)}</option>`,
+    )
+    .join("");
 
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -458,6 +545,16 @@ function renderResumenInventario() {
                     <button class="btn btn-outline-secondary" onclick="document.getElementById('buscarInventario').value='';buscarEnInventario();">
                         <i class="fas fa-times"></i>
                     </button>
+                </div>
+            </div>
+            <div class="col-md-4 col-lg-3 mt-2 mt-md-0">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-warehouse"></i></span>
+                    <select class="form-select" id="filtroUbicacionResumen"
+                            onchange="filtroUbicacionResumen=this.value;renderResumenInventario()">
+                        <option value="">Todas las ubicaciones (total)</option>
+                        ${opcionesUbicacion}
+                    </select>
                 </div>
             </div>
         </div>
@@ -494,7 +591,7 @@ function renderResumenInventario() {
                         <th>Código</th>
                         <th>Producto</th>
                         <th>Categoría</th>
-                        <th style="width:120px;">Stock Actual</th>
+                        <th style="width:160px;">${filtroUbicacionResumen ? "Stock en " + escInv(nombreUbicacionInv(filtroUbicacionResumen)) : "Stock Actual"}</th>
                         <th style="width:100px;">Stock Mínimo</th>
                         <th style="width:100px;">Estado</th>
                         <th style="width:200px;">Acciones</th>
@@ -504,8 +601,18 @@ function renderResumenInventario() {
     `;
 
   productosFiltrados.forEach((p) => {
-    const stock = p.stock_actual || 0;
+    const porUbicacion = stockMapa[String(p.id)] || {};
+    const stock = filtroUbicacionResumen
+      ? porUbicacion[String(filtroUbicacionResumen)] || 0
+      : p.stock_actual || 0;
     const minStock = p.stock_minimo || 0;
+    // Detalle por ubicación debajo del total (ej. "Bodega 10 · Área de ventas 63")
+    const detalleUbicaciones = filtroUbicacionResumen
+      ? ""
+      : Object.entries(porUbicacion)
+          .filter(([, cant]) => cant)
+          .map(([idU, cant]) => `${escInv(nombreUbicacionInv(idU))} ${cant}`)
+          .join(" · ");
     const estadoStock =
       stock === 0 ? "danger" : stock <= minStock ? "warning" : "success";
     const estadoTexto =
@@ -515,9 +622,11 @@ function renderResumenInventario() {
             <tr>
                 <td><code>${p.id}</code></td>
                 <td><code>${p.codigo || "--"}</code></td>
-                <td><strong>${p.nombre || "--"}</strong></td>
+                <td><strong>${escInv(p.nombre || "--")}</strong></td>
                 <td>${escInv(nombreCategoriaProducto(p) || "--")}</td>
-                <td class="fw-bold text-${estadoStock}">${stock}</td>
+                <td class="fw-bold text-${estadoStock}">${stock}
+                    ${detalleUbicaciones ? `<div class="small fw-normal text-muted">${detalleUbicaciones}</div>` : ""}
+                </td>
                 <td>${minStock}</td>
                 <td>
                     <span class="badge bg-${estadoStock}">${estadoTexto}</span>
@@ -575,36 +684,40 @@ async function verHistorialProducto(idProducto) {
       return;
     }
 
-    const movimientos = await api.request(
-      `/movimientos-inventario?id_producto=${idProducto}`,
-    );
+    const movimientos =
+      (await api.request(
+        `/movimientos-inventario?id_producto=${idProducto}&limit=200`,
+      )) || [];
     const tipos = await api.getTiposMovimiento();
 
-    let saldoAcumulado = 0;
-    const movimientosConSaldo = (movimientos || []).map((m) => {
-      let cantidad = 0;
-      if (m.detalles && m.detalles.length > 0) {
-        cantidad = m.detalles[0].cantidad || 0;
-      }
+    // Los movimientos vienen del más nuevo al más viejo. El saldo se calcula
+    // hacia atrás desde el stock actual: así siempre cuadra con el stock real,
+    // aunque solo se muestren los últimos 200 movimientos.
+    let saldo = parseFloat(producto.stock_actual) || 0;
+    const movimientosConSaldo = movimientos.map((m) => {
+      // Solo las líneas de ESTE producto (antes se tomaba la primera línea
+      // del movimiento, aunque fuera de otro producto)
+      const cantidad = (m.detalles || [])
+        .filter((d) => String(d.id_producto) === String(idProducto))
+        .reduce((acc, d) => acc + (parseFloat(d.cantidad) || 0), 0);
       const tipo = tipos.find((t) => t.id === m.id_tipo_movimiento);
-      const esEntrada = tipo ? tipo.signo === 1 : false;
-
-      if (esEntrada) {
-        saldoAcumulado += cantidad;
-      } else {
-        saldoAcumulado -= cantidad;
-      }
-
-      return {
+      const signo = tipo ? tipo.signo : 0;
+      // 1 = entrada, 2 (o -1) = salida, 0 = no cambia el total (ej. Traslado)
+      const esEntrada = signo === 1 ? true : signo === 2 || signo === -1 ? false : null;
+      const fila = {
         ...m,
-        cantidad: cantidad,
-        esEntrada: esEntrada,
+        cantidad,
+        esEntrada,
         tipoNombre: tipo ? tipo.nombre : "Sin tipo",
-        saldo: saldoAcumulado,
+        saldo,
       };
+      if (esEntrada === true) saldo -= cantidad;
+      if (esEntrada === false) saldo += cantidad;
+      return fila;
     });
 
-    mostrarHistorialModal(producto, movimientosConSaldo);
+    // Se muestran del más nuevo al más viejo (el renderizado los invierte)
+    mostrarHistorialModal(producto, [...movimientosConSaldo].reverse());
   } catch (error) {
     console.error("Error al obtener historial:", error);
     showToast("Error al cargar el historial", "error");
@@ -680,8 +793,9 @@ function mostrarHistorialModal(producto, movimientos) {
 
     movimientosOrdenados.forEach((m) => {
       const fecha = m.fecha ? new Date(m.fecha).toLocaleString() : "--";
-      const entrada = m.esEntrada ? m.cantidad : "-";
-      const salida = !m.esEntrada ? m.cantidad : "-";
+      const entrada = m.esEntrada === true ? m.cantidad : "-";
+      const salida = m.esEntrada === false ? m.cantidad : "-";
+      const neutral = m.esEntrada === null;
       const saldo = m.saldo || 0;
       const claseSaldo =
         saldo === 0
@@ -695,14 +809,15 @@ function mostrarHistorialModal(producto, movimientos) {
                 <tr>
                     <td><small>${fecha}</small></td>
                     <td>
-                        <span class="badge ${m.esEntrada ? "bg-success" : "bg-danger"}">
-                            ${m.tipoNombre}
+                        <span class="badge ${neutral ? "bg-secondary" : m.esEntrada ? "bg-success" : "bg-danger"}">
+                            ${escInv(m.tipoNombre)}
                         </span>
+                        ${neutral && m.cantidad ? `<small class="text-muted d-block">${m.cantidad} (${escInv(nombreUbicacionInv(m.id_ubicacion_origen))} → ${escInv(nombreUbicacionInv(m.id_ubicacion_destino))})</small>` : ""}
                     </td>
                     <td class="text-success fw-bold">${entrada !== "-" ? "+" + entrada : "-"}</td>
                     <td class="text-danger fw-bold">${salida !== "-" ? "-" + salida : "-"}</td>
                     <td class="fw-bold ${claseSaldo}">${saldo}</td>
-                    <td><small>${observacion}</small></td>
+                    <td><small>${escInv(observacion)}</small></td>
                 </tr>
             `;
     });
@@ -774,10 +889,14 @@ function populateSelectsInventario() {
     ubicaciones.forEach((u) => {
       select.innerHTML += `<option value="${u.id}">${u.nombre || u.id}</option>`;
     });
-    // Con una sola ubicación no tiene sentido obligar a elegirla (excepto
-    // en Traslados, donde origen y destino deben ser distintas)
-    if (ubicaciones.length === 1 && !select.id.startsWith("traslado")) {
-      select.value = String(ubicaciones[0].id);
+    // Fuera de Traslados se propone la ubicación principal (la de
+    // Configuración general); en Traslados origen y destino se eligen.
+    if (!select.id.startsWith("traslado")) {
+      if (ubicaciones.length === 1) {
+        select.value = String(ubicaciones[0].id);
+      } else if (window.ubicacionPrincipalId) {
+        select.value = String(window.ubicacionPrincipalId);
+      }
     }
   });
 }
@@ -809,6 +928,12 @@ function crearModalesInventario() {
                                     <label class="form-label">Tipo de Movimiento *</label>
                                     <select class="form-select inv-tipo-movimiento" id="movimientoTipo" required></select>
                                     <div class="invalid-feedback" id="movimientoTipoError">Seleccione un tipo</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Ubicación *</label>
+                                    <select class="form-select inv-ubicacion-select" id="movimientoUbicacion" required></select>
+                                    <div class="form-text">Donde entra (entrada) o de donde sale (salida) el producto.</div>
+                                    <div class="invalid-feedback" id="movimientoUbicacionError">Seleccione una ubicación</div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Cantidad *</label>
@@ -858,7 +983,7 @@ function crearModalesInventario() {
                                     <div class="invalid-feedback" id="conteoCantidadError">Ingrese una cantidad válida</div>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Stock en Sistema</label>
+                                    <label class="form-label">Stock en Sistema (en esa ubicación)</label>
                                     <input type="number" step="0.01" class="form-control" id="conteoStockSistema" readonly />
                                 </div>
                                 <div class="mb-3 inventory-grid-wide">
@@ -896,6 +1021,7 @@ function crearModalesInventario() {
                                 <div class="mb-3">
                                     <label class="form-label">Ubicación Origen *</label>
                                     <select class="form-select inv-ubicacion-select" id="trasladoOrigen" required></select>
+                                    <div class="form-text" id="trasladoDisponible"></div>
                                     <div class="invalid-feedback" id="trasladoOrigenError">Seleccione una ubicación</div>
                                 </div>
                                 <div class="mb-3">
@@ -918,6 +1044,15 @@ function crearModalesInventario() {
                                 <div class="mb-3 inventory-grid-wide">
                                     <label class="form-label">Observaciones</label>
                                     <textarea class="form-control" id="trasladoObservacion" rows="2"></textarea>
+                                </div>
+                                <div class="mb-3 inventory-grid-wide">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="trasladoRecibidoYa" checked>
+                                        <label class="form-check-label" for="trasladoRecibidoYa">
+                                            Ya se entregó (actualizar el stock ahora)
+                                        </label>
+                                    </div>
+                                    <div class="form-text">Desmárcalo si el producto va en camino (ej. a otra sucursal): el stock se moverá cuando se confirme la recepción.</div>
                                 </div>
                                 <button type="submit" class="btn btn-info w-100">Guardar Traslado</button>
                             </form>
@@ -1017,11 +1152,10 @@ function showConteoFisicoModal() {
   populateSelectsInventario();
   window.__conteoProductoSelector = llenarSelectorProductoInventario(
     "conteo",
-    (producto) => {
-      const stockInput = document.getElementById("conteoStockSistema");
-      if (stockInput) stockInput.value = producto?.stock_actual || 0;
-    },
+    () => actualizarStockSistemaConteo(),
   );
+  const ubicacionConteo = document.getElementById("conteoUbicacion");
+  if (ubicacionConteo) ubicacionConteo.onchange = actualizarStockSistemaConteo;
   prepararEscanerInventario("conteoProducto", contarProductoEscaneado);
   modal.addEventListener(
     "shown.bs.modal",
@@ -1045,7 +1179,21 @@ function showTrasladoModal() {
   limpiarErrorSelectorProductoInventario("trasladoProducto");
   window.__trasladoProductoSelector?.reset();
   populateSelectsInventario();
-  window.__trasladoProductoSelector = llenarSelectorProductoInventario("traslado");
+  window.__trasladoProductoSelector = llenarSelectorProductoInventario(
+    "traslado",
+    () => actualizarDisponibleTraslado(),
+  );
+  const origenTraslado = document.getElementById("trasladoOrigen");
+  const destinoTraslado = document.getElementById("trasladoDestino");
+  if (origenTraslado) {
+    origenTraslado.onchange = () => {
+      bloquearMismaUbicacionTraslado();
+      actualizarDisponibleTraslado();
+    };
+  }
+  if (destinoTraslado) destinoTraslado.onchange = bloquearMismaUbicacionTraslado;
+  bloquearMismaUbicacionTraslado();
+  actualizarDisponibleTraslado();
   prepararEscanerInventario(
     "trasladoProducto",
     seleccionarProductoEscaneadoTraslado,
@@ -1077,11 +1225,25 @@ function llenarSelectorProductoInventario(prefijo, onSelect) {
       `${producto.codigo || ""} - ${producto.nombre} (Stock: ${producto.stock_actual || 0})`,
     getSearchText: (producto) =>
       `${producto.codigo || ""} ${producto.nombre || ""} ${producto.descripcion || ""}`,
-    placeholder: "Buscar producto por código, nombre o descripción...",
-    emptyText: "Escribe código, nombre o descripción para buscar...",
+    // Se busca en el servidor: antes solo encontraba entre los productos ya
+    // cargados (máximo 200).
+    searchData: async (termino) =>
+      ((await api.request(
+        `/productos?buscar=${encodeURIComponent(termino)}&limit=30`,
+      )) || []).filter((p) => p.activo !== 0),
+    placeholder: "Buscar producto por código o nombre...",
+    emptyText: "Escribe código o nombre para buscar...",
     maxResultados: 30,
     small: true,
-    onSelect,
+    onSelect: (producto) => {
+      if (producto) {
+        window.productosData = window.productosData || [];
+        if (!window.productosData.some((p) => String(p.id) === String(producto.id))) {
+          window.productosData.push(producto);
+        }
+      }
+      if (typeof onSelect === "function") onSelect(producto);
+    },
   });
 }
 
@@ -1150,10 +1312,8 @@ function _seleccionarProductoInventario(selectId, producto) {
   }[selectId];
   if (selector) {
     selector.setValue(producto.id);
-    if (selectId === "conteoProducto") {
-      const stockInput = document.getElementById("conteoStockSistema");
-      if (stockInput) stockInput.value = producto.stock_actual || 0;
-    }
+    if (selectId === "conteoProducto") actualizarStockSistemaConteo();
+    if (selectId === "trasladoProducto") actualizarDisponibleTraslado();
     return Boolean(document.getElementById(selectId)?.value);
   }
 
@@ -1168,6 +1328,47 @@ function _seleccionarProductoInventario(selectId, producto) {
   // Dispara el "change" para que se actualicen los campos que dependen del producto
   select.dispatchEvent(new Event("change"));
   return true;
+}
+
+// Conteo: el "stock en sistema" es el de la ubicación que se está contando
+function actualizarStockSistemaConteo() {
+  const idProducto = document.getElementById("conteoProducto")?.value;
+  const idUbicacion = document.getElementById("conteoUbicacion")?.value;
+  const stockInput = document.getElementById("conteoStockSistema");
+  if (stockInput) {
+    stockInput.value =
+      idProducto && idUbicacion ? stockEnUbicacionInv(idProducto, idUbicacion) : 0;
+  }
+}
+
+// Traslado: la ubicación elegida como origen no se puede elegir como
+// destino (y al revés): se deshabilita en la otra lista.
+function bloquearMismaUbicacionTraslado() {
+  const origen = document.getElementById("trasladoOrigen");
+  const destino = document.getElementById("trasladoDestino");
+  if (!origen || !destino) return;
+  [...destino.options].forEach((o) => {
+    o.disabled = Boolean(o.value) && o.value === origen.value;
+  });
+  [...origen.options].forEach((o) => {
+    o.disabled = Boolean(o.value) && o.value === destino.value;
+  });
+  if (destino.value && destino.value === origen.value) destino.value = "";
+}
+
+// Traslado: muestra cuánto hay en la ubicación de origen
+function actualizarDisponibleTraslado() {
+  const idProducto = document.getElementById("trasladoProducto")?.value;
+  const idOrigen = document.getElementById("trasladoOrigen")?.value;
+  const info = document.getElementById("trasladoDisponible");
+  if (!info) return;
+  if (!idProducto || !idOrigen) {
+    info.textContent = "";
+    return;
+  }
+  const disponible = stockEnUbicacionInv(idProducto, idOrigen);
+  info.innerHTML = `Disponible en ${escInv(nombreUbicacionInv(idOrigen))}: <strong>${disponible}</strong>`;
+  info.className = `form-text ${disponible > 0 ? "text-success" : "text-danger"}`;
 }
 
 function seleccionarProductoEscaneadoMovimiento(producto) {
@@ -1253,6 +1454,16 @@ async function saveMovimiento(event) {
     limpiarErrorCampo("movimientoCantidad");
   }
 
+  const idUbicacionMov = parseInt(
+    document.getElementById("movimientoUbicacion")?.value,
+  );
+  if (!idUbicacionMov) {
+    mostrarErrorCampo("movimientoUbicacion", "Seleccione una ubicación");
+    valid = false;
+  } else {
+    limpiarErrorCampo("movimientoUbicacion");
+  }
+
   if (!valid) return;
 
   // El servidor espera la cabecera del movimiento + la lista "detalles"
@@ -1260,6 +1471,7 @@ async function saveMovimiento(event) {
   const data = {
     id_usuario: getCurrentUser()?.id || getCurrentUser()?.usuario_id || null,
     id_tipo_movimiento: idTipo,
+    id_ubicacion: idUbicacionMov,
     observaciones:
       document.getElementById("movimientoObservacion").value.trim() || null,
     detalles: [{ id_producto: idProducto, cantidad: cantidad }],
@@ -1341,13 +1553,13 @@ async function saveConteoFisico(event) {
 // Aplica un conteo: el stock del sistema pasa a ser lo que se contó.
 async function aplicarAjusteConteo(idConteo) {
   const ok = await confirmarAccion(
-    "El stock del sistema se cambiará para que sea igual a lo que se contó físicamente.\n¿Aplicar el ajuste?",
+    "Se aplicará al stock de esa ubicación la diferencia encontrada en el conteo, y quedará registrada en el historial.\n¿Aplicar el ajuste?",
     { titulo: "Aplicar ajuste de inventario", textoAceptar: "Aplicar ajuste", peligro: false },
   );
   if (!ok) return;
   try {
     await api.request(`/inventario-fisico/${idConteo}/aplicar-ajuste`, "PATCH");
-    showToast("Ajuste aplicado: el stock quedó igual a lo contado", "success");
+    showToast("Ajuste aplicado y registrado en el historial", "success");
     await recargarConteo();
     await recargarResumenInventario();
   } catch (error) {
@@ -1398,6 +1610,16 @@ async function saveTraslado(event) {
   if (!cantidad || cantidad <= 0) {
     mostrarErrorCampo("trasladoCantidad", "Ingrese una cantidad válida");
     valid = false;
+  } else if (
+    idProducto &&
+    idOrigen &&
+    cantidad > stockEnUbicacionInv(idProducto, idOrigen)
+  ) {
+    mostrarErrorCampo(
+      "trasladoCantidad",
+      `Solo hay ${stockEnUbicacionInv(idProducto, idOrigen)} en ${nombreUbicacionInv(idOrigen)}`,
+    );
+    valid = false;
   } else {
     limpiarErrorCampo("trasladoCantidad");
   }
@@ -1421,7 +1643,19 @@ async function saveTraslado(event) {
 
   try {
     const result = await api.request("/traslados", "POST", data);
-    showToast(`Traslado #${result.id} registrado correctamente`, "success");
+    if (document.getElementById("trasladoRecibidoYa")?.checked) {
+      // Entrega inmediata (ej. Bodega -> Área de ventas en la misma tienda)
+      await api.request(`/traslados/${result.id}/confirmar-recepcion`, "PATCH");
+      showToast(
+        `Traslado #${result.id} realizado: el stock ya se movió de ${nombreUbicacionInv(idOrigen)} a ${nombreUbicacionInv(idDestino)}`,
+        "success",
+      );
+    } else {
+      showToast(
+        `Traslado #${result.id} registrado: queda en camino hasta que se confirme la recepción`,
+        "success",
+      );
+    }
 
     const modal = bootstrap.Modal.getInstance(
       document.getElementById("trasladoModal"),
@@ -1622,25 +1856,33 @@ function renderTraslados(traslados) {
     const destino =
       ubicacionesMap[String(t.id_ubicacion_destino)] ||
       ubicacionesMap[Number(t.id_ubicacion_destino)];
-    const estado = t.estado || "Pendiente";
+    const estado = t.estado || "EnProceso";
+    const estadoInfo =
+      {
+        EnProceso: { texto: "En camino", clase: "bg-warning text-dark" },
+        Completado: { texto: "Recibido", clase: "bg-success" },
+        Recibido: { texto: "Recibido", clase: "bg-success" },
+        Cancelado: { texto: "Cancelado", clase: "bg-secondary" },
+      }[estado] || { texto: estado, clase: "bg-secondary" };
 
     html += `
             <tr>
                 <td>${t.id}</td>
-                <td>${producto ? producto.nombre : "--"}</td>
-                <td>${origen ? origen.nombre || origen.id : "--"}</td>
-                <td>${destino ? destino.nombre || destino.id : "--"}</td>
+                <td>${escInv(producto ? producto.nombre : "--")}</td>
+                <td>${escInv(origen ? origen.nombre || origen.id : "--")}</td>
+                <td>${escInv(destino ? destino.nombre || destino.id : "--")}</td>
                 <td>${t.cantidad || 0}</td>
                 <td>
-                    <span class="badge ${estado === "Recibido" ? "bg-success" : "bg-warning"}">
-                        ${estado}
-                    </span>
+                    <span class="badge ${estadoInfo.clase}">${estadoInfo.texto}</span>
                     ${
-                      estado === "Pendiente" &&
+                      estado === "EnProceso" &&
                       tienePermiso("Inventario", "Editar")
                         ? `
-                        <button class="btn btn-sm btn-outline-success ms-1" onclick="recibirTraslado(${t.id})">
-                            <i class="fas fa-check"></i>
+                        <button class="btn btn-sm btn-outline-success ms-1" onclick="recibirTraslado(${t.id})" title="Confirmar que llegó">
+                            <i class="fas fa-check me-1"></i>Recibir
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary ms-1" onclick="cancelarTraslado(${t.id})" title="Cancelar traslado">
+                            <i class="fas fa-times"></i>
                         </button>
                     `
                         : ""
@@ -1675,16 +1917,28 @@ async function recibirTraslado(id) {
   if (!confirmado) return;
 
   try {
-    const idUsuarioRecibe = getCurrentUser()?.id || 1;
-    await api.request(
-      `/traslados/${id}/confirmar-recepcion?id_usuario_recibe=${idUsuarioRecibe}`,
-      "PATCH",
-    );
-    showToast("Traslado recibido correctamente", "success");
+    await api.request(`/traslados/${id}/confirmar-recepcion`, "PATCH");
+    showToast("Traslado recibido: el stock ya se movió al destino", "success");
     await recargarTraslados();
+    await recargarResumenInventario();
   } catch (error) {
     console.error("❌ Error al recibir traslado:", error);
     showToast(error.message || "Error al recibir traslado", "error");
+  }
+}
+
+async function cancelarTraslado(id) {
+  const ok = await confirmarAccion(
+    "El traslado se cancelará y el producto se queda en la ubicación de origen.\n¿Cancelar el traslado?",
+    { titulo: "Cancelar traslado", textoAceptar: "Cancelar traslado", peligro: true },
+  );
+  if (!ok) return;
+  try {
+    await api.request(`/traslados/${id}/cancelar`, "PATCH");
+    showToast("Traslado cancelado", "success");
+    await recargarTraslados();
+  } catch (error) {
+    showToast(error.message || "Error al cancelar el traslado", "error");
   }
 }
 
@@ -1827,6 +2081,7 @@ async function cargarConteoTabla() {
     if (desde) url += `&fecha_desde=${desde}`;
     if (hasta) url += `&fecha_hasta=${hasta}`;
     inventarioFisicoData = (await api.request(url)) || [];
+    await asegurarProductosCargados(inventarioFisicoData.map((c) => c.id_producto));
     if (_paginaVaciaInventario(inventarioFisicoData, skipConteo)) {
       skipConteo = Math.max(0, skipConteo - LIMITE_CONTEO);
       return cargarConteoTabla();
@@ -1856,6 +2111,7 @@ async function cargarTrasladosTabla() {
     if (desde) url += `&fecha_desde=${desde}`;
     if (hasta) url += `&fecha_hasta=${hasta}`;
     trasladosData = (await api.request(url)) || [];
+    await asegurarProductosCargados(trasladosData.map((t) => t.id_producto));
     if (_paginaVaciaInventario(trasladosData, skipTraslados)) {
       skipTraslados = Math.max(0, skipTraslados - LIMITE_TRASLADOS);
       return cargarTrasladosTabla();
@@ -1883,6 +2139,7 @@ async function cargarAlertasTabla() {
     if (desde) url += `&fecha_desde=${desde}`;
     if (hasta) url += `&fecha_hasta=${hasta}`;
     alertasData = (await api.request(url).catch(() => [])) || [];
+    await asegurarProductosCargados(alertasData.map((a) => a.id_producto));
     if (_paginaVaciaInventario(alertasData, skipAlertas)) {
       skipAlertas = Math.max(0, skipAlertas - LIMITE_ALERTAS);
       return cargarAlertasTabla();
@@ -2158,12 +2415,13 @@ function showCargaMasivaMovimientosModal() {
           <div class="alert alert-info small">
             <strong>Formato esperado del archivo (fila de encabezados obligatoria):</strong>
             <div class="mt-1" style="font-family: monospace; font-size: 0.85rem;">
-              Codigo_Producto | Tipo_Movimiento | Cantidad | Costo_Unitario | Observacion
+              Codigo_Producto | Tipo_Movimiento | Cantidad | Ubicacion | Costo_Unitario | Observacion
             </div>
             <ul class="mb-0 mt-2 small">
               <li><strong>Codigo_Producto:</strong> debe existir en el catálogo.</li>
               <li><strong>Tipo_Movimiento:</strong> por nombre, tal como está en "Tipos de movimiento" (la plantilla trae la lista en la hoja "Tipos").</li>
               <li><strong>Cantidad:</strong> número positivo (el tipo define si es entrada o salida). Las salidas no pueden dejar el stock en negativo.</li>
+              <li><strong>Ubicacion:</strong> opcional, por nombre (ej. "Bodega"). Si va vacía se usa la ubicación principal.</li>
               <li><strong>Costo_Unitario:</strong> opcional (útil para el inventario inicial).</li>
               <li><strong>Observacion:</strong> opcional.</li>
               <li>El usuario que registra es <strong>${getCurrentUser()?.nombre_usuario || "el usuario actual"}</strong>.</li>
@@ -2235,11 +2493,15 @@ async function descargarPlantillaMovimientos() {
   const productos = (window.productosData || []).filter((p) => p.activo !== 0);
   const codigo = (i, ejemplo) => (productos[i] && productos[i].codigo) || ejemplo;
 
+  const ubicacionEjemplo = window.ubicacionPrincipalId
+    ? nombreUbicacionInv(window.ubicacionPrincipalId)
+    : "";
   const data = [
     {
       Codigo_Producto: codigo(0, "PROD-001"),
       Tipo_Movimiento: entrada ? entrada.nombre : "(nombre de un tipo de entrada)",
       Cantidad: 50,
+      Ubicacion: ubicacionEjemplo,
       Costo_Unitario: 8.5,
       Observacion: "Inventario inicial",
     },
@@ -2249,6 +2511,7 @@ async function descargarPlantillaMovimientos() {
       Codigo_Producto: codigo(1, "PROD-002"),
       Tipo_Movimiento: salida.nombre,
       Cantidad: 2,
+      Ubicacion: ubicacionEjemplo,
       Costo_Unitario: "",
       Observacion: "Producto dañado",
     });
@@ -2353,6 +2616,7 @@ async function validarYPrevisualizarMovimientos() {
     const cantidad = parseFloat(row.Cantidad);
     const observacion = String(row.Observacion || "").trim() || null;
     const costoTexto = String(row.Costo_Unitario ?? "").trim();
+    const nombreUbicacion = String(row.Ubicacion || "").trim();
     const costo = costoTexto === "" ? null : parseFloat(costoTexto);
 
     if (!codigoProducto) {
@@ -2411,21 +2675,35 @@ async function validarYPrevisualizarMovimientos() {
       continue;
     }
 
+    // Ubicación por nombre (vacía = la principal)
+    let idUbicacion = window.ubicacionPrincipalId || null;
+    if (nombreUbicacion) {
+      const u = (window.ubicacionesData || []).find(
+        (x) => (x.nombre || "").trim().toLowerCase() === nombreUbicacion.toLowerCase(),
+      );
+      if (!u) {
+        errores.push(`Fila ${numFila}: la ubicación "${nombreUbicacion}" no existe`);
+        continue;
+      }
+      idUbicacion = u.id;
+    }
+
     // Interpretar signo
     let esEntrada = false;
     if (tipo.signo === 1) esEntrada = true;
     else if (tipo.signo === 2) esEntrada = false;
     else esEntrada = null; // neutral
 
-    const clave = String(producto.id);
+    // Stock de ese producto EN ESA ubicación, aplicando las filas en orden
+    const clave = `${producto.id}|${idUbicacion}`;
     if (!(clave in stockSimulado)) {
-      stockSimulado[clave] = parseFloat(producto.stock_actual || 0);
+      stockSimulado[clave] = stockEnUbicacionInv(producto.id, idUbicacion);
     }
     if (esEntrada === true) stockSimulado[clave] += cantidad;
     if (esEntrada === false) {
       if (stockSimulado[clave] < cantidad) {
         errores.push(
-          `Fila ${numFila}: stock insuficiente de "${producto.nombre}" (disponible ${stockSimulado[clave]}, salida ${cantidad})`,
+          `Fila ${numFila}: stock insuficiente de "${producto.nombre}" en ${nombreUbicacionInv(idUbicacion)} (disponible ${stockSimulado[clave]}, salida ${cantidad})`,
         );
         continue;
       }
@@ -2441,6 +2719,7 @@ async function validarYPrevisualizarMovimientos() {
       cantidad,
       costo,
       observacion,
+      idUbicacion,
       stockFinal: stockSimulado[clave],
     });
   }
@@ -2509,6 +2788,7 @@ function renderPreviewMovimientos(errores, filas) {
           <th>Tipo</th>
           <th>Signo</th>
           <th class="text-end">Cantidad</th>
+          <th>Ubicación</th>
           <th class="text-end">Costo</th>
           <th class="text-end">Stock final</th>
           <th>Observación</th>
@@ -2532,6 +2812,7 @@ function renderPreviewMovimientos(errores, filas) {
         <td>${escInv(f.tipo.nombre)}</td>
         <td>${badge}</td>
         <td class="text-end">${f.cantidad}</td>
+        <td>${escInv(nombreUbicacionInv(f.idUbicacion))}</td>
         <td class="text-end">${f.costo !== null && f.costo !== undefined ? "Q" + f.costo.toFixed(2) : "--"}</td>
         <td class="text-end">${f.stockFinal}</td>
         <td>${escInv(f.observacion || "--")}</td>
@@ -2576,6 +2857,7 @@ async function confirmarCargaMasivaMovimientos() {
         id_usuario:
           getCurrentUser()?.id || getCurrentUser()?.usuario_id || null,
         id_tipo_movimiento: f.tipo.id,
+        id_ubicacion: f.idUbicacion || null,
         observaciones: f.observacion || "Carga masiva",
         detalles: [
           {
@@ -2667,3 +2949,7 @@ window.recargarConteo = recargarConteo;
 window.recargarTraslados = recargarTraslados;
 window.recargarAlertas = recargarAlertas;
 window.recargarTiposMovimiento = recargarTiposMovimiento;
+
+window.cancelarTraslado = cancelarTraslado;
+window.actualizarStockSistemaConteo = actualizarStockSistemaConteo;
+window.actualizarDisponibleTraslado = actualizarDisponibleTraslado;

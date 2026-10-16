@@ -12,6 +12,7 @@ from app.models.model_producto import Producto
 from app.models.model_caja import CajaTurno
 from app.models.model_usuario import Usuario
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario, Alerta
+from app.stock import mover_stock, stock_en, resolver_ubicacion, nombre_ubicacion, tipo_movimiento
 from app.models.model_venta import Venta, DetalleVenta, MetodoPagoVenta, ServicioAdicional, DetalleServicio
 from app.schemas.schema_venta import (
     VentaCreate, VentaUpdate, VentaResponse,
@@ -155,24 +156,34 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
     if not datos.detalles:
         raise HTTPException(status_code=400, detail="La venta debe incluir al menos un producto")
 
-    tipo_venta = db.query(TipoMovimientoInventario).filter(TipoMovimientoInventario.nombre == "Venta").first()
-    if not tipo_venta:
-        raise HTTPException(
-            status_code=400,
-            detail="No existe el tipo de movimiento 'Venta' en tipos-movimiento. Créalo primero (nombre='Venta', signo=-1).",
-        )
+    tipo_venta = tipo_movimiento(db, "Venta", 2)
+
+    # La venta descuenta de la ubicación donde se vende (la de la venta o,
+    # si no viene, la ubicación principal de Configuración).
+    id_ubicacion = resolver_ubicacion(db, datos.id_ubicacion)
 
     productos = {}
+    pedido_por_producto = {}
     for d in datos.detalles:
+        if float(d.cantidad or 0) <= 0:
+            raise HTTPException(status_code=400, detail="La cantidad de cada producto debe ser mayor a 0")
         producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
         if not producto:
             raise HTTPException(status_code=404, detail="Uno de los productos ya no existe en el sistema. Quítalo de la lista e intenta de nuevo.")
-        if float(producto.stock_actual or 0) < d.cantidad:
+        productos[d.id_producto] = producto
+        pedido_por_producto[d.id_producto] = pedido_por_producto.get(d.id_producto, 0) + float(d.cantidad)
+
+    for id_prod, pedido in pedido_por_producto.items():
+        producto = productos[id_prod]
+        disponible = stock_en(db, producto, id_ubicacion)
+        if disponible < pedido:
             raise HTTPException(
                 status_code=400,
-                detail=f"Stock insuficiente de '{producto.nombre}' (disponible: {producto.stock_actual}, pedido: {d.cantidad})",
+                detail=(
+                    f"Stock insuficiente de '{producto.nombre}' en {nombre_ubicacion(db, id_ubicacion)} "
+                    f"(disponible: {disponible:g}, pedido: {pedido:g})"
+                ),
             )
-        productos[d.id_producto] = producto
 
     subtotal = sum(float(productos[d.id_producto].precio_venta or 0) * d.cantidad for d in datos.detalles)
     descuento = round(subtotal * (datos.descuento_porcentaje or 0) / 100, 2)
@@ -194,7 +205,7 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
     nueva_venta = Venta(
         id_cliente=datos.id_cliente,
         id_usuario=datos.id_usuario,
-        id_ubicacion=datos.id_ubicacion,
+        id_ubicacion=id_ubicacion,
         id_cotizacion=datos.id_cotizacion,
         id_caja_turno=datos.id_caja_turno,
         subtotal=round(subtotal, 2),
@@ -211,7 +222,7 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
     movimiento = MovimientoInventario(
         id_usuario=datos.id_usuario,
         id_tipo_movimiento=tipo_venta.id,
-        id_ubicacion_origen=datos.id_ubicacion,
+        id_ubicacion_origen=id_ubicacion,
         tabla_referencia="venta",
         id_referencia=nueva_venta.id,
         observaciones=f"Venta #{nueva_venta.id}",
@@ -240,7 +251,7 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
             precio_unitario=precio,
         ))
 
-        producto.stock_actual = float(producto.stock_actual or 0) - d.cantidad
+        mover_stock(db, producto, id_ubicacion, -float(d.cantidad))
         _generar_alerta_si_stock_bajo(db, producto)
 
     for p in datos.pagos:
@@ -262,10 +273,31 @@ def cancelar_venta(venta_id: int, db: Session = Depends(get_db), usuario_actual:
     if venta.estado == "Cancelada":
         raise HTTPException(status_code=400, detail="Esta venta ya está cancelada")
 
+    # El stock regresa a la ubicación donde se vendió, y queda el movimiento
+    # en el historial (antes se devolvía sin dejar rastro).
+    id_ubicacion = resolver_ubicacion(db, venta.id_ubicacion)
+    tipo_cancelacion = tipo_movimiento(db, "Cancelación de venta", 1)
+    movimiento = MovimientoInventario(
+        id_usuario=usuario_actual.id,
+        id_tipo_movimiento=tipo_cancelacion.id,
+        id_ubicacion_destino=id_ubicacion,
+        tabla_referencia="venta",
+        id_referencia=venta.id,
+        observaciones=f"Cancelación de venta #{venta.id}",
+    )
+    db.add(movimiento)
+    db.flush()
     for detalle in venta.detalles:
         producto = db.query(Producto).filter(Producto.id == detalle.id_producto).first()
         if producto:
-            producto.stock_actual = float(producto.stock_actual or 0) + float(detalle.cantidad)
+            mover_stock(db, producto, id_ubicacion, float(detalle.cantidad))
+            db.add(MovimientoInventarioDetalle(
+                id_movimiento_cabecera=movimiento.id,
+                id_producto=producto.id,
+                cantidad=detalle.cantidad,
+                costo_unitario=detalle.costo_unitario,
+                precio_unitario=detalle.precio_unitario,
+            ))
 
     if venta.id_caja_turno:
         turno = db.query(CajaTurno).filter(CajaTurno.id == venta.id_caja_turno).first()
@@ -434,4 +466,4 @@ def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db), usuario_a
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     db.delete(servicio)
     registrar_actividad(db, usuario_actual.id, "ELIMINAR", "ServicioAdicional")
-    db.commit()
+    db.commit()

@@ -121,6 +121,9 @@
 
   window.mostrarAlertaModal = mostrarAlertaModal;
 
+  // Resumen de una carga masiva: muestra QUÉ filas fallaron y por qué.
+  // Antes solo decía "Revisa la consola", y el usuario no podía verlo.
+  // Llamarlo DESPUÉS de cerrar el modal de la carga.
   function mostrarResumenCargaMasiva(accion, ok, fallidos, errores) {
     const lista = (errores || []).slice(0, 30);
     const resto = (errores || []).length - lista.length;
@@ -299,4 +302,94 @@
       return showToastOriginal.call(this, mensaje, tipo, ...resto);
     }
   };
+})();
+
+// ============================================================
+// Comportamientos comunes de la interfaz (para todos los módulos)
+// ============================================================
+(function () {
+  // ---------- 1. Un modal abierto encima de otro ----------
+  // Bootstrap no apila modales: el segundo (ej. "Nuevo movimiento" desde el
+  // Historial) quedaba DEBAJO del primero y no se veía hasta cerrarlo.
+  // Cada modal nuevo se pone por encima de los que ya están abiertos.
+  document.addEventListener("show.bs.modal", (e) => {
+    const abiertos = document.querySelectorAll(".modal.show").length;
+    if (abiertos === 0) return;
+    const z = 1055 + abiertos * 20;
+    e.target.style.zIndex = z;
+    setTimeout(() => {
+      const fondos = document.querySelectorAll(".modal-backdrop");
+      const ultimo = fondos[fondos.length - 1];
+      if (ultimo) ultimo.style.zIndex = z - 1;
+    }, 0);
+  });
+  // Al cerrar el de arriba, el de abajo debe seguir pudiendo hacer scroll
+  document.addEventListener("hidden.bs.modal", (e) => {
+    e.target.style.zIndex = "";
+    if (document.querySelectorAll(".modal.show").length > 0) {
+      document.body.classList.add("modal-open");
+    }
+  });
+
+  // ---------- 2. No regresar a la primera pestaña al guardar ----------
+  // Varios módulos vuelven a dibujarse completos después de guardar o
+  // eliminar algo, y quedaban en la primera pestaña. Se recuerdan las
+  // pestañas abiertas y se vuelven a abrir. (Ventas y Compras ya lo hacían.)
+  function capturarPestanas() {
+    const cont = document.getElementById("mainContent");
+    if (!cont) return [];
+    return Array.from(
+      cont.querySelectorAll(
+        '[data-bs-toggle="tab"].active, [data-bs-toggle="pill"].active',
+      ),
+    )
+      .map((el) =>
+        el.id
+          ? { id: el.id }
+          : { href: el.getAttribute("href") || el.getAttribute("data-bs-target") },
+      )
+      .filter((p) => p.id || p.href);
+  }
+
+  function restaurarPestanas(lista) {
+    if (!lista || !lista.length || typeof bootstrap === "undefined") return;
+    const todas = Array.from(
+      document.querySelectorAll(
+        '#mainContent [data-bs-toggle="tab"], #mainContent [data-bs-toggle="pill"]',
+      ),
+    );
+    lista.forEach((p) => {
+      const el = p.id
+        ? document.getElementById(p.id)
+        : todas.find(
+            (t) =>
+              t.getAttribute("href") === p.href ||
+              t.getAttribute("data-bs-target") === p.href,
+          );
+      if (el && !el.classList.contains("active")) {
+        bootstrap.Tab.getOrCreateInstance(el).show();
+      }
+    });
+  }
+
+  window.capturarPestanasModulo = capturarPestanas;
+  window.restaurarPestanasModulo = restaurarPestanas;
+
+  [
+    "loadConfiguracionModule",
+    "loadUsuariosModule",
+    "loadClientesModule",
+    "loadReportesModule",
+  ].forEach((nombre) => {
+    const original = window[nombre];
+    if (typeof original !== "function" || original.__conPestanas) return;
+    const envuelta = async function (...args) {
+      const previas = capturarPestanas();
+      const resultado = await original.apply(this, args);
+      restaurarPestanas(previas);
+      return resultado;
+    };
+    envuelta.__conPestanas = true;
+    window[nombre] = envuelta;
+  });
 })();
