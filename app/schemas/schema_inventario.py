@@ -43,6 +43,9 @@ class MovimientoInventarioCreate(BaseModel):
     id_referencia: Optional[int] = None
     referencia: Optional[str] = None
     observaciones: Optional[str] = None
+    # Ubicación donde entra (tipo Entrada) o de donde sale (tipo Salida) el
+    # stock. Si no se manda, se usa la ubicación principal.
+    id_ubicacion: Optional[int] = None
     detalles: List[MovimientoInventarioDetalleCreate] 
 
 
@@ -132,3 +135,11 @@ class AlertaResponse(BaseModel):
     leida: Optional[int] = None
     fecha_lectura: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+# ===================== Stock por ubicación =====================
+
+class StockUbicacionResponse(BaseModel):
+    id_producto: int
+    id_ubicacion: int
+    cantidad: float

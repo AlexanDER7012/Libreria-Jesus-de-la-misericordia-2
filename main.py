@@ -59,6 +59,7 @@ app.include_router(router_inventario.router, prefix="/movimientos-inventario", t
 app.include_router(router_inventario.router_tipo, prefix="/tipos-movimiento", tags=["Tipos de Movimiento"])
 app.include_router(router_inventario.router_fisico, prefix="/inventario-fisico", tags=["Inventario Físico"])
 app.include_router(router_inventario.router_traslado, prefix="/traslados", tags=["Traslados entre Sucursales"])
+app.include_router(router_inventario.router_stock, prefix="/stock-ubicaciones", tags=["Stock por Ubicación"])
 app.include_router(router_inventario.router_alerta, prefix="/alertas", tags=["Alertas"])
 
 app.include_router(router_proveedor.router, prefix="/proveedores", tags=["Proveedores"])
@@ -94,4 +95,4 @@ def read_status():
     """Antes vivia en '/', se movio aqui para que '/' pueda servir el frontend en su lugar."""
     return {"status": "Online", "docs": "/docs"}
 
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

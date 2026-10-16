@@ -69,7 +69,9 @@ def listar_productos(
     if buscar:
         like = f"%{buscar}%"
         query = query.filter((Producto.nombre.ilike(like)) | (Producto.codigo.ilike(like)))
-    return query.offset(paginacion.skip).limit(paginacion.limit).all()
+    # Orden fijo: sin él, al pedir por páginas (skip/limit) la base de datos
+    # puede repetir o saltarse productos entre una página y otra.
+    return query.order_by(Producto.id).offset(paginacion.skip).limit(paginacion.limit).all()
 
 
 @router.get("/buscar-codigo/{codigo}", response_model=ProductoResponse)
@@ -261,6 +263,8 @@ def _validar_nombre_nuevo_catalogo(db: Session, Modelo, nombre, etiqueta: str) -
     limpio = (nombre or "").strip()
     if not limpio:
         raise HTTPException(status_code=400, detail="El nombre es obligatorio")
+    # Se compara en Python (casefold) para que "útiles" y "Útiles" cuenten
+    # como iguales en cualquier base de datos; los catálogos son pequeños.
     clave = limpio.casefold()
     existente = next(
         (c for c in db.query(Modelo).all() if (c.nombre or "").strip().casefold() == clave),

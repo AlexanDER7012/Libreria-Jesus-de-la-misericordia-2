@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, DECIMAL, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, DECIMAL, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -101,3 +101,22 @@ class Alerta(Base):
     fecha_lectura = Column(DateTime)
 
     producto = relationship("Producto")
+
+
+class InventarioUbicacion(Base):
+    """
+    Stock de cada producto en cada ubicación (sucursal, bodega, área de
+    ventas...). producto.stock_actual sigue existiendo y siempre es la SUMA
+    de estas filas (el total de la librería), para que todo lo que ya lo usa
+    (reportes, alertas, búsquedas) siga funcionando igual.
+    Toda entrada/salida de stock pasa por app/stock.py (mover_stock).
+    """
+    __tablename__ = "inventario_ubicacion"
+    __table_args__ = (
+        UniqueConstraint("id_producto", "id_ubicacion", name="uq_inventario_producto_ubicacion"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    id_producto = Column(Integer, ForeignKey("producto.id"), nullable=False, index=True)
+    id_ubicacion = Column(Integer, ForeignKey("ubicacion.id"), nullable=False, index=True)
+    cantidad = Column(DECIMAL(12, 2), nullable=False, default=0, server_default="0")
