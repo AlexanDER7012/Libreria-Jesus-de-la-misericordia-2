@@ -264,22 +264,50 @@ body {
   padding: 0.75rem 1rem;
 }
 
+.modal-dialog.modal-producto {
+  --bs-modal-width: min(98vw, 1500px);
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.modal-producto .modal-content {
+  height: calc(100dvh - 1rem);
+  max-height: calc(100dvh - 1rem);
+}
+
+.modal-producto .modal-header,
+.modal-producto .modal-footer {
+  flex: 0 0 auto;
+  padding: 0.65rem 1.25rem;
+}
+
+.modal-producto .modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
+.modal-producto .modal-body {
+  flex: 1 1 auto;
+}
+
 .producto-compact-form .row {
-  --bs-gutter-y: 0.4rem;
-  margin-bottom: 0.45rem !important;
+  --bs-gutter-y: 0.2rem;
+  margin-bottom: 0.25rem !important;
 }
 
 .producto-compact-form .form-label {
-  margin-bottom: 0.15rem;
-  line-height: 1.15;
+  margin-bottom: 0.1rem;
+  line-height: 1.05;
+  font-size: 0.9rem;
 }
 
 .producto-compact-form .form-control,
 .producto-compact-form .form-select,
 .producto-compact-form .input-group-text {
-  min-height: 34px;
-  padding-top: 0.3rem;
-  padding-bottom: 0.3rem;
+  min-height: 32px;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
 }
 
 .producto-compact-form small {

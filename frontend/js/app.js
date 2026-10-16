@@ -285,6 +285,7 @@ class App {
     this.currentModule = null;
     const mainContent = document.getElementById("mainContent");
     if (!mainContent) return;
+    mainContent.classList.add("home-screen");
 
     const allModules = [
       {
@@ -360,8 +361,8 @@ class App {
     let cards = mainModules
       .map(
         (m) => `
-      <div class="col-12 col-sm-6 col-lg-4">
-        <div class="card modulo-card text-center p-3" onclick="window.app.loadModule('${m.id}')">
+      <div class="home-module-item">
+        <div class="card modulo-card text-center" onclick="window.app.loadModule('${m.id}')">
           <div class="modulo-icon">
             <img src="assets/img/modulos/${m.imagen}" alt="${m.label}" loading="lazy">
           </div>
@@ -373,7 +374,7 @@ class App {
       .join("");
 
     mainContent.innerHTML = `
-      <div class="row g-4 justify-content-center">
+      <div class="home-module-grid">
         ${cards}
       </div>
     `;
@@ -444,6 +445,7 @@ class App {
 
     const mainContent = document.getElementById("mainContent");
     if (!mainContent) return;
+    mainContent.classList.remove("home-screen");
 
     try {
       switch (realModule) {
