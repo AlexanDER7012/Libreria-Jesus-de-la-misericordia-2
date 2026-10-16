@@ -2028,7 +2028,27 @@ async function anularVenta(id) {
 // ============================================================
 // MODAL DE PAGO PARA VENTA
 // ============================================================
-function mostrarModalPago(idVenta) {
+// Saldo pendiente de una venta (total - pagos registrados)
+async function saldoPendienteVenta(idVenta) {
+  const venta = await api.getVenta(idVenta);
+  const pagado = (venta?.pagos || []).reduce(
+    (suma, p) => suma + (parseFloat(p.monto) || 0),
+    0,
+  );
+  return Math.round(((parseFloat(venta?.total) || 0) - pagado) * 100) / 100;
+}
+
+async function mostrarModalPago(idVenta) {
+  let saldo = null;
+  try {
+    saldo = await saldoPendienteVenta(idVenta);
+  } catch (e) {
+    saldo = null;
+  }
+  if (saldo !== null && saldo <= 0) {
+    showToast("Esta venta ya está pagada por completo", "info");
+    return;
+  }
   const modalId = "pagoVentaModal";
   let modal = document.getElementById(modalId);
 
@@ -2051,6 +2071,7 @@ function mostrarModalPago(idVenta) {
         </div>
         <div class="modal-body">
           <form id="pagoVentaForm" onsubmit="registrarPagoVenta(event, ${idVenta})">
+            ${saldo !== null ? `<div class="alert alert-warning py-2">Saldo pendiente: <strong>Q${saldo.toFixed(2)}</strong></div>` : ""}
             <div class="mb-3">
               <label class="form-label">Tipo de Pago *</label>
               <select class="form-select" id="pagoVentaTipo" required>
@@ -2063,8 +2084,9 @@ function mostrarModalPago(idVenta) {
             </div>
             <div class="mb-3">
               <label class="form-label">Monto *</label>
-              <input type="number" class="form-control" id="pagoVentaMonto" 
-                     step="0.01" min="0.01" required>
+              <input type="number" class="form-control" id="pagoVentaMonto"
+                     step="0.01" min="0.01" ${saldo !== null ? `max="${saldo.toFixed(2)}" value="${saldo.toFixed(2)}"` : ""} required>
+              <div class="form-text">No puede ser mayor que el saldo pendiente.</div>
             </div>
             <div class="mb-3">
               <label class="form-label">Referencia (opcional)</label>
@@ -2111,6 +2133,19 @@ async function registrarPagoVenta(event, idVenta) {
   if (!monto || monto <= 0) {
     showToast("Ingresa un monto válido", "error");
     return;
+  }
+
+  try {
+    const saldo = await saldoPendienteVenta(idVenta);
+    if (monto > saldo + 0.009) {
+      showToast(
+        `El pago (Q${monto.toFixed(2)}) es mayor que el saldo pendiente (Q${saldo.toFixed(2)})`,
+        "error",
+      );
+      return;
+    }
+  } catch (e) {
+    // si no se pudo consultar, el servidor igual lo valida
   }
 
   try {
