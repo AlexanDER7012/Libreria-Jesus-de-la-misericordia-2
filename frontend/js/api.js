@@ -1,5 +1,5 @@
 // api.js
-const API_BASE_URL = window.location.origin;
+const API_BASE_URL = window.location.origin; // Asume que el backend está en la misma URL que el frontend
 
 class ApiClient {
   constructor() {
