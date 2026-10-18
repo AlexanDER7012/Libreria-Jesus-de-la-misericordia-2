@@ -1,7 +1,7 @@
 from datetime import date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
@@ -42,6 +42,7 @@ router_tipo_pago = APIRouter()
 def listar_turnos(
     estado: Optional[str] = None,
     id_ubicacion: Optional[int] = None,
+    id_usuario: Optional[int] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
@@ -52,6 +53,8 @@ def listar_turnos(
     query = db.query(CajaTurno).order_by(CajaTurno.fecha_apertura.desc())
     if estado is not None:
         query = query.filter(CajaTurno.estado == estado)
+    if id_usuario is not None:
+        query = query.filter(CajaTurno.id_usuario == id_usuario)
     if id_ubicacion is not None:
         query = query.filter(CajaTurno.id_ubicacion == id_ubicacion)
     if fecha_desde is not None:
@@ -147,16 +150,33 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
 @router_caja_chica.get("", response_model=List[CajaChicaMovimientoResponse])
 def listar_movimientos_caja_chica(
     id_ubicacion: Optional[int] = None,
+    tipo: Optional[str] = None,
+    buscar: Optional[str] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     usuario_actual=Depends(get_current_user),
 ):
-    """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
-    query = db.query(CajaChicaMovimiento).order_by(CajaChicaMovimiento.fecha.desc())
+    """
+    Filtra por ubicación, tipo (ingreso/egreso), texto (concepto, referencia
+    u observaciones) y fechas. Paginado: ?skip=0&limit=50 (default), máximo 200.
+    """
+    query = db.query(CajaChicaMovimiento).order_by(CajaChicaMovimiento.fecha.desc(), CajaChicaMovimiento.id.desc())
     if id_ubicacion is not None:
         query = query.filter(CajaChicaMovimiento.id_ubicacion == id_ubicacion)
+    if tipo:
+        query = query.filter(func.lower(CajaChicaMovimiento.tipo) == tipo.strip().lower())
+    if buscar:
+        patron = f"%{buscar.strip()}%"
+        condiciones = [
+            CajaChicaMovimiento.concepto.ilike(patron),
+            CajaChicaMovimiento.referencia.ilike(patron),
+            CajaChicaMovimiento.observaciones.ilike(patron),
+        ]
+        if buscar.strip().isdigit():
+            condiciones.append(CajaChicaMovimiento.id == int(buscar.strip()))
+        query = query.filter(or_(*condiciones))
     if fecha_desde is not None:
         query = query.filter(func.date(CajaChicaMovimiento.fecha) >= fecha_desde)
     if fecha_hasta is not None:
@@ -229,14 +249,18 @@ def listar_gastos(
     db: Session = Depends(get_db),
     usuario_actual=Depends(get_current_user),
 ):
-    """buscar: coincidencia en el concepto del gasto. Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
-    query = db.query(Gasto).order_by(Gasto.fecha.desc())
+    """buscar: coincidencia en el concepto u observaciones del gasto. Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
+    query = db.query(Gasto).order_by(Gasto.fecha.desc(), Gasto.id.desc())
     if id_ubicacion is not None:
         query = query.filter(Gasto.id_ubicacion == id_ubicacion)
     if id_tipo_gasto is not None:
         query = query.filter(Gasto.id_tipo_gasto == id_tipo_gasto)
     if buscar:
-        query = query.filter(Gasto.concepto.ilike(f"%{buscar}%"))
+        patron = f"%{buscar.strip()}%"
+        condiciones = [Gasto.concepto.ilike(patron), Gasto.observaciones.ilike(patron)]
+        if buscar.strip().isdigit():
+            condiciones.append(Gasto.id == int(buscar.strip()))
+        query = query.filter(or_(*condiciones))
     if fecha_desde is not None:
         query = query.filter(func.date(Gasto.fecha) >= fecha_desde)
     if fecha_hasta is not None:

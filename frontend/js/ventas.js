@@ -240,18 +240,30 @@ async function cargarVentasTabla() {
   const buscar = buscarInput ? buscarInput.value.trim() : "";
   const desde = desdeInput ? desdeInput.value : "";
   const hasta = hastaInput ? hastaInput.value : "";
+  if (!rangoFechasValidoFiltro(desde, hasta)) return;
 
   try {
     let url = `/ventas?skip=${skipVentasTabla}&limit=${LIMITE_VENTAS_TABLA}`;
     if (buscar) url += `&buscar=${encodeURIComponent(buscar)}`;
     if (desde) url += `&fecha_desde=${desde}`;
     if (hasta) url += `&fecha_hasta=${hasta}`;
+    url += filtrosExtraVentasUrl();
 
     ventasData = (await api.request(url)) || [];
     renderVentasTable(ventasData);
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">Error al cargar ventas: ${error.message}</div>`;
   }
+}
+
+// Filtros de Estado y Pago de la tabla de ventas
+function filtrosExtraVentasUrl() {
+  const estado = document.getElementById("ventaFiltroEstado")?.value || "";
+  const pago = document.getElementById("ventaFiltroPago")?.value || "";
+  let extra = "";
+  if (estado) extra += `&estado=${encodeURIComponent(estado)}`;
+  if (pago) extra += `&estado_pago=${encodeURIComponent(pago)}`;
+  return extra;
 }
 
 function onVentaSearchInput() {
@@ -274,6 +286,10 @@ function limpiarFiltroVentas() {
   if (input) input.value = "";
   if (desde) desde.value = "";
   if (hasta) hasta.value = "";
+  ["ventaFiltroEstado", "ventaFiltroPago"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
   skipVentasTabla = 0;
   cargarVentasTabla();
 }
@@ -297,10 +313,14 @@ function renderVentasTable(ventas) {
   ).replace(/"/g, "&quot;");
   const fechaDesdePrevia = document.getElementById("ventaFechaDesde")?.value || "";
   const fechaHastaPrevia = document.getElementById("ventaFechaHasta")?.value || "";
+  const estadoPrevio = document.getElementById("ventaFiltroEstado")?.value || "";
+  const pagoPrevio = document.getElementById("ventaFiltroPago")?.value || "";
+  const opcion = (valor, texto, previo) =>
+    `<option value="${valor}" ${valor === previo ? "selected" : ""}>${texto}</option>`;
 
   let searchHtml = `
     <div class="row mb-3 g-2">
-      <div class="col-md-4">
+      <div class="col-md-3">
         <div class="input-group">
           <input type="text" class="form-control" id="ventaSearchInput"
                 placeholder="Buscar por ID, cliente, NIT o producto..."
@@ -314,14 +334,35 @@ function renderVentasTable(ventas) {
         </div>
       </div>
       <div class="col-md-2">
-        <input type="date" class="form-control" id="ventaFechaDesde" title="Desde"
-               value="${fechaDesdePrevia}" onchange="filtrarVentas()">
+        <select class="form-select" id="ventaFiltroEstado" onchange="filtrarVentas()" title="Estado">
+          ${opcion("", "Todos los estados", estadoPrevio)}
+          ${opcion("Completada", "Completadas", estadoPrevio)}
+          ${opcion("Cancelada", "Canceladas", estadoPrevio)}
+        </select>
       </div>
       <div class="col-md-2">
-        <input type="date" class="form-control" id="ventaFechaHasta" title="Hasta"
-               value="${fechaHastaPrevia}" onchange="filtrarVentas()">
+        <select class="form-select" id="ventaFiltroPago" onchange="filtrarVentas()" title="Pago">
+          ${opcion("", "Pagadas y pendientes", pagoPrevio)}
+          ${opcion("Pagada", "Solo pagadas", pagoPrevio)}
+          ${opcion("Pendiente", "Con saldo pendiente", pagoPrevio)}
+        </select>
       </div>
-      <div class="col-md-4 text-end">
+      <div class="col-md-2">
+        <div class="input-group">
+          <span class="input-group-text">Desde</span>
+          <input type="date" class="form-control" id="ventaFechaDesde" title="Desde"
+                 value="${fechaDesdePrevia}" onchange="filtrarVentas()">
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="input-group">
+          <span class="input-group-text">Hasta</span>
+          <input type="date" class="form-control" id="ventaFechaHasta" title="Hasta"
+                 value="${fechaHastaPrevia}" onchange="filtrarVentas()">
+        </div>
+      </div>
+      <div class="col-md-1"></div>
+      <div class="col-12 text-end">
         <button class="btn btn-success btn-sm" onclick="exportarVentasExcel()">
           <i class="fas fa-file-excel me-1"></i>Exportar
         </button>
@@ -538,6 +579,7 @@ async function obtenerTodasLasVentasFiltradasParaExportar() {
     if (buscar) url += `&buscar=${encodeURIComponent(buscar)}`;
     if (desde) url += `&fecha_desde=${desde}`;
     if (hasta) url += `&fecha_hasta=${hasta}`;
+    url += filtrosExtraVentasUrl();
     const pagina = (await api.request(url).catch(() => [])) || [];
     todas = todas.concat(pagina);
     if (pagina.length < LIMITE) break;
@@ -2017,7 +2059,7 @@ async function anularVenta(id) {
   if (!confirmado) return;
 
   try {
-    await api.request(`/ventas/${id}`, "PATCH", { estado: "Anulada" });
+    await api.request(`/ventas/${id}/cancelar`, "PATCH");
     showToast("Venta anulada correctamente", "success");
     await loadVentasModule();
   } catch (error) {
@@ -2216,13 +2258,72 @@ function crearClienteDesdeVenta() {
 // ============================================================
 // PESTAÑA: CLIENTES CON REACTIVAR
 // ============================================================
+// Clientes: búsqueda, tipo, estado y fecha de registro se filtran en el
+// servidor (antes solo se buscaba entre los primeros 50 clientes activos)
+let skipClientesSub = 0;
+const LIMITE_CLIENTES_SUB = 50;
+
 async function cargarSubClientes() {
   const container = document.getElementById("clientesSubContainer");
   if (!container) return;
 
+  // La barra se dibuja una sola vez (así no se pierde lo que se escribe)
+  if (!document.getElementById("clientesSubBarraFiltros")) {
+    container.innerHTML = `
+      ${htmlBarraFiltros({
+        id: "clientesSub",
+        placeholder: "Buscar por nombre, NIT, teléfono o email...",
+        selects: [
+          {
+            id: "Tipo",
+            label: "Todos los tipos",
+            opciones: [
+              ["General", "General"],
+              ["Frecuente", "Frecuente"],
+              ["Mayorista", "Mayorista"],
+            ],
+          },
+          {
+            id: "Estado",
+            label: "Solo activos",
+            opciones: [
+              ["inactivos", "Solo inactivos"],
+              ["todos", "Activos e inactivos"],
+            ],
+          },
+        ],
+        fechas: true,
+        onChange: "filtrarClientes()",
+        extraHtml: tienePermiso("Ventas", "Crear")
+          ? `<button class="btn btn-primary btn-sm" onclick="showCreateClienteSubModal()">
+              <i class="fas fa-plus me-2"></i>Nuevo Cliente
+            </button>`
+          : "",
+      })}
+      <div class="form-text mb-2">El rango de fechas es por la fecha de registro del cliente.</div>
+      <div id="clientesSubResultados"></div>
+    `;
+  }
+  const destino = document.getElementById("clientesSubResultados");
+
   try {
-    const clientes = await api.getClientes().catch(() => []);
-    window.clientesData = clientes || [];
+    const f = leerBarraFiltros("clientesSub");
+    if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return;
+    let url = `/clientes?skip=${skipClientesSub}&limit=${LIMITE_CLIENTES_SUB}&estado=${f.Estado || "activos"}`;
+    if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
+    if (f.Tipo) url += `&tipo_cliente=${encodeURIComponent(f.Tipo)}`;
+    if (f.desde) url += `&fecha_desde=${f.desde}`;
+    if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
+    const clientes = (await api.request(url).catch(() => [])) || [];
+
+    // Se agregan a la lista general (la usan otras pantallas para mostrar
+    // nombres) sin reemplazarla por el resultado filtrado
+    window.clientesData = window.clientesData || [];
+    clientes.forEach((c) => {
+      const i = window.clientesData.findIndex((x) => x.id === c.id);
+      if (i >= 0) window.clientesData[i] = c;
+      else window.clientesData.push(c);
+    });
 
     const conteoVentasPorCliente = {};
     try {
@@ -2235,48 +2336,28 @@ async function cargarSubClientes() {
       });
     } catch (e) {}
 
-    let searchHtml = `
-      <div class="row mb-3">
-        <div class="col-md-6">
-          <div class="input-group">
-            <input type="text" class="form-control" id="clienteSearchInput" 
-                   placeholder="Buscar cliente por nombre o NIT..." 
-                   oninput="filtrarClientes()">
-            <button class="btn btn-outline-secondary" onclick="filtrarClientes()">
-              <i class="fas fa-search"></i>
-            </button>
-            <button class="btn btn-outline-danger" onclick="limpiarFiltroClientes()">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-        </div>
-        <div class="col-md-6 text-end">
-          ${
-            tienePermiso("Ventas", "Crear")
-              ? `<button class="btn btn-primary btn-sm" onclick="showCreateClienteSubModal()">
-            <i class="fas fa-plus me-2"></i>Nuevo Cliente
-          </button>`
-              : ""
-          }
-        </div>
-      </div>
-    `;
+    const paginacionHtml = `
+      <div class="d-flex justify-content-between align-items-center mt-2">
+        <button class="btn btn-sm btn-outline-secondary" onclick="clientesSubPagina(-1)" ${skipClientesSub === 0 ? "disabled" : ""}>
+          <i class="fas fa-chevron-left me-1"></i>Anterior
+        </button>
+        <small class="text-muted">Página ${Math.floor(skipClientesSub / LIMITE_CLIENTES_SUB) + 1} — Mostrando ${clientes.length} cliente(s)</small>
+        <button class="btn btn-sm btn-outline-secondary" onclick="clientesSubPagina(1)" ${clientes.length < LIMITE_CLIENTES_SUB ? "disabled" : ""}>
+          Siguiente<i class="fas fa-chevron-right ms-1"></i>
+        </button>
+      </div>`;
 
-    if (!clientes || clientes.length === 0) {
-      container.innerHTML =
-        searchHtml +
-        `
+    if (clientes.length === 0) {
+      destino.innerHTML = `
         <div class="text-center py-5">
           <i class="fas fa-users fa-3x text-muted mb-3"></i>
-          <p class="text-muted">No hay clientes registrados</p>
+          <p class="text-muted">No hay clientes que coincidan con el filtro</p>
         </div>
-      `;
+      ` + (skipClientesSub > 0 ? paginacionHtml : "");
       return;
     }
 
-    let html =
-      searchHtml +
-      `
+    let html = `
       <div class="table-responsive">
         <table class="table table-hover table-striped" id="clientesTable">
           <thead class="table-light">
@@ -2286,6 +2367,8 @@ async function cargarSubClientes() {
               <th>Teléfono</th>
               <th>Email</th>
               <th>NIT</th>
+              <th>Tipo</th>
+              <th>Registro</th>
               <th>Ventas</th>
               <th>Estado</th>
               <th>Acciones</th>
@@ -2302,12 +2385,14 @@ async function cargarSubClientes() {
           <td>${c.id}</td>
           <td>
             <button class="btn btn-link btn-sm p-0 text-primary" onclick="verFichaCliente(${c.id})">
-              ${c.nombre || "--"}
+              ${escaparHtmlEscaner(c.nombre || "--")}
             </button>
           </td>
-          <td>${c.telefono || "--"}</td>
-          <td>${c.email || "--"}</td>
-          <td>${c.nit || "--"}</td>
+          <td>${escaparHtmlEscaner(c.telefono || "--")}</td>
+          <td>${escaparHtmlEscaner(c.email || "--")}</td>
+          <td>${escaparHtmlEscaner(c.nit || "--")}</td>
+          <td>${escaparHtmlEscaner(c.tipo_cliente || "General")}</td>
+          <td><small>${c.fecha_registro ? new Date(c.fecha_registro).toLocaleDateString("es-GT") : "--"}</small></td>
           <td><span class="badge bg-info">${totalVentasCliente}</span></td>
           <td>
             <span class="badge ${activo ? "bg-success" : "bg-danger"}">
@@ -2323,7 +2408,7 @@ async function cargarSubClientes() {
                 : ""
             }
             ${
-              tienePermiso("Ventas", "Eliminar")
+              activo && tienePermiso("Ventas", "Eliminar")
                 ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteClienteSub(${c.id})">
               <i class="fas fa-trash"></i>
             </button>`
@@ -2347,37 +2432,27 @@ async function cargarSubClientes() {
           </tbody>
         </table>
       </div>
-      <div class="text-end">
-        <small class="text-muted">Total: ${clientes.length} clientes</small>
-      </div>
-    `;
+    ` + paginacionHtml;
 
-    container.innerHTML = html;
+    destino.innerHTML = html;
   } catch (error) {
-    container.innerHTML = `<div class="alert alert-danger">Error al cargar clientes: ${error.message}</div>`;
+    destino.innerHTML = `<div class="alert alert-danger">Error al cargar clientes: ${error.message}</div>`;
   }
 }
 
 function filtrarClientes() {
-  const search = document
-    .getElementById("clienteSearchInput")
-    .value.toLowerCase()
-    .trim();
-  const tbody = document.getElementById("clientesTableBody");
-  if (!tbody) return;
-  const rows = tbody.getElementsByTagName("tr");
-  for (const row of rows) {
-    const text = row.textContent.toLowerCase();
-    row.style.display = !search || text.includes(search) ? "" : "none";
-  }
+  skipClientesSub = 0;
+  cargarSubClientes();
+}
+
+function clientesSubPagina(direccion) {
+  skipClientesSub = Math.max(0, skipClientesSub + direccion * LIMITE_CLIENTES_SUB);
+  cargarSubClientes();
 }
 
 function limpiarFiltroClientes() {
-  const input = document.getElementById("clienteSearchInput");
-  if (input) {
-    input.value = "";
-    filtrarClientes();
-  }
+  limpiarBarraFiltros("clientesSub");
+  filtrarClientes();
 }
 
 async function reactivarCliente(id) {
@@ -2425,35 +2500,38 @@ async function cargarSubCotizaciones() {
   if (!container) return;
 
   try {
-    const cotizaciones = await api.request("/cotizaciones").catch(() => []);
+    // Estado y fechas se filtran en el servidor; el texto, en la tabla
+    const f = leerBarraFiltros("cotizaciones");
+    if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return;
+    let url = "/cotizaciones?limit=200";
+    if (f.Estado) url += `&estado=${encodeURIComponent(f.Estado)}`;
+    if (f.desde) url += `&fecha_desde=${f.desde}`;
+    if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
+    const cotizaciones = await api.request(url).catch(() => []);
     cotizacionesData = cotizaciones || [];
 
-    let searchHtml = `
-      <div class="row mb-3">
-        <div class="col-md-6">
-          <div class="input-group">
-            <input type="text" class="form-control" id="cotizacionSearchInput" 
-                   placeholder="Buscar por ID, cliente, NIT o producto..." 
-                   oninput="filtrarCotizaciones()">
-            <button class="btn btn-outline-secondary" onclick="filtrarCotizaciones()">
-              <i class="fas fa-search"></i>
-            </button>
-            <button class="btn btn-outline-danger" onclick="limpiarFiltroCotizaciones()">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-        </div>
-        <div class="col-md-6 text-end">
-          ${
-            tienePermiso("Ventas", "Crear")
-              ? `<button class="btn btn-success btn-sm" onclick="showCreateCotizacionModal()">
+    let searchHtml = htmlBarraFiltros({
+      id: "cotizaciones",
+      placeholder: "Buscar por ID, expediente o cliente...",
+      selects: [
+        {
+          id: "Estado",
+          label: "Todos los estados",
+          opciones: [
+            ["Pendiente", "Pendientes"],
+            ["Aceptada", "Aceptadas"],
+            ["Rechazada", "Rechazadas"],
+          ],
+        },
+      ],
+      fechas: true,
+      onChange: "filtrarCotizaciones()",
+      extraHtml: tienePermiso("Ventas", "Crear")
+        ? `<button class="btn btn-success btn-sm" onclick="showCreateCotizacionModal()">
             <i class="fas fa-plus me-2"></i>Nueva Cotización
           </button>`
-              : ""
-          }
-        </div>
-      </div>
-    `;
+        : "",
+    });
 
     container.innerHTML =
       searchHtml +
@@ -2470,8 +2548,8 @@ async function cargarSubCotizaciones() {
         <div class="col-md-4">
           <div class="card bg-success bg-opacity-10 mb-3">
             <div class="card-body">
-              <h6 class="fw-bold">Total Aprobadas</h6>
-              <h3 class="text-success">${cotizacionesData.filter((c) => c.estado === "Aprobada").length}</h3>
+              <h6 class="fw-bold">Total Aceptadas</h6>
+              <h3 class="text-success">${cotizacionesData.filter((c) => esCotizacionAceptada(c)).length}</h3>
             </div>
           </div>
         </div>
@@ -2511,7 +2589,7 @@ async function cargarSubCotizaciones() {
                       );
                       const nombreCliente = cliente ? cliente.nombre : "--";
                       const estadoColor =
-                        c.estado === "Aprobada"
+                        esCotizacionAceptada(c)
                           ? "success"
                           : c.estado === "Rechazada"
                             ? "danger"
@@ -2555,34 +2633,63 @@ async function cargarSubCotizaciones() {
         </table>
       </div>
       <div class="text-end">
-        <small class="text-muted">Total: ${cotizacionesData.length} cotizaciones</small>
+        <small class="text-muted" id="cotizacionesConteo">Total: ${cotizacionesData.length} cotizaciones</small>
       </div>
     `;
+    aplicarTextoCotizaciones();
+    const buscar = document.getElementById("cotizacionesBuscar");
+    if (buscar && window.__focoCotizaciones) {
+      buscar.focus();
+      buscar.setSelectionRange(buscar.value.length, buscar.value.length);
+    }
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">Error al cargar cotizaciones: ${error.message}</div>`;
   }
 }
 
-function filtrarCotizaciones() {
-  const search = document
-    .getElementById("cotizacionSearchInput")
-    .value.toLowerCase()
-    .trim();
+// El servidor guarda "Aceptada"; antes la pantalla buscaba "Aprobada" y
+// nunca mostraba las aceptadas (ni el botón para convertirlas en venta)
+function esCotizacionAceptada(c) {
+  return c && (c.estado === "Aceptada" || c.estado === "Aprobada");
+}
+
+// Búsqueda por texto sobre las filas ya cargadas
+function aplicarTextoCotizaciones() {
+  const { texto } = leerBarraFiltros("cotizaciones");
   const tbody = document.getElementById("cotizacionesTableBody");
   if (!tbody) return;
-  const rows = tbody.getElementsByTagName("tr");
-  for (const row of rows) {
-    const text = row.textContent.toLowerCase();
-    row.style.display = !search || text.includes(search) ? "" : "none";
+  let visibles = 0;
+  const filas = [...tbody.getElementsByTagName("tr")];
+  filas.forEach((row) => {
+    const ok = coincideTextoFiltro(texto, row.textContent);
+    row.style.display = ok ? "" : "none";
+    if (ok) visibles++;
+  });
+  const conteo = document.getElementById("cotizacionesConteo");
+  if (conteo) {
+    conteo.textContent = texto
+      ? `Mostrando ${visibles} de ${cotizacionesData.length} cotizaciones`
+      : `Total: ${cotizacionesData.length} cotizaciones`;
   }
 }
 
-function limpiarFiltroCotizaciones() {
-  const input = document.getElementById("cotizacionSearchInput");
-  if (input) {
-    input.value = "";
-    filtrarCotizaciones();
+// Estado y fechas recargan desde el servidor; el texto solo filtra la tabla
+function filtrarCotizaciones() {
+  const f = leerBarraFiltros("cotizaciones");
+  const clave = `${f.Estado}|${f.desde}|${f.hasta}`;
+  if (clave === window.__claveCotizaciones) {
+    aplicarTextoCotizaciones();
+    return;
   }
+  window.__claveCotizaciones = clave;
+  window.__focoCotizaciones =
+    document.activeElement?.id === "cotizacionesBuscar";
+  cargarSubCotizaciones();
+}
+
+function limpiarFiltroCotizaciones() {
+  limpiarBarraFiltros("cotizaciones");
+  filtrarCotizaciones();
 }
 
 // ============================================================
@@ -3100,7 +3207,7 @@ async function verCotizacion(id) {
           </div>
           <div class="col-md-6">
             <strong>Estado:</strong> 
-            <span class="badge ${cotizacion.estado === "Aprobada" ? "bg-success" : cotizacion.estado === "Rechazada" ? "bg-danger" : "bg-warning"}">
+            <span class="badge ${esCotizacionAceptada(cotizacion) ? "bg-success" : cotizacion.estado === "Rechazada" ? "bg-danger" : "bg-warning"}">
               ${cotizacion.estado || "Pendiente"}
             </span>
           </div>
@@ -3155,7 +3262,7 @@ async function verCotizacion(id) {
             : ""
         }
         ${
-          cotizacion.estado === "Aprobada" && tienePermiso("Ventas", "Crear")
+          esCotizacionAceptada(cotizacion) && tienePermiso("Ventas", "Crear")
             ? `
           <button class="btn btn-warning" onclick="crearVentaDesdeCotizacion(${cotizacion.id})">
             <i class="fas fa-shopping-cart me-1"></i>Convertir en Venta
@@ -3242,7 +3349,7 @@ async function cargarSubServicios() {
 
   try {
     const servicios = await api
-      .request("/servicios-adicionales")
+      .request("/servicios-adicionales?limit=200")
       .catch(() => []);
     serviciosAdicionalesData = servicios || [];
 
@@ -3291,21 +3398,27 @@ async function cargarSubServicios() {
             : ""
         }
       </div>
-      <div class="row mb-3">
-        <div class="col-md-4">
-          <label class="form-label small">Filtrar por Cliente</label>
-          <select class="form-select form-select-sm" id="filtroClienteServicios" onchange="filtrarServicios()">
-            <option value="">Todos los clientes</option>
-            ${(window.clientesData || [])
-              .map(
-                (c) => `
-              <option value="${c.id}">${c.nombre}</option>
-            `,
-              )
-              .join("")}
-          </select>
-        </div>
-      </div>
+      ${htmlBarraFiltros({
+        id: "servicios",
+        placeholder: "Buscar por ID, venta, tipo o descripción...",
+        selects: [
+          {
+            id: "Cliente",
+            label: "Todos los clientes",
+            opciones: (window.clientesData || []).map((c) => [c.id, c.nombre]),
+          },
+          {
+            id: "Pago",
+            label: "Pagados y pendientes",
+            opciones: [
+              ["Pagado", "Solo pagados"],
+              ["Pendiente", "Con saldo pendiente"],
+            ],
+          },
+        ],
+        fechas: true,
+        onChange: "filtrarServicios()",
+      })}
       <div class="table-responsive">
         <table class="table table-hover table-striped" id="serviciosTable">
           <thead class="table-light">
@@ -3315,6 +3428,7 @@ async function cargarSubServicios() {
               <th>Cliente</th>
               <th>Tipo</th>
               <th>Descripción</th>
+              <th>Fecha</th>
               <th>Material</th>
               <th>Mano Obra</th>
               <th>Total</th>
@@ -3327,13 +3441,12 @@ async function cargarSubServicios() {
       </div>
       <div id="serviciosPaginacionContainer" class="d-flex justify-content-between align-items-center mt-2"></div>
       <div class="text-end">
-        <small class="text-muted">Total: ${servicios.length} servicios</small>
+        <small class="text-muted" id="serviciosConteo">Total: ${servicios.length} servicios</small>
       </div>
     `;
 
     container.innerHTML = html;
-    paginaServicios = 0;
-    _renderServiciosPaginado(serviciosAdicionalesData);
+    filtrarServicios();
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">Error al cargar servicios: ${error.message}</div>`;
   }
@@ -3362,52 +3475,8 @@ function renderServiciosRows(servicios) {
         (c) => c.id === s.id_cliente,
       );
       const nombreCliente = cliente ? cliente.nombre : "--";
-
-      // Verificar estado de pago correcto
-      let estadoPago = "Pendiente";
-      let badgeColor = "bg-danger";
-      let estaPagado = false;
-      let saldoRestante = s.total || 0;
-
-      if (s.id_venta) {
-        const venta = (window.__ventasPorServicioMap || {})[s.id_venta];
-        if (venta) {
-          // Total de pagos de la venta
-          const totalPagos = (venta.pagos || []).reduce(
-            (sum, p) => sum + (p.monto || 0),
-            0,
-          );
-          const saldoVenta = venta.total - totalPagos;
-
-          // ✅ Si el saldo de la venta es 0, todo está pagado
-          if (saldoVenta <= 0) {
-            estadoPago = "Pagado";
-            badgeColor = "bg-success";
-            estaPagado = true;
-            saldoRestante = 0;
-          } else {
-            // ✅ Si hay saldo, calcular cuánto del servicio está pendiente
-            // Primero se pagan los productos (subtotal), luego los servicios
-            const saldoProductos = (venta.subtotal || 0) - totalPagos;
-
-            if (saldoProductos < 0) {
-              // Parte de los pagos se aplicaron a servicios
-              const pagoServicios = Math.abs(saldoProductos);
-              if (pagoServicios >= s.total) {
-                estadoPago = "Pagado";
-                badgeColor = "bg-success";
-                estaPagado = true;
-                saldoRestante = 0;
-              } else {
-                saldoRestante = s.total - pagoServicios;
-              }
-            } else {
-              // No se ha pagado ningún servicio
-              saldoRestante = s.total;
-            }
-          }
-        }
-      }
+      const { estadoPago, badgeColor, estaPagado, saldoRestante } =
+        estadoPagoServicio(s);
 
       return `
       <tr>
@@ -3420,6 +3489,7 @@ function renderServiciosRows(servicios) {
         </td>
         <td>${s.tipo_servicio || "--"}</td>
         <td>${s.descripcion || "--"}</td>
+        <td><small>${s.fecha ? new Date(s.fecha).toLocaleString("es-GT") : "--"}</small></td>
         <td>Q${(s.monto_material || 0).toFixed(2)}</td>
         <td>Q${(s.monto_mano_obra || 0).toFixed(2)}</td>
         <td><strong>Q${(s.total || 0).toFixed(2)}</strong></td>
@@ -3469,13 +3539,73 @@ function renderServiciosRows(servicios) {
     .join("");
 }
 
+// Estado de pago de un servicio (según los pagos de su venta)
+function estadoPagoServicio(s) {
+      let estadoPago = "Pendiente";
+      let badgeColor = "bg-danger";
+      let estaPagado = false;
+      let saldoRestante = s.total || 0;
+
+      if (s.id_venta) {
+        const venta = (window.__ventasPorServicioMap || {})[s.id_venta];
+        if (venta) {
+          // Total de pagos de la venta
+          const totalPagos = (venta.pagos || []).reduce(
+            (sum, p) => sum + (p.monto || 0),
+            0,
+          );
+          const saldoVenta = venta.total - totalPagos;
+
+          // ✅ Si el saldo de la venta es 0, todo está pagado
+          if (saldoVenta <= 0) {
+            estadoPago = "Pagado";
+            badgeColor = "bg-success";
+            estaPagado = true;
+            saldoRestante = 0;
+          } else {
+            // ✅ Si hay saldo, calcular cuánto del servicio está pendiente
+            // Primero se pagan los productos (subtotal), luego los servicios
+            const saldoProductos = (venta.subtotal || 0) - totalPagos;
+
+            if (saldoProductos < 0) {
+              // Parte de los pagos se aplicaron a servicios
+              const pagoServicios = Math.abs(saldoProductos);
+              if (pagoServicios >= s.total) {
+                estadoPago = "Pagado";
+                badgeColor = "bg-success";
+                estaPagado = true;
+                saldoRestante = 0;
+              } else {
+                saldoRestante = s.total - pagoServicios;
+              }
+            } else {
+              // No se ha pagado ningún servicio
+              saldoRestante = s.total;
+            }
+          }
+        }
+      }
+  return { estadoPago, badgeColor, estaPagado, saldoRestante };
+}
+
 function _listaServiciosFiltrada() {
-  const filtro = document.getElementById("filtroClienteServicios")?.value;
-  let servicios = serviciosAdicionalesData;
-  if (filtro) {
-    servicios = servicios.filter((s) => s.id_cliente === parseInt(filtro));
-  }
-  return servicios;
+  const f = leerBarraFiltros("servicios");
+  if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return serviciosAdicionalesData;
+  return (serviciosAdicionalesData || []).filter((s) => {
+    if (f.Cliente && String(s.id_cliente) !== String(f.Cliente)) return false;
+    if (f.Pago) {
+      const pagado = estadoPagoServicio(s).estaPagado;
+      if (f.Pago === "Pagado" ? !pagado : pagado) return false;
+    }
+    if (!coincideFechaFiltro(s.fecha, f.desde, f.hasta)) return false;
+    return coincideTextoFiltro(
+      f.texto,
+      s.id,
+      s.id_venta ? `#${s.id_venta}` : "independiente",
+      s.tipo_servicio,
+      s.descripcion,
+    );
+  });
 }
 
 function _renderServiciosPaginado(lista) {
@@ -3506,7 +3636,16 @@ function _renderServiciosPaginado(lista) {
 
 function filtrarServicios() {
   paginaServicios = 0; // el filtro cambió, regresamos a la primera página
-  _renderServiciosPaginado(_listaServiciosFiltrada());
+  const lista = _listaServiciosFiltrada();
+  _renderServiciosPaginado(lista);
+  const conteo = document.getElementById("serviciosConteo");
+  if (conteo) {
+    const total = (serviciosAdicionalesData || []).length;
+    conteo.textContent =
+      lista.length === total
+        ? `Total: ${total} servicios`
+        : `Mostrando ${lista.length} de ${total} servicios`;
+  }
 }
 
 function serviciosAnterior() {
@@ -4148,17 +4287,22 @@ async function cargarSubVendedores() {
   if (!container) return;
 
   try {
+    const f = leerBarraFiltros("vendedores");
+    if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return;
     const usuarios = await api.getUsuarios().catch(() => []);
     const empleados = await api.getEmpleados().catch(() => []);
 
+    // Cantidad y monto de ventas por vendedor (en el rango de fechas elegido)
     const conteoVentasPorVendedor = {};
+    const montoVentasPorVendedor = {};
     try {
-      const conteos =
-        (await api
-          .request("/ventas/conteo?agrupar_por=vendedor")
-          .catch(() => [])) || [];
+      let url = "/ventas/conteo?agrupar_por=vendedor";
+      if (f.desde) url += `&fecha_desde=${f.desde}`;
+      if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
+      const conteos = (await api.request(url).catch(() => [])) || [];
       conteos.forEach((c) => {
         conteoVentasPorVendedor[c.id] = c.total;
+        montoVentasPorVendedor[c.id] = c.monto || 0;
       });
     } catch (e) {}
 
@@ -4188,15 +4332,11 @@ async function cargarSubVendedores() {
           telefono: empleado.telefono,
           rol: rolesMap[u.id_rol] || "--",
           activo: u.activo,
+          ventas: conteoVentasPorVendedor[u.id] || 0,
+          monto: montoVentasPorVendedor[u.id] || 0,
         };
       })
-      .sort(
-        (a, b) =>
-          (conteoVentasPorVendedor[b.id_usuario] || 0) -
-          (conteoVentasPorVendedor[a.id_usuario] || 0),
-      );
-
-    console.log("📋 Vendedores encontrados:", resultado);
+      .sort((a, b) => b.ventas - a.ventas);
 
     if (!resultado || resultado.length === 0) {
       container.innerHTML = `
@@ -4211,11 +4351,66 @@ async function cargarSubVendedores() {
       return;
     }
 
-    let html = `
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h6 class="mb-0">Listado de Vendedores</h6>
-        <span class="badge bg-info">${resultado.length} vendedores</span>
-      </div>
+    window.__vendedoresLista = resultado;
+    window.__claveVendedores = `${f.desde}|${f.hasta}`;
+
+    // La barra se dibuja una sola vez (así no se pierde lo que se escribe)
+    if (!document.getElementById("vendedoresBarraFiltros")) {
+      const rolesUnicos = [...new Set(resultado.map((v) => v.rol))].filter(
+        (r) => r && r !== "--",
+      );
+      container.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="mb-0">Listado de Vendedores</h6>
+          <span class="badge bg-info" id="vendedoresBadge"></span>
+        </div>
+        ${htmlBarraFiltros({
+          id: "vendedores",
+          placeholder: "Buscar por nombre, usuario, email o teléfono...",
+          selects: [
+            { id: "Rol", label: "Todos los roles", opciones: rolesUnicos.map((r) => [r, r]) },
+            { id: "Estado", label: "Activos e inactivos", opciones: [["1", "Activos"], ["0", "Inactivos"]] },
+          ],
+          fechas: true,
+          onChange: "filtrarVendedores()",
+        })}
+        <div class="form-text mb-2">El rango de fechas aplica a la cantidad y el monto de ventas.</div>
+        <div id="vendedoresResultados"></div>
+      `;
+    }
+    renderVendedoresTabla();
+  } catch (error) {
+    console.error("❌ Error cargando vendedores:", error);
+    container.innerHTML = `<div class="alert alert-danger">Error al cargar vendedores: ${error.message}</div>`;
+  }
+}
+
+function filtrarVendedores() {
+  const f = leerBarraFiltros("vendedores");
+  // Si cambiaron las fechas hay que volver a contar las ventas
+  if (`${f.desde}|${f.hasta}` !== window.__claveVendedores) {
+    cargarSubVendedores();
+    return;
+  }
+  renderVendedoresTabla();
+}
+
+function renderVendedoresTabla() {
+  const destino = document.getElementById("vendedoresResultados");
+  if (!destino) return;
+  const f = leerBarraFiltros("vendedores");
+  const todos = window.__vendedoresLista || [];
+  const lista = todos.filter((v) => {
+    if (f.Rol && v.rol !== f.Rol) return false;
+    const activo = v.activo !== 0;
+    if (f.Estado === "1" && !activo) return false;
+    if (f.Estado === "0" && activo) return false;
+    return coincideTextoFiltro(f.texto, v.nombre, v.nombre_usuario, v.email, v.telefono, v.rol);
+  });
+  const badge = document.getElementById("vendedoresBadge");
+  if (badge) badge.textContent = `${todos.length} vendedores`;
+
+  let html = `
       <div class="table-responsive">
         <table class="table table-hover table-striped">
           <thead class="table-light">
@@ -4226,24 +4421,27 @@ async function cargarSubVendedores() {
               <th>Email</th>
               <th>Teléfono</th>
               <th>Ventas</th>
+              <th>Monto vendido</th>
               <th>Estado</th>
             </tr>
           </thead>
           <tbody>
     `;
 
-    resultado.forEach((v) => {
-      const totalVentasVendedor = conteoVentasPorVendedor[v.id_usuario] || 0;
-      const activo = v.activo !== 0;
-
-      html += `
+  if (lista.length === 0) {
+    html += `<tr><td colspan="8" class="text-center text-muted">No hay vendedores que coincidan con el filtro</td></tr>`;
+  }
+  lista.forEach((v) => {
+    const activo = v.activo !== 0;
+    html += `
         <tr>
           <td><strong>${escaparHtmlEscaner(v.nombre || "--")}</strong></td>
           <td>${escaparHtmlEscaner(v.nombre_usuario || "--")}</td>
           <td>${escaparHtmlEscaner(v.rol)}</td>
           <td>${escaparHtmlEscaner(v.email || "Sin email")}</td>
           <td>${escaparHtmlEscaner(v.telefono || "Sin teléfono")}</td>
-          <td><span class="badge bg-warning">${totalVentasVendedor}</span></td>
+          <td><span class="badge bg-warning">${v.ventas}</span></td>
+          <td>Q${Number(v.monto || 0).toFixed(2)}</td>
           <td>
             <span class="badge ${activo ? "bg-success" : "bg-danger"}">
               ${activo ? "Activo" : "Inactivo"}
@@ -4251,22 +4449,17 @@ async function cargarSubVendedores() {
           </td>
         </tr>
       `;
-    });
+  });
 
-    html += `
+  html += `
           </tbody>
         </table>
       </div>
       <div class="text-end">
-        <small class="text-muted">Total: ${resultado.length} vendedores</small>
+        <small class="text-muted">${lista.length === todos.length ? `Total: ${todos.length} vendedores` : `Mostrando ${lista.length} de ${todos.length} vendedores`}</small>
       </div>
     `;
-
-    container.innerHTML = html;
-  } catch (error) {
-    console.error("❌ Error cargando vendedores:", error);
-    container.innerHTML = `<div class="alert alert-danger">Error al cargar vendedores: ${error.message}</div>`;
-  }
+  destino.innerHTML = html;
 }
 
 // ============================================================

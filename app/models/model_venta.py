@@ -64,6 +64,7 @@ class ServicioAdicional(Base):
     monto_material = Column(DECIMAL(12, 2))
     monto_mano_obra = Column(DECIMAL(12, 2), default=0) 
     total = Column(DECIMAL(12, 2))
+    fecha = Column(DateTime, server_default=func.now())
 
     detalles = relationship("DetalleServicio", back_populates="servicio", cascade="all, delete-orphan")
 
@@ -78,4 +79,4 @@ class DetalleServicio(Base):
     costo_unitario = Column(DECIMAL(12, 2))
     subtotal = Column(DECIMAL(12, 2))
 
-    servicio = relationship("ServicioAdicional", back_populates="detalles")
+    servicio = relationship("ServicioAdicional", back_populates="detalles")

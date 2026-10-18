@@ -34,6 +34,22 @@ function cambiarPorPaginaProductosCatalogo(valor) {
   renderProductosTable(productosData);
 }
 
+// Filtros del Catálogo: categoría, marca, estado y stock
+let filtrosProductosCatalogo = { categoria: "", marca: "", estado: "", stock: "" };
+
+function filtrarProductosCatalogo(campo, valor) {
+  filtrosProductosCatalogo[campo] = valor || "";
+  paginaProductosCatalogo = 1;
+  renderProductosTable(productosData);
+}
+
+function limpiarFiltrosProductosCatalogo() {
+  filtrosProductosCatalogo = { categoria: "", marca: "", estado: "", stock: "" };
+  busquedaProductosCatalogo = "";
+  paginaProductosCatalogo = 1;
+  renderProductosTable(productosData);
+}
+
 function buscarProductosCatalogo(valor) {
   busquedaProductosCatalogo = valor || "";
   paginaProductosCatalogo = 1;
@@ -553,13 +569,23 @@ function renderProductosTable(productos) {
     (categoriasData.find((c) => c.id === p.id_categoria) || {}).nombre || "";
   const nombreMarca = (p) =>
     (marcasData.find((m) => m.id === p.id_marca) || {}).nombre || "";
-  const filtrados = termino
-    ? productos.filter((p) =>
-        `${p.codigo || ""} ${p.nombre || ""} ${nombreCat(p)} ${nombreMarca(p)}`
-          .toLowerCase()
-          .includes(termino),
-      )
-    : productos;
+  const fc = filtrosProductosCatalogo;
+  const filtrados = productos.filter((p) => {
+    if (fc.categoria && String(p.id_categoria) !== fc.categoria) return false;
+    if (fc.marca && String(p.id_marca) !== fc.marca) return false;
+    const activo = p.activo !== 0;
+    if (fc.estado === "1" && !activo) return false;
+    if (fc.estado === "0" && activo) return false;
+    const bajo = (parseFloat(p.stock_actual) || 0) <= (parseFloat(p.stock_minimo) || 0);
+    if (fc.stock === "bajo" && !bajo) return false;
+    if (fc.stock === "sin" && (parseFloat(p.stock_actual) || 0) > 0) return false;
+    if (!termino) return true;
+    return `${p.codigo || ""} ${p.nombre || ""} ${nombreCat(p)} ${nombreMarca(p)}`
+      .toLowerCase()
+      .includes(termino);
+  });
+  const opcionFiltro = (valor, texto, actual) =>
+    `<option value="${valor}" ${String(valor) === String(actual) ? "selected" : ""}>${String(texto).replace(/</g, "&lt;")}</option>`;
   const tamPagina =
     porPaginaProductosCatalogo > 0 ? porPaginaProductosCatalogo : filtrados.length || 1;
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / tamPagina));
@@ -608,8 +634,8 @@ function renderProductosTable(productos) {
                 }
             </div>
         </div>
-        <div class="row mb-2">
-            <div class="col-md-6 col-lg-4">
+        <div class="row mb-2 g-2 align-items-center">
+            <div class="col-md-6 col-lg-3">
                 <div class="input-group input-group-sm">
                     <span class="input-group-text"><i class="fas fa-search"></i></span>
                     <input type="text" class="form-control" id="buscarProductosCatalogo"
@@ -617,6 +643,37 @@ function renderProductosTable(productos) {
                            value="${valorBusqueda}"
                            oninput="buscarProductosCatalogo(this.value)">
                 </div>
+            </div>
+            <div class="col-md-3 col-lg-2 col-6">
+                <select class="form-select form-select-sm" onchange="filtrarProductosCatalogo('categoria', this.value)" title="Categoría">
+                    ${opcionFiltro("", "Todas las categorías", fc.categoria)}
+                    ${categoriasData.map((c) => opcionFiltro(c.id, c.nombre, fc.categoria)).join("")}
+                </select>
+            </div>
+            <div class="col-md-3 col-lg-2 col-6">
+                <select class="form-select form-select-sm" onchange="filtrarProductosCatalogo('marca', this.value)" title="Marca">
+                    ${opcionFiltro("", "Todas las marcas", fc.marca)}
+                    ${marcasData.map((m) => opcionFiltro(m.id, m.nombre, fc.marca)).join("")}
+                </select>
+            </div>
+            <div class="col-md-3 col-lg-2 col-6">
+                <select class="form-select form-select-sm" onchange="filtrarProductosCatalogo('estado', this.value)" title="Estado">
+                    ${opcionFiltro("", "Activos e inactivos", fc.estado)}
+                    ${opcionFiltro("1", "Solo activos", fc.estado)}
+                    ${opcionFiltro("0", "Solo inactivos", fc.estado)}
+                </select>
+            </div>
+            <div class="col-md-3 col-lg-2 col-6">
+                <select class="form-select form-select-sm" onchange="filtrarProductosCatalogo('stock', this.value)" title="Stock">
+                    ${opcionFiltro("", "Cualquier stock", fc.stock)}
+                    ${opcionFiltro("bajo", "En o bajo el mínimo", fc.stock)}
+                    ${opcionFiltro("sin", "Sin existencias", fc.stock)}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-outline-danger" onclick="limpiarFiltrosProductosCatalogo()" title="Limpiar filtros">
+                    <i class="fas fa-times me-1"></i>Limpiar
+                </button>
             </div>
         </div>
         ${controles}

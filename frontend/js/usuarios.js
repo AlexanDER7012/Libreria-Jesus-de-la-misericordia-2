@@ -107,14 +107,13 @@ async function loadUsuariosModule() {
                 <div id="rolesContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando roles...</p></div></div>
             </div>
             <div class="tab-pane fade" id="pagosTab">
-                <div class="row mb-2 g-2 justify-content-end">
-                    <div class="col-auto">
-                        <input type="date" class="form-control form-control-sm" id="pagosFechaDesde" onchange="skipPagos=0;cargarPagosTabla()">
-                    </div>
-                    <div class="col-auto">
-                        <input type="date" class="form-control form-control-sm" id="pagosFechaHasta" onchange="skipPagos=0;cargarPagosTabla()">
-                    </div>
-                </div>
+                ${htmlBarraFiltros({
+                  id: "pagosEmpF",
+                  placeholder: "Buscar por empleado, concepto, periodo o referencia...",
+                  selects: [{ id: "Empleado", label: "Todos los empleados", opciones: [] }],
+                  fechas: true,
+                  onChange: "skipPagos=0;cargarPagosTabla()",
+                })}
                 <div id="pagosContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando pagos...</p></div></div>
             </div>
             <div class="tab-pane fade" id="catalogosTab">
@@ -584,7 +583,7 @@ function renderPagos(pagos) {
     container.innerHTML = `
             <div class="text-center py-4 text-muted">
                 <i class="fas fa-money-bill-wave fa-3x mb-3"></i>
-                <p>No hay pagos registrados</p>
+                <p>${Object.values(leerBarraFiltros("pagosEmpF")).some((v) => v) || skipPagos > 0 ? "No hay pagos que coincidan con el filtro" : "No hay pagos registrados"}</p>
                 ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-success btn-sm" onclick="showCreatePagoEmpleadoModal()">
                     <i class="fas fa-plus me-2"></i>Registrar Pago
                 </button>` : ""}
@@ -694,12 +693,18 @@ function debounceBuscarEmpleados() {
 }
 
 async function cargarPagosTabla() {
-  const desde = document.getElementById("pagosFechaDesde")?.value;
-  const hasta = document.getElementById("pagosFechaHasta")?.value;
+  const f = leerBarraFiltros("pagosEmpF");
+  if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return;
+  llenarOpcionesFiltro(
+    "pagosEmpFEmpleado",
+    (empleadosData || []).map((e) => [e.id, e.nombre || `Empleado ${e.id}`]),
+  );
   try {
     let url = `/pagos-empleado?skip=${skipPagos}&limit=${LIMITE_PAGOS}`;
-    if (desde) url += `&fecha_desde=${desde}`;
-    if (hasta) url += `&fecha_hasta=${hasta}`;
+    if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
+    if (f.Empleado) url += `&id_empleado=${f.Empleado}`;
+    if (f.desde) url += `&fecha_desde=${f.desde}`;
+    if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
     const pagos = await api.request(url);
     renderPagos(pagos);
     _agregarControlesPaginacion(
@@ -830,15 +835,15 @@ async function cargarBitacoraUsuarios() {
         <div class="row mb-3 g-2">
             <div class="col-md-3">
                 <label class="form-label small">Fecha Desde</label>
-                <input type="date" class="form-control form-control-sm" id="bitacoraUsrDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+                <input type="date" class="form-control form-control-sm" id="bitacoraUsrDesde" onchange="actualizarBitacoraUsuarios()" value="${hace30Dias.toISOString().split("T")[0]}">
             </div>
             <div class="col-md-3">
                 <label class="form-label small">Fecha Hasta</label>
-                <input type="date" class="form-control form-control-sm" id="bitacoraUsrHasta" value="${hoy.toISOString().split("T")[0]}">
+                <input type="date" class="form-control form-control-sm" id="bitacoraUsrHasta" onchange="actualizarBitacoraUsuarios()" value="${hoy.toISOString().split("T")[0]}">
             </div>
             <div class="col-md-3">
                 <label class="form-label small">Usuario</label>
-                <select class="form-select form-select-sm" id="bitacoraUsrUsuario">
+                <select class="form-select form-select-sm" id="bitacoraUsrUsuario" onchange="actualizarBitacoraUsuarios()">
                     <option value="">Todos los usuarios</option>
                     ${usuariosOptions}
                 </select>
@@ -847,6 +852,17 @@ async function cargarBitacoraUsuarios() {
                 <button class="btn btn-primary btn-sm" onclick="actualizarBitacoraUsuarios()" title="Consultar">
                     <i class="fas fa-search"></i>
                 </button>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small">Buscar</label>
+                <input type="text" class="form-control form-control-sm" id="bitacoraUsrBuscar"
+                       placeholder="Acción, módulo o descripción..." oninput="filtrarBitacoraUsuarios()">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Acción</label>
+                <select class="form-select form-select-sm" id="bitacoraUsrAccion" onchange="filtrarBitacoraUsuarios()">
+                    <option value="">Todas las acciones</option>
+                </select>
             </div>
             <div class="col-md-2 d-flex align-items-end gap-1">
                 <button class="btn btn-success btn-sm" onclick="exportarPDF('bitacoraUsrResultado', 'Bitacora_Usuarios')" title="Exportar a PDF">
@@ -868,6 +884,28 @@ async function cargarBitacoraUsuarios() {
   await actualizarBitacoraUsuarios();
 }
 
+// Búsqueda y acción sobre los registros ya consultados
+function filtrarBitacoraUsuarios() {
+  const texto = document.getElementById("bitacoraUsrBuscar")?.value || "";
+  const accion = document.getElementById("bitacoraUsrAccion")?.value || "";
+  const filas = [...document.querySelectorAll("#bitacoraUsrResultado tbody tr")];
+  let visibles = 0;
+  filas.forEach((tr) => {
+    const ok =
+      (!accion || tr.dataset.accion === accion) &&
+      coincideTextoFiltro(texto, tr.textContent);
+    tr.style.display = ok ? "" : "none";
+    if (ok) visibles++;
+  });
+  const conteo = document.getElementById("bitacoraUsrConteo");
+  if (conteo) {
+    conteo.textContent =
+      texto || accion
+        ? `Mostrando ${visibles} de ${filas.length} registros`
+        : window.__bitacoraUsrResumen || "";
+  }
+}
+
 async function actualizarBitacoraUsuarios() {
   const desde = document.getElementById("bitacoraUsrDesde")?.value;
   const hasta = document.getElementById("bitacoraUsrHasta")?.value;
@@ -876,9 +914,16 @@ async function actualizarBitacoraUsuarios() {
   if (!desde || !hasta || !resultado) return;
 
   try {
+    if (!rangoFechasValidoFiltro(desde, hasta)) return;
     let url = `/reportes/usuarios/bitacora?desde=${desde}&hasta=${hasta}`;
     if (idUsuario) url += `&id_usuario=${idUsuario}`;
     const data = await api.request(url);
+    llenarOpcionesFiltro(
+      "bitacoraUsrAccion",
+      [...new Set((data?.detalle || []).map((l) => l.accion).filter(Boolean))]
+        .sort()
+        .map((a) => [a, a]),
+    );
 
     if (!data || !data.detalle || data.detalle.length === 0) {
       resultado.innerHTML = `
@@ -921,7 +966,7 @@ async function actualizarBitacoraUsuarios() {
                   : "secondary";
 
       html += `
-            <tr>
+            <tr data-accion="${_escFiltro(l.accion || "")}">
                 <td>${l.id}</td>
                 <td><strong>${l.nombre_usuario || "--"}</strong></td>
                 <td>${l.fecha ? new Date(l.fecha).toLocaleString() : "--"}</td>
@@ -936,10 +981,12 @@ async function actualizarBitacoraUsuarios() {
                 </tbody>
             </table>
         </div>
-        <div class="text-end"><small class="text-muted">${data.cantidad} registros (período ${data.desde} al ${data.hasta})</small></div>
+        <div class="text-end"><small class="text-muted" id="bitacoraUsrConteo">${data.cantidad} registros (período ${data.desde} al ${data.hasta})</small></div>
     `;
 
     resultado.innerHTML = html;
+    window.__bitacoraUsrResumen = `${data.cantidad} registros (período ${data.desde} al ${data.hasta})`;
+    filtrarBitacoraUsuarios();
   } catch (error) {
     resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
   }
@@ -2489,4 +2536,4 @@ window.reactivarEmpleado = reactivarEmpleado;
 window.filtrarUsuariosTabla = filtrarUsuariosTabla;
 window.cargarEmpleadosTabla = cargarEmpleadosTabla;
 window.cargarPagosTabla = cargarPagosTabla;
-window.actualizarBitacoraUsuarios = actualizarBitacoraUsuarios;
+window.actualizarBitacoraUsuarios = actualizarBitacoraUsuarios;

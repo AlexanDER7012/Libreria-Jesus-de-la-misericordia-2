@@ -710,16 +710,16 @@ class App {
               <div id="inventarioTableContainer"></div>
             </div>
             <div class="tab-pane fade" id="panel-inv-conteo" role="tabpanel">
-              <div class="row mb-2 g-2 justify-content-end">
-                <div class="col-auto">
-                  <input type="date" class="form-control form-control-sm" id="conteoFechaDesde"
-                         onchange="skipConteo=0;cargarConteoTabla()">
-                </div>
-                <div class="col-auto">
-                  <input type="date" class="form-control form-control-sm" id="conteoFechaHasta"
-                         onchange="skipConteo=0;cargarConteoTabla()">
-                </div>
-              </div>
+              ${htmlBarraFiltros({
+                id: "conteoF",
+                placeholder: "Buscar por producto o código...",
+                selects: [
+                  { id: "Ubicacion", label: "Todas las ubicaciones", opciones: opcionesUbicacionesFiltro() },
+                  { id: "Ajuste", label: "Aplicados y pendientes", opciones: [["0", "Ajuste pendiente"], ["1", "Ajuste aplicado"]] },
+                ],
+                fechas: true,
+                onChange: "skipConteo=0;cargarConteoTabla()",
+              })}
               <div id="conteoContainer"></div>
             </div>
             <div class="tab-pane fade" id="panel-inv-traslados" role="tabpanel">
@@ -736,49 +736,29 @@ class App {
                   </div>
                 </div>
               </div>
-              <div class="row mb-2 g-2 justify-content-end">
-                <div class="col-auto">
-                  <select class="form-select form-select-sm" id="trasladosFiltroEstado"
-                          onchange="skipTraslados=0;cargarTrasladosTabla()">
-                    <option value="">Todos los estados</option>
-                    <option value="EnProceso">En camino</option>
-                    <option value="Completado">Recibido</option>
-                    <option value="Cancelado">Cancelado</option>
-                  </select>
-                </div>
-                <div class="col-auto">
-                  <select class="form-select form-select-sm" id="trasladosFiltroPago"
-                          onchange="skipTraslados=0;cargarTrasladosTabla()">
-                    <option value="">Todos los pagos</option>
-                    <option value="Con saldo">Con saldo pendiente</option>
-                    <option value="Pendiente">Pendiente</option>
-                    <option value="Parcial">Parcial</option>
-                    <option value="Pagado">Pagado</option>
-                    <option value="No aplica">No se cobra</option>
-                  </select>
-                </div>
-                <div class="col-auto">
-                  <input type="date" class="form-control form-control-sm" id="trasladosFechaDesde"
-                         onchange="skipTraslados=0;cargarTrasladosTabla()">
-                </div>
-                <div class="col-auto">
-                  <input type="date" class="form-control form-control-sm" id="trasladosFechaHasta"
-                         onchange="skipTraslados=0;cargarTrasladosTabla()">
-                </div>
-              </div>
+              ${htmlBarraFiltros({
+                id: "trasladosF",
+                placeholder: "Buscar por nota de envío, producto o código...",
+                selects: [
+                  { id: "Estado", label: "Todos los estados", opciones: [["EnProceso", "En camino"], ["Completado", "Recibido"], ["Cancelado", "Cancelado"]] },
+                  { id: "Pago", label: "Todos los pagos", opciones: [["Con saldo", "Con saldo pendiente"], ["Pendiente", "Pendiente"], ["Parcial", "Parcial"], ["Pagado", "Pagado"], ["No aplica", "No se cobra"]] },
+                  { id: "Ubicacion", label: "Todas las ubicaciones", opciones: opcionesUbicacionesFiltro() },
+                ],
+                fechas: true,
+                onChange: "skipTraslados=0;cargarTrasladosTabla()",
+              })}
               <div id="trasladosContainer"></div>
             </div>
             <div class="tab-pane fade" id="panel-inv-alertas" role="tabpanel">
-              <div class="row mb-2 g-2 justify-content-end">
-                <div class="col-auto">
-                  <input type="date" class="form-control form-control-sm" id="alertasFechaDesde"
-                         onchange="skipAlertas=0;cargarAlertasTabla()">
-                </div>
-                <div class="col-auto">
-                  <input type="date" class="form-control form-control-sm" id="alertasFechaHasta"
-                         onchange="skipAlertas=0;cargarAlertasTabla()">
-                </div>
-              </div>
+              ${htmlBarraFiltros({
+                id: "alertasF",
+                placeholder: "Buscar por producto, código o mensaje...",
+                selects: [
+                  { id: "Estado", label: "Solo pendientes", opciones: [["cerradas", "Solo cerradas"], ["todas", "Pendientes y cerradas"]] },
+                ],
+                fechas: true,
+                onChange: "skipAlertas=0;cargarAlertasTabla()",
+              })}
               <div id="alertasContainer"></div>
             </div>
           </div>

@@ -2,7 +2,7 @@ from datetime import date
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -590,6 +590,7 @@ def crear_permiso(datos: PermisoCreate, db: Session = Depends(get_db), usuario_a
 @router_pago.get("", response_model=List[HistoricoPagoEmpleadoResponse])
 def listar_pagos(
     id_empleado: Optional[int] = None,
+    buscar: Optional[str] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
@@ -600,6 +601,15 @@ def listar_pagos(
     query = db.query(HistoricoPagoEmpleado).order_by(HistoricoPagoEmpleado.fecha_pago.desc())
     if id_empleado is not None:
         query = query.filter(HistoricoPagoEmpleado.id_empleado == id_empleado)
+    if buscar:
+        patron = f"%{buscar.strip()}%"
+        ids_empleado = db.query(Empleado.id).filter(Empleado.nombre.ilike(patron))
+        query = query.filter(or_(
+            HistoricoPagoEmpleado.concepto.ilike(patron),
+            HistoricoPagoEmpleado.periodo.ilike(patron),
+            HistoricoPagoEmpleado.referencia.ilike(patron),
+            HistoricoPagoEmpleado.id_empleado.in_(ids_empleado),
+        ))
     if fecha_desde is not None:
         query = query.filter(func.date(HistoricoPagoEmpleado.fecha_pago) >= fecha_desde)
     if fecha_hasta is not None:

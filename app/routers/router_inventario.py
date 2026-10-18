@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
@@ -241,16 +241,30 @@ def crear_tipo_movimiento(datos: TipoMovimientoInventarioCreate, db: Session = D
 @router_fisico.get("", response_model=List[InventarioFisicoResponse])
 def listar_conteos(
     id_producto: Optional[int] = None,
+    id_ubicacion: Optional[int] = None,
+    ajustado: Optional[int] = None,
+    buscar: Optional[str] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     usuario_actual: Usuario = Depends(get_current_user),
 ):
-    """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
-    query = db.query(InventarioFisico).order_by(InventarioFisico.fecha.desc())
+    """
+    Filtra por producto (buscar: nombre o código), ubicación, ajuste
+    (ajustado=1 aplicado, 0 pendiente) y fechas. Paginado: ?skip=0&limit=50.
+    """
+    query = db.query(InventarioFisico).order_by(InventarioFisico.fecha.desc(), InventarioFisico.id.desc())
     if id_producto is not None:
         query = query.filter(InventarioFisico.id_producto == id_producto)
+    if id_ubicacion is not None:
+        query = query.filter(InventarioFisico.id_ubicacion == id_ubicacion)
+    if ajustado is not None:
+        query = query.filter(func.coalesce(InventarioFisico.ajustado, 0) == ajustado)
+    if buscar:
+        patron = f"%{buscar.strip()}%"
+        ids = db.query(Producto.id).filter(or_(Producto.nombre.ilike(patron), Producto.codigo.ilike(patron)))
+        query = query.filter(InventarioFisico.id_producto.in_(ids))
     if fecha_desde is not None:
         query = query.filter(func.date(InventarioFisico.fecha) >= fecha_desde)
     if fecha_hasta is not None:
@@ -379,7 +393,9 @@ def listar_traslados(
     estado: Optional[Literal["EnProceso", "Recibido", "Completado", "Cancelado"]] = None,
     estado_pago: Optional[Literal["Pendiente", "Parcial", "Pagado", "No aplica", "Con saldo"]] = None,
     numero_nota: Optional[str] = None,
+    buscar: Optional[str] = None,
     id_producto: Optional[int] = None,
+    id_ubicacion: Optional[int] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
@@ -388,7 +404,8 @@ def listar_traslados(
 ):
     """
     Filtra por estado, estado de pago ("Con saldo" = Pendiente o Parcial),
-    número de nota de envío y fechas. Paginado: ?skip=0&limit=50.
+    número de nota de envío, texto (nota, producto o código), ubicación
+    (origen o destino) y fechas. Paginado: ?skip=0&limit=50.
     """
     query = db.query(TrasladoSucursal).order_by(TrasladoSucursal.fecha.desc(), TrasladoSucursal.id.desc())
     if estado is not None:
@@ -401,6 +418,18 @@ def listar_traslados(
         query = query.filter(TrasladoSucursal.numero_nota_envio.ilike(f"%{numero_nota.strip()}%"))
     if id_producto is not None:
         query = query.filter(TrasladoSucursal.id_producto == id_producto)
+    if id_ubicacion is not None:
+        query = query.filter(or_(
+            TrasladoSucursal.id_ubicacion_origen == id_ubicacion,
+            TrasladoSucursal.id_ubicacion_destino == id_ubicacion,
+        ))
+    if buscar:
+        patron = f"%{buscar.strip()}%"
+        ids = db.query(Producto.id).filter(or_(Producto.nombre.ilike(patron), Producto.codigo.ilike(patron)))
+        query = query.filter(or_(
+            TrasladoSucursal.numero_nota_envio.ilike(patron),
+            TrasladoSucursal.id_producto.in_(ids),
+        ))
     if fecha_desde is not None:
         query = query.filter(func.date(TrasladoSucursal.fecha) >= fecha_desde)
     if fecha_hasta is not None:
@@ -706,6 +735,8 @@ def listar_stock_ubicaciones(
 @router_alerta.get("", response_model=List[AlertaResponse])
 def listar_alertas(
     solo_no_leidas: bool = True,
+    estado: Optional[Literal["pendientes", "cerradas", "todas"]] = None,
+    buscar: Optional[str] = None,
     id_usuario_destino: Optional[int] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
@@ -713,10 +744,19 @@ def listar_alertas(
     db: Session = Depends(get_db),
     usuario_actual: Usuario = Depends(get_current_user),
 ):
-    """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
-    query = db.query(Alerta).order_by(Alerta.fecha.desc())
-    if solo_no_leidas:
-        query = query.filter(Alerta.leida == 0)
+    """
+    estado: pendientes (sin cerrar), cerradas o todas; si no se manda se usa
+    solo_no_leidas. buscar: mensaje, producto o código. Paginado: ?skip=0&limit=50.
+    """
+    query = db.query(Alerta).order_by(Alerta.fecha.desc(), Alerta.id.desc())
+    if estado == "pendientes" or (estado is None and solo_no_leidas):
+        query = query.filter(func.coalesce(Alerta.leida, 0) == 0)
+    elif estado == "cerradas":
+        query = query.filter(Alerta.leida == 1)
+    if buscar:
+        patron = f"%{buscar.strip()}%"
+        ids = db.query(Producto.id).filter(or_(Producto.nombre.ilike(patron), Producto.codigo.ilike(patron)))
+        query = query.filter(or_(Alerta.mensaje.ilike(patron), Alerta.id_producto.in_(ids)))
     if id_usuario_destino is not None:
         query = query.filter(Alerta.id_usuario_destino == id_usuario_destino)
     if fecha_desde is not None:

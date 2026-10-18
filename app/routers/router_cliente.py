@@ -4,6 +4,7 @@ app/routers/router_cliente.py
 Endpoints CRUD del recurso Cliente.
 """
 
+from datetime import date
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -41,6 +42,9 @@ def _nit_repetido(db: Session, modelo, nit, excluir_id=None):
 def listar_clientes(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
     buscar: Optional[str] = None,
+    tipo_cliente: Optional[str] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     usuario_actual=Depends(get_current_user),
@@ -67,6 +71,14 @@ def listar_clientes(
             | (Cliente.email.ilike(like))
             | (Cliente.nit.ilike(like))
         )
+    if tipo_cliente:
+        query = query.filter(Cliente.tipo_cliente == tipo_cliente)
+    # Rango por fecha de registro del cliente
+    if fecha_desde is not None:
+        query = query.filter(func.date(Cliente.fecha_registro) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(Cliente.fecha_registro) <= fecha_hasta)
+    query = query.order_by(Cliente.id.desc())
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 

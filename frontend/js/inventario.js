@@ -28,6 +28,7 @@ function cambiarPorPaginaResumen(valor) {
 // Stock por ubicación (Bodega, Área de ventas, sucursales...)
 let stockUbicacionesData = [];
 let filtroUbicacionResumen = "";
+let filtroEstadoResumen = ""; // "", "normal", "bajo", "sin"
 
 function _mapaStockUbicaciones() {
   const mapa = {};
@@ -536,8 +537,20 @@ function renderResumenInventario() {
   if (!container) return;
 
   const productos = window.productosData || [];
-  const productosFiltrados = filtrarProductos(productos, filtroBusqueda);
   const stockMapa = _mapaStockUbicaciones();
+  // Filtro por estado del stock (en la ubicación elegida, o el total)
+  const stockDe = (p) =>
+    filtroUbicacionResumen
+      ? (stockMapa[String(p.id)] || {})[String(filtroUbicacionResumen)] || 0
+      : parseFloat(p.stock_actual) || 0;
+  const estadoStock = (p) => {
+    const st = stockDe(p);
+    if (st <= 0) return "sin";
+    return st <= (parseFloat(p.stock_minimo) || 0) ? "bajo" : "normal";
+  };
+  const productosFiltrados = filtrarProductos(productos, filtroBusqueda).filter(
+    (p) => !filtroEstadoResumen || estadoStock(p) === filtroEstadoResumen,
+  );
 
   // Paginación: solo se dibujan los productos de la página actual
   const totalFiltrados = productosFiltrados.length;
@@ -614,6 +627,21 @@ function renderResumenInventario() {
                     </select>
                 </div>
             </div>
+            <div class="col-md-2 col-lg-2 mt-2 mt-md-0">
+                <select class="form-select" id="filtroEstadoResumen" title="Estado del stock"
+                        onchange="filtroEstadoResumen=this.value;paginaResumen=1;renderResumenInventario()">
+                    <option value="" ${!filtroEstadoResumen ? "selected" : ""}>Cualquier estado</option>
+                    <option value="normal" ${filtroEstadoResumen === "normal" ? "selected" : ""}>Normal</option>
+                    <option value="bajo" ${filtroEstadoResumen === "bajo" ? "selected" : ""}>Bajo el mínimo</option>
+                    <option value="sin" ${filtroEstadoResumen === "sin" ? "selected" : ""}>Sin existencias</option>
+                </select>
+            </div>
+            <div class="col-auto mt-2 mt-md-0">
+                <button class="btn btn-outline-danger" title="Limpiar filtros"
+                        onclick="filtroBusqueda='';filtroUbicacionResumen='';filtroEstadoResumen='';paginaResumen=1;renderResumenInventario()">
+                    <i class="fas fa-times me-1"></i>Limpiar
+                </button>
+            </div>
         </div>
     `;
 
@@ -632,7 +660,7 @@ function renderResumenInventario() {
     html += `
             <div class="text-center py-5">
                 <i class="fas fa-search fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No se encontraron productos con el término "<strong>${filtroBusqueda}</strong>"</p>
+                <p class="text-muted">No se encontraron productos con esos filtros</p>
             </div>
         `;
     container.innerHTML = html;
@@ -929,6 +957,10 @@ function showMovimientoModalConProducto(idProducto) {
 // =============================================
 // POBLAR SELECTS
 // =============================================
+
+// Tipos que se pueden usar en "Nuevo movimiento": solo los que cambian el
+// stock (los neutrales no hacen nada) y no los que el sistema registra solo
+// desde Compras, Ventas, Traslados y Conteo físico.
 const TIPOS_AUTOMATICOS_INV = [
   "compra", "venta", "traslado",
   "ajuste por conteo (entrada)", "ajuste por conteo (salida)",
@@ -1880,7 +1912,7 @@ function renderConteoFisico(conteos) {
     container.innerHTML = `
             <div class="text-center py-5">
                 <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No hay conteos físicos registrados</p>
+                <p class="text-muted">${Object.values(leerBarraFiltros("conteoF")).some((v) => v) ? "No hay conteos que coincidan con el filtro" : "No hay conteos físicos registrados"}</p>
                 ${
                   tienePermiso("Inventario", "Crear")
                     ? `<button class="btn btn-warning btn-sm" onclick="showConteoFisicoModal()">
@@ -2000,7 +2032,7 @@ function renderTraslados(traslados) {
     container.innerHTML = `
             <div class="text-center py-5">
                 <i class="fas fa-arrows-alt-h fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No hay traslados registrados</p>
+                <p class="text-muted">${Object.values(leerBarraFiltros("trasladosF")).some((v) => v) ? "No hay traslados que coincidan con el filtro" : "No hay traslados registrados"}</p>
                 ${
                   tienePermiso("Inventario", "Crear")
                     ? `<button class="btn btn-info btn-sm" onclick="showTrasladoModal()">
@@ -2417,7 +2449,7 @@ function renderAlertas(alertas) {
     container.innerHTML = `
             <div class="text-center py-5">
                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
-                <p class="text-muted">No hay alertas de stock</p>
+                <p class="text-muted">${Object.values(leerBarraFiltros("alertasF")).some((v) => v) ? "No hay alertas que coincidan con el filtro" : "No hay alertas de stock pendientes"}</p>
             </div>
         `;
     return;
@@ -2436,6 +2468,7 @@ function renderAlertas(alertas) {
                     <tr>
                         <th>ID</th>
                         <th>Producto</th>
+                        <th>Fecha</th>
                         <th>Stock Actual</th>
                         <th>Stock Mínimo</th>
                         <th>Estado</th>
@@ -2457,7 +2490,8 @@ function renderAlertas(alertas) {
     html += `
             <tr>
                 <td>${a.id}</td>
-                <td>${producto ? producto.nombre : "--"}</td>
+                <td>${producto ? escInv(producto.nombre) : "--"}</td>
+                <td><small>${a.fecha ? new Date(a.fecha).toLocaleString("es-GT") : "--"}</small></td>
                 <td class="${stockActual <= stockMinimo ? "text-danger" : "text-success"} fw-bold">
                     ${stockActual}
                 </td>
@@ -2538,11 +2572,15 @@ function _paginaVaciaInventario(datos, skip) {
 
 async function cargarConteoTabla() {
   try {
-    const desde = document.getElementById("conteoFechaDesde")?.value;
-    const hasta = document.getElementById("conteoFechaHasta")?.value;
+    const f = leerBarraFiltros("conteoF");
+    if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return;
+    llenarOpcionesFiltro("conteoFUbicacion", opcionesUbicacionesFiltro());
     let url = `/inventario-fisico?skip=${skipConteo}&limit=${LIMITE_CONTEO}`;
-    if (desde) url += `&fecha_desde=${desde}`;
-    if (hasta) url += `&fecha_hasta=${hasta}`;
+    if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
+    if (f.Ubicacion) url += `&id_ubicacion=${f.Ubicacion}`;
+    if (f.Ajuste) url += `&ajustado=${f.Ajuste}`;
+    if (f.desde) url += `&fecha_desde=${f.desde}`;
+    if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
     inventarioFisicoData = (await api.request(url)) || [];
     await asegurarProductosCargados(inventarioFisicoData.map((c) => c.id_producto));
     if (_paginaVaciaInventario(inventarioFisicoData, skipConteo)) {
@@ -2566,15 +2604,16 @@ async function cargarConteoTabla() {
 
 async function cargarTrasladosTabla() {
   try {
-    const estado = document.getElementById("trasladosFiltroEstado")?.value;
-    const estadoPago = document.getElementById("trasladosFiltroPago")?.value;
-    const desde = document.getElementById("trasladosFechaDesde")?.value;
-    const hasta = document.getElementById("trasladosFechaHasta")?.value;
+    const f = leerBarraFiltros("trasladosF");
+    if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return;
+    llenarOpcionesFiltro("trasladosFUbicacion", opcionesUbicacionesFiltro());
     let url = `/traslados?skip=${skipTraslados}&limit=${LIMITE_TRASLADOS}`;
-    if (estado) url += `&estado=${estado}`;
-    if (estadoPago) url += `&estado_pago=${encodeURIComponent(estadoPago)}`;
-    if (desde) url += `&fecha_desde=${desde}`;
-    if (hasta) url += `&fecha_hasta=${hasta}`;
+    if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
+    if (f.Estado) url += `&estado=${f.Estado}`;
+    if (f.Pago) url += `&estado_pago=${encodeURIComponent(f.Pago)}`;
+    if (f.Ubicacion) url += `&id_ubicacion=${f.Ubicacion}`;
+    if (f.desde) url += `&fecha_desde=${f.desde}`;
+    if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
     trasladosData = (await api.request(url)) || [];
     await asegurarProductosCargados(trasladosData.map((t) => t.id_producto));
     if (_paginaVaciaInventario(trasladosData, skipTraslados)) {
@@ -2598,11 +2637,12 @@ async function cargarTrasladosTabla() {
 
 async function cargarAlertasTabla() {
   try {
-    const desde = document.getElementById("alertasFechaDesde")?.value;
-    const hasta = document.getElementById("alertasFechaHasta")?.value;
-    let url = `/alertas?skip=${skipAlertas}&limit=${LIMITE_ALERTAS}`;
-    if (desde) url += `&fecha_desde=${desde}`;
-    if (hasta) url += `&fecha_hasta=${hasta}`;
+    const f = leerBarraFiltros("alertasF");
+    if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return;
+    let url = `/alertas?skip=${skipAlertas}&limit=${LIMITE_ALERTAS}&estado=${f.Estado || "pendientes"}`;
+    if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
+    if (f.desde) url += `&fecha_desde=${f.desde}`;
+    if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
     alertasData = (await api.request(url).catch(() => [])) || [];
     await asegurarProductosCargados(alertasData.map((a) => a.id_producto));
     if (_paginaVaciaInventario(alertasData, skipAlertas)) {

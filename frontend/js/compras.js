@@ -249,14 +249,16 @@ async function loadComprasModule() {
             </div>
 
             <div class="tab-pane fade" id="panel-caja-chica" role="tabpanel">
-                <div class="row mb-2 g-2 justify-content-end">
-                    <div class="col-auto">
-                        <input type="date" class="form-control form-control-sm" id="cajaChicaFechaDesde" onchange="skipCajaChica=0;cargarCajaChicaTabla()">
-                    </div>
-                    <div class="col-auto">
-                        <input type="date" class="form-control form-control-sm" id="cajaChicaFechaHasta" onchange="skipCajaChica=0;cargarCajaChicaTabla()">
-                    </div>
-                </div>
+                ${htmlBarraFiltros({
+                  id: "ccFiltro",
+                  placeholder: "Buscar por ID, concepto o referencia...",
+                  selects: [
+                    { id: "Tipo", label: "Ingresos y egresos", opciones: [["ingreso", "Solo ingresos"], ["egreso", "Solo egresos"]] },
+                    { id: "Ubicacion", label: "Todas las ubicaciones", opciones: opcionesUbicacionesFiltro() },
+                  ],
+                  fechas: true,
+                  onChange: "skipCajaChica=0;cargarCajaChicaTabla()",
+                })}
                 <div id="cajaChicaContainer">
                     <div class="text-center py-5">
                         <div class="spinner-border text-success" role="status"></div>
@@ -283,14 +285,16 @@ async function loadComprasModule() {
 
                 <div class="tab-content" id="gastosSubContent">
                     <div class="tab-pane fade show active" id="subpanel-gastos" role="tabpanel">
-                        <div class="row mb-2 g-2 justify-content-end">
-                            <div class="col-auto">
-                                <input type="date" class="form-control form-control-sm" id="gastosFechaDesde" onchange="skipGastos=0;cargarGastosTabla()">
-                            </div>
-                            <div class="col-auto">
-                                <input type="date" class="form-control form-control-sm" id="gastosFechaHasta" onchange="skipGastos=0;cargarGastosTabla()">
-                            </div>
-                        </div>
+                        ${htmlBarraFiltros({
+                          id: "gastosFiltro",
+                          placeholder: "Buscar por ID, concepto u observaciones...",
+                          selects: [
+                            { id: "Tipo", label: "Todos los tipos de gasto", opciones: (window.tiposGastoData || []).map((t) => [t.id, t.nombre]) },
+                            { id: "Ubicacion", label: "Todas las ubicaciones", opciones: opcionesUbicacionesFiltro() },
+                          ],
+                          fechas: true,
+                          onChange: "skipGastos=0;cargarGastosTabla()",
+                        })}
                         <div id="gastosContainer">
                             <div class="text-center py-5">
                                 <div class="spinner-border text-primary" role="status"></div>
@@ -793,57 +797,72 @@ async function cargarResumenCompras() {
 // =============================================
 // PANEL: PROVEEDORES
 // =============================================
-function renderProveedoresTab(proveedores) {
+// Proveedores: búsqueda, tipo y estado se filtran en el servidor (antes
+// solo se buscaba entre los primeros 50 activos, y los inactivos no salían)
+function renderProveedoresTab() {
   const container = document.getElementById("proveedoresContainer");
   if (!container) return;
 
-  window._proveedoresOriginales = proveedores || [];
-
-  let searchHtml = `
-    <div class="row g-2 mb-3">
-      <div class="col-md-6">
-        <div class="input-group input-group-sm">
-          <span class="input-group-text bg-white"><i class="fas fa-search"></i></span>
-          <input type="text" class="form-control" id="buscarProveedoresInput"
-                 placeholder="Buscar por nombre, NIT, contacto, teléfono o email..."
-                 oninput="filtrarProveedoresTabla()">
-          <button class="btn btn-outline-secondary" onclick="document.getElementById('buscarProveedoresInput').value='';filtrarProveedoresTabla()">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
-
-  if (!proveedores || proveedores.length === 0) {
+  if (!document.getElementById("provFiltroBarraFiltros")) {
     container.innerHTML = `
-      <div class="text-center py-5">
-        <i class="fas fa-building fa-3x text-muted mb-3"></i>
-        <p class="text-muted">No hay proveedores registrados</p>
+      <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0">Listado de Proveedores</h6>
         ${
           tienePermiso("Compras", "Crear")
             ? `<button class="btn btn-primary btn-sm" onclick="showCreateProveedorModal()">
-          <i class="fas fa-plus me-2"></i>Agregar Proveedor
+          <i class="fas fa-plus me-2"></i>Nuevo Proveedor
         </button>`
             : ""
         }
+      </div>
+      ${htmlBarraFiltros({
+        id: "provFiltro",
+        placeholder: "Buscar por nombre, NIT, contacto, teléfono o email...",
+        selects: [
+          { id: "Tipo", label: "Todos los tipos", opciones: (window.tiposProveedorData || []).map((t) => [t.id, t.nombre]) },
+          { id: "Estado", label: "Solo activos", opciones: [["inactivos", "Solo inactivos"], ["todos", "Activos e inactivos"]] },
+        ],
+        fechas: false,
+        onChange: "filtrarProveedoresTabla()",
+      })}
+      <div id="proveedoresResultados"></div>
+    `;
+  } else {
+    llenarOpcionesFiltro(
+      "provFiltroTipo",
+      (window.tiposProveedorData || []).map((t) => [t.id, t.nombre]),
+    );
+  }
+  filtrarProveedoresTabla();
+}
+
+async function filtrarProveedoresTabla() {
+  const destino = document.getElementById("proveedoresResultados");
+  if (!destino) return;
+  const f = leerBarraFiltros("provFiltro");
+  let url = `/proveedores?limit=200&estado=${f.Estado || "activos"}`;
+  if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
+  if (f.Tipo) url += `&id_tipo_proveedor=${f.Tipo}`;
+  let proveedores = [];
+  try {
+    proveedores = (await api.request(url)) || [];
+  } catch (error) {
+    destino.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+    return;
+  }
+  window._proveedoresOriginales = proveedores;
+
+  if (proveedores.length === 0) {
+    destino.innerHTML = `
+      <div class="text-center py-5">
+        <i class="fas fa-building fa-3x text-muted mb-3"></i>
+        <p class="text-muted">${f.texto || f.Tipo || f.Estado ? "No hay proveedores que coincidan con el filtro" : "No hay proveedores registrados"}</p>
       </div>
     `;
     return;
   }
 
   let html = `
-    <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
-      <h6 class="mb-0">Listado de Proveedores</h6>
-      ${
-        tienePermiso("Compras", "Crear")
-          ? `<button class="btn btn-primary btn-sm" onclick="showCreateProveedorModal()">
-        <i class="fas fa-plus me-2"></i>Nuevo Proveedor
-      </button>`
-          : ""
-      }
-    </div>
-    ${searchHtml}
     <div class="table-responsive">
       <table class="table table-hover table-striped">
         <thead class="table-light">
@@ -867,16 +886,17 @@ function renderProveedoresTab(proveedores) {
       (t) => t.id === p.id_tipo_proveedor,
     );
     const activo = p.activo !== 0;
+    const esc = (v) => _escFiltro(v || "--");
 
     html += `
       <tr>
         <td>${p.id}</td>
-        <td><strong>${p.nombre || "--"}</strong></td>
-        <td>${p.contacto || "--"}</td>
-        <td>${p.telefono || "--"}</td>
-        <td>${p.email || "--"}</td>
-        <td>${p.nit || "--"}</td>
-        <td>${tipo ? tipo.nombre : "--"}</td>
+        <td><strong>${esc(p.nombre)}</strong></td>
+        <td>${esc(p.contacto)}</td>
+        <td>${esc(p.telefono)}</td>
+        <td>${esc(p.email)}</td>
+        <td>${esc(p.nit)}</td>
+        <td>${tipo ? esc(tipo.nombre) : "--"}</td>
         <td>
           <span class="badge ${activo ? "bg-success" : "bg-danger"}">
             ${activo ? "Activo" : "Inactivo"}
@@ -907,44 +927,11 @@ function renderProveedoresTab(proveedores) {
       </table>
     </div>
     <div class="text-end">
-      <small class="text-muted" id="proveedoresContador">Total: ${proveedores.length} proveedores</small>
+      <small class="text-muted" id="proveedoresContador">Total: ${proveedores.length} proveedores${proveedores.length === 200 ? " (se muestran los primeros 200; usa la búsqueda)" : ""}</small>
     </div>
   `;
 
-  container.innerHTML = html;
-}
-
-// =============================================
-// FILTRO LOCAL: Proveedores
-// =============================================
-function filtrarProveedoresTabla() {
-  const search = (
-    document.getElementById("buscarProveedoresInput")?.value || ""
-  )
-    .toLowerCase()
-    .trim();
-  const tbody = document.getElementById("proveedoresTableBody");
-  if (!tbody) return;
-  const rows = tbody.getElementsByTagName("tr");
-  let visibleCount = 0;
-
-  for (const row of rows) {
-    const text = row.textContent.toLowerCase();
-    if (!search || text.includes(search)) {
-      row.style.display = "";
-      visibleCount++;
-    } else {
-      row.style.display = "none";
-    }
-  }
-
-  const contador = document.getElementById("proveedoresContador");
-  if (contador) {
-    const total = (window._proveedoresOriginales || []).length;
-    contador.textContent = search
-      ? `Mostrando ${visibleCount} de ${total} proveedores`
-      : `Total: ${total} proveedores`;
-  }
+  destino.innerHTML = html;
 }
 
 function renderTiposProveedorTab(tipos) {
@@ -1352,7 +1339,7 @@ function renderCajaChicaTab(movimientos) {
     container.innerHTML = `
             <div class="text-center py-5">
                 <i class="fas fa-coins fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No hay movimientos de caja chica</p>
+                <p class="text-muted">${skipCajaChica > 0 || Object.values(leerBarraFiltros("ccFiltro")).some((v) => v) ? "No hay movimientos que coincidan con el filtro" : "No hay movimientos de caja chica"}</p>
                 ${
                   tienePermiso("Compras", "Crear")
                     ? `<button class="btn btn-success btn-sm" onclick="showCreateCajaChicaModal()">
@@ -1377,22 +1364,6 @@ function renderCajaChicaTab(movimientos) {
             }
         </div>
 
-        <div class="row g-2 mb-3">
-            <div class="col-md-6">
-                <label class="form-label small mb-0">Búsqueda rápida</label>
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-white"><i class="fas fa-search"></i></span>
-                    <input type="text" class="form-control"
-                           id="buscarCajaChicaInput"
-                           placeholder="Buscar por ID, ubicación, concepto, tipo o usuario..."
-                           oninput="filtrarCajaChicaTabla()" />
-                    <button class="btn btn-outline-secondary"
-                            onclick="document.getElementById('buscarCajaChicaInput').value='';filtrarCajaChicaTabla()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
 
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -1543,7 +1514,7 @@ function renderGastosTab(gastos) {
     container.innerHTML = `
             <div class="text-center py-5">
                 <i class="fas fa-receipt fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No hay gastos registrados</p>
+                <p class="text-muted">${skipGastos > 0 || Object.values(leerBarraFiltros("gastosFiltro")).some((v) => v) ? "No hay gastos que coincidan con el filtro" : "No hay gastos registrados"}</p>
                 ${
                   tienePermiso("Compras", "Crear")
                     ? `<button class="btn btn-primary btn-sm" onclick="showCreateGastoModal()">
@@ -1568,22 +1539,6 @@ function renderGastosTab(gastos) {
             }
         </div>
 
-        <div class="row g-2 mb-3">
-            <div class="col-md-6">
-                <label class="form-label small mb-0">Búsqueda rápida</label>
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-white"><i class="fas fa-search"></i></span>
-                    <input type="text" class="form-control"
-                           id="buscarGastosInput"
-                           placeholder="Buscar por tipo, concepto, ubicación, monto o usuario..."
-                           oninput="filtrarGastosTabla()" />
-                    <button class="btn btn-outline-secondary"
-                            onclick="document.getElementById('buscarGastosInput').value='';filtrarGastosTabla()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
 
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -1723,11 +1678,15 @@ function _agregarControlesPaginacionCompras(
 
 async function cargarCajaChicaTabla() {
   try {
-    const desde = document.getElementById("cajaChicaFechaDesde")?.value;
-    const hasta = document.getElementById("cajaChicaFechaHasta")?.value;
+    const f = leerBarraFiltros("ccFiltro");
+    if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return;
+    llenarOpcionesFiltro("ccFiltroUbicacion", opcionesUbicacionesFiltro());
     let url = `/caja-chica?skip=${skipCajaChica}&limit=${LIMITE_CAJA_CHICA}`;
-    if (desde) url += `&fecha_desde=${desde}`;
-    if (hasta) url += `&fecha_hasta=${hasta}`;
+    if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
+    if (f.Tipo) url += `&tipo=${f.Tipo}`;
+    if (f.Ubicacion) url += `&id_ubicacion=${f.Ubicacion}`;
+    if (f.desde) url += `&fecha_desde=${f.desde}`;
+    if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
     const movimientos = await api.request(url);
     renderCajaChicaTab(movimientos);
   } catch (error) {
@@ -1738,11 +1697,16 @@ async function cargarCajaChicaTabla() {
 
 async function cargarGastosTabla() {
   try {
-    const desde = document.getElementById("gastosFechaDesde")?.value;
-    const hasta = document.getElementById("gastosFechaHasta")?.value;
+    const f = leerBarraFiltros("gastosFiltro");
+    if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return;
+    llenarOpcionesFiltro("gastosFiltroTipo", (window.tiposGastoData || tiposGastoData || []).map((t) => [t.id, t.nombre]));
+    llenarOpcionesFiltro("gastosFiltroUbicacion", opcionesUbicacionesFiltro());
     let url = `/gastos?skip=${skipGastos}&limit=${LIMITE_GASTOS}`;
-    if (desde) url += `&fecha_desde=${desde}`;
-    if (hasta) url += `&fecha_hasta=${hasta}`;
+    if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
+    if (f.Tipo) url += `&id_tipo_gasto=${f.Tipo}`;
+    if (f.Ubicacion) url += `&id_ubicacion=${f.Ubicacion}`;
+    if (f.desde) url += `&fecha_desde=${f.desde}`;
+    if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
     const gastos = await api.request(url);
     renderGastosTab(gastos);
     // ❌ QUITAMOS la llamada duplicada
@@ -2059,8 +2023,17 @@ function showCreateProveedorDesdeCompra() {
   }
 }
 
+// Busca el proveedor en la lista general y en la tabla filtrada (ahí
+// también están los inactivos)
+function buscarProveedorPorId(id) {
+  return (
+    (window._proveedoresOriginales || []).find((p) => p.id === id) ||
+    (window.proveedoresData || []).find((p) => p.id === id)
+  );
+}
+
 async function showEditProveedorModal(id) {
-  const proveedor = (window.proveedoresData || []).find((p) => p.id === id);
+  const proveedor = buscarProveedorPorId(id);
   if (!proveedor) return showToast("Proveedor no encontrado", "error");
 
   const existingModal = document.getElementById("proveedorModal");
@@ -2260,7 +2233,7 @@ async function saveProveedor(event) {
 }
 
 async function toggleProveedorEstado(id) {
-  const proveedor = (window.proveedoresData || []).find((p) => p.id === id);
+  const proveedor = buscarProveedorPorId(id);
   if (!proveedor) return;
 
   const accion = proveedor.activo !== 0 ? "inactivar" : "reactivar";

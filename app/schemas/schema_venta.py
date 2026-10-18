@@ -105,5 +105,6 @@ class ServicioAdicionalResponse(BaseModel):
     monto_material: Optional[float] = None
     monto_mano_obra: Optional[float] = None
     total: Optional[float] = None
+    fecha: Optional[datetime] = None
     detalles: List[DetalleServicioResponse] = []
     model_config = ConfigDict(from_attributes=True)

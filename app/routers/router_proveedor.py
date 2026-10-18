@@ -64,6 +64,7 @@ def _nit_repetido(db: Session, modelo, nit, excluir_id=None):
 def listar_proveedores(
     estado: Literal["activos", "inactivos", "todos"] = "activos",
     buscar: Optional[str] = None,
+    id_tipo_proveedor: Optional[int] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     usuario_actual=Depends(get_current_user),
@@ -78,7 +79,11 @@ def listar_proveedores(
         like = f"%{buscar}%"
         query = query.filter(
             (Proveedor.nombre.ilike(like)) | (Proveedor.nit.ilike(like)) | (Proveedor.contacto.ilike(like))
+            | (Proveedor.telefono.ilike(like)) | (Proveedor.email.ilike(like))
         )
+    if id_tipo_proveedor is not None:
+        query = query.filter(Proveedor.id_tipo_proveedor == id_tipo_proveedor)
+    query = query.order_by(Proveedor.id)
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 

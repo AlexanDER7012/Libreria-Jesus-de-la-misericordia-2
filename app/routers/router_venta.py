@@ -1,7 +1,7 @@
 from datetime import date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
@@ -46,6 +46,7 @@ def _generar_alerta_si_stock_bajo(db: Session, producto: Producto):
 @router.get("", response_model=List[VentaResponse])
 def listar_ventas(
     estado: Optional[str] = None,
+    estado_pago: Optional[str] = None,
     id_cliente: Optional[int] = None,
     id_caja_turno: Optional[int] = None,
     fecha_desde: Optional[date] = None,
@@ -55,9 +56,19 @@ def listar_ventas(
     db: Session = Depends(get_db),
     usuario_actual=Depends(get_current_user),
 ):
-    query = db.query(Venta).order_by(Venta.fecha.desc())
-    if estado is not None:
+    """estado_pago: "Pagada" (sin saldo) o "Pendiente" (con saldo)."""
+    query = db.query(Venta).order_by(Venta.fecha.desc(), Venta.id.desc())
+    if estado:
         query = query.filter(Venta.estado == estado)
+    if estado_pago in ("Pagada", "Pendiente"):
+        pagado = (
+            select(func.coalesce(func.sum(MetodoPagoVenta.monto), 0))
+            .where(MetodoPagoVenta.id_venta == Venta.id)
+            .correlate(Venta)
+            .scalar_subquery()
+        )
+        saldo = func.coalesce(Venta.total, 0) - pagado
+        query = query.filter(saldo > 0.009 if estado_pago == "Pendiente" else saldo <= 0.009)
     if id_cliente is not None:
         query = query.filter(Venta.id_cliente == id_cliente)
     if id_caja_turno is not None:
@@ -91,6 +102,8 @@ def listar_ventas(
 @router.get("/conteo")
 def contar_ventas_agrupado(
     agrupar_por: str = "cliente",
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
     db: Session = Depends(get_db),
     usuario_actual=Depends(get_current_user),
 ):
@@ -105,12 +118,20 @@ def contar_ventas_agrupado(
             status_code=400, detail="agrupar_por debe ser 'cliente' o 'vendedor'"
         )
     columna = Venta.id_cliente if agrupar_por == "cliente" else Venta.id_usuario
-    resultados = (
-        db.query(columna.label("id"), func.count(Venta.id).label("total"))
-        .group_by(columna)
-        .all()
+    query = db.query(
+        columna.label("id"),
+        func.count(Venta.id).label("total"),
+        func.coalesce(func.sum(Venta.total), 0).label("monto"),
     )
-    return [{"id": r.id, "total": r.total} for r in resultados if r.id is not None]
+    if fecha_desde is not None:
+        query = query.filter(func.date(Venta.fecha) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(Venta.fecha) <= fecha_hasta)
+    resultados = query.group_by(columna).all()
+    return [
+        {"id": r.id, "total": r.total, "monto": round(float(r.monto or 0), 2)}
+        for r in resultados if r.id is not None
+    ]
 
 
 @router.get("/estadisticas-producto/{producto_id}")
@@ -419,19 +440,23 @@ def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: S
 @router_servicio.get("", response_model=List[ServicioAdicionalResponse])
 def listar_servicios(
     id_cliente: Optional[int] = None,
+    id_venta: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     usuario_actual=Depends(get_current_user),
 ):
-    """
-    Paginado: ?skip=0&limit=50 (default), máximo 200 por página.
-    OJO: esta tabla no tiene columna de fecha, así que no se puede filtrar
-    por rango de fechas todavía -- habría que agregar esa columna primero
-    (con su migración) si se necesita más adelante.
-    """
-    query = db.query(ServicioAdicional)
+    """Filtra por cliente, venta y fechas. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
+    query = db.query(ServicioAdicional).order_by(ServicioAdicional.id.desc())
     if id_cliente is not None:
         query = query.filter(ServicioAdicional.id_cliente == id_cliente)
+    if id_venta is not None:
+        query = query.filter(ServicioAdicional.id_venta == id_venta)
+    if fecha_desde is not None:
+        query = query.filter(func.date(ServicioAdicional.fecha) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(ServicioAdicional.fecha) <= fecha_hasta)
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 

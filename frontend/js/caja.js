@@ -92,21 +92,17 @@
 
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="turnosTab">
-                    <div class="row mb-2 g-2 justify-content-end">
-                        <div class="col-auto">
-                            <select class="form-select form-select-sm" id="turnosFiltroEstado" onchange="window.filtrarTurnos()">
-                                <option value="">Todos los estados</option>
-                                <option value="Abierto">Abierto</option>
-                                <option value="Cerrado">Cerrado</option>
-                            </select>
-                        </div>
-                        <div class="col-auto">
-                            <input type="date" class="form-control form-control-sm" id="turnosFechaDesde" onchange="window.filtrarTurnos()">
-                        </div>
-                        <div class="col-auto">
-                            <input type="date" class="form-control form-control-sm" id="turnosFechaHasta" onchange="window.filtrarTurnos()">
-                        </div>
-                    </div>
+                    ${htmlBarraFiltros({
+                      id: "turnosF",
+                      placeholder: "Buscar en la página por número, usuario o ubicación...",
+                      selects: [
+                        { id: "Estado", label: "Todos los estados", opciones: [["Abierto", "Abiertos"], ["Cerrado", "Cerrados"]] },
+                        { id: "Ubicacion", label: "Todas las ubicaciones", opciones: opcionesUbicacionesFiltro() },
+                        { id: "Usuario", label: "Todos los usuarios", opciones: [] },
+                      ],
+                      fechas: true,
+                      onChange: "window.filtrarTurnos()",
+                    })}
                     <div id="turnosContainer">
                         <div class="text-center py-5">
                             <div class="spinner-border text-primary" role="status"></div>
@@ -121,6 +117,16 @@
                             <i class="fas fa-plus me-1"></i>Registrar Movimiento
                         </button>` : ""}
                     </div>
+                    ${htmlBarraFiltros({
+                      id: "cajaCcF",
+                      placeholder: "Buscar por número, concepto o referencia...",
+                      selects: [
+                        { id: "Tipo", label: "Ingresos y egresos", opciones: [["ingreso", "Solo ingresos"], ["egreso", "Solo egresos"]] },
+                        { id: "Ubicacion", label: "Todas las ubicaciones", opciones: opcionesUbicacionesFiltro() },
+                      ],
+                      fechas: true,
+                      onChange: "window.loadCajaChicaCaja()",
+                    })}
                     <div id="cajaChicaContainer">
                         <div class="text-center py-5">
                             <div class="spinner-border text-success" role="status"></div>
@@ -129,6 +135,16 @@
                     </div>
                 </div>
                 <div class="tab-pane fade" id="gastosTab">
+                    ${htmlBarraFiltros({
+                      id: "cajaGaF",
+                      placeholder: "Buscar por número, concepto u observaciones...",
+                      selects: [
+                        { id: "Tipo", label: "Todos los tipos de gasto", opciones: [] },
+                        { id: "Ubicacion", label: "Todas las ubicaciones", opciones: opcionesUbicacionesFiltro() },
+                      ],
+                      fechas: true,
+                      onChange: "window.loadGastosCaja()",
+                    })}
                     <div id="gastosContainer">
                         <div class="text-center py-5">
                             <div class="spinner-border text-warning" role="status"></div>
@@ -359,14 +375,16 @@
     const container = document.getElementById("turnosContainer");
     if (!container) return;
     try {
-      const estado = document.getElementById("turnosFiltroEstado")?.value;
-      const desde = document.getElementById("turnosFechaDesde")?.value;
-      const hasta = document.getElementById("turnosFechaHasta")?.value;
+      const f = leerBarraFiltros("turnosF");
+      if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return;
+      await cargarNombresCaja();
 
       let url = `/caja-turno?skip=${skipTurnos}&limit=${LIMITE_TURNOS}`;
-      if (estado) url += `&estado=${estado}`;
-      if (desde) url += `&fecha_desde=${desde}`;
-      if (hasta) url += `&fecha_hasta=${hasta}`;
+      if (f.Estado) url += `&estado=${f.Estado}`;
+      if (f.Ubicacion) url += `&id_ubicacion=${f.Ubicacion}`;
+      if (f.Usuario) url += `&id_usuario=${f.Usuario}`;
+      if (f.desde) url += `&fecha_desde=${f.desde}`;
+      if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
 
       window.cajaTurnosData = (await api.request(url)) || [];
       renderTurnos(window.cajaTurnosData);
@@ -376,9 +394,48 @@
     }
   }
 
+  // El texto solo filtra las filas de la página; los demás filtros recargan
   function filtrarTurnos() {
+    const f = leerBarraFiltros("turnosF");
+    const clave = `${f.Estado}|${f.Ubicacion}|${f.Usuario}|${f.desde}|${f.hasta}`;
+    if (clave === window.__claveTurnosCaja) {
+      aplicarTextoTurnos();
+      return;
+    }
+    window.__claveTurnosCaja = clave;
     skipTurnos = 0;
     cargarTurnosTabla();
+  }
+
+  function aplicarTextoTurnos() {
+    const { texto } = leerBarraFiltros("turnosF");
+    document.querySelectorAll("#turnosContainer tbody tr").forEach((tr) => {
+      tr.style.display = coincideTextoFiltro(texto, tr.textContent) ? "" : "none";
+    });
+  }
+
+  // Nombres de usuarios y ubicaciones (antes la tabla mostraba solo números)
+  let usuariosCaja = null;
+  async function cargarNombresCaja() {
+    if (!usuariosCaja) {
+      usuariosCaja = (await api.getUsuarios().catch(() => [])) || [];
+      llenarOpcionesFiltro(
+        "turnosFUsuario",
+        usuariosCaja.map((u) => [u.id, u.nombre_usuario || `Usuario ${u.id}`]),
+      );
+    }
+    await cargarUbicacionesCaja();
+    llenarOpcionesFiltro("turnosFUbicacion", opcionesUbicacionesFiltro());
+    llenarOpcionesFiltro("cajaCcFUbicacion", opcionesUbicacionesFiltro());
+    llenarOpcionesFiltro("cajaGaFUbicacion", opcionesUbicacionesFiltro());
+  }
+  function nombreUsuarioCaja(id) {
+    const u = (usuariosCaja || []).find((x) => x.id === id);
+    return u ? u.nombre_usuario : id ? `Usuario ${id}` : "--";
+  }
+  function nombreUbicacionCaja(id) {
+    const u = (window.ubicacionesData || []).find((x) => x.id === id);
+    return u ? u.nombre : id ? `Ubicación ${id}` : "--";
   }
 
   function turnosAnterior() {
@@ -417,7 +474,7 @@
       container.innerHTML = `
                 <div class="text-center py-4 text-muted">
                     <i class="fas fa-clock fa-3x mb-3"></i>
-                    <p>No hay turnos registrados</p>
+                    <p>${Object.values(leerBarraFiltros("turnosF")).some((v) => v) || skipTurnos > 0 ? "No hay turnos que coincidan con el filtro" : "No hay turnos registrados"}</p>
                 </div>
             `;
       return;
@@ -456,8 +513,8 @@
       html += `
                 <tr>
                     <td>${t.id}</td>
-                    <td>${t.id_usuario || "--"}</td>
-                    <td>${t.id_ubicacion || "--"}</td>
+                    <td>${_escFiltro(nombreUsuarioCaja(t.id_usuario))}</td>
+                    <td>${_escFiltro(nombreUbicacionCaja(t.id_ubicacion))}</td>
                     <td>${fechaApertura}</td>
                     <td>${fechaCierre}</td>
                     <td>Q${t.fondo_inicial || 0}</td>
@@ -481,6 +538,7 @@
         `;
 
     container.innerHTML = html;
+    aplicarTextoTurnos();
   }
 
   function abrirModalTurno() {
@@ -950,7 +1008,15 @@
     const container = document.getElementById("cajaChicaContainer");
     if (!container) return;
     try {
-      cajaChicaData = (await api.getCajaChica()) || [];
+      const f = leerBarraFiltros("cajaCcF");
+      if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return;
+      let url = "/caja-chica?limit=200";
+      if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
+      if (f.Tipo) url += `&tipo=${f.Tipo}`;
+      if (f.Ubicacion) url += `&id_ubicacion=${f.Ubicacion}`;
+      if (f.desde) url += `&fecha_desde=${f.desde}`;
+      if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
+      cajaChicaData = (await api.request(url)) || [];
       renderCajaChica(cajaChicaData);
     } catch (error) {
       container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
@@ -965,7 +1031,7 @@
       container.innerHTML = `
                 <div class="text-center py-4 text-muted">
                     <i class="fas fa-coins fa-3x mb-3"></i>
-                    <p>No hay movimientos de caja chica</p>
+                    <p>${Object.values(leerBarraFiltros("cajaCcF")).some((v) => v) ? "No hay movimientos que coincidan con el filtro" : "No hay movimientos de caja chica"}</p>
                 </div>
             `;
       return;
@@ -988,17 +1054,19 @@
         `;
 
     movimientos.forEach((m) => {
-      const tipo = m.tipo || "--";
-      const tipoBadge = tipo === "Ingreso" ? "bg-success" : "bg-danger";
-      const monto = m.monto || 0;
-      const montoClass = monto >= 0 ? "text-success" : "text-danger";
+      // El tipo se guarda como "ingreso"/"egreso"
+      const esIngreso = String(m.tipo || "").toLowerCase() === "ingreso";
+      const tipo = m.tipo ? (esIngreso ? "Ingreso" : "Egreso") : "--";
+      const tipoBadge = esIngreso ? "bg-success" : "bg-danger";
+      const monto = Math.abs(parseFloat(m.monto) || 0);
+      const montoClass = esIngreso ? "text-success" : "text-danger";
 
       html += `
                 <tr>
                     <td>${m.fecha ? new Date(m.fecha).toLocaleString() : "--"}</td>
                     <td><span class="badge ${tipoBadge}">${tipo}</span></td>
                     <td>${m.concepto || "--"}</td>
-                    <td class="${montoClass} fw-bold">Q${monto}</td>
+                    <td class="${montoClass} fw-bold">${esIngreso ? "+" : "-"}Q${monto.toFixed(2)}</td>
                     <td>Q${m.saldo || 0}</td>
                     <td>${m.referencia || "--"}</td>
                 </tr>
@@ -1110,7 +1178,19 @@
     const container = document.getElementById("gastosContainer");
     if (!container) return;
     try {
-      gastosData = (await api.getGastos()) || [];
+      const f = leerBarraFiltros("cajaGaF");
+      if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return;
+      if (!tiposGastoData.length) {
+        tiposGastoData = (await api.getTiposGasto().catch(() => [])) || [];
+      }
+      llenarOpcionesFiltro("cajaGaFTipo", tiposGastoData.map((t) => [t.id, t.nombre]));
+      let url = "/gastos?limit=200";
+      if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
+      if (f.Tipo) url += `&id_tipo_gasto=${f.Tipo}`;
+      if (f.Ubicacion) url += `&id_ubicacion=${f.Ubicacion}`;
+      if (f.desde) url += `&fecha_desde=${f.desde}`;
+      if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
+      gastosData = (await api.request(url)) || [];
       renderGastos(gastosData);
     } catch (error) {
       container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
@@ -1125,7 +1205,7 @@
       container.innerHTML = `
                 <div class="text-center py-4 text-muted">
                     <i class="fas fa-money-bill-wave fa-3x mb-3"></i>
-                    <p>No hay gastos registrados</p>
+                    <p>${Object.values(leerBarraFiltros("cajaGaF")).some((v) => v) ? "No hay gastos que coincidan con el filtro" : "No hay gastos registrados"}</p>
                 </div>
             `;
       return;
@@ -1535,6 +1615,8 @@
   window.cargarCajaEnContainer = cargarCajaEnContainer;
   window.cargarTurnosTabla = cargarTurnosTabla;
   window.filtrarTurnos = filtrarTurnos;
+  window.loadCajaChicaCaja = loadCajaChica;
+  window.loadGastosCaja = loadGastos;
   window.turnosAnterior = turnosAnterior;
   window.turnosSiguiente = turnosSiguiente;
   window.showCerrarTurnoModal = showCerrarTurnoModal;
@@ -1551,4 +1633,4 @@
   window.abrirModalTurno = abrirModalTurno;
   window.agregarDenominacion = agregarDenominacion;
   window.mostrarSelectorTurnos = mostrarSelectorTurnos;
-})();
+})();
