@@ -106,7 +106,7 @@ def generar_backup(
     entorno = os.environ.copy()
     entorno["PGPASSWORD"] = password
     comando = [
-        "pg_dump",
+        "/usr/bin/pg_dump",
         "-h", host,
         "-p", puerto,
         "-U", usuario,
