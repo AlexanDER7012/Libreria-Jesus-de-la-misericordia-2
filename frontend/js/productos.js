@@ -219,6 +219,18 @@ function htmlFiltrosListaCatalogo(tipo, etiqueta, estado) {
     </div>`;
 }
 
+function mostrarAvisoSinPermisoVerCatalogo(container, modulo, seccion, accionCrear) {
+  if (tienePermiso(modulo, "Ver")) return false;
+  container.innerHTML = `
+    <div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span>No tienes permiso para ver ${seccion}.</span>
+      ${tienePermiso(modulo, "Crear") ? `<button class="btn btn-sm btn-primary" onclick="${accionCrear}">
+        <i class="fas fa-plus me-1"></i>Agregar ${seccion}
+      </button>` : ""}
+    </div>`;
+  return true;
+}
+
 async function loadProductosModule() {
   const container =
     document.getElementById("productosTableContainer") ||
@@ -674,6 +686,12 @@ function populateSelects() {
 function renderProductosTable(productos) {
   const container = document.getElementById("productosTableContainer");
   if (!container) return;
+  if (mostrarAvisoSinPermisoVerCatalogo(
+    container,
+    "Productos",
+    "productos",
+    "showCreateProductoModal()",
+  )) return;
 
   if (!productos || productos.length === 0) {
     container.innerHTML = `
@@ -1098,10 +1116,11 @@ async function toggleProductoEstado(id) {
   if (!confirmado) return;
 
   try {
-    await api.updateProducto(id, {
-      ...producto,
-      activo: producto.activo !== 0 ? 0 : 1,
-    });
+    if (producto.activo !== 0) {
+      await api.deleteProducto(id);
+    } else {
+      await api.request(`/productos/${id}/reactivar`, "PATCH");
+    }
     showToast(
       `Producto ${accion === "inactivar" ? "inactivado" : "activado"} correctamente`,
       "success",
@@ -1138,6 +1157,12 @@ async function deleteProducto(id) {
 function renderCategoriasTable(categorias) {
   const container = document.getElementById("categoriasTableContainer");
   if (!container) return;
+  if (mostrarAvisoSinPermisoVerCatalogo(
+    container,
+    "Categorias",
+    "categorías",
+    "showCreateCategoriaModal()",
+  )) return;
 
   if (!categorias || categorias.length === 0) {
     container.innerHTML = `
@@ -1145,7 +1170,7 @@ function renderCategoriasTable(categorias) {
                 <i class="fas fa-tags fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay categorías registradas</p>
                 ${
-                  tienePermiso("Productos", "Crear")
+                  tienePermiso("Categorias", "Crear")
                     ? `<button class="btn btn-primary btn-sm" onclick="showCreateCategoriaModal()">
                     <i class="fas fa-plus me-2"></i>Nueva Categoría
                 </button>`
@@ -1166,7 +1191,7 @@ function renderCategoriasTable(categorias) {
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Categorías</h6>
             ${
-              tienePermiso("Productos", "Crear")
+              tienePermiso("Categorias", "Crear")
                 ? `<button class="btn btn-primary btn-sm" onclick="showCreateCategoriaModal()">
                 <i class="fas fa-plus me-2"></i>Nueva Categoría
             </button>`
@@ -1206,14 +1231,14 @@ function renderCategoriasTable(categorias) {
                 </td>
                 <td>
                     ${
-                      tienePermiso("Productos", "Editar")
+                      tienePermiso("Categorias", "Editar")
                         ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditCategoriaModal(${c.id})">
                         <i class="fas fa-edit"></i>
                     </button>`
                         : ""
                     }
                     ${
-                      tienePermiso("Productos", "Eliminar")
+                      tienePermiso("Categorias", "Eliminar")
                         ? `<button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleCategoriaEstado(${c.id})">
                         <i class="fas fa-${activo ? "times" : "check"}"></i>
                     </button>`
@@ -1334,8 +1359,7 @@ async function toggleCategoriaEstado(id) {
   if (!confirmado) return;
 
   try {
-    await api.request(`/categorias/${id}`, "PUT", {
-      ...categoria,
+    await api.request(`/categorias/${id}/estado`, "PATCH", {
       activo: categoria.activo !== 0 ? 0 : 1,
     });
     showToast(
@@ -1352,6 +1376,12 @@ async function toggleCategoriaEstado(id) {
 function renderMarcasTable(marcas) {
   const container = document.getElementById("marcasTableContainer");
   if (!container) return;
+  if (mostrarAvisoSinPermisoVerCatalogo(
+    container,
+    "Marcas",
+    "marcas",
+    "showCreateMarcaModal()",
+  )) return;
 
   if (!marcas || marcas.length === 0) {
     container.innerHTML = `
@@ -1359,7 +1389,7 @@ function renderMarcasTable(marcas) {
                 <i class="fas fa-copyright fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay marcas registradas</p>
                 ${
-                  tienePermiso("Productos", "Crear")
+                  tienePermiso("Marcas", "Crear")
                     ? `<button class="btn btn-info btn-sm" onclick="showCreateMarcaModal()">
                     <i class="fas fa-plus me-2"></i>Nueva Marca
                 </button>`
@@ -1375,7 +1405,7 @@ function renderMarcasTable(marcas) {
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Marcas</h6>
             ${
-              tienePermiso("Productos", "Crear")
+              tienePermiso("Marcas", "Crear")
                 ? `<button class="btn btn-info btn-sm" onclick="showCreateMarcaModal()">
                 <i class="fas fa-plus me-2"></i>Nueva Marca
             </button>`
@@ -1415,14 +1445,14 @@ function renderMarcasTable(marcas) {
                 </td>
                 <td>
                     ${
-                      tienePermiso("Productos", "Editar")
+                      tienePermiso("Marcas", "Editar")
                         ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditMarcaModal(${m.id})">
                         <i class="fas fa-edit"></i>
                     </button>`
                         : ""
                     }
                     ${
-                      tienePermiso("Productos", "Eliminar")
+                      tienePermiso("Marcas", "Eliminar")
                         ? `<button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleMarcaEstado(${m.id})">
                         <i class="fas fa-${activo ? "times" : "check"}"></i>
                     </button>`
@@ -1541,8 +1571,7 @@ async function toggleMarcaEstado(id) {
   if (!confirmado) return;
 
   try {
-    await api.request(`/marcas/${id}`, "PUT", {
-      ...marca,
+    await api.request(`/marcas/${id}/estado`, "PATCH", {
       activo: marca.activo !== 0 ? 0 : 1,
     });
     showToast(
@@ -1559,6 +1588,12 @@ async function toggleMarcaEstado(id) {
 function renderUnidadesTable(unidades) {
   const container = document.getElementById("unidadesTableContainer");
   if (!container) return;
+  if (mostrarAvisoSinPermisoVerCatalogo(
+    container,
+    "Unidades",
+    "unidades",
+    "showCreateUnidadModal()",
+  )) return;
 
   if (!unidades || unidades.length === 0) {
     container.innerHTML = `
@@ -1566,7 +1601,7 @@ function renderUnidadesTable(unidades) {
                 <i class="fas fa-ruler fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay unidades registradas</p>
                 ${
-                  tienePermiso("Productos", "Crear")
+                  tienePermiso("Unidades", "Crear")
                     ? `<button class="btn btn-warning btn-sm" onclick="showCreateUnidadModal()">
                     <i class="fas fa-plus me-2"></i>Nueva Unidad
                 </button>`
@@ -1587,7 +1622,7 @@ function renderUnidadesTable(unidades) {
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Unidades de Medida</h6>
             ${
-              tienePermiso("Productos", "Crear")
+              tienePermiso("Unidades", "Crear")
                 ? `<button class="btn btn-warning btn-sm" onclick="showCreateUnidadModal()">
                 <i class="fas fa-plus me-2"></i>Nueva Unidad
             </button>`
@@ -1629,14 +1664,14 @@ function renderUnidadesTable(unidades) {
                 </td>
                 <td>
                     ${
-                      tienePermiso("Productos", "Editar")
+                      tienePermiso("Unidades", "Editar")
                         ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditUnidadModal(${u.id})">
                         <i class="fas fa-edit"></i>
                     </button>`
                         : ""
                     }
                     ${
-                      tienePermiso("Productos", "Eliminar")
+                      tienePermiso("Unidades", "Eliminar")
                         ? `<button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleUnidadEstado(${u.id})">
                         <i class="fas fa-${activo ? "times" : "check"}"></i>
                     </button>`
@@ -1759,8 +1794,7 @@ async function toggleUnidadEstado(id) {
   if (!confirmado) return;
 
   try {
-    await api.request(`/unidades-medida/${id}`, "PUT", {
-      ...unidad,
+    await api.request(`/unidades-medida/${id}/estado`, "PATCH", {
       activo: unidad.activo !== 0 ? 0 : 1,
     });
     showToast(

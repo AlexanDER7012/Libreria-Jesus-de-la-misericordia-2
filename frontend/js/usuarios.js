@@ -139,25 +139,21 @@ async function cargarDatos() {
       roles,
       puestos,
       turnos,
-      modulos,
-      permisos,
     ] = await Promise.all([
       api.getUsuarios().catch(() => []),
       api.request("/empleados?estado=todos").catch(() => []),
       api.getRoles().catch(() => []),
       api.getPuestos().catch(() => []),
       api.getTurnos().catch(() => []),
-      api.getModulos().catch(() => []),
-      api.getPermisos().catch(() => []),
     ]);
+    permisosData = (await api.getPermisos()) || [];
+    modulosData = (await api.getModulos()) || [];
 
     usuariosData = usuarios || [];
     empleadosData = empleados || []; // se mantiene completa (sin paginar) -- otras partes de la pantalla la usan para cruzar nombres (Pagos, Usuarios, selects)
     rolesData = roles || [];
     puestosData = puestos || [];
     turnosData = turnos || [];
-    modulosData = modulos || [];
-    permisosData = permisos || [];
 
     console.log("✅ Datos cargados:");
     console.log("  - Usuarios:", usuariosData.length);
@@ -426,20 +422,21 @@ function renderRoles(roles) {
                 // permisosData otra vez.
                 const permisosDelRol = rolPermisosData.filter((p) => p.id_rol === r.id);
 
-                // Agrupar los permisos por módulo, ej: "Ventas: Ver, Crear"
+                // Resumir los permisos por módulo sin mostrar las descripciones técnicas.
                 const permisosPorModulo = {};
                 permisosDelRol.forEach((p) => {
                   const modulo = modulosData.find((m) => m.id === p.id_modulo);
-                  const nombreModulo = modulo ? modulo.nombre : "General";
+                  const nombreModulo = modulo ? etiquetaModuloPermiso(modulo.nombre) : "General";
                   if (!permisosPorModulo[nombreModulo]) permisosPorModulo[nombreModulo] = [];
-                  permisosPorModulo[nombreModulo].push(p.descripcion || p.nombre || "(sin nombre)");
+                  permisosPorModulo[nombreModulo].push(etiquetaPermisoCorta(p.nombre));
                 });
 
                 const htmlPermisos = Object.keys(permisosPorModulo).length
                   ? Object.entries(permisosPorModulo)
                       .map(
                         ([modulo, acciones]) =>
-                          `<div class="small mb-1"><strong>${modulo}:</strong> ${acciones.join(", ")}</div>`,
+                          `<div class="small mb-1"><strong>${escaparHtmlUsuarios(modulo)}:</strong>
+                            ${acciones.map((accion) => `<span class="badge rounded-pill bg-light text-dark border me-1">${escaparHtmlUsuarios(accion)}</span>`).join("")}</div>`,
                       )
                       .join("")
                   : `<div class="small text-muted">(sin permisos asignados)</div>`;
@@ -1815,9 +1812,182 @@ async function savePagoEmpleado(event) {
   }
 }
 
+function escaparHtmlUsuarios(valor) {
+  return String(valor || "").replace(/[&<>"']/g, (caracter) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[caracter]);
+}
+
+function etiquetaPermisoCorta(nombre) {
+  const acciones = {
+    ver: "Ver",
+    crear: "Agregar",
+    editar: "Modificar",
+    eliminar: "Inactivar/reactivar",
+  };
+  if (!nombre) return "Permiso";
+  if (nombre.startsWith("Tab:")) {
+    const seccion = nombre.split(":").pop();
+    const etiquetas = {
+      Catalogo: "Catálogo",
+      ConteoFisico: "Conteo físico",
+      TiposMovimiento: "Tipos de movimiento",
+      CajaChica: "Caja chica",
+      TiposPago: "Tipos de pago",
+      TiposProveedor: "Tipos de proveedor",
+      TiposGasto: "Tipos de gasto",
+      FichaClienteVentas: "Ventas en ficha de cliente",
+      FichaClienteServicios: "Servicios en ficha de cliente",
+      InventarioValorizado: "Inventario valorizado",
+      ComprasResumen: "Resumen de compras",
+      ComprasProveedor: "Compras por proveedor",
+      VentasDiarias: "Ventas diarias",
+      UsuariosActivos: "Usuarios activos",
+      UsuariosPorFecha: "Usuarios por fecha",
+      UsuariosBuscar: "Búsqueda de usuarios",
+    };
+    return etiquetas[seccion] || seccion.replace(/([a-z])([A-Z])/g, "$1 $2");
+  }
+  return acciones[nombre.toLowerCase()] || nombre;
+}
+
+function etiquetaModuloPermiso(nombre) {
+  const etiquetas = {
+    Categorias: "Categorías",
+    Unidades: "Unidades de medida",
+  };
+  return etiquetas[nombre] || nombre || "General";
+}
+
 // ============================================================
 // GESTIÓN DE PERMISOS POR ROL
 // ============================================================
+function htmlControlPermisoRol(idRol, permiso, asignaciones, etiqueta) {
+  if (!permiso) return "";
+  const asignacion = asignaciones.find((rp) => rp.id_permiso === permiso.id);
+  const label = etiqueta || etiquetaPermisoCorta(permiso.nombre);
+  return `
+    <div class="form-check mb-1">
+      <input class="form-check-input" type="checkbox" id="permiso_${permiso.id}"
+             ${asignacion ? "checked" : ""}
+             onchange="togglePermiso(${idRol}, ${permiso.id}, ${asignacion?.id || "null"}, this)">
+      <label class="form-check-label" for="permiso_${permiso.id}">${escaparHtmlUsuarios(label)}</label>
+    </div>`;
+}
+
+function nombreModuloPermiso(permiso) {
+  return modulosData.find((modulo) => modulo.id === permiso.id_modulo)?.nombre || "General";
+}
+
+function htmlPermisosInventario(idRol, permisos, asignaciones) {
+  const tab = (seccion) => permisos.find(
+    (permiso) => nombreModuloPermiso(permiso).toLowerCase() === "inventario" &&
+      permiso.nombre === `Tab:Inventario:${seccion}`,
+  );
+  const acciones = (modulo) => permisos.filter(
+    (permiso) => nombreModuloPermiso(permiso).toLowerCase() === modulo.toLowerCase() &&
+      !(permiso.nombre || "").startsWith("Tab:"),
+  );
+  const seccionesCatalogo = [
+    ["Productos", "Productos"],
+    ["Categorias", "Categorías"],
+    ["Marcas", "Marcas"],
+    ["Unidades", "Unidades"],
+  ];
+  const hijosOperaciones = [
+    ["Resumen", "Resumen"],
+    ["ConteoFisico", "Conteo físico"],
+    ["Traslados", "Traslados"],
+    ["Alertas", "Alertas"],
+    ["TiposMovimiento", "Tipos de movimiento"],
+  ];
+  const htmlReportes = ["Dashboard", "Reportes"].map((clave) =>
+    htmlControlPermisoRol(idRol, tab(clave), asignaciones, clave),
+  ).join("");
+
+  const htmlSeccionesCatalogo = seccionesCatalogo.map(([modulo, etiqueta]) => {
+    const permisoTab = tab(modulo);
+    const accionesModulo = acciones(modulo);
+    return `
+      <div class="border rounded p-2 h-100">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <strong>${etiqueta}</strong>
+          ${htmlControlPermisoRol(idRol, permisoTab, asignaciones, "Acceso a sección")}
+        </div>
+        <div class="row row-cols-2 g-1">
+          ${accionesModulo.map((permiso) =>
+            htmlControlPermisoRol(idRol, permiso, asignaciones, `${etiquetaPermisoCorta(permiso.nombre)} ${etiqueta.toLowerCase()}`),
+          ).join("")}
+        </div>
+      </div>`;
+  }).join("");
+  const htmlOperaciones = hijosOperaciones.map(([clave, etiqueta]) =>
+    htmlControlPermisoRol(idRol, tab(clave), asignaciones, etiqueta),
+  ).join("");
+  const permisosInventario = acciones("Inventario");
+
+  return `
+    <div class="card mb-3">
+      <div class="card-header bg-light">
+        <strong><i class="fas fa-boxes me-2"></i>Inventario</strong>
+      </div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+          <h6 class="text-muted small text-uppercase mb-0">Catálogo</h6>
+          ${htmlControlPermisoRol(idRol, tab("Catalogo"), asignaciones, "Acceso a sección")}
+        </div>
+        <div class="row row-cols-1 row-cols-lg-2 g-2 mb-3">${htmlSeccionesCatalogo}</div>
+        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+          <h6 class="text-muted small text-uppercase mb-0">Operaciones</h6>
+          ${htmlControlPermisoRol(idRol, tab("Operaciones"), asignaciones, "Acceso a sección")}
+        </div>
+        <div class="row row-cols-2 row-cols-md-3 g-2 mb-2">${htmlOperaciones}</div>
+        <div class="row row-cols-2 row-cols-md-4 g-2">
+          ${permisosInventario.map((permiso) =>
+            htmlControlPermisoRol(idRol, permiso, asignaciones, `${etiquetaPermisoCorta(permiso.nombre)} operaciones`),
+          ).join("")}
+        </div>
+        <h6 class="text-muted small text-uppercase mt-3">Reportes</h6>
+        <div class="row row-cols-2 row-cols-md-3 g-2">${htmlReportes}</div>
+      </div>
+    </div>`;
+}
+
+function htmlPermisosModuloRol(idRol, moduloNombre, icono, permisos, asignaciones) {
+  const permisosModulo = permisos.filter(
+    (permiso) => nombreModuloPermiso(permiso) === moduloNombre,
+  );
+  if (!permisosModulo.length) return "";
+  const pestanas = permisosModulo.filter((permiso) => (permiso.nombre || "").startsWith("Tab:"));
+  const acciones = permisosModulo.filter((permiso) => !(permiso.nombre || "").startsWith("Tab:"));
+  return `
+    <div class="card mb-3">
+      <div class="card-header bg-light">
+        <strong><i class="fas ${icono || "fa-cube"} me-2"></i>${escaparHtmlUsuarios(etiquetaModuloPermiso(moduloNombre))}</strong>
+      </div>
+      <div class="card-body">
+        ${pestanas.length ? `
+          <h6 class="text-muted small text-uppercase">Secciones</h6>
+          <div class="row row-cols-2 row-cols-md-3 g-2 mb-3">
+            ${pestanas.map((permiso) =>
+              htmlControlPermisoRol(idRol, permiso, asignaciones, etiquetaPermisoCorta(permiso.nombre)),
+            ).join("")}
+          </div>` : ""}
+        ${acciones.length ? `
+          <h6 class="text-muted small text-uppercase">Acciones</h6>
+          <div class="row row-cols-2 row-cols-md-3 g-2">
+            ${acciones.map((permiso) =>
+              htmlControlPermisoRol(idRol, permiso, asignaciones, etiquetaPermisoCorta(permiso.nombre)),
+            ).join("")}
+          </div>` : ""}
+      </div>
+    </div>`;
+}
+
 async function verPermisosRol(idRol) {
   try {
     const rol = rolesData.find((r) => r.id === idRol);
@@ -1827,8 +1997,6 @@ async function verPermisosRol(idRol) {
     }
 
     const permisosRol = await api.request(`/roles/${idRol}/permisos`);
-    const permisosIds = permisosRol.map((p) => p.id_permiso);
-
     if (!permisosData || permisosData.length === 0) {
       let html = `
                 <div class="modal-header">
@@ -1865,126 +2033,43 @@ async function verPermisosRol(idRol) {
       return;
     }
 
-    const permisosPorModulo = {};
-
-    modulosData.forEach((modulo) => {
-      const moduloNombre = modulo.nombre || "Sin módulo";
-      if (!permisosPorModulo[moduloNombre]) {
-        permisosPorModulo[moduloNombre] = {
-          id: modulo.id,
-          icono: modulo.icono || "fa-cube",
-          permisos: [],
-        };
-      }
-    });
-
-    permisosData.forEach((p) => {
-      let moduloNombre = "Sin módulo";
-      if (p.id_modulo) {
-        const modulo = modulosData.find((m) => m.id === p.id_modulo);
-        if (modulo) {
-          moduloNombre = modulo.nombre || "Sin módulo";
-        }
-      }
-
-      if (!permisosPorModulo[moduloNombre]) {
-        permisosPorModulo[moduloNombre] = {
-          id: null,
-          icono: "fa-cube",
-          permisos: [],
-        };
-      }
-
-      permisosPorModulo[moduloNombre].permisos.push({
-        ...p,
-        tienePermiso: permisosIds.includes(p.id),
-        rolPermisoId: permisosRol.find((rp) => rp.id_permiso === p.id)?.id,
-      });
-    });
-
     let html = `
             <div class="modal-header">
-                <h5 class="modal-title">Gestionar Permisos - ${rol.nombre}</h5>
+                <h5 class="modal-title">Permisos del rol: ${escaparHtmlUsuarios(rol.nombre)}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p class="text-muted small">Marca o desmarca los permisos para este rol. Los cambios se guardan automáticamente.</p>
+                <p class="text-muted small">Selecciona las secciones visibles y las acciones permitidas. Los cambios se guardan automáticamente.</p>
                 <div id="permisosContainer">
         `;
 
-    const tieneModulos = Object.keys(permisosPorModulo).some(
-      (key) => permisosPorModulo[key].permisos.length > 0,
+    const modulosCatalogo = new Set(["Productos", "Categorias", "Marcas", "Unidades"]);
+    const permisosInventario = permisosData.filter((permiso) =>
+      nombreModuloPermiso(permiso).toLowerCase() === "inventario" ||
+      modulosCatalogo.has(nombreModuloPermiso(permiso)),
     );
+    if (permisosInventario.length) {
+      html += htmlPermisosInventario(idRol, permisosInventario, permisosRol);
+    }
 
-    if (!tieneModulos) {
-      html += `
-                <div class="card">
-                    <div class="card-header bg-light">
-                        <strong>Todos los Permisos</strong>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            ${permisosData
-                              .map(
-                                (p) => `
-                                <div class="col-md-6 col-lg-4">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox"
-                                               id="permiso_${p.id}"
-                                               ${permisosIds.includes(p.id) ? "checked" : ""}
-                                               onchange="togglePermiso(${idRol}, ${p.id}, ${permisosRol.find((rp) => rp.id_permiso === p.id)?.id || "null"}, this)">
-                                        <label class="form-check-label" for="permiso_${p.id}">
-                                            ${p.nombre}
-                                            ${p.descripcion ? `<br><small class="text-muted">${p.descripcion}</small>` : ""}
-                                        </label>
-                                    </div>
-                                </div>
-                            `,
-                              )
-                              .join("")}
-                        </div>
-                    </div>
-                </div>
-            `;
-    } else {
-      Object.keys(permisosPorModulo).forEach((moduloNombre) => {
-        const moduloData = permisosPorModulo[moduloNombre];
-        const permisos = moduloData.permisos;
-
-        if (permisos.length === 0) return;
-
-        html += `
-                    <div class="card mb-2">
-                        <div class="card-header bg-light">
-                            <i class="fas ${moduloData.icono || "fa-cube"} me-2"></i>
-                            <strong>${moduloNombre}</strong>
-                            <span class="badge bg-secondary ms-2">${permisos.length} permisos</span>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                ${permisos
-                                  .map(
-                                    (p) => `
-                                    <div class="col-md-6 col-lg-4">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox"
-                                                   id="permiso_${p.id}"
-                                                   ${p.tienePermiso ? "checked" : ""}
-                                                   onchange="togglePermiso(${idRol}, ${p.id}, ${p.rolPermisoId || "null"}, this)">
-                                            <label class="form-check-label" for="permiso_${p.id}">
-                                                ${p.nombre}
-                                                ${p.descripcion ? `<br><small class="text-muted">${p.descripcion}</small>` : ""}
-                                            </label>
-                                        </div>
-                                    </div>
-                                `,
-                                  )
-                                  .join("")}
-                            </div>
-                        </div>
-                    </div>
-                `;
+    modulosData
+      .filter((modulo) =>
+        modulo.nombre &&
+        modulo.nombre.toLowerCase() !== "inventario" &&
+        !modulosCatalogo.has(modulo.nombre),
+      )
+      .forEach((modulo) => {
+        html += htmlPermisosModuloRol(
+          idRol,
+          modulo.nombre,
+          modulo.icono,
+          permisosData,
+          permisosRol,
+        );
       });
+
+    if (!permisosData.length) {
+      html += `<div class="alert alert-warning mb-0">No hay permisos definidos en el sistema.</div>`;
     }
 
     html += `
