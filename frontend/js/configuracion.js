@@ -42,25 +42,24 @@ async function loadConfiguracionModule() {
             </li>
         </ul>
 
-        <div class="card mb-4" id="backupsSection">
-            <div class="card-header">
-                <h6 class="mb-0 fw-bold"><i class="fas fa-database me-2"></i>Backup de la base de datos</h6>
-            </div>
-            <div class="card-body">
-                ${tienePermiso("Configuracion", "Editar") ? `<button id="generarBackupBtn" class="btn btn-primary btn-lg mb-4" onclick="generarBackup()">
-                    <i class="fas fa-database me-2"></i>Generar Backup Ahora
-                </button>` : `<div class="alert alert-info">Necesitas el permiso <strong>Configuración → Editar</strong> para generar backups.</div>`}
-                <div id="backupsContainer">
-                    <div class="text-center py-4">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando backups...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <div class="tab-content">
             <div class="tab-pane fade show active" id="generalTab">
+                <div class="card mb-4" id="backupsSection">
+                    <div class="card-header">
+                        <h6 class="mb-0 fw-bold"><i class="fas fa-database me-2"></i>Backup de la base de datos</h6>
+                    </div>
+                    <div class="card-body">
+                        ${tienePermiso("Configuracion", "Editar") ? `<button id="generarBackupBtn" class="btn btn-primary btn-lg mb-4" onclick="generarBackup()">
+                            <i class="fas fa-database me-2"></i>Generar Backup Ahora
+                        </button>` : `<div class="alert alert-info">Necesitas el permiso <strong>Configuración → Editar</strong> para generar backups.</div>`}
+                        <div id="backupsContainer">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status"></div>
+                                <p class="mt-2 text-muted">Cargando backups...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div id="configuracionContainer">
                     <div class="text-center py-5">
                         <div class="spinner-border text-dark" role="status"></div>
