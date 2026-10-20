@@ -25,21 +25,24 @@ router = APIRouter()        # /configuracion
 router_meta = APIRouter()   # /metas-financieras
 
 logger = logging.getLogger(__name__)
-DIRECTORIO_BACKUPS = Path("/var/backups/libreria")
+# Se guarda bajo el home del usuario que ejecuta FastAPI para evitar permisos de root.
+BACKUP_DIR = Path.home() / "backups_libreria"
+BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+os.chmod(BACKUP_DIR, 0o700)
 PATRON_ARCHIVO_BACKUP = re.compile(r"^[a-zA-Z0-9_-]+\.(backup|sql)$")
 
 
 def _preparar_directorio_backups() -> Path:
     """Crea el directorio de backups y limita sus permisos al propietario."""
     try:
-        if DIRECTORIO_BACKUPS.is_symlink():
+        if BACKUP_DIR.is_symlink():
             raise HTTPException(status_code=500, detail="El directorio de backups no puede ser un enlace simbólico")
-        DIRECTORIO_BACKUPS.mkdir(mode=0o700, parents=True, exist_ok=True)
-        os.chmod(DIRECTORIO_BACKUPS, 0o700)
+        BACKUP_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(BACKUP_DIR, 0o700)
     except OSError as error:
         logger.exception("No se pudo preparar el directorio de backups")
         raise HTTPException(status_code=500, detail=f"No se pudo preparar el directorio de backups: {error}") from error
-    return DIRECTORIO_BACKUPS
+    return BACKUP_DIR
 
 
 def _obtener_archivo_backup_seguro(nombre_archivo: str) -> Path:
