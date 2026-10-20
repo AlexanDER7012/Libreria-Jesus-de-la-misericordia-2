@@ -20,108 +20,115 @@
     <!-- Burbuja decorativa extra -->
     <div class="bubble-extra"></div>
 
-    <!-- BOTÓN DE MODO OSCURO -->
-    <button
-      class="theme-toggle-login"
-      id="themeToggleLogin"
-      title="Alternar modo oscuro"
-    >
-      <i class="fas fa-moon" id="themeIconLogin"></i>
-    </button>
+    <div class="login-top-actions">
+      <a
+        class="site-link-login"
+        href="https://lail-web.github.io/Libreria-y-Papeleria-Jesus-de-la-Misericordia-II-/#servicios"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <i class="fas fa-store"></i>
+        <span>Visitar sitio web</span>
+      </a>
+      <button
+        class="theme-toggle-login"
+        id="themeToggleLogin"
+        type="button"
+        title="Alternar modo oscuro"
+        aria-label="Alternar modo oscuro"
+      >
+        <i class="fas fa-moon" id="themeIconLogin"></i>
+      </button>
+    </div>
 
     <!-- TARJETA DE LOGIN -->
     <div class="login-card">
-      <!-- LOGO -->
-      <div class="login-logo-container">
-        <img
-          src="https://lail-web.github.io/Libreria-y-Papeleria-Jesus-de-la-Misericordia-II-/img/logo.png"
-          alt="Logo Librería Jesús de la Misericordia"
-        />
-      </div>
-
-      <!-- TÍTULO -->
-      <h1 class="login-title">
-        Bienvenido a <span class="highlight">Jesús de la Misericordia</span>
-      </h1>
-      <p class="login-subtitle">Sistema de Gestión - Librería y Papelería</p>
-
-      <!-- ALERTA DE ERROR -->
-      <div id="loginAlert" class="login-alert login-alert-danger">
-        <i class="fas fa-exclamation-circle"></i>
-        <span id="errorMessage">Credenciales incorrectas</span>
-      </div>
-
-      <!-- FORMULARIO -->
-      <form id="loginForm" autocomplete="off">
-        <div class="login-field">
-          <label for="nombre_usuario">
-            <i class="fas fa-user"></i>Usuario
-          </label>
-          <div class="input-group">
-            <span class="input-group-text">
-              <i class="fas fa-user"></i>
-            </span>
-            <input
-              type="text"
-              class="form-control"
-              id="nombre_usuario"
-              placeholder="Ingresa tu usuario"
-              required
-            />
-          </div>
+      <div class="login-card-content">
+        <!-- LOGO -->
+        <div class="login-logo-container">
+          <img
+            src="https://lail-web.github.io/Libreria-y-Papeleria-Jesus-de-la-Misericordia-II-/img/logo.png"
+            alt="Logo Librería Jesús de la Misericordia"
+          />
         </div>
 
-        <div class="login-field">
-          <label for="password"> <i class="fas fa-lock"></i>Contraseña </label>
-          <div class="input-group">
-            <span class="input-group-text">
-              <i class="fas fa-lock"></i>
-            </span>
-            <input
-              type="password"
-              class="form-control"
-              id="password"
-              placeholder="Ingresa tu contraseña"
-              required
-            />
-            <button
-              class="btn btn-outline-secondary"
-              type="button"
-              id="togglePassword"
-            >
-              <i class="fas fa-eye"></i>
-            </button>
-          </div>
+        <!-- TÍTULO -->
+        <h1 class="login-title">
+          Bienvenido a <span class="highlight">Jesús de la Misericordia</span>
+        </h1>
+        <p class="login-subtitle">Sistema de Gestión - Librería y Papelería</p>
+
+        <!-- ALERTA DE ERROR -->
+        <div id="loginAlert" class="login-alert login-alert-danger">
+          <i class="fas fa-exclamation-circle"></i>
+          <span id="errorMessage">Credenciales incorrectas</span>
         </div>
 
-        <button type="submit" class="btn-login" id="loginBtn">
-          <span id="loginText">
-            <i class="fas fa-arrow-right-to-bracket"></i>Iniciar Sesión
-          </span>
-          <span
-            id="loginSpinner"
-            class="spinner-border spinner-border-sm d-none"
-            role="status"
-          ></span>
-        </button>
-      </form>
+        <!-- FORMULARIO -->
+        <form id="loginForm" autocomplete="off">
+          <div class="login-field">
+            <label for="nombre_usuario">
+              <i class="fas fa-user"></i>Usuario
+            </label>
+            <div class="input-group">
+              <span class="input-group-text">
+                <i class="fas fa-user"></i>
+              </span>
+              <input
+                type="text"
+                class="form-control"
+                id="nombre_usuario"
+                placeholder="Ingresa tu usuario"
+                required
+              />
+            </div>
+          </div>
 
-      <!-- ENLACE AL SITIO WEB -->
-      <div class="login-footer-link">
-        <a
-          href="https://lail-web.github.io/Libreria-y-Papeleria-Jesus-de-la-Misericordia-II-/#servicios"
-          target="_blank"
-        >
-          <i class="fas fa-store"></i>
-          Visitar nuestro sitio web
-        </a>
-      </div>
+          <div class="login-field">
+            <label for="password">
+              <i class="fas fa-lock"></i>Contraseña
+            </label>
+            <div class="input-group">
+              <span class="input-group-text">
+                <i class="fas fa-lock"></i>
+              </span>
+              <input
+                type="password"
+                class="form-control"
+                id="password"
+                placeholder="Ingresa tu contraseña"
+                required
+              />
+              <button
+                class="btn btn-outline-secondary"
+                type="button"
+                id="togglePassword"
+              >
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
+          </div>
 
-      <!-- VERSIÓN -->
-      <div class="text-center mt-3">
-        <p style="font-size: 0.7rem; color: #7a8a9e; opacity: 0.5; margin: 0">
-          <i class="fas fa-code me-1"></i>v1.1.0
-        </p>
+          <button type="submit" class="btn-login" id="loginBtn">
+            <span id="loginText">
+              <i class="fas fa-arrow-right-to-bracket"></i>Iniciar Sesión
+            </span>
+            <span
+              id="loginSpinner"
+              class="spinner-border spinner-border-sm d-none"
+              role="status"
+            ></span>
+          </button>
+        </form>
+
+        <!-- VERSIÓN -->
+        <div class="text-center mt-3">
+          <p
+            style="font-size: 0.7rem; color: #7a8a9e; opacity: 0.5; margin: 0"
+          >
+            <i class="fas fa-code me-1"></i>v1.1.0
+          </p>
+        </div>
       </div>
     </div>
 
