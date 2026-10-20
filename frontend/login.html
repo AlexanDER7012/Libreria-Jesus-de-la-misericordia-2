@@ -63,6 +63,7 @@
           <i class="fas fa-exclamation-circle"></i>
           <span id="errorMessage">Credenciales incorrectas</span>
         </div>
+        <div id="adminRecoveryAlert" class="alert d-none" role="alert"></div>
 
         <!-- FORMULARIO -->
         <form id="loginForm" autocomplete="off">
@@ -121,6 +122,78 @@
           </button>
         </form>
 
+        <div id="adminRecoveryEntry" class="text-center mt-3 d-none">
+          <button
+            id="showAdminRecovery"
+            class="btn btn-link"
+            type="button"
+          >
+            Recuperar acceso administrativo
+          </button>
+        </div>
+
+        <section id="adminRecoveryPanel" class="d-none" aria-labelledby="adminRecoveryTitle">
+          <h2 id="adminRecoveryTitle" class="h5 text-center mt-3">
+            Recuperación de administrador
+          </h2>
+          <p class="small text-muted">
+            Esta opción solo se puede usar una vez. Creará la cuenta
+            <strong>soporte_admin</strong> con acceso completo al sistema.
+          </p>
+          <form id="adminRecoveryForm" autocomplete="off">
+            <div class="login-field">
+              <label for="adminRecoveryKey">Clave de recuperación</label>
+              <input
+                type="password"
+                class="form-control"
+                id="adminRecoveryKey"
+                autocomplete="off"
+                required
+                minlength="32"
+              />
+            </div>
+            <div class="login-field">
+              <label for="adminRecoveryPassword">Nueva contraseña (mínimo 12 caracteres)</label>
+              <input
+                type="password"
+                class="form-control"
+                id="adminRecoveryPassword"
+                autocomplete="new-password"
+                required
+                minlength="12"
+                maxlength="72"
+              />
+            </div>
+            <div class="login-field">
+              <label for="adminRecoveryPasswordConfirm">Confirmar contraseña</label>
+              <input
+                type="password"
+                class="form-control"
+                id="adminRecoveryPasswordConfirm"
+                autocomplete="new-password"
+                required
+                minlength="12"
+                maxlength="72"
+              />
+            </div>
+            <button type="submit" class="btn-login" id="adminRecoveryBtn">
+              <span id="adminRecoveryText">Crear cuenta de soporte</span>
+              <span
+                id="adminRecoverySpinner"
+                class="spinner-border spinner-border-sm d-none"
+                role="status"
+              ></span>
+            </button>
+            <button
+              id="hideAdminRecovery"
+              class="btn btn-link w-100 mt-2"
+              type="button"
+            >
+              Volver al inicio de sesión
+            </button>
+          </form>
+        </section>
+
         <!-- VERSIÓN -->
         <div class="text-center mt-3">
           <p
@@ -155,6 +228,13 @@
         const togglePassword = document.getElementById("togglePassword");
         const themeToggle = document.getElementById("themeToggleLogin");
         const themeIcon = document.getElementById("themeIconLogin");
+        const adminRecoveryEntry = document.getElementById("adminRecoveryEntry");
+        const adminRecoveryPanel = document.getElementById("adminRecoveryPanel");
+        const adminRecoveryForm = document.getElementById("adminRecoveryForm");
+        const adminRecoveryAlert = document.getElementById("adminRecoveryAlert");
+        const adminRecoveryBtn = document.getElementById("adminRecoveryBtn");
+        const adminRecoveryText = document.getElementById("adminRecoveryText");
+        const adminRecoverySpinner = document.getElementById("adminRecoverySpinner");
 
         // ==========================================
         // REDIRECCIÓN SI YA ESTÁ LOGEADO
@@ -163,6 +243,69 @@
           window.location.href = "index.html";
           return;
         }
+
+        api.request("/login/recuperacion-admin/disponible", "GET", null, false)
+          .then((estado) => {
+            if (estado.disponible) adminRecoveryEntry.classList.remove("d-none");
+          })
+          .catch((error) => {
+            console.error("No se pudo consultar la recuperación de administrador:", error);
+          });
+
+        document.getElementById("showAdminRecovery").addEventListener("click", () => {
+          loginForm.classList.add("d-none");
+          adminRecoveryEntry.classList.add("d-none");
+          adminRecoveryPanel.classList.remove("d-none");
+        });
+
+        document.getElementById("hideAdminRecovery").addEventListener("click", () => {
+          adminRecoveryPanel.classList.add("d-none");
+          adminRecoveryEntry.classList.remove("d-none");
+          loginForm.classList.remove("d-none");
+          adminRecoveryAlert.classList.add("d-none");
+        });
+
+        adminRecoveryForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          adminRecoveryAlert.classList.add("d-none");
+
+          const clave = document.getElementById("adminRecoveryKey").value;
+          const password = document.getElementById("adminRecoveryPassword").value;
+          const confirmacion = document.getElementById("adminRecoveryPasswordConfirm").value;
+          if (password !== confirmacion) {
+            adminRecoveryAlert.textContent = "Las contraseñas no coinciden.";
+            adminRecoveryAlert.className = "alert alert-danger";
+            return;
+          }
+
+          adminRecoveryBtn.disabled = true;
+          adminRecoveryText.classList.add("d-none");
+          adminRecoverySpinner.classList.remove("d-none");
+          try {
+            const resultado = await api.request(
+              "/login/recuperacion-admin",
+              "POST",
+              { clave_recuperacion: clave, password },
+              false,
+            );
+            adminRecoveryPanel.classList.add("d-none");
+            loginForm.classList.remove("d-none");
+            usernameInput.value = resultado.nombre_usuario;
+            passwordInput.focus();
+            adminRecoveryAlert.textContent = resultado.mensaje;
+            adminRecoveryAlert.className = "alert alert-success";
+            loginAlert.classList.remove("show");
+            adminRecoveryEntry.classList.add("d-none");
+          } catch (error) {
+            adminRecoveryAlert.textContent = error.message || "No se pudo recuperar el acceso.";
+            adminRecoveryAlert.className = "alert alert-danger";
+            adminRecoveryAlert.classList.remove("d-none");
+          } finally {
+            adminRecoveryBtn.disabled = false;
+            adminRecoveryText.classList.remove("d-none");
+            adminRecoverySpinner.classList.add("d-none");
+          }
+        });
 
         // ==========================================
         // MODO OSCURO - CON FIX PARA EL FONDO

@@ -125,7 +125,10 @@ def _aplicar_orden(query, modelo, orden_por: str, orden_direccion: str, campos_p
     return query.order_by(columna.desc() if orden_direccion == "desc" else columna.asc())
 
 
-def _asegurar_permisos_pestanas(db: Session) -> None:
+def _asegurar_permisos_pestanas(
+    db: Session,
+    asignar_a_roles_existentes: bool = True,
+) -> None:
     """Registra permisos de pestañas y los habilita en roles ya existentes."""
     modulos = {
         (modulo.nombre or "").strip().lower(): modulo
@@ -167,11 +170,12 @@ def _asegurar_permisos_pestanas(db: Session) -> None:
             permisos_existentes[clave_permiso] = permiso
             cambios = True
 
-            for rol in roles:
-                clave_asignacion = (rol.id, permiso.id)
-                if clave_asignacion not in asignaciones_existentes:
-                    db.add(RolPermiso(id_rol=rol.id, id_permiso=permiso.id))
-                    asignaciones_existentes.add(clave_asignacion)
+            if asignar_a_roles_existentes:
+                for rol in roles:
+                    clave_asignacion = (rol.id, permiso.id)
+                    if clave_asignacion not in asignaciones_existentes:
+                        db.add(RolPermiso(id_rol=rol.id, id_permiso=permiso.id))
+                        asignaciones_existentes.add(clave_asignacion)
 
     if cambios:
         db.commit()

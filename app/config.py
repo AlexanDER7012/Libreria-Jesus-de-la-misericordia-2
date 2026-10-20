@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ADMIN_RECOVERY_KEY: str | None = None
 
     # --- OpenRouter (IA) ---
     OPENROUTER_API_KEY: str | None = None
