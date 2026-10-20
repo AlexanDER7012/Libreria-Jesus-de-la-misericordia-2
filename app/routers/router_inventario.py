@@ -222,6 +222,8 @@ def listar_tipos_movimiento(db: Session = Depends(get_db), usuario_actual: Usuar
 
 @router_tipo.post("", response_model=TipoMovimientoInventarioResponse, status_code=201)
 def crear_tipo_movimiento(datos: TipoMovimientoInventarioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Crear"))):
+    from app.catalogos import validar_nombre_unico
+    datos.nombre = validar_nombre_unico(db, TipoMovimientoInventario, datos.nombre, "un tipo de movimiento")
     nuevo = TipoMovimientoInventario(**datos.model_dump())
     db.add(nuevo)
     db.flush()

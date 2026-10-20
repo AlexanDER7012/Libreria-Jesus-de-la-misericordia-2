@@ -175,6 +175,8 @@ def listar_tipos_proveedor(db: Session = Depends(get_db), usuario_actual=Depends
 
 @router_tipo.post("", response_model=TipoProveedorResponse, status_code=201)
 def crear_tipo_proveedor(datos: TipoProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
+    from app.catalogos import validar_nombre_unico
+    datos.nombre = validar_nombre_unico(db, TipoProveedor, datos.nombre, "un tipo de proveedor")
     nuevo = TipoProveedor(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(
@@ -190,6 +192,8 @@ def actualizar_tipo_proveedor(tipo_id: int, datos: TipoProveedorCreate, db: Sess
     tipo = db.query(TipoProveedor).filter(TipoProveedor.id == tipo_id).first()
     if not tipo:
         raise HTTPException(status_code=404, detail="Tipo de proveedor no encontrado")
+    from app.catalogos import validar_nombre_unico
+    datos.nombre = validar_nombre_unico(db, TipoProveedor, datos.nombre, "otro tipo de proveedor", excluir_id=tipo.id)
     cambios = datos.model_dump(exclude_unset=True)
     for campo, valor in cambios.items():
         setattr(tipo, campo, valor)

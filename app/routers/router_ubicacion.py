@@ -69,6 +69,8 @@ def obtener_ubicacion(ubicacion_id: int, db: Session = Depends(get_db), usuario_
 @router.post("", response_model=UbicacionResponse, status_code=201)
 def crear_ubicacion(datos: UbicacionCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Crear"))):
     """Crea una nueva sucursal."""
+    from app.catalogos import validar_nombre_unico
+    datos.nombre = validar_nombre_unico(db, Ubicacion, datos.nombre, "una ubicación")
     nueva = Ubicacion(**datos.model_dump(), activo=1)
     db.add(nueva)
     registrar_actividad(
@@ -87,6 +89,9 @@ def actualizar_ubicacion(ubicacion_id: int, datos: UbicacionUpdate, db: Session 
     if not ubicacion:
         raise HTTPException(status_code=404, detail="Ubicación no encontrada")
 
+    if datos.nombre is not None:
+        from app.catalogos import validar_nombre_unico
+        datos.nombre = validar_nombre_unico(db, Ubicacion, datos.nombre, "otra ubicación", excluir_id=ubicacion.id)
     cambios = datos.model_dump(exclude_unset=True)
     for campo, valor in cambios.items():
         setattr(ubicacion, campo, valor)
@@ -210,4 +215,4 @@ def eliminar_sububicacion(sububicacion_id: int, db: Session = Depends(get_db), u
     )
     db.commit()
     db.refresh(sub)
-    return sub
+    return sub

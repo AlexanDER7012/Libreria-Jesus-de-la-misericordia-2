@@ -1812,21 +1812,23 @@ function renderTiposPagoCompras(tipos) {
   const container = document.getElementById("tiposPagoContainer");
   if (!container) return;
 
-  const tiposCompra = (tipos || []).filter((t) => t.para_compras === 1);
+  // Se muestran TODOS los tipos (antes solo los marcados "para compras", y
+  // los de solo ventas no se podían editar ni eliminar desde ningún lado)
+  const lista = tipos || [];
+  const puedeCrear = tienePermiso("Compras", "Crear") || tienePermiso("Ventas", "Crear") || tienePermiso("Caja", "Crear");
+  const puedeEditar = tienePermiso("Compras", "Editar") || tienePermiso("Ventas", "Editar") || tienePermiso("Caja", "Editar");
+  const puedeEliminar = tienePermiso("Compras", "Eliminar") || tienePermiso("Ventas", "Eliminar") || tienePermiso("Caja", "Eliminar");
+  const esc = (v) =>
+    String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-  if (tiposCompra.length === 0) {
+  if (lista.length === 0) {
     container.innerHTML = `
             <div class="text-center py-5">
                 <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No hay tipos de pago registrados para compras</p>
-                ${
-                  tienePermiso("Compras", "Crear") ||
-                  tienePermiso("Ventas", "Crear")
-                    ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
+                <p class="text-muted">No hay tipos de pago registrados</p>
+                ${puedeCrear ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
                     <i class="fas fa-plus me-2"></i>Crear Tipo de Pago
-                </button>`
-                    : ""
-                }
+                </button>` : ""}
             </div>
         `;
     return;
@@ -1834,21 +1836,15 @@ function renderTiposPagoCompras(tipos) {
 
   let html = `
         <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
-            <h6 class="mb-0">Tipos de Pago para Compras</h6>
-            ${
-              tienePermiso("Compras", "Crear") ||
-              tienePermiso("Ventas", "Crear")
-                ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
+            <h6 class="mb-0">Tipos de Pago</h6>
+            ${puedeCrear ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
                 <i class="fas fa-plus me-2"></i>Nuevo Tipo
-            </button>`
-                : ""
-            }
+            </button>` : ""}
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
                     <tr>
-                        <th>ID</th>
                         <th>Nombre</th>
                         <th>Para Ventas</th>
                         <th>Para Compras</th>
@@ -1859,30 +1855,30 @@ function renderTiposPagoCompras(tipos) {
                 <tbody>
     `;
 
-  tiposCompra.forEach((t) => {
+  lista.forEach((t) => {
     const activo = t.activo !== 0;
+    const si = (v) =>
+      `<span class="badge ${v === 1 ? "bg-success" : "bg-secondary"}">${v === 1 ? "Sí" : "No"}</span>`;
     html += `
             <tr>
-                <td>${t.id}</td>
-                <td><strong>${t.nombre}</strong></td>
-                <td><span class="badge ${t.para_ventas === 1 ? "bg-success" : "bg-secondary"}">${t.para_ventas === 1 ? "Sí" : "No"}</span></td>
-                <td><span class="badge bg-success">Sí</span></td>
+                <td><strong>${esc(t.nombre)}</strong></td>
+                <td>${si(t.para_ventas)}</td>
+                <td>${si(t.para_compras)}</td>
                 <td>
                     <span class="badge ${activo ? "bg-success" : "bg-danger"}">
                         ${activo ? "Activo" : "Inactivo"}
                     </span>
+                </td>
                 <td>
-                    ${
-                      tienePermiso("Compras", "Editar") ||
-                      tienePermiso("Ventas", "Editar")
-                        ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditTipoPagoModal(${t.id})" title="Editar">
+                    ${puedeEditar ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditTipoPagoModal(${t.id})" title="Editar">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-${activo ? "danger" : "success"}" onclick="toggleTipoPagoEstado(${t.id})" title="${activo ? "Inactivar" : "Activar"}">
-                            <i class="fas fa-${activo ? "times" : "check"}"></i>
-                        </button>`
-                        : ""
-                    }
+                        <button class="btn btn-sm btn-outline-${activo ? "warning" : "success"}" onclick="toggleTipoPagoEstado(${t.id})" title="${activo ? "Inactivar" : "Activar"}">
+                            <i class="fas fa-${activo ? "ban" : "check"}"></i>
+                        </button>` : ""}
+                    ${puedeEliminar ? `<button class="btn btn-sm btn-outline-danger" onclick="eliminarTipoPago(${t.id})" title="Eliminar">
+                            <i class="fas fa-trash"></i>
+                        </button>` : ""}
                 </td>
             </tr>
         `;
@@ -1893,7 +1889,7 @@ function renderTiposPagoCompras(tipos) {
             </table>
         </div>
         <div class="text-end">
-            <small class="text-muted">Total: ${tiposCompra.length} tipos</small>
+            <small class="text-muted">Total: ${lista.length} tipos</small>
         </div>
     `;
 
@@ -3466,13 +3462,15 @@ function crearModalTipoGasto() {
 // FUNCIONES CRUD: TIPOS DE PAGO (COMPRAS)
 // =============================================
 
-function showCreateTipoPagoCompraModal() {
+// Formulario único de tipos de pago: se usa desde Compras, Caja y Ventas.
+// opciones: { ventas: 1|0, compras: 1|0 } para los valores iniciales.
+function showCreateTipoPagoCompraModal(opciones = {}) {
   crearModalTipoPago();
   document.getElementById("tipoPagoModalTitle").textContent =
-    "Nuevo Tipo de Pago para Compras";
+    "Nuevo Tipo de Pago";
   document.getElementById("tipoPagoForm").reset();
-  document.getElementById("tipoPagoCompras").value = "1";
-  document.getElementById("tipoPagoVentas").value = "0";
+  document.getElementById("tipoPagoCompras").value = String(opciones.compras ?? 1);
+  document.getElementById("tipoPagoVentas").value = String(opciones.ventas ?? 1);
 
   delete document.getElementById("tipoPagoForm").dataset.idTipoPago;
 
@@ -3511,14 +3509,30 @@ async function saveTipoPagoCompra(event) {
   );
 
   if (!nombre) return showToast("El nombre es obligatorio", "error");
+  if (!para_ventas && !para_compras) {
+    return showToast("Marca al menos uno: para ventas o para compras", "error");
+  }
+
+  // Aviso rápido de nombre repetido (el servidor también lo valida)
+  const clave = (v) =>
+    String(v || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+  const repetido = (window.tiposPagoData || []).find(
+    (t) => clave(t.nombre) === clave(nombre) && String(t.id) !== String(id),
+  );
+  if (repetido) {
+    return showToast(`Ya existe un tipo de pago llamado "${repetido.nombre}"`, "error");
+  }
 
   try {
     if (id) {
-      // EDITAR
+      // EDITAR (se conserva el estado activo/inactivo)
+      const actual = (window.tiposPagoData || []).find((t) => String(t.id) === String(id)) || {};
       await api.request(`/tipos-pago/${id}`, "PUT", {
         nombre,
+        descripcion: actual.descripcion ?? null,
         para_ventas,
         para_compras,
+        activo: actual.activo ?? 1,
       });
       showToast("Tipo de pago actualizado correctamente", "success");
     } else {
@@ -3537,9 +3551,54 @@ async function saveTipoPagoCompra(event) {
     bootstrap.Modal.getInstance(
       document.getElementById("tipoPagoModal"),
     ).hide();
-    await loadComprasModule();
+    await recargarVistaTiposPago();
   } catch (error) {
     showToast(error.message || "Error al guardar tipo de pago", "error");
+  }
+}
+
+// Vuelve a dibujar la lista de tipos de pago en la pantalla donde se está
+// (Compras, Caja o Ventas), sin mandar al usuario a otro módulo
+async function recargarVistaTiposPago() {
+  const modulo = window.app?.currentModule;
+  if (modulo === "caja" && typeof window.recargarTiposPagoCaja === "function") {
+    return window.recargarTiposPagoCaja();
+  }
+  if (modulo === "ventas") {
+    window.tiposPagoData = (await api.request("/tipos-pago").catch(() => [])) || [];
+    if (window.cajaContainer && document.body.contains(window.cajaContainer)) {
+      return window.cargarCajaEnContainer?.(window.cajaContainer);
+    }
+    return;
+  }
+  return loadComprasModule();
+}
+
+// Eliminar: solo si nunca se usó; si ya tiene pagos, el servidor lo
+// impide y se ofrece inactivarlo
+async function eliminarTipoPago(id) {
+  const tipo = (window.tiposPagoData || []).find((t) => t.id === id);
+  if (!tipo) return;
+  const ok = await confirmarAccion(
+    `¿Eliminar el tipo de pago "${tipo.nombre}"? Esta acción no se puede deshacer.`,
+    { titulo: "Eliminar tipo de pago", textoAceptar: "Eliminar" },
+  );
+  if (!ok) return;
+  try {
+    await api.request(`/tipos-pago/${id}`, "DELETE");
+    showToast(`Tipo de pago "${tipo.nombre}" eliminado`, "success");
+    await recargarVistaTiposPago();
+  } catch (error) {
+    const yaUsado = /ya se us/i.test(error.message || "");
+    if (yaUsado && tipo.activo !== 0) {
+      const inactivar = await confirmarAccion(
+        `${error.message}\n\n¿Quieres inactivarlo ahora?`,
+        { titulo: "No se puede eliminar", textoAceptar: "Inactivar" },
+      );
+      if (inactivar) await toggleTipoPagoEstado(id, true);
+    } else {
+      showToast(error.message || "Error al eliminar el tipo de pago", "error");
+    }
   }
 }
 
@@ -4860,16 +4919,18 @@ async function eliminarCajaChica(id) {
 // INACTIVAR TIPO DE PAGO
 // =============================================
 
-async function toggleTipoPagoEstado(id) {
+async function toggleTipoPagoEstado(id, sinConfirmar = false) {
   const tipo = (window.tiposPagoData || []).find((t) => t.id === id);
   if (!tipo) return;
 
-  const nuevo = tipo.activo === 1 ? 0 : 1;
+  const nuevo = tipo.activo === 0 ? 1 : 0;
   const accion = nuevo === 1 ? "activar" : "inactivar";
-  const ok = await confirmarAccion(
-    `¿Está seguro de ${accion} el tipo de pago "${tipo.nombre}"?`,
-  );
-  if (!ok) return;
+  if (!sinConfirmar) {
+    const ok = await confirmarAccion(
+      `¿Está seguro de ${accion} el tipo de pago "${tipo.nombre}"?`,
+    );
+    if (!ok) return;
+  }
 
   try {
     await api.request(`/tipos-pago/${id}`, "PUT", {
@@ -4883,7 +4944,7 @@ async function toggleTipoPagoEstado(id) {
       `Tipo de pago ${accion === "activar" ? "activado" : "inactivado"}`,
       "success",
     );
-    await loadComprasModule();
+    await recargarVistaTiposPago();
   } catch (error) {
     showToast(error.message || "Error al cambiar estado", "error");
   }
@@ -4988,6 +5049,11 @@ window.toggleTipoGastoEstado = toggleTipoGastoEstado;
 
 // Tipos de Pago
 window.renderTiposPagoCompras = renderTiposPagoCompras;
+window.eliminarTipoPago = eliminarTipoPago;
+window.recargarVistaTiposPago = recargarVistaTiposPago;
+window.showCreateTipoPagoCompraModal = showCreateTipoPagoCompraModal;
+window.showEditTipoPagoModal = showEditTipoPagoModal;
+window.toggleTipoPagoEstado = toggleTipoPagoEstado;
 window.showCreateTipoPagoCompraModal = showCreateTipoPagoCompraModal;
 window.saveTipoPagoCompra = saveTipoPagoCompra;
 

@@ -2333,7 +2333,7 @@ async function mostrarPagosTraslado(id) {
           <div class="col-md-3">
             <label class="form-label small">Forma de pago</label>
             <select class="form-select form-select-sm" id="trasladoPagoTipo">
-              ${tipos.map((tp) => `<option value="${tp.id}">${escInv(tp.nombre)}</option>`).join("")}
+              ${tipos.filter((tp) => tp.activo !== 0).map((tp) => `<option value="${tp.id}">${escInv(tp.nombre)}</option>`).join("")}
             </select>
           </div>
           <div class="col-md-3">

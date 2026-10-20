@@ -7,6 +7,7 @@ from app.database import get_db
 from app.pagination import PaginationParams
 from app.security import get_current_user, requiere_permiso, requiere_permiso_alguno
 from app.bitacora import registrar_actividad
+from app.catalogos import validar_nombre_unico
 from app.models.model_usuario import Usuario
 from app.models.model_caja import (
     CajaTurno, CajaDenominacion, CajaChicaMovimiento, Gasto, TipoGasto, TipoPago,
@@ -302,6 +303,7 @@ def listar_tipos_gasto(db: Session = Depends(get_db), usuario_actual=Depends(get
 
 @router_tipo_gasto.post("", response_model=TipoGastoResponse, status_code=201)
 def crear_tipo_gasto(datos: TipoGastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Crear"), ("Caja", "Crear")]))):
+    datos.nombre = validar_nombre_unico(db, TipoGasto, datos.nombre, "un tipo de gasto")
     nuevo = TipoGasto(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(
@@ -324,6 +326,7 @@ def listar_tipos_pago(db: Session = Depends(get_db), usuario_actual=Depends(get_
 
 @router_tipo_pago.post("", response_model=TipoPagoResponse, status_code=201)
 def crear_tipo_pago(datos: TipoPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Crear"), ("Ventas", "Crear"), ("Caja", "Crear")]))):
+    datos.nombre = validar_nombre_unico(db, TipoPago, datos.nombre, "un tipo de pago")
     nuevo = TipoPago(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(
@@ -377,6 +380,7 @@ def actualizar_tipo_gasto(tipo_id: int, datos: TipoGastoCreate, db: Session = De
     tipo = db.query(TipoGasto).filter(TipoGasto.id == tipo_id).first()
     if not tipo:
         raise HTTPException(status_code=404, detail="Tipo de gasto no encontrado")
+    datos.nombre = validar_nombre_unico(db, TipoGasto, datos.nombre, "otro tipo de gasto", excluir_id=tipo.id)
     cambios = datos.model_dump(exclude_unset=True)
     for campo, valor in cambios.items():
         setattr(tipo, campo, valor)
@@ -399,6 +403,7 @@ def actualizar_tipo_pago(tipo_id: int, datos: TipoPagoCreate, db: Session = Depe
     tipo = db.query(TipoPago).filter(TipoPago.id == tipo_id).first()
     if not tipo:
         raise HTTPException(status_code=404, detail="Tipo de pago no encontrado")
+    datos.nombre = validar_nombre_unico(db, TipoPago, datos.nombre, "otro tipo de pago", excluir_id=tipo.id)
     cambios = datos.model_dump(exclude_unset=True)
     for campo, valor in cambios.items():
         setattr(tipo, campo, valor)
@@ -409,4 +414,38 @@ def actualizar_tipo_pago(tipo_id: int, datos: TipoPagoCreate, db: Session = Depe
     )
     db.commit()
     db.refresh(tipo)
-    return tipo
+    return tipo
+
+
+# ===================================================================
+# ELIMINAR TIPO_PAGO
+# ===================================================================
+
+@router_tipo_pago.delete("/{tipo_id}", status_code=204)
+def eliminar_tipo_pago(tipo_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Eliminar"), ("Ventas", "Eliminar"), ("Caja", "Eliminar")]))):
+    """
+    Elimina un tipo de pago que nunca se ha usado. Si ya tiene pagos
+    registrados (ventas, compras o traslados) no se borra, para no perder
+    el historial: en ese caso hay que inactivarlo.
+    """
+    from app.models.model_venta import MetodoPagoVenta
+    from app.models.model_compra import CompraPago
+    from app.models.model_inventario import TrasladoPago
+
+    tipo = db.query(TipoPago).filter(TipoPago.id == tipo_id).first()
+    if not tipo:
+        raise HTTPException(status_code=404, detail="Tipo de pago no encontrado")
+    usos = (
+        db.query(MetodoPagoVenta).filter(MetodoPagoVenta.id_tipo_pago == tipo_id).count()
+        + db.query(CompraPago).filter(CompraPago.id_tipo_pago == tipo_id).count()
+        + db.query(TrasladoPago).filter(TrasladoPago.id_tipo_pago == tipo_id).count()
+    )
+    if usos:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se puede eliminar '{tipo.nombre}' porque ya se usó en {usos} pago(s). Puedes inactivarlo para que ya no aparezca.",
+        )
+    nombre = tipo.nombre
+    db.delete(tipo)
+    registrar_actividad(db, usuario_actual.id, "ELIMINAR", "TipoPago", detalle=f"Eliminó el tipo de pago '{nombre}'")
+    db.commit()

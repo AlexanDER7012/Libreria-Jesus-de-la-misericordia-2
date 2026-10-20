@@ -1469,21 +1469,33 @@
         '<p class="text-muted small">No hay tipos registrados</p>';
       return;
     }
+    const puedeEditar = tienePermiso("Compras", "Editar") || tienePermiso("Ventas", "Editar") || tienePermiso("Caja", "Editar");
+    const puedeEliminar = tienePermiso("Compras", "Eliminar") || tienePermiso("Ventas", "Eliminar") || tienePermiso("Caja", "Eliminar");
+    const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
     container.innerHTML = tipos
-      .map(
-        (t) => `
+      .map((t) => {
+        const activo = t.activo !== 0;
+        return `
             <div class="d-flex justify-content-between align-items-center border-bottom py-1">
-                <span>${t.nombre}</span>
-                <small class="text-muted">
-                    ${t.para_ventas ? "Ventas " : ""}${t.para_compras ? "Compras" : ""}
-                </small>
+                <span class="${activo ? "" : "text-muted text-decoration-line-through"}">${esc(t.nombre)}
+                    <small class="text-muted ms-1">${t.para_ventas ? "Ventas " : ""}${t.para_compras ? "Compras" : ""}${activo ? "" : " · Inactivo"}</small>
+                </span>
+                <span class="text-nowrap">
+                    ${puedeEditar ? `<button class="btn btn-sm btn-link p-0 me-2" title="Editar" onclick="showEditTipoPagoModal(${t.id})"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-sm btn-link p-0 me-2 ${activo ? "text-warning" : "text-success"}" title="${activo ? "Inactivar" : "Activar"}" onclick="toggleTipoPagoEstado(${t.id})"><i class="fas fa-${activo ? "ban" : "check"}"></i></button>` : ""}
+                    ${puedeEliminar ? `<button class="btn btn-sm btn-link p-0 text-danger" title="Eliminar" onclick="eliminarTipoPago(${t.id})"><i class="fas fa-trash"></i></button>` : ""}
+                </span>
             </div>
-        `,
-      )
+        `;
+      })
       .join("");
   }
 
   function showCrearTipoPagoModal() {
+    // Se usa el formulario único de tipos de pago (valida nombres repetidos)
+    if (typeof window.showCreateTipoPagoCompraModal === "function") {
+      return window.showCreateTipoPagoCompraModal({ ventas: 1, compras: 1 });
+    }
     const modal = document.getElementById("cajaModal");
     if (!modal) {
       showToast("Error: Modal de caja no encontrado", "error");
@@ -1628,6 +1640,7 @@
   window.crearTipoPago = crearTipoPago;
   window.showCrearTipoGastoModal = showCrearTipoGastoModal;
   window.showCrearTipoPagoModal = showCrearTipoPagoModal;
+  window.recargarTiposPagoCaja = loadTiposPago;
   window.abrirTurno = abrirTurno;
   window.cerrarTurno = cerrarTurno;
   window.abrirModalTurno = abrirModalTurno;

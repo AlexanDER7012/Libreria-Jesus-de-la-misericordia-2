@@ -2126,7 +2126,7 @@ async function mostrarModalPago(idVenta) {
               <select class="form-select" id="pagoVentaTipo" required>
                 <option value="">Seleccionar tipo</option>
                 ${tiposPagoData
-                  .filter((t) => t.para_ventas === 1)
+                  .filter((t) => t.para_ventas === 1 && t.activo !== 0)
                   .map((t) => `<option value="${t.id}">${t.nombre}</option>`)
                   .join("")}
               </select>
@@ -4702,6 +4702,10 @@ async function verFichaProducto(idProducto) {
 // CREAR TIPO DE PAGO DESDE VENTAS
 // ============================================================
 function showCrearTipoPagoModal() {
+  // Se usa el formulario único de tipos de pago (valida nombres repetidos)
+  if (typeof showCreateTipoPagoCompraModal === "function") {
+    return showCreateTipoPagoCompraModal({ ventas: 1, compras: 0 });
+  }
   // Verificar si ya existe el modal en el DOM
   let modal = document.getElementById("tipoPagoModal");
 

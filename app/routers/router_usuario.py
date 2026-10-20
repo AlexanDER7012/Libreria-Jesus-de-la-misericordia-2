@@ -618,6 +618,8 @@ def listar_puestos(db: Session = Depends(get_db), usuario_actual: Usuario = Depe
 
 @router_puesto.post("", response_model=PuestoResponse, status_code=201)
 def crear_puesto(datos: PuestoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Crear"))):
+    from app.catalogos import validar_nombre_unico
+    datos.nombre = validar_nombre_unico(db, Puesto, datos.nombre, "un puesto")
     nuevo = Puesto(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(
@@ -640,6 +642,8 @@ def listar_turnos(db: Session = Depends(get_db), usuario_actual: Usuario = Depen
 
 @router_turno.post("", response_model=TurnoResponse, status_code=201)
 def crear_turno(datos: TurnoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Crear"))):
+    from app.catalogos import validar_nombre_unico
+    datos.nombre = validar_nombre_unico(db, Turno, datos.nombre, "un turno")
     nuevo = Turno(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(
@@ -662,6 +666,8 @@ def listar_modulos(db: Session = Depends(get_db), usuario_actual: Usuario = Depe
 
 @router_modulo.post("", response_model=ModuloResponse, status_code=201)
 def crear_modulo(datos: ModuloCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Crear"))):
+    from app.catalogos import validar_nombre_unico
+    datos.nombre = validar_nombre_unico(db, Modulo, datos.nombre, "un módulo")
     nuevo = Modulo(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(
