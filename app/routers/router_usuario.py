@@ -125,23 +125,66 @@ def _aplicar_orden(query, modelo, orden_por: str, orden_direccion: str, campos_p
     return query.order_by(columna.desc() if orden_direccion == "desc" else columna.asc())
 
 
-def _asegurar_permisos_pestanas(
-    db: Session,
-    asignar_a_roles_existentes: bool = True,
-) -> None:
-    """Registra permisos de pestañas y los habilita en roles ya existentes."""
+def _asegurar_permisos_operativos(db: Session) -> None:
+    """Registra permisos CRUD por cada sección del catálogo de inventario."""
+    modulos = {
+        "Productos": "Gestión de productos",
+        "Categorias": "Gestión de categorías",
+        "Marcas": "Gestión de marcas",
+        "Unidades": "Gestión de unidades de medida",
+    }
+    acciones = {
+        "Ver": "Ver registros",
+        "Crear": "Agregar registros",
+        "Editar": "Modificar registros",
+        "Eliminar": "Inactivar o reactivar registros",
+    }
+    modulos_existentes = {
+        (modulo.nombre or "").strip().lower(): modulo
+        for modulo in db.query(Modulo).all()
+    }
+    permisos_existentes = {
+        (permiso.id_modulo, (permiso.nombre or "").strip().lower())
+        for permiso in db.query(Permiso).all()
+    }
+    cambios = False
+
+    for nombre_modulo, descripcion_modulo in modulos.items():
+        modulo = modulos_existentes.get(nombre_modulo.lower())
+        if modulo is None:
+            modulo = Modulo(nombre=nombre_modulo, descripcion=descripcion_modulo)
+            db.add(modulo)
+            db.flush()
+            modulos_existentes[nombre_modulo.lower()] = modulo
+            cambios = True
+
+        for nombre_accion, descripcion_accion in acciones.items():
+            clave = (modulo.id, nombre_accion.lower())
+            if clave in permisos_existentes:
+                continue
+            db.add(
+                Permiso(
+                    nombre=nombre_accion,
+                    descripcion=f"{descripcion_accion} ({descripcion_modulo.lower()})",
+                    id_modulo=modulo.id,
+                )
+            )
+            permisos_existentes.add(clave)
+            cambios = True
+
+    if cambios:
+        db.commit()
+
+
+def _asegurar_permisos_pestanas(db: Session) -> None:
+    """Registra permisos de pestañas sin concederlos automáticamente a los roles."""
     modulos = {
         (modulo.nombre or "").strip().lower(): modulo
         for modulo in db.query(Modulo).all()
     }
-    roles = db.query(Rol).all()
     permisos_existentes = {
         (permiso.id_modulo, (permiso.nombre or "").strip().lower()): permiso
         for permiso in db.query(Permiso).all()
-    }
-    asignaciones_existentes = {
-        (asignacion.id_rol, asignacion.id_permiso)
-        for asignacion in db.query(RolPermiso).all()
     }
     cambios = False
 
@@ -169,13 +212,6 @@ def _asegurar_permisos_pestanas(
             db.flush()
             permisos_existentes[clave_permiso] = permiso
             cambios = True
-
-            if asignar_a_roles_existentes:
-                for rol in roles:
-                    clave_asignacion = (rol.id, permiso.id)
-                    if clave_asignacion not in asignaciones_existentes:
-                        db.add(RolPermiso(id_rol=rol.id, id_permiso=permiso.id))
-                        asignaciones_existentes.add(clave_asignacion)
 
     if cambios:
         db.commit()
@@ -217,6 +253,7 @@ def obtener_mis_permisos(usuario_actual: Usuario = Depends(get_current_user), db
     IMPORTANTE: esta ruta debe declararse ANTES de '/{usuario_id}' -- si no,
     FastAPI intentaría interpretar 'mis-permisos' como si fuera un usuario_id.
     """
+    _asegurar_permisos_operativos(db)
     _asegurar_permisos_pestanas(db)
     if not usuario_actual.id_rol:
         return []
@@ -685,6 +722,7 @@ def crear_modulo(datos: ModuloCreate, db: Session = Depends(get_db), usuario_act
 
 @router_permiso.get("", response_model=List[PermisoResponse])
 def listar_permisos(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    _asegurar_permisos_operativos(db)
     _asegurar_permisos_pestanas(db)
     return db.query(Permiso).all()
 
@@ -699,22 +737,6 @@ def crear_permiso(datos: PermisoCreate, db: Session = Depends(get_db), usuario_a
     )
     db.commit()
     db.refresh(nuevo)
-
-    # Un permiso "Ver" recien creado se asigna automaticamente a TODOS
-    # los roles existentes: por defecto ningun modulo debe quedar
-    # invisible para nadie; solo Crear/Editar/Eliminar quedan
-    # restringidos hasta que se asignen explicitamente.
-    if nuevo.nombre and nuevo.nombre.lower() == "ver":
-        roles = db.query(Rol).all()
-        for rol in roles:
-            ya_existe = (
-                db.query(RolPermiso)
-                .filter(RolPermiso.id_rol == rol.id, RolPermiso.id_permiso == nuevo.id)
-                .first()
-            )
-            if not ya_existe:
-                db.add(RolPermiso(id_rol=rol.id, id_permiso=nuevo.id))
-        db.commit()
 
     return nuevo
 

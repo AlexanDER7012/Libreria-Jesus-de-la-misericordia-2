@@ -4,10 +4,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user, requiere_permiso
+from app.security import requiere_permiso
 from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto, Categoria, Marca, UnidadMedida, HistoricoPrecio
-from app.models.model_usuario import Usuario
+from app.models.model_usuario import Usuario, Modulo, Permiso, RolPermiso
 from app.schemas.schema_producto import (
     ProductoCreate, ProductoUpdate, ProductoResponse,
     CategoriaCreate, CategoriaUpdate, CategoriaResponse,
@@ -20,6 +20,29 @@ router = APIRouter()             # /productos
 router_categoria = APIRouter()   # /categorias
 router_marca = APIRouter()       # /marcas
 router_unidad = APIRouter()      # /unidades-medida
+
+
+def _usuario_tiene_permiso(db: Session, usuario: Usuario, modulo_nombre: str, accion: str) -> bool:
+    return (
+        db.query(RolPermiso)
+        .join(Permiso, RolPermiso.id_permiso == Permiso.id)
+        .join(Modulo, Permiso.id_modulo == Modulo.id)
+        .filter(
+            RolPermiso.id_rol == usuario.id_rol,
+            func.lower(Modulo.nombre) == modulo_nombre.lower(),
+            func.lower(Permiso.nombre) == accion.lower(),
+        )
+        .first()
+        is not None
+    )
+
+
+def _exigir_permiso(db: Session, usuario: Usuario, modulo_nombre: str, accion: str) -> None:
+    if not _usuario_tiene_permiso(db, usuario, modulo_nombre, accion):
+        raise HTTPException(
+            status_code=403,
+            detail=f"No tienes permiso para '{accion}' en '{modulo_nombre}'",
+        )
 
 
 def _calcular_precio_venta(precio_compra, margen_ganancia) -> float:
@@ -55,7 +78,7 @@ def listar_productos(
     buscar: Optional[str] = None,
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
-    usuario_actual=Depends(get_current_user),
+    usuario_actual=Depends(requiere_permiso("Productos", "Ver")),
 ):
     query = db.query(Producto)
     if estado == "activos":
@@ -78,7 +101,7 @@ def listar_productos(
 def buscar_por_codigo(
     codigo: str,
     db: Session = Depends(get_db),
-    usuario_actual=Depends(get_current_user),
+    usuario_actual=Depends(requiere_permiso("Productos", "Ver")),
 ):
     """
     Búsqueda exacta por código de barras — pensado para cuando el lector
@@ -95,7 +118,7 @@ def buscar_por_codigo(
 def obtener_producto(
     producto_id: int,
     db: Session = Depends(get_db),
-    usuario_actual=Depends(get_current_user),
+    usuario_actual=Depends(requiere_permiso("Productos", "Ver")),
 ):
     producto = db.query(Producto).filter(Producto.id == producto_id).first()
     if not producto:
@@ -107,7 +130,7 @@ def obtener_producto(
 def historico_precios_de_producto(
     producto_id: int,
     db: Session = Depends(get_db),
-    usuario_actual=Depends(get_current_user),
+    usuario_actual=Depends(requiere_permiso("Productos", "Ver")),
 ):
     if not db.query(Producto).filter(Producto.id == producto_id).first():
         raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -166,6 +189,8 @@ def actualizar_producto(producto_id: int, datos: ProductoUpdate, db: Session = D
 
     precio_anterior = producto.precio_venta
     datos_dict = datos.model_dump(exclude_unset=True)
+    if "activo" in datos_dict and datos_dict["activo"] != producto.activo:
+        _exigir_permiso(db, usuario_actual, "Productos", "Eliminar")
 
     # Evita que dos productos queden con el mismo código de barras al editar
     if datos_dict.get("codigo") is not None:
@@ -247,7 +272,7 @@ def reactivar_producto(producto_id: int, db: Session = Depends(get_db), usuario_
 def listar_categorias(
     buscar: Optional[str] = None,
     db: Session = Depends(get_db),
-    usuario_actual=Depends(get_current_user),
+    usuario_actual=Depends(requiere_permiso("Categorias", "Ver")),
 ):
     query = db.query(Categoria)
     if buscar:
@@ -277,7 +302,7 @@ def _validar_nombre_nuevo_catalogo(db: Session, Modelo, nombre, etiqueta: str) -
 
 
 @router_categoria.post("", response_model=CategoriaResponse, status_code=201)
-def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
+def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Categorias", "Crear"))):
     valores = datos.model_dump()
     valores["nombre"] = _validar_nombre_nuevo_catalogo(db, Categoria, valores.get("nombre"), "categoría")
     nueva = Categoria(**valores)
@@ -292,8 +317,22 @@ def crear_categoria(datos: CategoriaCreate, db: Session = Depends(get_db), usuar
 
 
 @router_categoria.put("/{categoria_id}", response_model=CategoriaResponse)
-def actualizar_categoria(categoria_id: int, datos: CategoriaUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Editar"))):
+def actualizar_categoria(categoria_id: int, datos: CategoriaUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Categorias", "Editar"))):
     """Edita la categoría o la da de baja / reactiva (activo 0/1). No se borra para no dejar productos huérfanos."""
+    return _actualizar_catalogo(db, Categoria, categoria_id, datos, "categoría", "Categoria", usuario_actual)
+
+
+@router_categoria.patch("/{categoria_id}/estado", response_model=CategoriaResponse)
+def cambiar_estado_categoria(
+    categoria_id: int,
+    datos: CategoriaUpdate,
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(requiere_permiso("Categorias", "Eliminar")),
+):
+    if set(datos.model_dump(exclude_unset=True)) != {"activo"}:
+        raise HTTPException(status_code=400, detail="Solo se permite cambiar el estado")
+    if datos.activo not in (0, 1):
+        raise HTTPException(status_code=400, detail="El estado debe ser activo (1) o inactivo (0)")
     return _actualizar_catalogo(db, Categoria, categoria_id, datos, "categoría", "Categoria", usuario_actual)
 
 
@@ -305,7 +344,7 @@ def actualizar_categoria(categoria_id: int, datos: CategoriaUpdate, db: Session 
 def listar_marcas(
     buscar: Optional[str] = None,
     db: Session = Depends(get_db),
-    usuario_actual=Depends(get_current_user),
+    usuario_actual=Depends(requiere_permiso("Marcas", "Ver")),
 ):
     query = db.query(Marca)
     if buscar:
@@ -314,7 +353,7 @@ def listar_marcas(
 
 
 @router_marca.post("", response_model=MarcaResponse, status_code=201)
-def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
+def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Marcas", "Crear"))):
     valores = datos.model_dump()
     valores["nombre"] = _validar_nombre_nuevo_catalogo(db, Marca, valores.get("nombre"), "marca")
     nueva = Marca(**valores)
@@ -329,8 +368,22 @@ def crear_marca(datos: MarcaCreate, db: Session = Depends(get_db), usuario_actua
 
 
 @router_marca.put("/{marca_id}", response_model=MarcaResponse)
-def actualizar_marca(marca_id: int, datos: MarcaUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Editar"))):
+def actualizar_marca(marca_id: int, datos: MarcaUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Marcas", "Editar"))):
     """Edita la marca o la da de baja / reactiva (activo 0/1). No se borra para no dejar productos huérfanos."""
+    return _actualizar_catalogo(db, Marca, marca_id, datos, "marca", "Marca", usuario_actual)
+
+
+@router_marca.patch("/{marca_id}/estado", response_model=MarcaResponse)
+def cambiar_estado_marca(
+    marca_id: int,
+    datos: MarcaUpdate,
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(requiere_permiso("Marcas", "Eliminar")),
+):
+    if set(datos.model_dump(exclude_unset=True)) != {"activo"}:
+        raise HTTPException(status_code=400, detail="Solo se permite cambiar el estado")
+    if datos.activo not in (0, 1):
+        raise HTTPException(status_code=400, detail="El estado debe ser activo (1) o inactivo (0)")
     return _actualizar_catalogo(db, Marca, marca_id, datos, "marca", "Marca", usuario_actual)
 
 
@@ -342,7 +395,7 @@ def actualizar_marca(marca_id: int, datos: MarcaUpdate, db: Session = Depends(ge
 def listar_unidades_medida(
     buscar: Optional[str] = None,
     db: Session = Depends(get_db),
-    usuario_actual=Depends(get_current_user),
+    usuario_actual=Depends(requiere_permiso("Unidades", "Ver")),
 ):
     query = db.query(UnidadMedida)
     if buscar:
@@ -351,7 +404,7 @@ def listar_unidades_medida(
 
 
 @router_unidad.post("", response_model=UnidadMedidaResponse, status_code=201)
-def crear_unidad_medida(datos: UnidadMedidaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
+def crear_unidad_medida(datos: UnidadMedidaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Unidades", "Crear"))):
     valores = datos.model_dump()
     valores["nombre"] = _validar_nombre_nuevo_catalogo(db, UnidadMedida, valores.get("nombre"), "unidad de medida")
     nueva = UnidadMedida(**valores)
@@ -366,8 +419,22 @@ def crear_unidad_medida(datos: UnidadMedidaCreate, db: Session = Depends(get_db)
 
 
 @router_unidad.put("/{unidad_id}", response_model=UnidadMedidaResponse)
-def actualizar_unidad(unidad_id: int, datos: UnidadMedidaUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Editar"))):
+def actualizar_unidad(unidad_id: int, datos: UnidadMedidaUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Unidades", "Editar"))):
     """Edita la unidad de medida o la da de baja / reactiva (activo 0/1). No se borra para no dejar productos huérfanos."""
+    return _actualizar_catalogo(db, UnidadMedida, unidad_id, datos, "unidad de medida", "UnidadMedida", usuario_actual)
+
+
+@router_unidad.patch("/{unidad_id}/estado", response_model=UnidadMedidaResponse)
+def cambiar_estado_unidad(
+    unidad_id: int,
+    datos: UnidadMedidaUpdate,
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(requiere_permiso("Unidades", "Eliminar")),
+):
+    if set(datos.model_dump(exclude_unset=True)) != {"activo"}:
+        raise HTTPException(status_code=400, detail="Solo se permite cambiar el estado")
+    if datos.activo not in (0, 1):
+        raise HTTPException(status_code=400, detail="El estado debe ser activo (1) o inactivo (0)")
     return _actualizar_catalogo(db, UnidadMedida, unidad_id, datos, "unidad de medida", "UnidadMedida", usuario_actual)
 
 def _actualizar_catalogo(db: Session, Modelo, item_id: int, datos, etiqueta: str, nombre_modulo: str, usuario_actual):
@@ -377,6 +444,13 @@ def _actualizar_catalogo(db: Session, Modelo, item_id: int, datos, etiqueta: str
         raise HTTPException(status_code=404, detail=f"{etiqueta.capitalize()} no encontrada")
 
     cambios = datos.model_dump(exclude_unset=True)
+    permiso_modulo = {
+        "Categoria": "Categorias",
+        "Marca": "Marcas",
+        "UnidadMedida": "Unidades",
+    }.get(nombre_modulo, nombre_modulo)
+    if "activo" in cambios and cambios["activo"] != item.activo:
+        _exigir_permiso(db, usuario_actual, permiso_modulo, "Eliminar")
     if "nombre" in cambios:
         nombre = (cambios["nombre"] or "").strip()
         if not nombre:
