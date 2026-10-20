@@ -416,30 +416,7 @@ function renderRoles(roles) {
         <div class="row">
             ${roles
               .map((r) => {
-                // rolPermisosData ya trae el permiso completo (nombre,
-                // id_modulo) gracias a que cargarPermisosRoles usa
-                // /permisos-detalle -- no hace falta cruzar contra
-                // permisosData otra vez.
                 const permisosDelRol = rolPermisosData.filter((p) => p.id_rol === r.id);
-
-                // Resumir los permisos por módulo sin mostrar las descripciones técnicas.
-                const permisosPorModulo = {};
-                permisosDelRol.forEach((p) => {
-                  const modulo = modulosData.find((m) => m.id === p.id_modulo);
-                  const nombreModulo = modulo ? etiquetaModuloPermiso(modulo.nombre) : "General";
-                  if (!permisosPorModulo[nombreModulo]) permisosPorModulo[nombreModulo] = [];
-                  permisosPorModulo[nombreModulo].push(etiquetaPermisoCorta(p.nombre));
-                });
-
-                const htmlPermisos = Object.keys(permisosPorModulo).length
-                  ? Object.entries(permisosPorModulo)
-                      .map(
-                        ([modulo, acciones]) =>
-                          `<div class="small mb-1"><strong>${escaparHtmlUsuarios(modulo)}:</strong>
-                            ${acciones.map((accion) => `<span class="badge rounded-pill bg-light text-dark border me-1">${escaparHtmlUsuarios(accion)}</span>`).join("")}</div>`,
-                      )
-                      .join("")
-                  : `<div class="small text-muted">(sin permisos asignados)</div>`;
 
                 // Usuarios que tienen este rol asignado (ya vienen solo
                 // los activos, gracias al filtro por default de getUsuarios()
@@ -482,15 +459,14 @@ function renderRoles(roles) {
                                 ${htmlSelectorAgregar}
                             </div>
 
-                            <div class="mb-2">
-                                <i class="fas fa-key me-1 text-muted"></i>
-                                <span class="small"><strong>Permisos:</strong></span>
-                                <div class="ms-3 mt-1">${htmlPermisos}</div>
+                            <div class="small text-muted mb-2">
+                                <i class="fas fa-key me-1"></i>
+                                ${permisosDelRol.length} permisos asignados
                             </div>
                         </div>
                         <div class="card-footer bg-transparent d-flex flex-wrap gap-1">
                             ${tienePermiso("Usuarios", "Editar") ? `<button class="btn btn-sm btn-outline-primary" onclick="verPermisosRol(${r.id})">
-                                <i class="fas fa-key me-1"></i>Gestionar Permisos
+                                <i class="fas fa-key me-1"></i>Ver permisos
                             </button>` : ""}
                             ${tienePermiso("Usuarios", "Editar") ? `<button class="btn btn-sm btn-outline-secondary" onclick="showEditRolModal(${r.id})" title="Editar rol">
                                 <i class="fas fa-edit"></i>
@@ -1909,9 +1885,16 @@ function htmlPermisosInventario(idRol, permisos, asignaciones) {
     htmlControlPermisoRol(idRol, tab(clave), asignaciones, clave),
   ).join("");
 
+  const ordenAcciones = { ver: 0, crear: 1, editar: 2, eliminar: 3 };
+  const ordenarAcciones = (lista) =>
+    lista.slice().sort(
+      (a, b) =>
+        (ordenAcciones[(a.nombre || "").toLowerCase()] ?? 4) -
+        (ordenAcciones[(b.nombre || "").toLowerCase()] ?? 4),
+  );
   const htmlSeccionesCatalogo = seccionesCatalogo.map(([modulo, etiqueta]) => {
     const permisoTab = tab(modulo);
-    const accionesModulo = acciones(modulo);
+    const accionesModulo = ordenarAcciones(acciones(modulo));
     return `
       <div class="border rounded p-2 h-100">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
@@ -1928,7 +1911,7 @@ function htmlPermisosInventario(idRol, permisos, asignaciones) {
   const htmlOperaciones = hijosOperaciones.map(([clave, etiqueta]) =>
     htmlControlPermisoRol(idRol, tab(clave), asignaciones, etiqueta),
   ).join("");
-  const permisosInventario = acciones("Inventario");
+  const permisosInventario = ordenarAcciones(acciones("Inventario"));
 
   return `
     <div class="card mb-3">
@@ -1963,7 +1946,13 @@ function htmlPermisosModuloRol(idRol, moduloNombre, icono, permisos, asignacione
   );
   if (!permisosModulo.length) return "";
   const pestanas = permisosModulo.filter((permiso) => (permiso.nombre || "").startsWith("Tab:"));
-  const acciones = permisosModulo.filter((permiso) => !(permiso.nombre || "").startsWith("Tab:"));
+  const acciones = permisosModulo
+    .filter((permiso) => !(permiso.nombre || "").startsWith("Tab:"))
+    .sort((a, b) => {
+      const orden = { ver: 0, crear: 1, editar: 2, eliminar: 3 };
+      return (orden[(a.nombre || "").toLowerCase()] ?? 4) -
+        (orden[(b.nombre || "").toLowerCase()] ?? 4);
+    });
   return `
     <div class="card mb-3">
       <div class="card-header bg-light">
@@ -1973,7 +1962,7 @@ function htmlPermisosModuloRol(idRol, moduloNombre, icono, permisos, asignacione
         ${pestanas.length ? `
           <h6 class="text-muted small text-uppercase">Secciones</h6>
           <div class="row row-cols-2 row-cols-md-3 g-2 mb-3">
-            ${pestanas.map((permiso) =>
+            ${pestanas.slice().sort((a, b) => etiquetaPermisoCorta(a.nombre).localeCompare(etiquetaPermisoCorta(b.nombre))).map((permiso) =>
               htmlControlPermisoRol(idRol, permiso, asignaciones, etiquetaPermisoCorta(permiso.nombre)),
             ).join("")}
           </div>` : ""}
@@ -2022,7 +2011,7 @@ async function verPermisosRol(idRol) {
         modalDiv.id = "permisosModal";
         document.body.appendChild(modalDiv);
       }
-      modalDiv.innerHTML = `<div class="modal-dialog modal-lg"><div class="modal-content">${html}</div></div>`;
+      modalDiv.innerHTML = `<div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">${html}</div></div>`;
 
       const modalInstance = new bootstrap.Modal(modalDiv);
       modalInstance.show();
@@ -2058,6 +2047,7 @@ async function verPermisosRol(idRol) {
         modulo.nombre.toLowerCase() !== "inventario" &&
         !modulosCatalogo.has(modulo.nombre),
       )
+      .sort((a, b) => etiquetaModuloPermiso(a.nombre).localeCompare(etiquetaModuloPermiso(b.nombre)))
       .forEach((modulo) => {
         html += htmlPermisosModuloRol(
           idRol,
@@ -2090,7 +2080,7 @@ async function verPermisosRol(idRol) {
       modalDiv.id = "permisosModal";
       document.body.appendChild(modalDiv);
     }
-    modalDiv.innerHTML = `<div class="modal-dialog modal-lg"><div class="modal-content">${html}</div></div>`;
+    modalDiv.innerHTML = `<div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">${html}</div></div>`;
 
     // OJO: verPermisosRol se vuelve a llamar cada vez que togglePermiso marca
     // o desmarca un permiso (para refrescar los datos). Antes, esto volvía a
