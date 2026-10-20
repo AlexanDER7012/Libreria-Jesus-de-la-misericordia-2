@@ -40,6 +40,11 @@ async function loadConfiguracionModule() {
                     <i class="fas fa-bullseye me-1"></i>Metas Financieras
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#backupsTab">
+                    <i class="fas fa-database me-1"></i>Backup
+                </a>
+            </li>
         </ul>
 
         <div class="tab-content">
@@ -73,6 +78,24 @@ async function loadConfiguracionModule() {
                     </div>
                 </div>
             </div>
+            <div class="tab-pane fade" id="backupsTab">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0 fw-bold"><i class="fas fa-database me-2"></i>Backups de la base de datos</h6>
+                    </div>
+                    <div class="card-body">
+                        ${tienePermiso("Configuracion", "Editar") ? `<button id="generarBackupBtn" class="btn btn-primary btn-lg mb-4" onclick="generarBackup()">
+                            <i class="fas fa-database me-2"></i>Generar Backup Ahora
+                        </button>` : ""}
+                        <div id="backupsContainer">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status"></div>
+                                <p class="mt-2 text-muted">Cargando backups...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
 
@@ -101,10 +124,160 @@ async function loadConfiguracionModule() {
     renderConfiguracion(configuracionData);
     renderMetas(metasData);
     renderUbicaciones(window.ubicacionesData);
+    await cargarBackups();
   } catch (error) {
     document.getElementById("configuracionContainer").innerHTML = `
             <div class="alert alert-danger">Error al cargar datos: ${error.message}</div>
         `;
+  }
+}
+
+// =============================================
+// BACKUPS DE LA BASE DE DATOS
+// =============================================
+function escaparHtml(valor) {
+  return String(valor).replace(/[&<>"']/g, (caracter) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[caracter]);
+}
+
+async function cargarBackups(notificarError = true) {
+  const container = document.getElementById("backupsContainer");
+  if (!container) return;
+  if (!tienePermiso("Configuracion", "Ver")) {
+    container.innerHTML = '<div class="alert alert-warning mb-0">No tienes permiso para consultar los backups.</div>';
+    return;
+  }
+
+  try {
+    const backups = await api.request("/configuracion/backup/listar");
+    if (!backups.length) {
+      container.innerHTML = '<p class="text-muted mb-0">No hay backups generados aún</p>';
+      return;
+    }
+
+    const filas = backups.map((backup) => `
+      <tr>
+        <td>${escaparHtml(backup.nombre)}</td>
+        <td>${escaparHtml(new Date(backup.fecha).toLocaleString())}</td>
+        <td>${escaparHtml(backup.tamano_mb)} MB</td>
+        <td class="text-nowrap">
+          <button class="btn btn-sm btn-outline-primary" title="Descargar" onclick="descargarBackup('${escaparHtml(backup.nombre)}')">
+            <i class="fas fa-download"></i>
+          </button>
+          ${tienePermiso("Configuracion", "Eliminar") ? `<button class="btn btn-sm btn-outline-danger" title="Eliminar" onclick="eliminarBackup('${escaparHtml(backup.nombre)}')">
+            <i class="fas fa-trash"></i>
+          </button>` : ""}
+        </td>
+      </tr>
+    `).join("");
+    container.innerHTML = `
+      <div class="table-responsive">
+        <table class="table table-hover table-striped align-middle mb-0">
+          <thead class="table-light">
+            <tr><th>Nombre</th><th>Fecha</th><th>Tamaño</th><th>Acciones</th></tr>
+          </thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>
+    `;
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger mb-0">Error al cargar los backups: ${escaparHtml(error.message)}</div>`;
+    if (notificarError) showToast(error.message || "Error al cargar los backups", "error");
+  }
+}
+
+async function solicitarArchivoBackup(url, nombrePredeterminado, metodo = "GET") {
+  const token = localStorage.getItem("token");
+  const respuesta = await fetch(url, {
+    method: metodo,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!respuesta.ok) {
+    let mensaje = `Error al descargar el backup (${respuesta.status})`;
+    const textoRespuesta = await respuesta.text();
+    try {
+      const cuerpo = JSON.parse(textoRespuesta);
+      if (cuerpo.detail) mensaje = cuerpo.detail;
+    } catch (error) {
+      if (textoRespuesta) mensaje = textoRespuesta;
+    }
+    if (respuesta.status === 401) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      localStorage.removeItem("user_permisos");
+      window.location.href = "login.html";
+    }
+    throw new Error(mensaje);
+  }
+
+  const contentDisposition = respuesta.headers.get("Content-Disposition") || "";
+  const nombreCodificado = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  const nombreSimple = contentDisposition.match(/filename="?([^";]+)"?/i);
+  let nombre = nombreCodificado
+    ? decodeURIComponent(nombreCodificado[1].trim().replace(/^"|"$/g, ""))
+    : nombreSimple
+      ? nombreSimple[1]
+      : nombrePredeterminado;
+  nombre = nombre.split(/[\\/]/).pop() || nombrePredeterminado;
+  const blob = await respuesta.blob();
+  const enlaceTemporal = document.createElement("a");
+  const urlTemporal = URL.createObjectURL(blob);
+  enlaceTemporal.href = urlTemporal;
+  enlaceTemporal.download = nombre;
+  document.body.appendChild(enlaceTemporal);
+  enlaceTemporal.click();
+  enlaceTemporal.remove();
+  window.setTimeout(() => URL.revokeObjectURL(urlTemporal), 1000);
+}
+
+async function generarBackup() {
+  const boton = document.getElementById("generarBackupBtn");
+  if (!boton) return;
+  const contenidoOriginal = boton.innerHTML;
+  boton.disabled = true;
+  boton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Generando backup...';
+  try {
+    await solicitarArchivoBackup("/configuracion/backup", "backup_libreria.backup", "POST");
+    showToast("Backup generado y descargado correctamente", "success");
+    await cargarBackups(false);
+  } catch (error) {
+    showToast(error.message || "Error al generar el backup", "error");
+  } finally {
+    boton.disabled = false;
+    boton.innerHTML = contenidoOriginal;
+  }
+}
+
+async function descargarBackup(nombre) {
+  try {
+    await solicitarArchivoBackup(
+      `/configuracion/backup/descargar/${encodeURIComponent(nombre)}`,
+      nombre,
+    );
+  } catch (error) {
+    showToast(error.message || "Error al descargar el backup", "error");
+  }
+}
+
+async function eliminarBackup(nombre) {
+  const confirmado = await mostrarConfirmacion(
+    "Eliminar backup",
+    `¿Estás seguro de eliminar el backup "${nombre}"? Esta acción no se puede deshacer.`,
+    "Eliminar",
+  );
+  if (!confirmado) return;
+
+  try {
+    await api.request(`/configuracion/backup/${encodeURIComponent(nombre)}`, "DELETE");
+    showToast("Backup eliminado correctamente", "success");
+    await cargarBackups(false);
+  } catch (error) {
+    showToast(error.message || "Error al eliminar el backup", "error");
   }
 }
 
