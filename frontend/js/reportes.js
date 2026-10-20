@@ -15,7 +15,7 @@ async function loadReportesModule() {
         </div>
 
         <!-- PESTAÑAS PRINCIPALES POR MÓDULO -->
-        <ul class="nav nav-tabs mb-3" id="reportesTabs">
+        <ul class="nav nav-tabs mb-3" id="reportesSubTabs">
             <li class="nav-item">
                 <a class="nav-link active" data-bs-toggle="tab" href="#reportesVentas">
                     <i class="fas fa-shopping-cart me-1"></i>Ventas

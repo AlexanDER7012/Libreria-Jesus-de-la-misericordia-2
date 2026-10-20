@@ -1869,22 +1869,18 @@ function htmlPermisosInventario(idRol, permisos, asignaciones) {
       !(permiso.nombre || "").startsWith("Tab:"),
   );
   const seccionesCatalogo = [
-    ["Productos", "Productos"],
-    ["Categorias", "Categorías"],
-    ["Marcas", "Marcas"],
-    ["Unidades", "Unidades"],
+    ["Productos", "Productos", "Productos"],
+    ["Categorias", "Categorías", "Categorias"],
+    ["Marcas", "Marcas", "Marcas"],
+    ["Unidades", "Unidades", "Unidades"],
+    ["TiposMovimiento", "Tipos de movimiento", null],
   ];
   const hijosOperaciones = [
     ["Resumen", "Resumen"],
     ["ConteoFisico", "Conteo físico"],
     ["Traslados", "Traslados"],
     ["Alertas", "Alertas"],
-    ["TiposMovimiento", "Tipos de movimiento"],
   ];
-  const htmlReportes = ["Dashboard", "Reportes"].map((clave) =>
-    htmlControlPermisoRol(idRol, tab(clave), asignaciones, clave),
-  ).join("");
-
   const ordenAcciones = { ver: 0, crear: 1, editar: 2, eliminar: 3 };
   const ordenarAcciones = (lista) =>
     lista.slice().sort(
@@ -1892,50 +1888,108 @@ function htmlPermisosInventario(idRol, permisos, asignaciones) {
         (ordenAcciones[(a.nombre || "").toLowerCase()] ?? 4) -
         (ordenAcciones[(b.nombre || "").toLowerCase()] ?? 4),
   );
-  const htmlSeccionesCatalogo = seccionesCatalogo.map(([modulo, etiqueta]) => {
-    const permisoTab = tab(modulo);
-    const accionesModulo = ordenarAcciones(acciones(modulo));
+  const htmlSeccionesCatalogo = seccionesCatalogo.map(([clave, etiqueta, modulo]) => {
+    const permisoTab = tab(clave);
+    const accionesModulo = modulo ? ordenarAcciones(acciones(modulo)) : [];
     return `
-      <div class="border rounded p-2 h-100">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-          <strong>${etiqueta}</strong>
-          ${htmlControlPermisoRol(idRol, permisoTab, asignaciones, "Acceso a sección")}
-        </div>
-        <div class="row row-cols-2 g-1">
-          ${accionesModulo.map((permiso) =>
-            htmlControlPermisoRol(idRol, permiso, asignaciones, `${etiquetaPermisoCorta(permiso.nombre)} ${etiqueta.toLowerCase()}`),
-          ).join("")}
+      <div class="col">
+        <div class="border rounded p-3 h-100 bg-body-tertiary">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <strong class="text-primary">${etiqueta}</strong>
+            ${htmlControlPermisoRol(idRol, permisoTab, asignaciones, modulo ? "Ver sección" : "Acceso a sección")}
+          </div>
+          <div class="row row-cols-1 row-cols-sm-2 g-1">
+            ${accionesModulo.map((permiso) =>
+              htmlControlPermisoRol(idRol, permiso, asignaciones, etiquetaPermisoCorta(permiso.nombre)),
+            ).join("")}
+          </div>
         </div>
       </div>`;
   }).join("");
-  const htmlOperaciones = hijosOperaciones.map(([clave, etiqueta]) =>
-    htmlControlPermisoRol(idRol, tab(clave), asignaciones, etiqueta),
+  const htmlOperaciones = hijosOperaciones.map(([clave, etiqueta]) => `
+    <div class="col">
+      <div class="border rounded p-2 h-100 bg-body-tertiary">
+        ${htmlControlPermisoRol(idRol, tab(clave), asignaciones, etiqueta)}
+      </div>
+    </div>`,
   ).join("");
   const permisosInventario = ordenarAcciones(acciones("Inventario"));
 
   return `
-    <div class="card mb-3">
-      <div class="card-header bg-light">
+    <div class="card border-primary mb-3">
+      <div class="card-header bg-primary-subtle text-primary">
         <strong><i class="fas fa-boxes me-2"></i>Inventario</strong>
       </div>
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
-          <h6 class="text-muted small text-uppercase mb-0">Catálogo</h6>
-          ${htmlControlPermisoRol(idRol, tab("Catalogo"), asignaciones, "Acceso a sección")}
+        <div class="d-flex justify-content-between align-items-center border-bottom border-primary pb-2 mb-3">
+          <h6 class="text-primary fw-bold mb-0"><i class="fas fa-box-open me-2"></i>Catálogo</h6>
+          ${htmlControlPermisoRol(idRol, tab("Catalogo"), asignaciones, "Acceso al catálogo")}
         </div>
-        <div class="row row-cols-1 row-cols-lg-2 g-2 mb-3">${htmlSeccionesCatalogo}</div>
-        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
-          <h6 class="text-muted small text-uppercase mb-0">Operaciones</h6>
-          ${htmlControlPermisoRol(idRol, tab("Operaciones"), asignaciones, "Acceso a sección")}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-5 g-3 mb-4">${htmlSeccionesCatalogo}</div>
+        <div class="d-flex justify-content-between align-items-center border-bottom border-success pb-2 mb-3">
+          <h6 class="text-success fw-bold mb-0"><i class="fas fa-exchange-alt me-2"></i>Transacciones</h6>
+          ${htmlControlPermisoRol(idRol, tab("Operaciones"), asignaciones, "Acceso a transacciones")}
         </div>
-        <div class="row row-cols-2 row-cols-md-3 g-2 mb-2">${htmlOperaciones}</div>
-        <div class="row row-cols-2 row-cols-md-4 g-2">
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-5 g-2 mb-3">${htmlOperaciones}</div>
+        <div class="border-top border-success pt-3">
+          <h6 class="text-success small text-uppercase mb-2">Acciones sobre transacciones</h6>
+          <div class="row row-cols-2 row-cols-md-4 g-2">
           ${permisosInventario.map((permiso) =>
-            htmlControlPermisoRol(idRol, permiso, asignaciones, `${etiquetaPermisoCorta(permiso.nombre)} operaciones`),
+            htmlControlPermisoRol(idRol, permiso, asignaciones, etiquetaPermisoCorta(permiso.nombre)),
           ).join("")}
+          </div>
         </div>
-        <h6 class="text-muted small text-uppercase mt-3">Reportes</h6>
-        <div class="row row-cols-2 row-cols-md-3 g-2">${htmlReportes}</div>
+      </div>
+    </div>`;
+}
+
+function htmlPermisosReportes(idRol, permisos, asignaciones, icono) {
+  const permisosModulo = permisos.filter(
+    (permiso) => nombreModuloPermiso(permiso).toLowerCase() === "reportes",
+  );
+  if (!permisosModulo.length) return "";
+  const principales = ["Dashboard", "Reportes"];
+  const permisosPrincipales = principales
+    .map((clave) => permisosModulo.find((permiso) => permiso.nombre === `Tab:Reportes:${clave}`))
+    .filter(Boolean);
+  const secciones = permisosModulo
+    .filter((permiso) =>
+      permiso.nombre.startsWith("Tab:Reportes:") &&
+      !principales.some((clave) => permiso.nombre === `Tab:Reportes:${clave}`),
+    )
+    .sort((a, b) =>
+      etiquetaPermisoCorta(a.nombre).localeCompare(etiquetaPermisoCorta(b.nombre)),
+    );
+
+  return `
+    <div class="card border-info mb-3">
+      <div class="card-header bg-info-subtle text-info-emphasis">
+        <strong><i class="fas ${icono || "fa-chart-bar"} me-2"></i>Reportes</strong>
+        <span class="small ms-2">Módulo independiente</span>
+      </div>
+      <div class="card-body">
+        ${permisosPrincipales.length ? `
+          <h6 class="text-info-emphasis small text-uppercase mb-2">Acceso al módulo</h6>
+          <div class="row row-cols-1 row-cols-sm-2 g-2 mb-3">
+            ${permisosPrincipales.map((permiso) => `
+              <div class="col">
+                <div class="border rounded p-2 h-100 bg-body-tertiary">
+                  ${htmlControlPermisoRol(idRol, permiso, asignaciones, etiquetaPermisoCorta(permiso.nombre))}
+                </div>
+              </div>
+            `).join("")}
+          </div>` : ""}
+        ${secciones.length ? `
+          <h6 class="text-info-emphasis small text-uppercase mb-2">Secciones de reportes</h6>
+          <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 g-2">
+            ${secciones.map((permiso) => `
+              <div class="col">
+                <div class="border rounded p-2 h-100 bg-body-tertiary">
+                  ${htmlControlPermisoRol(idRol, permiso, asignaciones)}
+                </div>
+              </div>
+            `).join("")}
+          </div>` : ""}
       </div>
     </div>`;
 }
@@ -2041,10 +2095,26 @@ async function verPermisosRol(idRol) {
       html += htmlPermisosInventario(idRol, permisosInventario, permisosRol);
     }
 
+    const permisosReportes = permisosData.filter(
+      (permiso) => nombreModuloPermiso(permiso).toLowerCase() === "reportes",
+    );
+    if (permisosReportes.length) {
+      const moduloReportes = modulosData.find(
+        (modulo) => (modulo.nombre || "").toLowerCase() === "reportes",
+      );
+      html += htmlPermisosReportes(
+        idRol,
+        permisosReportes,
+        permisosRol,
+        moduloReportes?.icono,
+      );
+    }
+
     modulosData
       .filter((modulo) =>
         modulo.nombre &&
         modulo.nombre.toLowerCase() !== "inventario" &&
+        modulo.nombre.toLowerCase() !== "reportes" &&
         !modulosCatalogo.has(modulo.nombre),
       )
       .sort((a, b) => etiquetaModuloPermiso(a.nombre).localeCompare(etiquetaModuloPermiso(b.nombre)))

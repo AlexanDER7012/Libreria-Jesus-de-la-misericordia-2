@@ -73,8 +73,8 @@ PERMISOS_PESTANAS = (
     ("Inventario", "Tab:Inventario:ConteoFisico", "Acceso al Conteo Físico"),
     ("Inventario", "Tab:Inventario:Traslados", "Acceso a Traslados de Inventario"),
     ("Inventario", "Tab:Inventario:Alertas", "Acceso a Alertas de Inventario"),
-    ("Inventario", "Tab:Inventario:Dashboard", "Acceso al Dashboard de Inventario"),
-    ("Inventario", "Tab:Inventario:Reportes", "Acceso a Reportes de Inventario"),
+    ("Reportes", "Tab:Reportes:Dashboard", "Acceso al Dashboard"),
+    ("Reportes", "Tab:Reportes:Reportes", "Acceso a Reportes detallados"),
     ("Reportes", "Tab:Reportes:Ventas", "Acceso a reportes de Ventas"),
     ("Reportes", "Tab:Reportes:Compras", "Acceso a reportes de Compras"),
     ("Reportes", "Tab:Reportes:Inventario", "Acceso a reportes de Inventario"),
@@ -177,7 +177,7 @@ def _asegurar_permisos_operativos(db: Session) -> None:
 
 
 def _asegurar_permisos_pestanas(db: Session) -> None:
-    """Registra permisos de pestañas sin concederlos automáticamente a los roles."""
+    """Registra permisos de pestañas y migra los permisos antiguos conservando sus roles."""
     modulos = {
         (modulo.nombre or "").strip().lower(): modulo
         for modulo in db.query(Modulo).all()
@@ -187,6 +187,52 @@ def _asegurar_permisos_pestanas(db: Session) -> None:
         for permiso in db.query(Permiso).all()
     }
     cambios = False
+
+    modulo_inventario = modulos.get("inventario")
+    modulo_reportes = modulos.get("reportes")
+    if modulo_inventario and modulo_reportes:
+        permisos_legacy_reportes = {
+            "tab:inventario:dashboard": (
+                "Tab:Reportes:Dashboard",
+                "Acceso al Dashboard",
+            ),
+            "tab:inventario:reportes": (
+                "Tab:Reportes:Reportes",
+                "Acceso a Reportes detallados",
+            ),
+        }
+        for nombre_antiguo, (nombre_nuevo, descripcion) in permisos_legacy_reportes.items():
+            permiso = permisos_existentes.get(
+                (modulo_inventario.id, nombre_antiguo),
+            )
+            if not permiso:
+                continue
+            clave_nueva = (modulo_reportes.id, nombre_nuevo.lower())
+            permiso_nuevo = permisos_existentes.get(clave_nueva)
+            if permiso_nuevo:
+                asignaciones_antiguas = db.query(RolPermiso).filter(
+                    RolPermiso.id_permiso == permiso.id,
+                ).all()
+                asignadas = {
+                    asignacion.id_rol
+                    for asignacion in db.query(RolPermiso)
+                    .filter(RolPermiso.id_permiso == permiso_nuevo.id)
+                    .all()
+                }
+                for asignacion in asignaciones_antiguas:
+                    if asignacion.id_rol in asignadas:
+                        db.delete(asignacion)
+                    else:
+                        asignacion.id_permiso = permiso_nuevo.id
+                        asignadas.add(asignacion.id_rol)
+                db.delete(permiso)
+            else:
+                permiso.nombre = nombre_nuevo
+                permiso.descripcion = descripcion
+                permiso.id_modulo = modulo_reportes.id
+                permisos_existentes[clave_nueva] = permiso
+            permisos_existentes.pop((modulo_inventario.id, nombre_antiguo), None)
+            cambios = True
 
     for nombre_modulo, nombre_permiso, descripcion in PERMISOS_PESTANAS:
         modulo = modulos.get(nombre_modulo.lower())

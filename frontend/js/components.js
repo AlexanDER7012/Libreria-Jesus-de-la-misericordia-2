@@ -446,13 +446,13 @@ const PERMISOS_PESTANAS_MODULOS = {
       "panel-inv-traslados": "Tab:Inventario:Traslados",
       "panel-inv-alertas": "Tab:Inventario:Alertas",
     },
-    reportesTabs: {
-      "panel-rep-dashboard": "Tab:Inventario:Dashboard",
-      "panel-rep-reportes": "Tab:Inventario:Reportes",
-    },
   },
   reportes: {
     reportesTabs: {
+      "panel-rep-dashboard": "Tab:Reportes:Dashboard",
+      "panel-rep-reportes": "Tab:Reportes:Reportes",
+    },
+    reportesSubTabs: {
       reportesVentas: "Tab:Reportes:Ventas",
       reportesCompras: "Tab:Reportes:Compras",
       reportesInventario: "Tab:Reportes:Inventario",
