@@ -1,4 +1,5 @@
 from datetime import date
+import logging
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -36,6 +37,77 @@ router_permiso = APIRouter()     # /permisos
 router_pago = APIRouter()        # /pagos-empleado
 router_log = APIRouter()         # /logs
 
+logger = logging.getLogger(__name__)
+
+PERMISOS_PESTANAS = (
+    ("Ventas", "Tab:Ventas:Ventas", "Acceso a la pestaña Ventas"),
+    ("Ventas", "Tab:Ventas:Clientes", "Acceso a la pestaña Clientes"),
+    ("Ventas", "Tab:Ventas:Servicios", "Acceso a la pestaña Servicios Adicionales"),
+    ("Ventas", "Tab:Ventas:Cotizaciones", "Acceso a la pestaña Cotizaciones"),
+    ("Ventas", "Tab:Ventas:Caja", "Acceso a la pestaña Caja"),
+    ("Ventas", "Tab:Ventas:Vendedores", "Acceso a la pestaña Vendedores"),
+    ("Ventas", "Tab:Ventas:FichaClienteVentas", "Acceso a ventas en la ficha del cliente"),
+    ("Ventas", "Tab:Ventas:FichaClienteServicios", "Acceso a servicios en la ficha del cliente"),
+    ("Compras", "Tab:Compras:Compras", "Acceso a la pestaña Compras"),
+    ("Compras", "Tab:Compras:Proveedores", "Acceso al grupo de pestañas Proveedores"),
+    ("Compras", "Tab:Compras:CajaChica", "Acceso a la pestaña Caja Chica"),
+    ("Compras", "Tab:Compras:Gastos", "Acceso al grupo de pestañas Gastos"),
+    ("Compras", "Tab:Compras:TiposPago", "Acceso a la pestaña Tipos de Pago"),
+    ("Compras", "Tab:Compras:TiposProveedor", "Acceso a Tipos de Proveedor"),
+    ("Compras", "Tab:Compras:ListaProveedores", "Acceso a la lista de Proveedores"),
+    ("Compras", "Tab:Compras:Pedidos", "Acceso a Pedidos de Proveedor"),
+    ("Compras", "Tab:Compras:ListaGastos", "Acceso a la lista de Gastos"),
+    ("Compras", "Tab:Compras:TiposGasto", "Acceso a Tipos de Gasto"),
+    ("Caja", "Tab:Caja:Turnos", "Acceso a la pestaña Turnos de Caja"),
+    ("Caja", "Tab:Caja:CajaChica", "Acceso a la pestaña Caja Chica"),
+    ("Caja", "Tab:Caja:Gastos", "Acceso a la pestaña Gastos de Caja"),
+    ("Caja", "Tab:Caja:Catalogos", "Acceso a los catálogos de Caja"),
+    ("Inventario", "Tab:Inventario:Catalogo", "Acceso al grupo Catálogo de Inventario"),
+    ("Inventario", "Tab:Inventario:Operaciones", "Acceso al grupo Operaciones de Inventario"),
+    ("Inventario", "Tab:Inventario:Productos", "Acceso a Productos de Inventario"),
+    ("Inventario", "Tab:Inventario:Categorias", "Acceso a Categorías de Inventario"),
+    ("Inventario", "Tab:Inventario:Marcas", "Acceso a Marcas de Inventario"),
+    ("Inventario", "Tab:Inventario:Unidades", "Acceso a Unidades de Medida"),
+    ("Inventario", "Tab:Inventario:TiposMovimiento", "Acceso a Tipos de Movimiento"),
+    ("Inventario", "Tab:Inventario:Resumen", "Acceso al resumen de Inventario"),
+    ("Inventario", "Tab:Inventario:ConteoFisico", "Acceso al Conteo Físico"),
+    ("Inventario", "Tab:Inventario:Traslados", "Acceso a Traslados de Inventario"),
+    ("Inventario", "Tab:Inventario:Alertas", "Acceso a Alertas de Inventario"),
+    ("Inventario", "Tab:Inventario:Dashboard", "Acceso al Dashboard de Inventario"),
+    ("Inventario", "Tab:Inventario:Reportes", "Acceso a Reportes de Inventario"),
+    ("Reportes", "Tab:Reportes:Ventas", "Acceso a reportes de Ventas"),
+    ("Reportes", "Tab:Reportes:Compras", "Acceso a reportes de Compras"),
+    ("Reportes", "Tab:Reportes:Inventario", "Acceso a reportes de Inventario"),
+    ("Reportes", "Tab:Reportes:Usuarios", "Acceso a reportes de Usuarios"),
+    ("Reportes", "Tab:Reportes:VentasDiarias", "Acceso al reporte Ventas Diarias"),
+    ("Reportes", "Tab:Reportes:Conciliacion", "Acceso al reporte Conciliación de Pagos"),
+    ("Reportes", "Tab:Reportes:CuadreCaja", "Acceso al reporte Cuadre de Caja"),
+    ("Reportes", "Tab:Reportes:Utilidad", "Acceso al reporte Utilidad por Producto"),
+    ("Reportes", "Tab:Reportes:TopProductos", "Acceso al reporte Top Productos"),
+    ("Reportes", "Tab:Reportes:ComprasResumen", "Acceso al Resumen de Compras"),
+    ("Reportes", "Tab:Reportes:ComprasProveedor", "Acceso a Compras por Proveedor"),
+    ("Reportes", "Tab:Reportes:CuentasPagar", "Acceso al reporte Cuentas por Pagar"),
+    ("Reportes", "Tab:Reportes:StockBajo", "Acceso al reporte Productos Bajo Mínimo"),
+    ("Reportes", "Tab:Reportes:Movimientos", "Acceso al Resumen de Movimientos"),
+    ("Reportes", "Tab:Reportes:InventarioValorizado", "Acceso al Inventario Valorizado"),
+    ("Reportes", "Tab:Reportes:LoginResumen", "Acceso al Resumen de Logins"),
+    ("Reportes", "Tab:Reportes:UsuariosActivos", "Acceso al reporte Usuarios Más Activos"),
+    ("Reportes", "Tab:Reportes:Bitacora", "Acceso a la Bitácora de Actividades"),
+    ("Reportes", "Tab:Reportes:CuentasActivas", "Acceso al reporte Cuentas Activas"),
+    ("Reportes", "Tab:Reportes:CuentasInactivas", "Acceso al reporte Cuentas Inactivas"),
+    ("Reportes", "Tab:Reportes:UsuariosPorFecha", "Acceso al reporte Usuarios por Fecha"),
+    ("Reportes", "Tab:Reportes:UsuariosBuscar", "Acceso a Búsqueda Inteligente de Usuarios"),
+    ("Usuarios", "Tab:Usuarios:Usuarios", "Acceso a la pestaña Usuarios"),
+    ("Usuarios", "Tab:Usuarios:Empleados", "Acceso a la pestaña Empleados"),
+    ("Usuarios", "Tab:Usuarios:Roles", "Acceso a la pestaña Roles y Permisos"),
+    ("Usuarios", "Tab:Usuarios:Pagos", "Acceso a la pestaña Pagos"),
+    ("Usuarios", "Tab:Usuarios:Catalogos", "Acceso a la pestaña Catálogos"),
+    ("Usuarios", "Tab:Usuarios:Bitacora", "Acceso a la pestaña Bitácora de Usuarios"),
+    ("Configuracion", "Tab:Configuracion:General", "Acceso a Configuración General"),
+    ("Configuracion", "Tab:Configuracion:Ubicaciones", "Acceso a Ubicaciones"),
+    ("Configuracion", "Tab:Configuracion:Metas", "Acceso a Metas Financieras"),
+)
+
 
 def _filtrar_por_estado(query, modelo, estado: str):
     """Helper para no repetir el mismo if/elif de activos/inactivos/todos en cada router."""
@@ -51,6 +123,58 @@ def _aplicar_orden(query, modelo, orden_por: str, orden_direccion: str, campos_p
         return query
     columna = getattr(modelo, orden_por)
     return query.order_by(columna.desc() if orden_direccion == "desc" else columna.asc())
+
+
+def _asegurar_permisos_pestanas(db: Session) -> None:
+    """Registra permisos de pestañas y los habilita en roles ya existentes."""
+    modulos = {
+        (modulo.nombre or "").strip().lower(): modulo
+        for modulo in db.query(Modulo).all()
+    }
+    roles = db.query(Rol).all()
+    permisos_existentes = {
+        (permiso.id_modulo, (permiso.nombre or "").strip().lower()): permiso
+        for permiso in db.query(Permiso).all()
+    }
+    asignaciones_existentes = {
+        (asignacion.id_rol, asignacion.id_permiso)
+        for asignacion in db.query(RolPermiso).all()
+    }
+    cambios = False
+
+    for nombre_modulo, nombre_permiso, descripcion in PERMISOS_PESTANAS:
+        modulo = modulos.get(nombre_modulo.lower())
+        if modulo is None and nombre_modulo.lower() == "caja":
+            modulo = modulos.get("ventas")
+        if modulo is None:
+            logger.warning(
+                "No se puede registrar el permiso de pestaña %s: falta el módulo %s",
+                nombre_permiso,
+                nombre_modulo,
+            )
+            continue
+
+        clave_permiso = (modulo.id, nombre_permiso.lower())
+        permiso = permisos_existentes.get(clave_permiso)
+        if permiso is None:
+            permiso = Permiso(
+                nombre=nombre_permiso,
+                descripcion=descripcion,
+                id_modulo=modulo.id,
+            )
+            db.add(permiso)
+            db.flush()
+            permisos_existentes[clave_permiso] = permiso
+            cambios = True
+
+            for rol in roles:
+                clave_asignacion = (rol.id, permiso.id)
+                if clave_asignacion not in asignaciones_existentes:
+                    db.add(RolPermiso(id_rol=rol.id, id_permiso=permiso.id))
+                    asignaciones_existentes.add(clave_asignacion)
+
+    if cambios:
+        db.commit()
 
 
 ORDEN_USUARIO_PERMITIDO = {"id", "nombre_usuario", "fecha_creacion", "fecha_ultimo_acceso", "activo"}
@@ -89,6 +213,7 @@ def obtener_mis_permisos(usuario_actual: Usuario = Depends(get_current_user), db
     IMPORTANTE: esta ruta debe declararse ANTES de '/{usuario_id}' -- si no,
     FastAPI intentaría interpretar 'mis-permisos' como si fuera un usuario_id.
     """
+    _asegurar_permisos_pestanas(db)
     if not usuario_actual.id_rol:
         return []
     permisos = (
@@ -550,6 +675,7 @@ def crear_modulo(datos: ModuloCreate, db: Session = Depends(get_db), usuario_act
 
 @router_permiso.get("", response_model=List[PermisoResponse])
 def listar_permisos(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    _asegurar_permisos_pestanas(db)
     return db.query(Permiso).all()
 
 

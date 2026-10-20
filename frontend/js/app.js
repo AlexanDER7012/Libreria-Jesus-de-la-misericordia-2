@@ -495,6 +495,10 @@ class App {
           mainContent.innerHTML = `<div class="alert alert-warning">Módulo no encontrado</div>`;
       }
 
+      if (typeof window.aplicarPermisosPestanasModulo === "function") {
+        window.aplicarPermisosPestanasModulo(realModule, mainContent);
+      }
+
       if (realTab) {
         this.activarTabDeModulo(realModule, realTab);
       }

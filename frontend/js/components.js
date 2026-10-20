@@ -335,55 +335,183 @@ function mostrarLoading(containerId, mensaje = "Cargando...") {
  *   (ej. "usuariosTabs", "reportesTabs").
  * @param {Object} mapaPermisos - objeto { idTabPane: "NombrePermisoExacto" }.
  *   Ej: { rolesTab: "Tab:Usuarios:Roles", logsTab: "Tab:Usuarios:Bitacora" }
- * @param {Array} catalogoCompletoDePermisos - la lista COMPLETA de permisos
- *   del sistema (ej. la variable permisosData de cada módulo). Se usa para
- *   decidir si un permiso ya fue configurado o no (ver diseño abajo).
- *
- * DISEÑO "A PRUEBA DE NO ROMPER NADA": si el permiso de una pestaña
- * todavía no existe en el catálogo completo (nadie lo ha creado en
- * Catálogos > Permisos), esa pestaña NO se oculta -- se sigue viendo
- * como siempre. Solo empieza a restringirse en cuanto el permiso
- * específico existe Y no está asignado al rol del usuario actual.
+ * @param {Array|null} catalogoCompletoDePermisos - si se proporciona, una
+ *   pestaña solo se controla cuando su permiso ya está registrado. El catálogo
+ *   se registra desde el backend para que pueda asignarse a roles.
  */
-function aplicarControlAccesoPorPestana(idContenedorTabs, mapaPermisos, catalogoCompletoDePermisos) {
-  let misPermisosNombres = [];
+function aplicarControlAccesoPorPestana(idContenedorTabs, mapaPermisos, catalogoCompletoDePermisos = null) {
+  const nav = document.getElementById(idContenedorTabs);
+  if (!nav) return;
+
+  let misPermisosNombres = new Set();
   try {
     const misPermisos = JSON.parse(localStorage.getItem("user_permisos") || "[]");
-    misPermisosNombres = misPermisos.map((p) => p.nombre);
+    misPermisosNombres = new Set(
+      misPermisos.map((permiso) => (permiso.nombre || "").toLowerCase()),
+    );
   } catch (e) {
     console.warn("No se pudo leer user_permisos de localStorage:", e);
-    return; // si no se puede leer, no restringimos nada (fail-open)
   }
-
-  let pestanaActivaFueOcultada = false;
 
   Object.entries(mapaPermisos).forEach(([idTabPane, nombrePermiso]) => {
-    const permisoExisteEnCatalogo = (catalogoCompletoDePermisos || []).some(
-      (p) => p.nombre === nombrePermiso,
+    const permisoExisteEnCatalogo = catalogoCompletoDePermisos === null ||
+      catalogoCompletoDePermisos.some(
+        (permiso) => (permiso.nombre || "").toLowerCase() === nombrePermiso.toLowerCase(),
+      );
+    if (!permisoExisteEnCatalogo) return;
+
+    const permisoAsignado = misPermisosNombres.has(nombrePermiso.toLowerCase());
+    const disparador = Array.from(
+      nav.querySelectorAll('[data-bs-toggle="tab"], [data-bs-toggle="pill"]'),
+    ).find((elemento) =>
+      elemento.getAttribute("href") === `#${idTabPane}` ||
+      elemento.getAttribute("data-bs-target") === `#${idTabPane}`,
     );
-    if (!permisoExisteEnCatalogo) return; // todavía no se configuró esta pestaña, no tocar
-
-    const tieneAcceso = misPermisosNombres.includes(nombrePermiso);
-    if (tieneAcceso) return;
-
-    const link = document.querySelector(`a[href="#${idTabPane}"]`);
-    const li = link ? link.closest("li") : null;
-    if (li) {
-      if (li.querySelector(".nav-link.active")) pestanaActivaFueOcultada = true;
-      li.style.display = "none";
-    }
+    const elementoLista = disparador?.closest("li");
     const pane = document.getElementById(idTabPane);
-    if (pane) pane.remove();
+    if (elementoLista) elementoLista.hidden = !permisoAsignado;
+    if (pane) {
+      pane.hidden = !permisoAsignado;
+      if (!permisoAsignado) pane.classList.remove("show", "active");
+    }
   });
 
-  if (pestanaActivaFueOcultada) {
-    const primeraVisible = document.querySelector(
-      `#${idContenedorTabs} li:not([style*="display: none"]) .nav-link`,
-    );
-    if (primeraVisible) {
-      new bootstrap.Tab(primeraVisible).show();
-    }
+  const disparadoresVisibles = Array.from(
+    nav.querySelectorAll('[data-bs-toggle="tab"], [data-bs-toggle="pill"]'),
+  ).filter((elemento) => !elemento.closest("li")?.hidden);
+  const activaVisible = disparadoresVisibles.some((elemento) =>
+    elemento.classList.contains("active"),
+  );
+  if (!activaVisible && disparadoresVisibles.length && window.bootstrap) {
+    bootstrap.Tab.getOrCreateInstance(disparadoresVisibles[0]).show();
   }
+}
+
+const PERMISOS_PESTANAS_MODULOS = {
+  ventas: {
+    ventasSubTabs: {
+      subVentas: "Tab:Ventas:Ventas",
+      subClientes: "Tab:Ventas:Clientes",
+      subServicios: "Tab:Ventas:Servicios",
+      subCotizaciones: "Tab:Ventas:Cotizaciones",
+      subCaja: "Tab:Ventas:Caja",
+      subVendedores: "Tab:Ventas:Vendedores",
+    },
+    clienteFichaTabs: {
+      "panel-ficha-ventas": "Tab:Ventas:FichaClienteVentas",
+      "panel-ficha-servicios": "Tab:Ventas:FichaClienteServicios",
+    },
+  },
+  compras: {
+    comprasTabs: {
+      "panel-compras": "Tab:Compras:Compras",
+      "panel-proveedores": "Tab:Compras:Proveedores",
+      "panel-caja-chica": "Tab:Compras:CajaChica",
+      "panel-gastos": "Tab:Compras:Gastos",
+      "panel-tipos-pago": "Tab:Compras:TiposPago",
+    },
+    proveedoresSubTabs: {
+      "subpanel-proveedores": "Tab:Compras:ListaProveedores",
+      "subpanel-tipos-proveedor": "Tab:Compras:TiposProveedor",
+      "subpanel-pedidos": "Tab:Compras:Pedidos",
+    },
+    gastosSubTabs: {
+      "subpanel-gastos": "Tab:Compras:ListaGastos",
+      "subpanel-tipos-gasto": "Tab:Compras:TiposGasto",
+    },
+  },
+  caja: {
+    cajaTabs: {
+      turnosTab: "Tab:Caja:Turnos",
+      cajaChicaTab: "Tab:Caja:CajaChica",
+      gastosTab: "Tab:Caja:Gastos",
+      tiposTab: "Tab:Caja:Catalogos",
+    },
+  },
+  inventario: {
+    inventarioGrupoTabs: {
+      "panel-grupo-catalogo": "Tab:Inventario:Catalogo",
+      "panel-grupo-operaciones": "Tab:Inventario:Operaciones",
+    },
+    inventarioTabs: {
+      "panel-inv-productos": "Tab:Inventario:Productos",
+      "panel-inv-categorias": "Tab:Inventario:Categorias",
+      "panel-inv-marcas": "Tab:Inventario:Marcas",
+      "panel-inv-unidades": "Tab:Inventario:Unidades",
+      "panel-inv-tipos": "Tab:Inventario:TiposMovimiento",
+    },
+    inventarioOpsTabs: {
+      "panel-inv-resumen": "Tab:Inventario:Resumen",
+      "panel-inv-conteo": "Tab:Inventario:ConteoFisico",
+      "panel-inv-traslados": "Tab:Inventario:Traslados",
+      "panel-inv-alertas": "Tab:Inventario:Alertas",
+    },
+    reportesTabs: {
+      "panel-rep-dashboard": "Tab:Inventario:Dashboard",
+      "panel-rep-reportes": "Tab:Inventario:Reportes",
+    },
+  },
+  reportes: {
+    reportesTabs: {
+      reportesVentas: "Tab:Reportes:Ventas",
+      reportesCompras: "Tab:Reportes:Compras",
+      reportesInventario: "Tab:Reportes:Inventario",
+      reportesUsuarios: "Tab:Reportes:Usuarios",
+    },
+    ventasSubTabs: {
+      subVentasDiarias: "Tab:Reportes:VentasDiarias",
+      subConciliacion: "Tab:Reportes:Conciliacion",
+      subCuadreCaja: "Tab:Reportes:CuadreCaja",
+      subUtilidad: "Tab:Reportes:Utilidad",
+      subTopProductos: "Tab:Reportes:TopProductos",
+    },
+    comprasSubTabs: {
+      subComprasResumen: "Tab:Reportes:ComprasResumen",
+      subComprasProveedor: "Tab:Reportes:ComprasProveedor",
+      subCuentasPagar: "Tab:Reportes:CuentasPagar",
+    },
+    inventarioSubTabs: {
+      subStockBajo: "Tab:Reportes:StockBajo",
+      subMovimientosResumen: "Tab:Reportes:Movimientos",
+      subInventarioValorizado: "Tab:Reportes:InventarioValorizado",
+    },
+    usuariosSubTabs: {
+      subLoginResumen: "Tab:Reportes:LoginResumen",
+      subUsuariosActivos: "Tab:Reportes:UsuariosActivos",
+      subBitacora: "Tab:Reportes:Bitacora",
+      subCuentasActivas: "Tab:Reportes:CuentasActivas",
+      subCuentasInactivas: "Tab:Reportes:CuentasInactivas",
+      subUsuariosPorFecha: "Tab:Reportes:UsuariosPorFecha",
+      subUsuariosBuscar: "Tab:Reportes:UsuariosBuscar",
+    },
+  },
+  usuarios: {
+    usuariosTabs: {
+      usuariosTab: "Tab:Usuarios:Usuarios",
+      empleadosTab: "Tab:Usuarios:Empleados",
+      rolesTab: "Tab:Usuarios:Roles",
+      pagosTab: "Tab:Usuarios:Pagos",
+      catalogosTab: "Tab:Usuarios:Catalogos",
+      logsTab: "Tab:Usuarios:Bitacora",
+    },
+  },
+  configuracion: {
+    configTabs: {
+      generalTab: "Tab:Configuracion:General",
+      ubicacionesTab: "Tab:Configuracion:Ubicaciones",
+      metasTab: "Tab:Configuracion:Metas",
+    },
+  },
+};
+
+function aplicarPermisosPestanasModulo(modulo, raiz = document) {
+  const grupos = PERMISOS_PESTANAS_MODULOS[(modulo || "").toLowerCase()];
+  if (!grupos) return;
+  Object.entries(grupos).forEach(([idNav, mapaPermisos]) => {
+    const nav = document.getElementById(idNav);
+    if (!nav || (raiz !== document && !raiz.contains(nav))) return;
+    aplicarControlAccesoPorPestana(idNav, mapaPermisos);
+  });
 }
 
 /**
@@ -442,4 +570,5 @@ window.validarCampoEmail = validarCampoEmail;
 window.mostrarConfirmacion = mostrarConfirmacion;
 window.mostrarLoading = mostrarLoading;
 window.aplicarControlAccesoPorPestana = aplicarControlAccesoPorPestana;
+window.aplicarPermisosPestanasModulo = aplicarPermisosPestanasModulo;
 window.tienePermiso = tienePermiso;

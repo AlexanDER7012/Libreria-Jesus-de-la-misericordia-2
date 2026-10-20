@@ -174,29 +174,11 @@ async function cargarDatos() {
     await cargarPermisosRoles();
     renderRoles(rolesData); // se vuelve a llamar ya con rolPermisosData listo, para que las tarjetas de rol muestren los permisos correctos desde la primera carga
 
-    // Oculta las pestañas para las que el usuario logueado no tenga el
-    // permiso correspondiente (la función genérica vive en components.js).
-    aplicarControlAccesoPorPestana("usuariosTabs", PESTANAS_CONTROLADAS_USUARIOS, permisosData);
   } catch (error) {
     console.error("Error cargando datos:", error);
     showToast("Error al cargar datos: " + error.message, "error");
   }
 }
-
-// ============================================================
-// CONTROL DE ACCESO POR PESTAÑA
-// ============================================================
-// La lógica genérica ahora vive en components.js (aplicarControlAccesoPorPestana),
-// para poder reutilizarla igual en Reportes, Compras, Ventas, etc. Aquí solo
-// se define el mapa de pestañas propio de este módulo.
-const PESTANAS_CONTROLADAS_USUARIOS = {
-  usuariosTab: "Tab:Usuarios:Usuarios",
-  empleadosTab: "Tab:Usuarios:Empleados",
-  rolesTab: "Tab:Usuarios:Roles",
-  pagosTab: "Tab:Usuarios:Pagos",
-  catalogosTab: "Tab:Usuarios:Catalogos",
-  logsTab: "Tab:Usuarios:Bitacora",
-};
 
 // ============================================================
 // CARGAR PERMISOS DE ROLES
@@ -450,7 +432,7 @@ function renderRoles(roles) {
                   const modulo = modulosData.find((m) => m.id === p.id_modulo);
                   const nombreModulo = modulo ? modulo.nombre : "General";
                   if (!permisosPorModulo[nombreModulo]) permisosPorModulo[nombreModulo] = [];
-                  permisosPorModulo[nombreModulo].push(p.nombre || "(sin nombre)");
+                  permisosPorModulo[nombreModulo].push(p.descripcion || p.nombre || "(sin nombre)");
                 });
 
                 const htmlPermisos = Object.keys(permisosPorModulo).length

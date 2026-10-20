@@ -1398,6 +1398,13 @@ async function verFichaCliente(idCliente) {
       </div>
     `;
 
+    if (typeof window.aplicarPermisosPestanasModulo === "function") {
+      window.aplicarPermisosPestanasModulo(
+        "ventas",
+        document.getElementById("clienteFichaModal"),
+      );
+    }
+
     // Mostrar modal
     const modal = new bootstrap.Modal(
       document.getElementById("clienteFichaModal"),
