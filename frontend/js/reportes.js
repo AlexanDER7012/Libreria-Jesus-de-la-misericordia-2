@@ -1866,6 +1866,32 @@ async function cargarReporteBitacora() {
  * @param {string} containerId - ID del contenedor con los datos
  * @param {string} titulo - Título del reporte
  */
+// Antes el PDF se armaba "tomando una foto" de la tabla (html2pdf). Con
+// tablas largas, como la bitácora, la imagen pasaba del tamaño máximo que
+// permite el navegador y todas las páginas salían en blanco. Ahora el PDF
+// se arma con el texto de la tabla (jsPDF + autoTable): pesa menos, se
+// puede seleccionar el texto y reparte las filas en las páginas que hagan falta.
+const URL_JSPDF = "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
+const URL_JSPDF_AUTOTABLE =
+  "https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js";
+const _scriptsCargados = {};
+
+function cargarScriptUnaVez(url) {
+  if (!_scriptsCargados[url]) {
+    _scriptsCargados[url] = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = url;
+      script.onload = resolve;
+      script.onerror = () => {
+        delete _scriptsCargados[url];
+        reject(new Error("No se pudo cargar el generador de PDF (revisa la conexión a internet)"));
+      };
+      document.head.appendChild(script);
+    });
+  }
+  return _scriptsCargados[url];
+}
+
 async function exportarPDF(containerId, titulo = "Reporte") {
   const container = document.getElementById(containerId);
   if (!container) {
@@ -1881,77 +1907,73 @@ async function exportarPDF(containerId, titulo = "Reporte") {
   }
 
   try {
-    // Crear un contenedor temporal con el contenido formateado
-    const contenido = document.createElement("div");
-    contenido.style.padding = "20px";
-    contenido.style.fontFamily = "Arial, sans-serif";
-    contenido.style.background = "white";
+    await cargarScriptUnaVez(URL_JSPDF);
+    await cargarScriptUnaVez(URL_JSPDF_AUTOTABLE);
+    const { jsPDF } = window.jspdf;
 
-    // Obtener el nombre del módulo actual
-    const moduloActual =
-      document.querySelector(".nav-link.active")?.textContent?.trim() ||
-      "Reporte";
+    const texto = (el) => (el?.innerText || el?.textContent || "").replace(/\s+/g, " ").trim();
 
-    contenido.innerHTML = `
-            <div style="text-align: center; margin-bottom: 20px;">
-                <h1 style="color: #1a237e; font-size: 18px; margin: 0;">Librería y Papelería Jesús de la Misericordia</h1>
-                <h2 style="color: #333; font-size: 14px; margin: 5px 0;">${titulo} - ${moduloActual}</h2>
-                <p style="color: #666; font-size: 11px; margin: 5px 0;">
-                    Fecha: ${new Date().toLocaleString()}
-                </p>
-                <hr style="border: 1px solid #ddd;">
-            </div>
-            <div style="font-size: 12px;">
-                ${tabla.outerHTML}
-            </div>
-            <div style="text-align: center; margin-top: 20px; color: #999; font-size: 10px; border-top: 1px solid #ddd; padding-top: 10px;">
-                Reporte generado por: ${window.app?.user?.nombre_usuario || "Usuario"} | 
-                Fecha: ${new Date().toLocaleString()}
-            </div>
-        `;
+    // Encabezados (se omite la columna de botones "Acciones")
+    const filaEncabezado = tabla.querySelector("thead tr") || tabla.querySelector("tr");
+    const encabezados = [...(filaEncabezado?.children || [])].map(texto);
+    const columnasOmitidas = new Set(
+      encabezados
+        .map((t, i) => (/^acciones$/i.test(t) ? i : -1))
+        .filter((i) => i >= 0),
+    );
+    const head = [encabezados.filter((_, i) => !columnasOmitidas.has(i))];
 
-    // Estilizar la tabla para el PDF
-    const estilo = contenido.querySelector("style");
-    if (!estilo) {
-      const styleTag = document.createElement("style");
-      styleTag.textContent = `
-                table { width: 100%; border-collapse: collapse; font-size: 11px; }
-                th { background-color: #1a237e; color: white; padding: 6px 8px; text-align: left; }
-                td { padding: 4px 8px; border-bottom: 1px solid #ddd; }
-                tr:nth-child(even) { background-color: #f5f5f5; }
-                .text-end { text-align: right; }
-                .text-center { text-align: center; }
-            `;
-      contenido.prepend(styleTag);
+    // Filas visibles (si hay un filtro aplicado, solo lo que se ve)
+    const filas = [...tabla.querySelectorAll("tbody tr")].filter(
+      (tr) => tr.style.display !== "none" && tr !== filaEncabezado,
+    );
+    const body = filas
+      .map((tr) => [...tr.children].map(texto).filter((_, i) => !columnasOmitidas.has(i)))
+      .filter((celdas) => celdas.some((c) => c));
+
+    if (body.length === 0) {
+      showToast("La tabla no tiene filas para exportar", "warning");
+      return;
     }
 
-    // Agregar temporalmente al DOM
-    document.body.appendChild(contenido);
-    contenido.style.display = "block";
+    const moduloActual =
+      document.querySelector("#mainContent .nav-link.active")?.textContent?.trim() || "";
+    const usuario = window.app?.user?.nombre_usuario || "Usuario";
+    const fechaTexto = new Date().toLocaleString("es-GT");
 
-    // Generar PDF
-    const opt = {
-      margin: [8, 8, 8, 8],
-      filename: `${titulo}_${new Date().toISOString().split("T")[0]}.pdf`,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        letterRendering: true,
-        logging: false,
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const anchoPagina = doc.internal.pageSize.getWidth();
+    const altoPagina = doc.internal.pageSize.getHeight();
+
+    doc.setFontSize(14);
+    doc.setTextColor(26, 35, 126);
+    doc.text("Librería y Papelería Jesús de la Misericordia", anchoPagina / 2, 12, { align: "center" });
+    doc.setFontSize(11);
+    doc.setTextColor(51, 51, 51);
+    const subtitulo = `${titulo.replace(/_/g, " ")}${moduloActual ? " - " + moduloActual : ""}`;
+    doc.text(subtitulo, anchoPagina / 2, 18, { align: "center" });
+    doc.setFontSize(8);
+    doc.setTextColor(110, 110, 110);
+    doc.text(`Fecha: ${fechaTexto}  ·  ${body.length} registro(s)`, anchoPagina / 2, 23, { align: "center" });
+
+    doc.autoTable({
+      head,
+      body,
+      startY: 27,
+      margin: { left: 8, right: 8, bottom: 12 },
+      styles: { fontSize: 8, cellPadding: 1.5, overflow: "linebreak", valign: "top" },
+      headStyles: { fillColor: [26, 35, 126], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      didDrawPage: () => {
+        const pagina = doc.internal.getCurrentPageInfo().pageNumber;
+        doc.setFontSize(7);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Generado por: ${usuario}  ·  ${fechaTexto}`, 8, altoPagina - 5);
+        doc.text(`Página ${pagina}`, anchoPagina - 8, altoPagina - 5, { align: "right" });
       },
-      jsPDF: {
-        unit: "mm",
-        format: "a4",
-        orientation: "landscape",
-      },
-      pagebreak: { mode: ["avoid-all", "css", "legacy"] },
-    };
+    });
 
-    await html2pdf().set(opt).from(contenido).save();
-
-    // Limpiar
-    contenido.remove();
+    doc.save(`${titulo}_${new Date().toISOString().split("T")[0]}.pdf`);
     showToast("✅ PDF exportado correctamente", "success");
   } catch (error) {
     console.error("Error exportando PDF:", error);

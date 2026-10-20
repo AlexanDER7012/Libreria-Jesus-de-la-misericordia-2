@@ -682,10 +682,7 @@ async function exportarVentasPDF() {
     </html>
   `;
 
-  const win = window.open("", "_blank");
-  win.document.write(htmlContent);
-  win.document.close();
-  win.print();
+  imprimirDocumentoHtml(htmlContent);
 }
 
 // ============================================================
@@ -778,10 +775,7 @@ async function imprimirVenta(id) {
       </html>
     `;
 
-    const win = window.open("", "_blank");
-    win.document.write(htmlContent);
-    win.document.close();
-    win.print();
+    imprimirDocumentoHtml(htmlContent);
   } catch (error) {
     showToast(error.message || "Error al imprimir", "error");
   }

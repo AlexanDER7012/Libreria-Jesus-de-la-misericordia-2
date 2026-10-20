@@ -572,3 +572,54 @@ window.mostrarLoading = mostrarLoading;
 window.aplicarControlAccesoPorPestana = aplicarControlAccesoPorPestana;
 window.aplicarPermisosPestanasModulo = aplicarPermisosPestanasModulo;
 window.tienePermiso = tienePermiso;
+
+
+// ============================================================
+// IMPRIMIR SIN SALIR DEL SISTEMA
+// Antes cada impresión abría una pestaña/ventana en blanco con el reporte
+// y no había cómo regresar al sistema (solo con las flechas del navegador).
+// Ahora el documento se imprime desde un marco oculto dentro de la misma
+// página: sale el diálogo de impresión (o "Guardar como PDF") y al
+// cerrarlo el usuario sigue donde estaba.
+// ============================================================
+function imprimirDocumentoHtml(html) {
+  document.getElementById("marcoImpresion")?.remove();
+  const marco = document.createElement("iframe");
+  marco.id = "marcoImpresion";
+  marco.setAttribute("aria-hidden", "true");
+  Object.assign(marco.style, {
+    position: "fixed",
+    right: "0",
+    bottom: "0",
+    width: "0",
+    height: "0",
+    border: "0",
+  });
+  document.body.appendChild(marco);
+
+  const quitar = () => setTimeout(() => marco.remove(), 500);
+  let impreso = false;
+  const imprimir = () => {
+    if (impreso) return;
+    impreso = true;
+    try {
+      marco.contentWindow.onafterprint = quitar;
+      marco.contentWindow.focus();
+      marco.contentWindow.print();
+    } catch (e) {
+      console.error("No se pudo imprimir:", e);
+      if (typeof showToast === "function") showToast("No se pudo abrir la impresión", "error");
+    }
+    // por si el navegador no avisa cuando se cierra el diálogo
+    setTimeout(() => marco.remove(), 120000);
+  };
+
+  marco.onload = () => setTimeout(imprimir, 300);
+  const doc = marco.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+  // algunos navegadores no disparan onload con document.write
+  setTimeout(imprimir, 1200);
+}
+window.imprimirDocumentoHtml = imprimirDocumentoHtml;

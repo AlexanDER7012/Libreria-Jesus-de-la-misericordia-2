@@ -4410,15 +4410,7 @@ async function imprimirCompra(id) {
       </html>
     `;
 
-    const ventanaImpresion = window.open("", "_blank");
-    if (!ventanaImpresion) {
-      return showToast(
-        "El navegador bloqueó la ventana de impresión.",
-        "warning",
-      );
-    }
-    ventanaImpresion.document.write(html);
-    ventanaImpresion.document.close();
+    imprimirDocumentoHtml(html);
   } catch (error) {
     showToast(error.message || "Error al generar el reporte", "error");
   }

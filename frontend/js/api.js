@@ -1,5 +1,5 @@
 // api.js
-const API_BASE_URL = window.location.origin; // Cambia esto según tu configuración
+const API_BASE_URL = window.API_BASE_URL || "http://localhost:8000";
 class ApiClient {
   constructor() {
     this.token = localStorage.getItem("token");

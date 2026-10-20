@@ -38,6 +38,9 @@ function getCurrentUser() {
 }
 
 function logout() {
+  try {
+    sessionStorage.removeItem("pantalla_actual");
+  } catch (e) {}
   localStorage.removeItem("token");
   localStorage.removeItem("user");
   localStorage.removeItem("user_permisos");
@@ -237,4 +240,4 @@ window.checkAuth = checkAuth;
 window.requireAuth = requireAuth;
 window.getCurrentUser = getCurrentUser;
 window.logout = logout;
-window.getToken = getToken;
+window.getToken = getToken;

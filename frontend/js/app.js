@@ -44,6 +44,65 @@ class App {
     this.setupFloatingButton();
     this.showHome();
     this.refrescarPermisos();
+    this.recordarPestanas();
+    this.restaurarPantalla();
+  }
+
+  // =============================================
+  // RECORDAR LA PANTALLA AL RECARGAR (F5)
+  // Antes, al recargar la página siempre se regresaba al menú de inicio.
+  // Ahora se guarda en esta pestaña del navegador (sessionStorage) el
+  // módulo y las pestañas abiertas, y al recargar se vuelve ahí.
+  // Al cerrar sesión o ir a Inicio se olvida.
+  // =============================================
+  guardarPantalla() {
+    try {
+      if (!this.currentModule) {
+        sessionStorage.removeItem("pantalla_actual");
+        return;
+      }
+      const pestanas =
+        typeof window.capturarPestanasModulo === "function"
+          ? window.capturarPestanasModulo()
+          : [];
+      sessionStorage.setItem(
+        "pantalla_actual",
+        JSON.stringify({ modulo: this.currentModule, pestanas }),
+      );
+    } catch (e) {
+      /* sin sessionStorage: no pasa nada */
+    }
+  }
+
+  recordarPestanas() {
+    document.addEventListener("shown.bs.tab", (e) => {
+      if (this._restaurando) return;
+      if (e.target?.closest && e.target.closest("#mainContent")) this.guardarPantalla();
+    });
+  }
+
+  async restaurarPantalla() {
+    let guardado = null;
+    try {
+      guardado = JSON.parse(sessionStorage.getItem("pantalla_actual") || "null");
+    } catch (e) {
+      guardado = null;
+    }
+    if (!guardado?.modulo || !this.tienePermiso(guardado.modulo)) return;
+    this._restaurando = true;
+    try {
+      await this.loadModule(guardado.modulo);
+      // Las pestañas internas se abren en orden (primero la principal y
+      // luego las de adentro); se repite por si alguna se dibuja después
+      const abrir = () => window.restaurarPestanasModulo?.(guardado.pestanas || []);
+      await new Promise((r) => setTimeout(r, 300));
+      abrir();
+      await new Promise((r) => setTimeout(r, 900));
+      abrir();
+    } finally {
+      this._restaurando = false;
+      this.guardarPantalla();
+    }
   }
 
   // Actualiza los permisos desde el servidor al abrir el sistema; si
@@ -502,6 +561,7 @@ class App {
       if (realTab) {
         this.activarTabDeModulo(realModule, realTab);
       }
+      if (!this._restaurando) this.guardarPantalla();
     } catch (error) {
       mainContent.innerHTML = `
         <div class="alert alert-danger">
@@ -539,6 +599,9 @@ class App {
   goHome() {
     this.showHome();
     this.currentModule = null;
+    try {
+      sessionStorage.removeItem("pantalla_actual");
+    } catch (e) {}
     document.getElementById("sidebarToggleBtn")?.classList.add("d-none");
     this.updateFloatingButton();
   }

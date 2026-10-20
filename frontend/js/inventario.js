@@ -2241,15 +2241,7 @@ async function imprimirNotaEnvio(id) {
       <p style="font-size:12px">Para recibir, la sucursal destino ingresa el número <strong>${escInv(t.numero_nota_envio || "")}</strong> en Inventario → Traslados → "Recibir por nota de envío".</p>
       <div class="firmas"><div class="firma">Entrega</div><div class="firma">Recibe</div></div>
       </body></html>`;
-    const win = window.open("", "_blank");
-    if (!win) {
-      showToast("El navegador bloqueó la ventana de impresión. Permite ventanas emergentes.", "warning");
-      return;
-    }
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => win.print(), 300);
+    imprimirDocumentoHtml(html);
   } catch (error) {
     showToast(error.message || "No se pudo generar la nota de envío", "error");
   }
