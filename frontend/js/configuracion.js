@@ -40,12 +40,24 @@ async function loadConfiguracionModule() {
                     <i class="fas fa-bullseye me-1"></i>Metas Financieras
                 </a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#backupsTab">
-                    <i class="fas fa-database me-1"></i>Backup
-                </a>
-            </li>
         </ul>
+
+        <div class="card mb-4" id="backupsSection">
+            <div class="card-header">
+                <h6 class="mb-0 fw-bold"><i class="fas fa-database me-2"></i>Backup de la base de datos</h6>
+            </div>
+            <div class="card-body">
+                ${tienePermiso("Configuracion", "Editar") ? `<button id="generarBackupBtn" class="btn btn-primary btn-lg mb-4" onclick="generarBackup()">
+                    <i class="fas fa-database me-2"></i>Generar Backup Ahora
+                </button>` : `<div class="alert alert-info">Necesitas el permiso <strong>Configuración → Editar</strong> para generar backups.</div>`}
+                <div id="backupsContainer">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">Cargando backups...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <div class="tab-content">
             <div class="tab-pane fade show active" id="generalTab">
@@ -75,24 +87,6 @@ async function loadConfiguracionModule() {
                     <div class="text-center py-5">
                         <div class="spinner-border text-dark" role="status"></div>
                         <p class="mt-2 text-muted">Cargando metas...</p>
-                    </div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="backupsTab">
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0 fw-bold"><i class="fas fa-database me-2"></i>Backups de la base de datos</h6>
-                    </div>
-                    <div class="card-body">
-                        ${tienePermiso("Configuracion", "Editar") ? `<button id="generarBackupBtn" class="btn btn-primary btn-lg mb-4" onclick="generarBackup()">
-                            <i class="fas fa-database me-2"></i>Generar Backup Ahora
-                        </button>` : ""}
-                        <div id="backupsContainer">
-                            <div class="text-center py-4">
-                                <div class="spinner-border text-primary" role="status"></div>
-                                <p class="mt-2 text-muted">Cargando backups...</p>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -149,7 +143,7 @@ async function cargarBackups(notificarError = true) {
   const container = document.getElementById("backupsContainer");
   if (!container) return;
   if (!tienePermiso("Configuracion", "Ver")) {
-    container.innerHTML = '<div class="alert alert-warning mb-0">No tienes permiso para consultar los backups.</div>';
+    container.innerHTML = '<div class="alert alert-warning mb-0">Necesitas el permiso <strong>Configuración → Ver</strong> para consultar y descargar backups.</div>';
     return;
   }
 
