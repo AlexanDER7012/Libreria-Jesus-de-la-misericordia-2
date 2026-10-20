@@ -525,9 +525,8 @@ function aplicarPermisosPestanasModulo(modulo, raiz = document) {
  * botones y llame al endpoint directo. Aquí solo evitamos mostrarle al
  * usuario una acción que de todos modos el servidor le va a rechazar.
  *
- * Fail-open igual que aplicarControlAccesoPorPestana: si el permiso todavía
- * no existe en el catálogo, o no se puede leer localStorage, no se oculta
- * nada (para no romper pantallas antes de que alguien configure permisos).
+ * Las acciones se ocultan si el catálogo de permisos no se pudo cargar;
+ * el backend mantiene la validación definitiva.
  */
 // Caja no tiene permisos propios: usa los de Ventas
 // (debe coincidir con ALIAS_PERMISOS en app/security.py).
@@ -541,7 +540,6 @@ function moduloDePermiso(modulo) {
 function tienePermiso(modulo, accion) {
   try {
     const misPermisos = JSON.parse(localStorage.getItem("user_permisos") || "[]");
-    if (!misPermisos.length) return true; // todavía no hay permisos configurados: no restringir
     const moduloLower = moduloDePermiso(modulo);
     const accionLower = (accion || "").toLowerCase();
     // Comparacion sin distinguir mayusculas/minusculas: en la base de
@@ -553,7 +551,7 @@ function tienePermiso(modulo, accion) {
     );
   } catch (e) {
     console.warn("No se pudo leer user_permisos de localStorage:", e);
-    return true; // fail-open, igual que aplicarControlAccesoPorPestana
+    return false;
   }
 }
 

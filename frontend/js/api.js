@@ -113,6 +113,13 @@ class ApiClient {
     } catch (e) {
       console.warn("No se pudieron cargar permisos:", e);
       localStorage.setItem("user_permisos", JSON.stringify([]));
+      if (window.showToast) {
+        window.showToast(
+          "No se pudieron cargar tus permisos. Cierra sesión e inténtalo de nuevo.",
+          "error",
+          6000,
+        );
+      }
     }
 
     return data;

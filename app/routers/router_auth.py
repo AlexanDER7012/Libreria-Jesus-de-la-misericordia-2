@@ -60,9 +60,13 @@ def recuperar_admin(datos: AdminRecoveryRequest, db: Session = Depends(get_db)):
     if not _recuperacion_disponible(db):
         raise HTTPException(status_code=409, detail="La recuperación ya fue utilizada")
 
-    from app.routers.router_usuario import _asegurar_permisos_pestanas
+    from app.routers.router_usuario import (
+        _asegurar_permisos_operativos,
+        _asegurar_permisos_pestanas,
+    )
 
-    _asegurar_permisos_pestanas(db, asignar_a_roles_existentes=False)
+    _asegurar_permisos_operativos(db)
+    _asegurar_permisos_pestanas(db)
 
     rol = (
         db.query(Rol)
