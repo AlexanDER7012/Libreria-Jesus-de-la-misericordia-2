@@ -23,6 +23,12 @@ let busquedaProductosCatalogo = "";
 let paginaProductosCatalogo = 1;
 let porPaginaProductosCatalogo = 50;
 
+const estadoListasCatalogo = {
+  categorias: { busqueda: "", estado: "", pagina: 1, porPagina: 50 },
+  marcas: { busqueda: "", estado: "", pagina: 1, porPagina: 50 },
+  unidades: { busqueda: "", estado: "", pagina: 1, porPagina: 50 },
+};
+
 function cambiarPaginaProductosCatalogo(delta) {
   paginaProductosCatalogo += delta;
   renderProductosTable(productosData);
@@ -77,7 +83,7 @@ function htmlControlesPaginacion(o) {
         <select class="form-select form-select-sm" style="width:auto" onchange="${o.onPorPagina}(this.value)">${opciones}</select>
         <small class="text-muted">por página</small>
       </div>
-      <small class="text-muted">Mostrando ${o.total ? o.desde + 1 : 0}–${o.desde + o.cantidad} de ${o.total} productos</small>
+      <small class="text-muted">Mostrando ${o.total ? o.desde + 1 : 0}–${o.desde + o.cantidad} de ${o.total} ${o.etiqueta || "productos"}</small>
       <div class="btn-group btn-group-sm">
         <button class="btn btn-outline-secondary" onclick="${o.onPagina}(-1)" ${o.pagina <= 1 ? "disabled" : ""}>
           <i class="fas fa-chevron-left me-1"></i>Anterior
@@ -85,6 +91,129 @@ function htmlControlesPaginacion(o) {
         <span class="btn btn-outline-secondary disabled">Página ${o.pagina} de ${o.totalPaginas}</span>
         <button class="btn btn-outline-secondary" onclick="${o.onPagina}(1)" ${o.pagina >= o.totalPaginas ? "disabled" : ""}>
           Siguiente<i class="fas fa-chevron-right ms-1"></i>
+        </button>
+      </div>
+    </div>`;
+}
+
+function renderListaCatalogo(tipo) {
+  const renderers = {
+    categorias: () => renderCategoriasTable(categoriasData),
+    marcas: () => renderMarcasTable(marcasData),
+    unidades: () => renderUnidadesTable(unidadesData),
+  };
+  renderers[tipo]?.();
+}
+
+function buscarListaCatalogo(tipo, valor) {
+  const estado = estadoListasCatalogo[tipo];
+  if (!estado) return;
+  const input = document.getElementById(`buscar${tipo}Catalogo`);
+  const posicion = input ? input.selectionStart : null;
+  estado.busqueda = valor || "";
+  estado.pagina = 1;
+  renderListaCatalogo(tipo);
+  const nuevoInput = document.getElementById(`buscar${tipo}Catalogo`);
+  if (nuevoInput) {
+    nuevoInput.focus();
+    nuevoInput.setSelectionRange(posicion, posicion);
+  }
+}
+
+function filtrarEstadoListaCatalogo(tipo, valor) {
+  const estado = estadoListasCatalogo[tipo];
+  if (!estado) return;
+  estado.estado = valor || "";
+  estado.pagina = 1;
+  renderListaCatalogo(tipo);
+}
+
+function limpiarFiltrosListaCatalogo(tipo) {
+  const estado = estadoListasCatalogo[tipo];
+  if (!estado) return;
+  estado.busqueda = "";
+  estado.estado = "";
+  estado.pagina = 1;
+  renderListaCatalogo(tipo);
+}
+
+function cambiarPaginaListaCatalogo(tipo, delta) {
+  const estado = estadoListasCatalogo[tipo];
+  if (!estado) return;
+  estado.pagina += delta;
+  renderListaCatalogo(tipo);
+}
+
+function cambiarPorPaginaListaCatalogo(tipo, valor) {
+  const estado = estadoListasCatalogo[tipo];
+  if (!estado) return;
+  estado.porPagina = parseInt(valor, 10) || 0;
+  estado.pagina = 1;
+  renderListaCatalogo(tipo);
+}
+
+function normalizarTextoCatalogo(valor) {
+  return String(valor || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function prepararListaCatalogo(tipo, elementos, campos, etiqueta) {
+  const estado = estadoListasCatalogo[tipo];
+  const termino = normalizarTextoCatalogo(estado.busqueda.trim());
+  const filtrados = elementos.filter((elemento) => {
+    if (estado.estado === "1" && elemento.activo === 0) return false;
+    if (estado.estado === "0" && elemento.activo !== 0) return false;
+    return !termino || campos
+      .map((campo) => elemento[campo] || "")
+      .some((valor) => normalizarTextoCatalogo(valor).includes(termino));
+  });
+  const tamPagina =
+    estado.porPagina > 0 ? estado.porPagina : filtrados.length || 1;
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / tamPagina));
+  estado.pagina = Math.min(Math.max(estado.pagina, 1), totalPaginas);
+  const desde = (estado.pagina - 1) * tamPagina;
+  const pagina = filtrados.slice(desde, desde + tamPagina);
+  const controlesPaginacion = htmlControlesPaginacion({
+    pagina: estado.pagina,
+    totalPaginas,
+    desde,
+    cantidad: pagina.length,
+    total: filtrados.length,
+    porPagina: estado.porPagina,
+    etiqueta,
+    onPagina: `cambiarPaginaListaCatalogo.bind(null, '${tipo}')`,
+    onPorPagina: `cambiarPorPaginaListaCatalogo.bind(null, '${tipo}')`,
+  });
+  return { estado, filtrados, pagina, controlesPaginacion };
+}
+
+function htmlFiltrosListaCatalogo(tipo, etiqueta, estado) {
+  const busqueda = estado.busqueda
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
+  return `
+    <div class="row mb-2 g-2 align-items-center">
+      <div class="col-md-6 col-lg-4">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="fas fa-search"></i></span>
+          <input type="text" class="form-control" id="buscar${tipo}Catalogo"
+                 placeholder="Buscar ${etiqueta}..." value="${busqueda}"
+                 oninput="buscarListaCatalogo('${tipo}', this.value)">
+        </div>
+      </div>
+      <div class="col-md-3 col-lg-2 col-6">
+        <select class="form-select form-select-sm" onchange="filtrarEstadoListaCatalogo('${tipo}', this.value)" title="Estado">
+          <option value="" ${estado.estado === "" ? "selected" : ""}>Todos los estados</option>
+          <option value="1" ${estado.estado === "1" ? "selected" : ""}>Solo activos</option>
+          <option value="0" ${estado.estado === "0" ? "selected" : ""}>Solo inactivos</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-outline-danger" onclick="limpiarFiltrosListaCatalogo('${tipo}')" title="Limpiar filtros">
+          <i class="fas fa-times me-1"></i>Limpiar
         </button>
       </div>
     </div>`;
@@ -1027,6 +1156,12 @@ function renderCategoriasTable(categorias) {
     return;
   }
 
+  const lista = prepararListaCatalogo(
+    "categorias",
+    categorias,
+    ["nombre"],
+    "categorías",
+  );
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Categorías</h6>
@@ -1038,6 +1173,8 @@ function renderCategoriasTable(categorias) {
                 : ""
             }
         </div>
+        ${htmlFiltrosListaCatalogo("categorias", "categorías", lista.estado)}
+        ${lista.controlesPaginacion}
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -1049,9 +1186,14 @@ function renderCategoriasTable(categorias) {
                     </tr>
                 </thead>
                 <tbody>
+                    ${
+                      lista.pagina.length
+                        ? ""
+                        : '<tr><td colspan="4" class="text-center text-muted py-4">No se encontraron categorías con esos filtros</td></tr>'
+                    }
     `;
 
-  categorias.forEach((c) => {
+  lista.pagina.forEach((c) => {
     const activo = c.activo !== 0;
     html += `
             <tr>
@@ -1085,9 +1227,6 @@ function renderCategoriasTable(categorias) {
   html += `
                 </tbody>
             </table>
-        </div>
-        <div class="text-end">
-            <small class="text-muted">Total: ${categorias.length} categorías</small>
         </div>
     `;
 
@@ -1231,6 +1370,7 @@ function renderMarcasTable(marcas) {
     return;
   }
 
+  const lista = prepararListaCatalogo("marcas", marcas, ["nombre"], "marcas");
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Marcas</h6>
@@ -1242,6 +1382,8 @@ function renderMarcasTable(marcas) {
                 : ""
             }
         </div>
+        ${htmlFiltrosListaCatalogo("marcas", "marcas", lista.estado)}
+        ${lista.controlesPaginacion}
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -1253,9 +1395,14 @@ function renderMarcasTable(marcas) {
                     </tr>
                 </thead>
                 <tbody>
+                    ${
+                      lista.pagina.length
+                        ? ""
+                        : '<tr><td colspan="4" class="text-center text-muted py-4">No se encontraron marcas con esos filtros</td></tr>'
+                    }
     `;
 
-  marcas.forEach((m) => {
+  lista.pagina.forEach((m) => {
     const activo = m.activo !== 0;
     html += `
             <tr>
@@ -1289,9 +1436,6 @@ function renderMarcasTable(marcas) {
   html += `
                 </tbody>
             </table>
-        </div>
-        <div class="text-end">
-            <small class="text-muted">Total: ${marcas.length} marcas</small>
         </div>
     `;
 
@@ -1433,6 +1577,12 @@ function renderUnidadesTable(unidades) {
     return;
   }
 
+  const lista = prepararListaCatalogo(
+    "unidades",
+    unidades,
+    ["nombre", "abreviatura"],
+    "unidades",
+  );
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Unidades de Medida</h6>
@@ -1444,6 +1594,8 @@ function renderUnidadesTable(unidades) {
                 : ""
             }
         </div>
+        ${htmlFiltrosListaCatalogo("unidades", "unidades", lista.estado)}
+        ${lista.controlesPaginacion}
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -1456,9 +1608,14 @@ function renderUnidadesTable(unidades) {
                     </tr>
                 </thead>
                 <tbody>
+                    ${
+                      lista.pagina.length
+                        ? ""
+                        : '<tr><td colspan="5" class="text-center text-muted py-4">No se encontraron unidades con esos filtros</td></tr>'
+                    }
     `;
 
-  unidades.forEach((u) => {
+  lista.pagina.forEach((u) => {
     const activo = u.activo !== 0;
     html += `
             <tr>
@@ -1493,9 +1650,6 @@ function renderUnidadesTable(unidades) {
   html += `
                 </tbody>
             </table>
-        </div>
-        <div class="text-end">
-            <small class="text-muted">Total: ${unidades.length} unidades</small>
         </div>
     `;
 
@@ -2891,3 +3045,8 @@ window.recargarUnidades = recargarUnidades;
 window.cambiarPaginaProductosCatalogo = cambiarPaginaProductosCatalogo;
 window.cambiarPorPaginaProductosCatalogo = cambiarPorPaginaProductosCatalogo;
 window.buscarProductosCatalogo = buscarProductosCatalogo;
+window.buscarListaCatalogo = buscarListaCatalogo;
+window.filtrarEstadoListaCatalogo = filtrarEstadoListaCatalogo;
+window.limpiarFiltrosListaCatalogo = limpiarFiltrosListaCatalogo;
+window.cambiarPaginaListaCatalogo = cambiarPaginaListaCatalogo;
+window.cambiarPorPaginaListaCatalogo = cambiarPorPaginaListaCatalogo;
