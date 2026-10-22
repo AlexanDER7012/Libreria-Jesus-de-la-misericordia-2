@@ -107,6 +107,16 @@ class StockBajoResponse(BaseModel):
     detalle: List[StockBajoItem]
 
 
+class ExcesoInventarioItem(BaseModel):
+    id: int
+    codigo: Optional[str] = None
+    nombre: Optional[str] = None
+    stock_actual: float
+    stock_maximo: float
+    exceso: float
+    dias_sin_movimiento: Optional[int] = None
+
+
 class MovimientoResumenItem(BaseModel):
     tipo_movimiento: str
     cantidad_movimientos: int

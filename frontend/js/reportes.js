@@ -81,11 +81,13 @@ async function loadReportesModule() {
             <div class="tab-pane fade" id="reportesInventario">
                 <ul class="nav nav-tabs mb-3" id="inventarioSubTabs">
                     <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#subStockBajo"><i class="fas fa-exclamation-triangle me-1"></i>Productos Bajo Mínimo</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subExcesosInventario"><i class="fas fa-boxes-stacked me-1"></i>Excesos de Inventario</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subMovimientosResumen"><i class="fas fa-exchange-alt me-1"></i>Resumen de Movimientos</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subInventarioValorizado"><i class="fas fa-dollar-sign me-1"></i>Inventario Valorizado</a></li>
                 </ul>
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="subStockBajo"><div id="reporteStockBajoContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
+                    <div class="tab-pane fade" id="subExcesosInventario"><div id="reporteExcesosInventarioContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                     <div class="tab-pane fade" id="subMovimientosResumen"><div id="reporteMovimientosResumenContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                     <div class="tab-pane fade" id="subInventarioValorizado"><div id="reporteInventarioValorizadoContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                 </div>
@@ -131,6 +133,7 @@ async function loadReportesModule() {
     cargarReporteCuentasPagar(),
     // Inventario
     cargarReporteStockBajo(),
+    cargarReporteExcesosInventario(),
     cargarReporteMovimientosResumen(),
     cargarReporteInventarioValorizado(),
     // Usuarios
@@ -985,6 +988,96 @@ async function actualizarStockBajo() {
         `;
   } catch (error) {
     resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  }
+}
+
+async function cargarReporteExcesosInventario() {
+  const container = document.getElementById("reporteExcesosInventarioContainer");
+  if (!container) return;
+
+  try {
+    container.innerHTML = `
+      <div class="row mb-3">
+        <div class="col-md-6 d-flex align-items-end gap-1">
+          <button class="btn btn-success btn-sm" onclick="exportarExcesosInventarioPDF()" title="Exportar a PDF">
+            <i class="fas fa-file-pdf me-1"></i>Exportar a PDF
+          </button>
+          <button class="btn btn-info btn-sm" onclick="exportarExcesosInventarioExcel()" title="Exportar a Excel">
+            <i class="fas fa-file-excel me-1"></i>Exportar a Excel
+          </button>
+        </div>
+      </div>
+      <div id="excesosInventarioResultado">
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="mt-2 text-muted">Cargando datos...</p>
+        </div>
+      </div>
+    `;
+
+    const resultado = document.getElementById("excesosInventarioResultado");
+    if (!resultado) {
+      throw new Error("No se pudo preparar el resultado del reporte");
+    }
+    const escaparHTML = (valor) =>
+      String(valor ?? "").replace(/[&<>"']/g, (caracter) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[caracter]);
+    const productos = await api.request("/reportes/inventario/excesos");
+    if (!Array.isArray(productos)) {
+      throw new Error("La respuesta del reporte de excesos no es válida");
+    }
+    if (productos.length === 0) {
+      resultado.innerHTML = `<div class="alert alert-success">No hay productos con exceso de inventario</div>`;
+      return;
+    }
+
+    resultado.innerHTML = `
+      <div class="card">
+        <div class="card-header bg-warning bg-opacity-10">
+          <h6 class="mb-0 fw-bold">Excesos de Inventario (${productos.length})</h6>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover table-striped">
+              <thead>
+                <tr>
+                  <th>ID</th><th>Código</th><th>Nombre</th>
+                  <th class="text-end">Stock Actual</th><th class="text-end">Stock Máximo</th>
+                  <th class="text-end">Exceso</th><th class="text-end">Días sin movimiento</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${productos.map((item) => {
+                  const exceso = Number(item.exceso) || 0;
+                  const stockMaximo = Number(item.stock_maximo) || 0;
+                  const severidad = exceso >= stockMaximo * 0.5
+                    ? "bg-danger"
+                    : "bg-warning text-dark";
+                  return `
+                    <tr>
+                      <td>${escaparHTML(item.id)}</td>
+                      <td>${escaparHTML(item.codigo || "--")}</td>
+                      <td><strong>${escaparHTML(item.nombre || "--")}</strong></td>
+                      <td class="text-end">${escaparHTML(item.stock_actual)}</td>
+                      <td class="text-end">${escaparHTML(item.stock_maximo)}</td>
+                      <td class="text-end"><span class="badge ${severidad}">${escaparHTML(item.exceso)}</span></td>
+                      <td class="text-end">${escaparHTML(item.dias_sin_movimiento ?? "--")}</td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (error) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
   }
 }
 
@@ -2162,6 +2255,12 @@ function exportarStockBajoPDF() {
 }
 function exportarStockBajoExcel() {
   exportarExcel("stockBajoResultado", "Stock_Bajo");
+}
+function exportarExcesosInventarioPDF() {
+  exportarPDF("excesosInventarioResultado", "Excesos_Inventario");
+}
+function exportarExcesosInventarioExcel() {
+  exportarExcel("excesosInventarioResultado", "Excesos_Inventario");
 }
 function exportarMovimientosResumenPDF() {
   exportarPDF("movResumenResultado", "Movimientos_Resumen");

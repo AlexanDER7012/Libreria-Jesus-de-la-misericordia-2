@@ -43,7 +43,7 @@ from app.schemas.schema_reportes import (
     CompraResumenResponse,
     CompraPorProveedorResponse, CompraPorProveedorItem,
     CuentasPorPagarResponse, CuentaPorPagarItem,
-    StockBajoResponse, StockBajoItem,
+    StockBajoResponse, StockBajoItem, ExcesoInventarioItem,
     MovimientoResumenResponse, MovimientoResumenItem,
     InventarioValorizadoResponse, InventarioValorizadoItem,
     LoginResumenResponse, LoginResumenItem,
@@ -331,6 +331,66 @@ def reporte_stock_bajo(db: Session = Depends(get_db), usuario_actual: Usuario = 
         for p in productos
     ]
     return StockBajoResponse(cantidad=len(detalle), detalle=detalle)
+
+
+@router_inventario.get("/excesos", response_model=List[ExcesoInventarioItem])
+def reporte_excesos_inventario(
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(get_current_user),
+):
+    """Productos activos por encima de su stock máximo y días desde la última venta."""
+    ultima_venta_por_producto = (
+        db.query(
+            MovimientoInventarioDetalle.id_producto.label("id_producto"),
+            func.max(MovimientoInventario.fecha).label("fecha_ultima_venta"),
+        )
+        .join(
+            MovimientoInventario,
+            MovimientoInventario.id == MovimientoInventarioDetalle.id_movimiento_cabecera,
+        )
+        .join(
+            TipoMovimientoInventario,
+            TipoMovimientoInventario.id == MovimientoInventario.id_tipo_movimiento,
+        )
+        .filter(
+            MovimientoInventario.tabla_referencia == "venta",
+            TipoMovimientoInventario.signo == 2,
+        )
+        .group_by(MovimientoInventarioDetalle.id_producto)
+        .subquery()
+    )
+    productos = (
+        db.query(Producto, ultima_venta_por_producto.c.fecha_ultima_venta)
+        .outerjoin(
+            ultima_venta_por_producto,
+            ultima_venta_por_producto.c.id_producto == Producto.id,
+        )
+        .filter(
+            Producto.activo == 1,
+            Producto.stock_maximo.isnot(None),
+            Producto.stock_maximo > 0,
+            Producto.stock_actual > Producto.stock_maximo,
+        )
+        .all()
+    )
+
+    hoy = date.today()
+    return [
+        ExcesoInventarioItem(
+            id=producto.id,
+            codigo=producto.codigo,
+            nombre=producto.nombre,
+            stock_actual=float(producto.stock_actual or 0),
+            stock_maximo=float(producto.stock_maximo),
+            exceso=float(producto.stock_actual or 0) - float(producto.stock_maximo),
+            dias_sin_movimiento=(
+                (hoy - fecha_ultima_venta.date()).days
+                if fecha_ultima_venta is not None
+                else None
+            ),
+        )
+        for producto, fecha_ultima_venta in productos
+    ]
 
 
 @router_inventario.get("/movimientos-resumen", response_model=MovimientoResumenResponse)
