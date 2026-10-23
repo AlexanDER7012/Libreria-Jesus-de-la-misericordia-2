@@ -963,6 +963,7 @@ function showMovimientoModalConProducto(idProducto) {
 // desde Compras, Ventas, Traslados y Conteo físico.
 const TIPOS_AUTOMATICOS_INV = [
   "compra", "venta", "traslado",
+  "traslado - envío", "traslado - recepción", "traslado - cancelado",
   "ajuste por conteo (entrada)", "ajuste por conteo (salida)",
   "cancelación de venta", "cancelación de compra",
 ];
@@ -1384,15 +1385,15 @@ function llenarSelectorProductoInventario(prefijo, onSelect) {
     getData: () => window.productosData || [],
     getId: (producto) => producto.id,
     getLabel: (producto) =>
-      `${producto.codigo || ""} - ${producto.nombre} (Stock: ${producto.stock_actual || 0})`,
+      `${producto.codigo || ""} - ${producto.nombre} (Stock: ${producto.stock_actual || 0})${producto.activo === 0 ? " · INACTIVO" : ""}`,
     getSearchText: (producto) =>
       `${producto.codigo || ""} ${producto.nombre || ""} ${producto.descripcion || ""}`,
     // Se busca en el servidor: antes solo encontraba entre los productos ya
     // cargados (máximo 200).
     searchData: async (termino) =>
-      ((await api.request(
+      (await api.request(
         `/productos?buscar=${encodeURIComponent(termino)}&limit=30`,
-      )) || []).filter((p) => p.activo !== 0),
+      )) || [],
     placeholder: "Buscar producto por código o nombre...",
     emptyText: "Escribe código o nombre para buscar...",
     maxResultados: 30,
@@ -1694,7 +1695,10 @@ async function saveMovimiento(event) {
     await recargarResumenInventario();
     await recargarTiposMovimiento();
   } catch (error) {
-    showToast(error.message || "Error al registrar movimiento", "error");
+    const atendido = await manejarProductoInactivoInv(error, idProducto, () =>
+      saveMovimiento({ preventDefault() {} }),
+    );
+    if (!atendido) showToast(error.message || "Error al registrar movimiento", "error");
   }
 }
 
@@ -1755,9 +1759,33 @@ async function saveConteoFisico(event) {
   }
 }
 
+// Si el servidor rechaza porque el producto está inactivo, se pregunta si
+// se quiere activar de nuevo; si dice que sí, se activa y se repite la
+// acción. Devuelve true si el error era ese (ya se atendió).
+async function manejarProductoInactivoInv(error, idProducto, reintentar) {
+  const mensaje = error?.message || "";
+  if (!/está inactivo/i.test(mensaje) || !idProducto) return false;
+  const activar = await confirmarAccion(
+    `${mensaje}\n\n¿Deseas activarlo de nuevo?`,
+    { titulo: "Producto inactivo", textoAceptar: "Activar producto", peligro: false },
+  );
+  if (!activar) return true;
+  try {
+    await api.request(`/productos/${idProducto}/reactivar`, "PATCH");
+    const p = (window.productosData || []).find((x) => String(x.id) === String(idProducto));
+    if (p) p.activo = 1;
+    showToast("Producto activado", "success");
+  } catch (e) {
+    showToast(e.message || "No se pudo activar el producto", "error");
+    return true;
+  }
+  if (typeof reintentar === "function") await reintentar();
+  return true;
+}
+
 // Aplica un conteo: el stock del sistema pasa a ser lo que se contó.
-async function aplicarAjusteConteo(idConteo) {
-  const ok = await confirmarAccion(
+async function aplicarAjusteConteo(idConteo, sinConfirmar = false) {
+  const ok = sinConfirmar || await confirmarAccion(
     "Se aplicará al stock de esa ubicación la diferencia encontrada en el conteo, y quedará registrada en el historial.\n¿Aplicar el ajuste?",
     { titulo: "Aplicar ajuste de inventario", textoAceptar: "Aplicar ajuste", peligro: false },
   );
@@ -1768,7 +1796,11 @@ async function aplicarAjusteConteo(idConteo) {
     await recargarConteo();
     await recargarResumenInventario();
   } catch (error) {
-    showToast(error.message || "Error al aplicar el ajuste", "error");
+    const conteo = (inventarioFisicoData || []).find((c) => c.id === idConteo);
+    const atendido = await manejarProductoInactivoInv(error, conteo?.id_producto, () =>
+      aplicarAjusteConteo(idConteo, true),
+    );
+    if (!atendido) showToast(error.message || "Error al aplicar el ajuste", "error");
   }
 }
 
@@ -1859,7 +1891,7 @@ async function saveTraslado(event) {
       );
     } else {
       showToast(
-        `Traslado ${nota} registrado: queda en camino hasta que se reciba con la nota de envío`,
+        `Traslado ${nota} registrado: ya se descontó de ${nombreUbicacionInv(idOrigen)} y se sumará a ${nombreUbicacionInv(idDestino)} cuando se reciba con la nota de envío`,
         "success",
       );
     }
@@ -1880,23 +1912,10 @@ async function saveTraslado(event) {
     await recargarTraslados();
     await recargarResumenInventario();
   } catch (error) {
-    console.error("❌ Error en traslado:", error);
-    let msg = "Error al registrar traslado";
-    if (error.response && error.response.data) {
-      const errData = error.response.data;
-      if (errData.detail) {
-        if (Array.isArray(errData.detail)) {
-          msg = errData.detail.map((d) => d.msg).join(", ");
-        } else {
-          msg = errData.detail;
-        }
-      } else if (typeof errData === "object") {
-        msg = Object.values(errData).flat().join(", ");
-      }
-    } else if (error.message) {
-      msg = error.message;
-    }
-    showToast(msg, "error");
+    const atendido = await manejarProductoInactivoInv(error, idProducto, () =>
+      saveTraslado({ preventDefault() {} }),
+    );
+    if (!atendido) showToast(error.message || "Error al registrar el traslado", "error");
   }
 }
 
@@ -2416,14 +2435,15 @@ async function recibirTraslado(id) {
 
 async function cancelarTraslado(id) {
   const ok = await confirmarAccion(
-    "El traslado se cancelará y el producto se queda en la ubicación de origen.\n¿Cancelar el traslado?",
+    "El traslado se cancelará y la cantidad que estaba en camino regresa a la ubicación de origen.\n¿Cancelar el traslado?",
     { titulo: "Cancelar traslado", textoAceptar: "Cancelar traslado", peligro: true },
   );
   if (!ok) return;
   try {
     await api.request(`/traslados/${id}/cancelar`, "PATCH");
-    showToast("Traslado cancelado", "success");
+    showToast("Traslado cancelado: la cantidad regresó al origen", "success");
     await recargarTraslados();
+    await recargarResumenInventario();
   } catch (error) {
     showToast(error.message || "Error al cancelar el traslado", "error");
   }

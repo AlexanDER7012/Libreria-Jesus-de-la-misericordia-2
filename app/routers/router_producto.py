@@ -45,6 +45,63 @@ def _exigir_permiso(db: Session, usuario: Usuario, modulo_nombre: str, accion: s
         )
 
 
+def _validar_datos_producto(db: Session, datos: dict, producto: Producto = None) -> dict:
+    """
+    Reglas comunes al crear y al editar un producto. Antes el servidor
+    aceptaba códigos repetidos con distinta mayúscula o espacios ("A1" y
+    "a1 "), precios y stock negativos, mínimo mayor que el máximo, nombre o
+    código en blanco, y categorías/marcas/unidades que no existen.
+    """
+    excluir_id = producto.id if producto else None
+
+    for campo, etiqueta in (("codigo", "El código"), ("nombre", "El nombre")):
+        if campo in datos or producto is None:
+            limpio = " ".join(str(datos.get(campo) or "").split())
+            if not limpio:
+                raise HTTPException(status_code=400, detail=f"{etiqueta} del producto es obligatorio")
+            datos[campo] = limpio
+
+    if "codigo" in datos and (producto is None or datos["codigo"].casefold() != (producto.codigo or "").strip().casefold()):
+        consulta = db.query(Producto).filter(func.lower(func.trim(Producto.codigo)) == datos["codigo"].lower())
+        if excluir_id is not None:
+            consulta = consulta.filter(Producto.id != excluir_id)
+        duplicado = consulta.first()
+        if duplicado:
+            otro = "otro " if producto else "un "
+            raise HTTPException(status_code=400, detail=f"Ya existe {otro}producto con el código '{duplicado.codigo}' ('{duplicado.nombre}')")
+
+    for campo, etiqueta in (
+        ("precio_compra", "El precio de compra"),
+        ("precio_venta", "El precio de venta"),
+        ("margen_ganancia", "El margen de ganancia"),
+        ("stock_minimo", "El stock mínimo"),
+        ("stock_maximo", "El stock máximo"),
+    ):
+        valor = datos.get(campo)
+        if valor is not None and float(valor) < 0:
+            raise HTTPException(status_code=400, detail=f"{etiqueta} no puede ser negativo")
+    if datos.get("factor_conversion") is not None and float(datos["factor_conversion"]) <= 0:
+        raise HTTPException(status_code=400, detail="El factor de conversión debe ser mayor a 0")
+
+    minimo = datos.get("stock_minimo", producto.stock_minimo if producto else None)
+    maximo = datos.get("stock_maximo", producto.stock_maximo if producto else None)
+    if minimo is not None and maximo is not None and float(maximo) > 0 and float(minimo) > float(maximo):
+        raise HTTPException(status_code=400, detail=f"El stock mínimo ({float(minimo):g}) no puede ser mayor que el máximo ({float(maximo):g})")
+
+    from app.models.model_ubicacion import Sububicacion
+    for campo, Modelo, etiqueta in (
+        ("id_categoria", Categoria, "La categoría"),
+        ("id_marca", Marca, "La marca"),
+        ("id_unidad_compra", UnidadMedida, "La unidad de compra"),
+        ("id_unidad_venta", UnidadMedida, "La unidad de venta"),
+        ("id_sububicacion", Sububicacion, "La sububicación"),
+    ):
+        valor = datos.get(campo)
+        if valor is not None and not db.query(Modelo).filter(Modelo.id == valor).first():
+            raise HTTPException(status_code=400, detail=f"{etiqueta} seleccionada no existe")
+    return datos
+
+
 def _calcular_precio_venta(precio_compra, margen_ganancia) -> float:
     """precio_venta = precio_compra + (precio_compra * margen% / 100)"""
     if precio_compra is None or margen_ganancia is None:
@@ -144,16 +201,7 @@ def historico_precios_de_producto(
 
 @router.post("", response_model=ProductoResponse, status_code=201)
 def crear_producto(datos: ProductoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Productos", "Crear"))):
-    codigo_limpio = (datos.codigo or "").strip()
-    existente = db.query(Producto).filter(Producto.codigo == codigo_limpio).first()
-    if existente:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Ya existe un producto con ese código ('{existente.nombre}')",
-        )
-
-    datos_dict = datos.model_dump()
-    datos_dict["codigo"] = codigo_limpio
+    datos_dict = _validar_datos_producto(db, datos.model_dump())
 
     if datos_dict.get("precio_automatico") == 1:
         datos_dict["precio_venta"] = _calcular_precio_venta(
@@ -192,20 +240,12 @@ def actualizar_producto(producto_id: int, datos: ProductoUpdate, db: Session = D
     if "activo" in datos_dict and datos_dict["activo"] != producto.activo:
         _exigir_permiso(db, usuario_actual, "Productos", "Eliminar")
 
-    # Evita que dos productos queden con el mismo código de barras al editar
-    if datos_dict.get("codigo") is not None:
-        datos_dict["codigo"] = datos_dict["codigo"].strip()
-        if datos_dict["codigo"] != producto.codigo:
-            duplicado = (
-                db.query(Producto)
-                .filter(Producto.codigo == datos_dict["codigo"], Producto.id != producto_id)
-                .first()
-            )
-            if duplicado:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Ya existe otro producto con ese código ('{duplicado.nombre}')",
-                )
+    # Código sin repetir (sin importar mayúsculas/espacios), sin negativos, etc.
+    if datos_dict.get("codigo") is None:
+        datos_dict.pop("codigo", None)
+    if datos_dict.get("nombre") is None:
+        datos_dict.pop("nombre", None)
+    datos_dict = _validar_datos_producto(db, datos_dict, producto)
 
     precio_automatico_final = datos_dict.get("precio_automatico", producto.precio_automatico)
     if precio_automatico_final == 1:

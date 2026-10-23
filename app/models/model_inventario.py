@@ -90,6 +90,8 @@ class TrasladoSucursal(Base):
     monto_total = Column(DECIMAL(12, 2), default=0)    # cantidad x costo_unitario
     monto_pagado = Column(DECIMAL(12, 2), default=0)   # suma de pagos vigentes
     estado_pago = Column(String(20), default="Pendiente")  # Pendiente, Parcial, Pagado, No aplica
+    # 1 = la cantidad ya se restó del origen al registrar el traslado (en camino)
+    stock_descontado = Column(Integer, default=0, server_default="0")
 
     producto = relationship("Producto")
     pagos = relationship("TrasladoPago", back_populates="traslado", order_by="TrasladoPago.id")

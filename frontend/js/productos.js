@@ -1064,16 +1064,25 @@ async function saveProducto(event) {
     activo: parseInt(document.getElementById("productoActivo").value),
   };
 
-  // Control de duplicidad (frontend)
-  const exists = productosData.some(
-    (p) =>
-      (p.codigo === data.codigo || p.nombre === data.nombre) &&
-      p.id !== parseInt(id),
+  // Control de duplicidad (frontend): solo el código no se repite. Dos
+  // productos pueden llamarse igual si tienen distinto código (otra marca
+  // o proveedor). El servidor también lo valida.
+  const claveCodigo = (v) => String(v || "").trim().toLowerCase();
+  const repetido = productosData.find(
+    (p) => claveCodigo(p.codigo) === claveCodigo(data.codigo) && p.id !== parseInt(id),
   );
-
-  if (exists) {
-    showToast("Ya existe un producto con ese código o nombre", "warning");
+  if (repetido) {
+    showToast(`Ya existe un producto con el código "${repetido.codigo}" (${repetido.nombre})`, "warning");
     return;
+  }
+
+  // Aviso: precio de venta menor que el de compra (se vendería con pérdida)
+  if (data.precio_compra > 0 && data.precio_venta > 0 && data.precio_venta < data.precio_compra) {
+    const seguir = await confirmarAccion(
+      `El precio de venta (Q${data.precio_venta.toFixed(2)}) es menor que el de compra (Q${data.precio_compra.toFixed(2)}): cada venta sería con pérdida.\n¿Guardar de todos modos?`,
+      { titulo: "Precio de venta menor al costo", textoAceptar: "Guardar así", peligro: true },
+    );
+    if (!seguir) return;
   }
 
   try {

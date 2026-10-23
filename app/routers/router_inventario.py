@@ -130,6 +130,40 @@ def obtener_movimiento(movimiento_id: int, db: Session = Depends(get_db), usuari
     return movimiento
 
 
+METODOS_TRASLADO = ("Empleado Interno", "Uber Moto")
+
+
+def _exigir_producto_activo(producto: Producto) -> None:
+    """Un producto inactivo no recibe entradas ni salidas hasta reactivarlo."""
+    if producto.activo == 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El producto '{producto.nombre}' está inactivo. Actívalo para registrarle entradas o salidas.",
+        )
+
+
+def _registrar_movimiento_traslado(db: Session, usuario_id: int, traslado, producto, nombre_tipo: str, signo: int, id_ubicacion: int, texto: str):
+    """Deja en el historial cada paso del traslado (envío, recepción o devolución)."""
+    tipo = tipo_movimiento(db, nombre_tipo, signo)
+    movimiento = MovimientoInventario(
+        id_usuario=usuario_id,
+        id_tipo_movimiento=tipo.id,
+        id_ubicacion_origen=id_ubicacion if signo == 2 else None,
+        id_ubicacion_destino=id_ubicacion if signo == 1 else None,
+        tabla_referencia="traslado",
+        id_referencia=traslado.id,
+        observaciones=texto,
+    )
+    db.add(movimiento)
+    db.flush()
+    db.add(MovimientoInventarioDetalle(
+        id_movimiento_cabecera=movimiento.id,
+        id_producto=producto.id,
+        cantidad=float(traslado.cantidad or 0),
+        costo_unitario=traslado.costo_unitario,
+    ))
+
+
 @router.post("", response_model=MovimientoInventarioResponse, status_code=201)
 def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Crear"))):
     """
@@ -157,6 +191,8 @@ def crear_movimiento(datos: MovimientoInventarioCreate, db: Session = Depends(ge
         producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
         if not producto:
             raise HTTPException(status_code=404, detail="Uno de los productos ya no existe en el sistema. Quítalo de la lista e intenta de nuevo.")
+        if tipo.signo in (1, 2):
+            _exigir_producto_activo(producto)
         productos[d.id_producto] = producto
 
     # Ubicación donde entra o de donde sale el stock (la principal si no
@@ -224,6 +260,8 @@ def listar_tipos_movimiento(db: Session = Depends(get_db), usuario_actual: Usuar
 def crear_tipo_movimiento(datos: TipoMovimientoInventarioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Crear"))):
     from app.catalogos import validar_nombre_unico
     datos.nombre = validar_nombre_unico(db, TipoMovimientoInventario, datos.nombre, "un tipo de movimiento")
+    if datos.signo not in (0, 1, 2):
+        raise HTTPException(status_code=400, detail="El efecto debe ser Entrada (1), Salida (2) o Neutral (0)")
     nuevo = TipoMovimientoInventario(**datos.model_dump())
     db.add(nuevo)
     db.flush()
@@ -335,6 +373,8 @@ def aplicar_ajuste(conteo_id: int, db: Session = Depends(get_db), usuario_actual
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     id_ubicacion = resolver_ubicacion(db, conteo.id_ubicacion)
     diferencia = float(conteo.diferencia or 0)
+    if abs(diferencia) > 0.0001:
+        _exigir_producto_activo(producto)
 
     if abs(diferencia) > 0.0001:
         try:
@@ -443,13 +483,17 @@ def listar_traslados(
 def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Crear"))):
     """
     Registra el envío de producto de una ubicación a otra (ej. Bodega ->
-    Área de ventas). Queda "EnProceso" hasta que se confirma la recepción;
-    en ese momento se resta del origen y se suma al destino, así que el
-    total de la librería nunca cambia.
+    Área de ventas). La cantidad se resta del origen en este momento
+    (queda "en camino", así no se puede vender ni mover otra vez) y se
+    suma al destino cuando se confirma la recepción. Si se cancela,
+    regresa al origen.
     """
     producto = db.query(Producto).filter(Producto.id == datos.id_producto).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
+    _exigir_producto_activo(producto)
+    if datos.metodo_traslado not in METODOS_TRASLADO:
+        raise HTTPException(status_code=400, detail=f"Método de traslado inválido. Opciones: {', '.join(METODOS_TRASLADO)}")
     if float(datos.cantidad or 0) <= 0:
         raise HTTPException(status_code=400, detail="La cantidad a trasladar debe ser mayor a 0")
     if datos.id_ubicacion_origen == datos.id_ubicacion_destino:
@@ -487,6 +531,14 @@ def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db),
     db.flush()
     # Número de nota de envío correlativo (NE-000001, NE-000002...)
     nuevo.numero_nota_envio = f"NE-{nuevo.id:06d}"
+    # Sale del origen ahora: queda en camino hasta que se reciba
+    mover_stock(db, producto, datos.id_ubicacion_origen, -float(datos.cantidad))
+    nuevo.stock_descontado = 1
+    _registrar_movimiento_traslado(
+        db, usuario_actual.id, nuevo, producto, "Traslado - envío", 2, datos.id_ubicacion_origen,
+        f"Traslado {nuevo.numero_nota_envio}: sale de {nombre_ubicacion(db, datos.id_ubicacion_origen)} "
+        f"hacia {nombre_ubicacion(db, datos.id_ubicacion_destino)} (en camino)",
+    )
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "TrasladoSucursal",
         detalle=(
@@ -519,30 +571,40 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: Optional[int] = Non
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     cantidad = float(traslado.cantidad or 0)
 
-    mover_stock(db, producto, traslado.id_ubicacion_origen, -cantidad)
-    mover_stock(db, producto, traslado.id_ubicacion_destino, cantidad)
+    if traslado.stock_descontado == 1:
+        # Ya había salido del origen al registrarlo: solo entra al destino
+        mover_stock(db, producto, traslado.id_ubicacion_destino, cantidad)
+        _registrar_movimiento_traslado(
+            db, usuario_actual.id, traslado, producto, "Traslado - recepción", 1, traslado.id_ubicacion_destino,
+            f"Traslado {traslado.numero_nota_envio}: llegó a {nombre_ubicacion(db, traslado.id_ubicacion_destino)} "
+            f"desde {nombre_ubicacion(db, traslado.id_ubicacion_origen)}",
+        )
+    else:
+        # Traslados registrados antes de este cambio: se mueve todo al recibir
+        mover_stock(db, producto, traslado.id_ubicacion_origen, -cantidad)
+        mover_stock(db, producto, traslado.id_ubicacion_destino, cantidad)
 
-    tipo = tipo_movimiento(db, "Traslado", 0)
-    movimiento = MovimientoInventario(
-        id_usuario=usuario_actual.id,
-        id_tipo_movimiento=tipo.id,
-        id_ubicacion_origen=traslado.id_ubicacion_origen,
-        id_ubicacion_destino=traslado.id_ubicacion_destino,
-        tabla_referencia="traslado",
-        id_referencia=traslado.id,
-        observaciones=(
-            f"Traslado #{traslado.id}: {nombre_ubicacion(db, traslado.id_ubicacion_origen)} -> "
-            f"{nombre_ubicacion(db, traslado.id_ubicacion_destino)}"
-        ),
-    )
-    db.add(movimiento)
-    db.flush()
-    db.add(MovimientoInventarioDetalle(
-        id_movimiento_cabecera=movimiento.id,
-        id_producto=producto.id,
-        cantidad=cantidad,
-        costo_unitario=traslado.costo_unitario,
-    ))
+        tipo = tipo_movimiento(db, "Traslado", 0)
+        movimiento = MovimientoInventario(
+            id_usuario=usuario_actual.id,
+            id_tipo_movimiento=tipo.id,
+            id_ubicacion_origen=traslado.id_ubicacion_origen,
+            id_ubicacion_destino=traslado.id_ubicacion_destino,
+            tabla_referencia="traslado",
+            id_referencia=traslado.id,
+            observaciones=(
+                f"Traslado #{traslado.id}: {nombre_ubicacion(db, traslado.id_ubicacion_origen)} -> "
+                f"{nombre_ubicacion(db, traslado.id_ubicacion_destino)}"
+            ),
+        )
+        db.add(movimiento)
+        db.flush()
+        db.add(MovimientoInventarioDetalle(
+            id_movimiento_cabecera=movimiento.id,
+            id_producto=producto.id,
+            cantidad=cantidad,
+            costo_unitario=traslado.costo_unitario,
+        ))
 
     traslado.estado = "Completado"
     traslado.id_usuario_recibe = usuario_actual.id
@@ -559,7 +621,7 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: Optional[int] = Non
 
 @router_traslado.patch("/{traslado_id}/cancelar", response_model=TrasladoSucursalResponse)
 def cancelar_traslado(traslado_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar"))):
-    """Cancela un traslado que todavía no se recibió (no mueve stock)."""
+    """Cancela un traslado que todavía no se recibió: lo que estaba en camino regresa al origen."""
     traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).first()
     if not traslado:
         raise HTTPException(status_code=404, detail="Traslado no encontrado")
@@ -570,6 +632,15 @@ def cancelar_traslado(traslado_id: int, db: Session = Depends(get_db), usuario_a
             status_code=400,
             detail="Este traslado tiene pagos registrados. Anula los pagos antes de cancelarlo.",
         )
+    if traslado.stock_descontado == 1:
+        producto = db.query(Producto).filter(Producto.id == traslado.id_producto).first()
+        if producto:
+            mover_stock(db, producto, traslado.id_ubicacion_origen, float(traslado.cantidad or 0))
+            _registrar_movimiento_traslado(
+                db, usuario_actual.id, traslado, producto, "Traslado - cancelado", 1, traslado.id_ubicacion_origen,
+                f"Traslado {traslado.numero_nota_envio} cancelado: regresa a {nombre_ubicacion(db, traslado.id_ubicacion_origen)}",
+            )
+        traslado.stock_descontado = 0
     traslado.estado = "Cancelado"
     traslado.estado_pago = "No aplica"
     registrar_actividad(db, usuario_actual.id, "CANCELAR", "TrasladoSucursal", detalle=f"Canceló el traslado #{traslado.id}")
