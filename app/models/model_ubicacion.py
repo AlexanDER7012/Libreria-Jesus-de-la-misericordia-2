@@ -7,6 +7,8 @@ class Ubicacion(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     nombre = Column(String(100))  
+    descripcion = Column(Text)
+    tipo = Column(String(50))
     direccion = Column(Text)
     telefono = Column(String(20))
     encargado = Column(String(100))

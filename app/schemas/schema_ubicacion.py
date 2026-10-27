@@ -41,6 +41,8 @@ class SububicacionResponse(SububicacionBase):
 # ===================== Ubicacion =====================
 
 class UbicacionBase(BaseModel):
+    descripcion: Optional[str] = None
+    tipo: Optional[str] = None
     direccion: Optional[str] = None
     telefono: Optional[str] = None
     encargado: Optional[str] = None
