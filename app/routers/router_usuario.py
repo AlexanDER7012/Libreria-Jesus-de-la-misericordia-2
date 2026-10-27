@@ -88,6 +88,7 @@ PERMISOS_PESTANAS = (
     ("Reportes", "Tab:Reportes:ComprasProveedor", "Acceso a Compras por Proveedor"),
     ("Reportes", "Tab:Reportes:CuentasPagar", "Acceso al reporte Cuentas por Pagar"),
     ("Reportes", "Tab:Reportes:StockBajo", "Acceso al reporte Productos Bajo Mínimo"),
+    ("Reportes", "Tab:Reportes:ExcesosInventario", "Acceso a Excesos de Inventario"),
     ("Reportes", "Tab:Reportes:Movimientos", "Acceso al Resumen de Movimientos"),
     ("Reportes", "Tab:Reportes:InventarioValorizado", "Acceso al Inventario Valorizado"),
     ("Reportes", "Tab:Reportes:LoginResumen", "Acceso al Resumen de Logins"),
