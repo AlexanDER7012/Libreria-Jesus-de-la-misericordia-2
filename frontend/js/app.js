@@ -90,16 +90,25 @@ class App {
     }
     if (!guardado?.modulo || !this.tienePermiso(guardado.modulo)) return;
     this._restaurando = true;
+    let huboInteraccionUsuario = false;
+    const registrarInteraccion = (evento) => {
+      if (
+        evento.isTrusted &&
+        evento.target?.closest?.(
+          '#mainContent [data-bs-toggle="tab"], #mainContent [data-bs-toggle="pill"]',
+        )
+      ) {
+        huboInteraccionUsuario = true;
+      }
+    };
+    document.addEventListener("click", registrarInteraccion, true);
     try {
       await this.loadModule(guardado.modulo);
-      // Las pestañas internas se abren en orden (primero la principal y
-      // luego las de adentro); se repite por si alguna se dibuja después
-      const abrir = () => window.restaurarPestanasModulo?.(guardado.pestanas || []);
-      await new Promise((r) => setTimeout(r, 300));
-      abrir();
-      await new Promise((r) => setTimeout(r, 900));
-      abrir();
+      if (!huboInteraccionUsuario) {
+        window.restaurarPestanasModulo?.(guardado.pestanas || []);
+      }
     } finally {
+      document.removeEventListener("click", registrarInteraccion, true);
       this._restaurando = false;
       this.guardarPantalla();
     }

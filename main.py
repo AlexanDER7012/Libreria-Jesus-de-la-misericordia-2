@@ -15,6 +15,14 @@ app = FastAPI(
     version="1.0.0",
 )
 
+@app.middleware("http")
+async def revalidar_recursos_frontend(request, call_next):
+    response = await call_next(request)
+    ruta = request.url.path
+    if ruta in {"/", "/index.html", "/login.html"} or ruta.endswith((".js", ".css")):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
 origins = [
     "http://localhost",
     "http://localhost:8000",

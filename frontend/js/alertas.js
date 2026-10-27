@@ -385,9 +385,25 @@
     if (typeof original !== "function" || original.__conPestanas) return;
     const envuelta = async function (...args) {
       const previas = capturarPestanas();
-      const resultado = await original.apply(this, args);
-      restaurarPestanas(previas);
-      return resultado;
+      let huboInteraccionUsuario = false;
+      const registrarInteraccion = (evento) => {
+        if (
+          evento.isTrusted &&
+          evento.target?.closest?.(
+            '#mainContent [data-bs-toggle="tab"], #mainContent [data-bs-toggle="pill"]',
+          )
+        ) {
+          huboInteraccionUsuario = true;
+        }
+      };
+      document.addEventListener("click", registrarInteraccion, true);
+      try {
+        const resultado = await original.apply(this, args);
+        if (!huboInteraccionUsuario) restaurarPestanas(previas);
+        return resultado;
+      } finally {
+        document.removeEventListener("click", registrarInteraccion, true);
+      }
     };
     envuelta.__conPestanas = true;
     window[nombre] = envuelta;
