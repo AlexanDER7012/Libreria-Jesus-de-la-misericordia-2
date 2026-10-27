@@ -205,13 +205,13 @@ function _renderTablaUsuarios(detalle, tituloTabla) {
   `;
 }
 
-function _controlesPaginacion(onAnterior, onSiguiente, skipActual) {
+function _controlesPaginacion(onAnterior, onSiguiente, skipActual, hayMas = true) {
   return `
     <div class="d-flex justify-content-between align-items-center mt-2">
       <button class="btn btn-sm btn-outline-secondary" onclick="${onAnterior}" ${skipActual === 0 ? "disabled" : ""}>
         <i class="fas fa-chevron-left me-1"></i>Anterior
       </button>
-      <button class="btn btn-sm btn-outline-secondary" onclick="${onSiguiente}">
+      <button class="btn btn-sm btn-outline-secondary" onclick="${onSiguiente}" ${hayMas ? "" : "disabled"}>
         Siguiente<i class="fas fa-chevron-right ms-1"></i>
       </button>
     </div>
@@ -261,6 +261,7 @@ async function actualizarCuentasActivas() {
         `skipCuentasActivas=Math.max(0,skipCuentasActivas-${LIMITE_REPORTE_USUARIOS});actualizarCuentasActivas()`,
         `skipCuentasActivas+=${LIMITE_REPORTE_USUARIOS};actualizarCuentasActivas()`,
         skipCuentasActivas,
+        Array.isArray(data) && data.length === LIMITE_REPORTE_USUARIOS,
       );
   } catch (error) {
     resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
@@ -310,6 +311,7 @@ async function actualizarCuentasInactivas() {
         `skipCuentasInactivas=Math.max(0,skipCuentasInactivas-${LIMITE_REPORTE_USUARIOS});actualizarCuentasInactivas()`,
         `skipCuentasInactivas+=${LIMITE_REPORTE_USUARIOS};actualizarCuentasInactivas()`,
         skipCuentasInactivas,
+        Array.isArray(data) && data.length === LIMITE_REPORTE_USUARIOS,
       );
   } catch (error) {
     resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
@@ -327,11 +329,11 @@ async function cargarReporteUsuariosPorFecha() {
       <div class="row mb-3">
         <div class="col-md-2">
           <label class="form-label small">Fecha Desde</label>
-          <input type="date" class="form-control form-control-sm" id="usuariosFechaDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+          <input type="date" class="form-control form-control-sm" id="usuariosFechaDesde" value="${_fechaLocalISO(hace30Dias)}">
         </div>
         <div class="col-md-2">
           <label class="form-label small">Fecha Hasta</label>
-          <input type="date" class="form-control form-control-sm" id="usuariosFechaHasta" value="${hoy.toISOString().split("T")[0]}">
+          <input type="date" class="form-control form-control-sm" id="usuariosFechaHasta" value="${_fechaLocalISO(hoy)}">
         </div>
         ${_opcionesOrdenUsuario("usuariosFechaOrden", "usuariosFechaDireccion")}
         <div class="col-md-2 d-flex align-items-end">
@@ -360,6 +362,7 @@ async function actualizarUsuariosPorFecha() {
     document.getElementById("usuariosFechaDireccion")?.value || "asc";
   const resultado = document.getElementById("usuariosFechaResultado");
   if (!resultado) return;
+  if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     let url = `/reportes/usuarios/por-fecha?skip=${skipUsuariosPorFecha}&limit=${LIMITE_REPORTE_USUARIOS}`;
     if (desde) url += `&fecha_desde=${desde}`;
@@ -375,6 +378,7 @@ async function actualizarUsuariosPorFecha() {
         `skipUsuariosPorFecha=Math.max(0,skipUsuariosPorFecha-${LIMITE_REPORTE_USUARIOS});actualizarUsuariosPorFecha()`,
         `skipUsuariosPorFecha+=${LIMITE_REPORTE_USUARIOS};actualizarUsuariosPorFecha()`,
         skipUsuariosPorFecha,
+        Array.isArray(data) && data.length === LIMITE_REPORTE_USUARIOS,
       );
   } catch (error) {
     resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
@@ -439,6 +443,7 @@ async function actualizarUsuariosBuscar() {
     document.getElementById("buscarUsuarioDireccion")?.value || "asc";
   const resultado = document.getElementById("buscarUsuarioResultado");
   if (!resultado) return;
+  if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     let url = `/reportes/usuarios/buscar?estado=${estado}&skip=${skipUsuariosBuscar}&limit=${LIMITE_REPORTE_USUARIOS}`;
     if (buscar) url += `&buscar=${encodeURIComponent(buscar)}`;
@@ -452,35 +457,105 @@ async function actualizarUsuariosBuscar() {
         `skipUsuariosBuscar=Math.max(0,skipUsuariosBuscar-${LIMITE_REPORTE_USUARIOS});actualizarUsuariosBuscar()`,
         `skipUsuariosBuscar+=${LIMITE_REPORTE_USUARIOS};actualizarUsuariosBuscar()`,
         skipUsuariosBuscar,
+        Array.isArray(data) && data.length === LIMITE_REPORTE_USUARIOS,
       );
   } catch (error) {
     resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
   }
 }
 
+async function _exportarUsuariosCompleto(urlBase, titulo, tituloTabla, tipo) {
+  const id = "exportUsuariosTemporal";
+  document.getElementById(id)?.remove();
+  try {
+    const sep = urlBase.includes("?") ? "&" : "?";
+    const data = await api.request(`${urlBase}${sep}skip=0&limit=200`);
+    if (!Array.isArray(data) || data.length === 0) {
+      showToast("No hay datos para exportar en este reporte", "warning");
+      return;
+    }
+    const div = document.createElement("div");
+    div.id = id;
+    div.style.display = "none";
+    div.innerHTML = _renderTablaUsuarios(data, tituloTabla);
+    document.body.appendChild(div);
+    if (tipo === "pdf") await exportarPDF(id, titulo);
+    else exportarExcel(id, titulo);
+  } catch (error) {
+    showToast("No se pudo exportar: " + error.message, "error");
+  } finally {
+    document.getElementById(id)?.remove();
+  }
+}
+
+function _filtroOrden(idOrden, idDireccion) {
+  const ordenPor = document.getElementById(idOrden)?.value || "";
+  const ordenDir = document.getElementById(idDireccion)?.value || "asc";
+  return ordenPor ? `&orden_por=${ordenPor}&orden_direccion=${ordenDir}` : "";
+}
+
+function _urlCuentasActivas() {
+  return `/reportes/usuarios/activos?x=1${_filtroOrden("cuentaActivaOrden", "cuentaActivaDireccion")}`;
+}
+function _urlCuentasInactivas() {
+  return `/reportes/usuarios/inactivos?x=1${_filtroOrden("cuentaInactivaOrden", "cuentaInactivaDireccion")}`;
+}
+function _urlUsuariosPorFecha() {
+  const desde = document.getElementById("usuariosFechaDesde")?.value;
+  const hasta = document.getElementById("usuariosFechaHasta")?.value;
+  let url = `/reportes/usuarios/por-fecha?x=1`;
+  if (desde) url += `&fecha_desde=${desde}`;
+  if (hasta) url += `&fecha_hasta=${hasta}`;
+  return url + _filtroOrden("usuariosFechaOrden", "usuariosFechaDireccion");
+}
+function _urlUsuariosBuscar() {
+  const estado = document.getElementById("buscarUsuarioEstado")?.value || "todos";
+  const buscar = document.getElementById("buscarUsuarioNombre")?.value?.trim();
+  const desde = document.getElementById("buscarUsuarioDesde")?.value;
+  const hasta = document.getElementById("buscarUsuarioHasta")?.value;
+  let url = `/reportes/usuarios/buscar?estado=${estado}`;
+  if (buscar) url += `&buscar=${encodeURIComponent(buscar)}`;
+  if (desde) url += `&fecha_desde=${desde}`;
+  if (hasta) url += `&fecha_hasta=${hasta}`;
+  return url + _filtroOrden("buscarUsuarioOrden", "buscarUsuarioDireccion");
+}
+function _rangoUsuariosValido(idDesde, idHasta) {
+  const d = document.getElementById(idDesde)?.value;
+  const h = document.getElementById(idHasta)?.value;
+  if (d && h && d > h) {
+    showToast('La fecha "Desde" no puede ser mayor que la fecha "Hasta".', "warning");
+    return false;
+  }
+  return true;
+}
+
 function exportarCuentasActivasPDF() {
-  exportarPDF("cuentaActivaResultado", "Cuentas_Activas");
+  _exportarUsuariosCompleto(_urlCuentasActivas(), "Cuentas_Activas", "Cuentas Activas", "pdf");
 }
 function exportarCuentasActivasExcel() {
-  exportarExcel("cuentaActivaResultado", "Cuentas_Activas");
+  _exportarUsuariosCompleto(_urlCuentasActivas(), "Cuentas_Activas", "Cuentas Activas", "excel");
 }
 function exportarCuentasInactivasPDF() {
-  exportarPDF("cuentaInactivaResultado", "Cuentas_Inactivas");
+  _exportarUsuariosCompleto(_urlCuentasInactivas(), "Cuentas_Inactivas", "Cuentas Inactivas", "pdf");
 }
 function exportarCuentasInactivasExcel() {
-  exportarExcel("cuentaInactivaResultado", "Cuentas_Inactivas");
+  _exportarUsuariosCompleto(_urlCuentasInactivas(), "Cuentas_Inactivas", "Cuentas Inactivas", "excel");
 }
 function exportarUsuariosPorFechaPDF() {
-  exportarPDF("usuariosFechaResultado", "Usuarios_Por_Fecha");
+  if (!_rangoUsuariosValido("usuariosFechaDesde", "usuariosFechaHasta")) return;
+  _exportarUsuariosCompleto(_urlUsuariosPorFecha(), "Usuarios_Por_Fecha", "Usuarios por Fecha", "pdf");
 }
 function exportarUsuariosPorFechaExcel() {
-  exportarExcel("usuariosFechaResultado", "Usuarios_Por_Fecha");
+  if (!_rangoUsuariosValido("usuariosFechaDesde", "usuariosFechaHasta")) return;
+  _exportarUsuariosCompleto(_urlUsuariosPorFecha(), "Usuarios_Por_Fecha", "Usuarios por Fecha", "excel");
 }
 function exportarUsuariosBuscarPDF() {
-  exportarPDF("buscarUsuarioResultado", "Busqueda_Usuarios");
+  if (!_rangoUsuariosValido("buscarUsuarioDesde", "buscarUsuarioHasta")) return;
+  _exportarUsuariosCompleto(_urlUsuariosBuscar(), "Busqueda_Usuarios", "Búsqueda de Usuarios", "pdf");
 }
 function exportarUsuariosBuscarExcel() {
-  exportarExcel("buscarUsuarioResultado", "Busqueda_Usuarios");
+  if (!_rangoUsuariosValido("buscarUsuarioDesde", "buscarUsuarioHasta")) return;
+  _exportarUsuariosCompleto(_urlUsuariosBuscar(), "Busqueda_Usuarios", "Búsqueda de Usuarios", "excel");
 }
 
 window.cargarReporteCuentasActivas = cargarReporteCuentasActivas;
@@ -505,7 +580,7 @@ async function cargarReporteVentasDiarias() {
   if (!container) return;
   try {
     const hoy = new Date();
-    const fecha = hoy.toISOString().split("T")[0];
+    const fecha = _fechaLocalISO(hoy);
     container.innerHTML = `
             <div class="row mb-3">
                 <div class="col-md-4">
@@ -587,7 +662,7 @@ async function cargarReporteConciliacion() {
   if (!container) return;
   try {
     const hoy = new Date();
-    const fecha = hoy.toISOString().split("T")[0];
+    const fecha = _fechaLocalISO(hoy);
     container.innerHTML = `
             <div class="row mb-3">
                 <div class="col-md-4"><label class="form-label small">Fecha</label><input type="date" class="form-control form-control-sm" id="conciliacionFecha" value="${fecha}"></div>
@@ -717,8 +792,8 @@ async function cargarReporteUtilidad() {
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
-                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="utilidadFechaInicio" value="${hace30Dias.toISOString().split("T")[0]}"></div>
-                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="utilidadFechaFin" value="${hoy.toISOString().split("T")[0]}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="utilidadFechaInicio" value="${_fechaLocalISO(hace30Dias)}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="utilidadFechaFin" value="${_fechaLocalISO(hoy)}"></div>
                 <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary btn-sm" onclick="actualizarUtilidad()"><i class="fas fa-search me-1"></i>Consultar</button></div>
             </div>
             <div id="utilidadResultado"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando datos...</p></div></div>
@@ -783,8 +858,8 @@ async function cargarReporteTopProductos() {
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
-                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="topFechaInicio" value="${hace30Dias.toISOString().split("T")[0]}"></div>
-                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="topFechaFin" value="${hoy.toISOString().split("T")[0]}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="topFechaInicio" value="${_fechaLocalISO(hace30Dias)}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="topFechaFin" value="${_fechaLocalISO(hoy)}"></div>
                 <div class="col-md-2"><label class="form-label small">Límite</label><input type="number" class="form-control form-control-sm" id="topLimite" value="10" min="1" max="50"></div>
                 <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary btn-sm" onclick="actualizarTopProductos()"><i class="fas fa-search me-1"></i>Consultar</button></div>
             </div>
@@ -864,8 +939,8 @@ async function cargarReporteComprasResumen() {
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
-                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="comprasResumenDesde" value="${hace30Dias.toISOString().split("T")[0]}"></div>
-                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="comprasResumenHasta" value="${hoy.toISOString().split("T")[0]}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="comprasResumenDesde" value="${_fechaLocalISO(hace30Dias)}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="comprasResumenHasta" value="${_fechaLocalISO(hoy)}"></div>
                 <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary btn-sm" onclick="actualizarComprasResumen()"><i class="fas fa-search me-1"></i>Consultar</button></div>
             </div>
             <div id="comprasResumenResultado"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando datos...</p></div></div>
@@ -922,8 +997,8 @@ async function cargarReporteComprasProveedor() {
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
-                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="comprasProvDesde" value="${hace30Dias.toISOString().split("T")[0]}"></div>
-                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="comprasProvHasta" value="${hoy.toISOString().split("T")[0]}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="comprasProvDesde" value="${_fechaLocalISO(hace30Dias)}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="comprasProvHasta" value="${_fechaLocalISO(hoy)}"></div>
                 <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary btn-sm" onclick="actualizarComprasProveedor()"><i class="fas fa-search me-1"></i>Consultar</button></div>
             </div>
             <div id="comprasProvResultado"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando datos...</p></div></div>
@@ -1149,8 +1224,8 @@ async function cargarReporteMovimientosResumen() {
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
-                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="movResumenDesde" value="${hace30Dias.toISOString().split("T")[0]}"></div>
-                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="movResumenHasta" value="${hoy.toISOString().split("T")[0]}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="movResumenDesde" value="${_fechaLocalISO(hace30Dias)}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="movResumenHasta" value="${_fechaLocalISO(hoy)}"></div>
                 <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary btn-sm" onclick="actualizarMovimientosResumen()"><i class="fas fa-search me-1"></i>Consultar</button></div>
             </div>
             <div id="movResumenResultado"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando datos...</p></div></div>
@@ -1166,6 +1241,7 @@ async function actualizarMovimientosResumen() {
   const hasta = document.getElementById("movResumenHasta")?.value;
   const resultado = document.getElementById("movResumenResultado");
   if (!desde || !hasta || !resultado) return;
+  if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     const data = await api.request(
       `/reportes/inventario/movimientos-resumen?desde=${desde}&hasta=${hasta}`,
@@ -1237,8 +1313,8 @@ async function cargarReporteLoginResumen() {
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
-                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="loginDesde" value="${hace30Dias.toISOString().split("T")[0]}"></div>
-                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="loginHasta" value="${hoy.toISOString().split("T")[0]}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="loginDesde" value="${_fechaLocalISO(hace30Dias)}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="loginHasta" value="${_fechaLocalISO(hoy)}"></div>
                 <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary btn-sm" onclick="actualizarLoginResumen()"><i class="fas fa-search me-1"></i>Consultar</button></div>
             </div>
             <div id="loginResumenResultado"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando datos...</p></div></div>
@@ -1254,6 +1330,7 @@ async function actualizarLoginResumen() {
   const hasta = document.getElementById("loginHasta")?.value;
   const resultado = document.getElementById("loginResumenResultado");
   if (!desde || !hasta || !resultado) return;
+  if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     const data = await api.request(
       `/reportes/usuarios/login-resumen?desde=${desde}&hasta=${hasta}`,
@@ -1283,8 +1360,8 @@ async function cargarReporteUsuariosActivos() {
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
-                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="activosDesde" value="${hace30Dias.toISOString().split("T")[0]}"></div>
-                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="activosHasta" value="${hoy.toISOString().split("T")[0]}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="activosDesde" value="${_fechaLocalISO(hace30Dias)}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="activosHasta" value="${_fechaLocalISO(hoy)}"></div>
                 <div class="col-md-2"><label class="form-label small">Límite</label><input type="number" class="form-control form-control-sm" id="activosLimite" value="10" min="1" max="50"></div>
                 <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary btn-sm" onclick="actualizarUsuariosActivos()"><i class="fas fa-search me-1"></i>Consultar</button></div>
             </div>
@@ -1302,6 +1379,12 @@ async function actualizarUsuariosActivos() {
   const limite = document.getElementById("activosLimite")?.value || 10;
   const resultado = document.getElementById("activosResultado");
   if (!desde || !hasta || !resultado) return;
+  if (_rangoFechasInvalido(desde, hasta, resultado)) return;
+  const lim = Number(limite);
+  if (!Number.isInteger(lim) || lim < 1 || lim > 50) {
+    resultado.innerHTML = `<div class="alert alert-warning">El límite debe ser un número entero entre 1 y 50.</div>`;
+    return;
+  }
   try {
     const data = await api.request(
       `/reportes/usuarios/mas-activos?desde=${desde}&hasta=${hasta}&limite=${limite}`,
@@ -1310,18 +1393,20 @@ async function actualizarUsuariosActivos() {
       resultado.innerHTML = `<div class="alert alert-warning">No hay actividad registrada</div>`;
       return;
     }
-    const maxAcciones = Math.max(
-      ...data.detalle.map((item) => item.cantidad_acciones || 0),
+    // % de participación = acciones del usuario / total de acciones del ranking
+    const totalAcciones = data.detalle.reduce(
+      (suma, item) => suma + (Number(item.cantidad_acciones) || 0),
+      0,
     );
     resultado.innerHTML = `
             <div class="card"><div class="card-header"><h6 class="mb-0 fw-bold">Top ${data.detalle.length} Usuarios Más Activos</h6></div>
             <div class="card-body"><div class="table-responsive"><table class="table table-hover table-striped">
-            <thead><tr><th>#</th><th>Usuario</th><th class="text-end">Acciones</th><th>Participación</th></tr></thead>
+            <thead><tr><th>#</th><th>Usuario</th><th class="text-end">Cantidad de Acciones</th><th>Participación</th></tr></thead>
             <tbody>${data.detalle
               .map((item, index) => {
                 const pct =
-                  maxAcciones > 0
-                    ? (item.cantidad_acciones / maxAcciones) * 100
+                  totalAcciones > 0
+                    ? (item.cantidad_acciones / totalAcciones) * 100
                     : 0;
                 const medal =
                   index === 0
@@ -1330,8 +1415,8 @@ async function actualizarUsuariosActivos() {
                       ? "🥈"
                       : index === 2
                         ? "🥉"
-                        : `#${index + 1}`;
-                return `<tr><td>${medal}</td><td><strong>${item.nombre_usuario}</strong></td><td class="text-end fw-bold">${item.cantidad_acciones}</td>
+                        : "";
+                return `<tr><td>${medal} ${index + 1}</td><td><strong>${item.nombre_usuario}</strong></td><td class="text-end fw-bold">${item.cantidad_acciones}</td>
                         <td><div class="progress" style="height:20px;"><div class="progress-bar ${index === 0 ? "bg-success" : "bg-primary"}" role="progressbar" style="width:${pct}%;" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">${pct.toFixed(1)}%</div></div></td></tr>`;
               })
               .join("")}</tbody></table></div></div></div>
@@ -1351,8 +1436,8 @@ async function cargarReporteBitacora() {
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
-                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="bitacoraDesde" value="${hace30Dias.toISOString().split("T")[0]}"></div>
-                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="bitacoraHasta" value="${hoy.toISOString().split("T")[0]}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Desde</label><input type="date" class="form-control form-control-sm" id="bitacoraDesde" value="${_fechaLocalISO(hace30Dias)}"></div>
+                <div class="col-md-3"><label class="form-label small">Fecha Hasta</label><input type="date" class="form-control form-control-sm" id="bitacoraHasta" value="${_fechaLocalISO(hoy)}"></div>
                 <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary btn-sm" onclick="actualizarBitacora()"><i class="fas fa-search me-1"></i>Consultar</button></div>
             </div>
             <div id="bitacoraResultado"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando datos...</p></div></div>
@@ -1368,6 +1453,7 @@ async function actualizarBitacora() {
   const hasta = document.getElementById("bitacoraHasta")?.value;
   const resultado = document.getElementById("bitacoraResultado");
   if (!desde || !hasta || !resultado) return;
+  if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     const data = await api.request(
       `/reportes/usuarios/bitacora?desde=${desde}&hasta=${hasta}`,
@@ -1377,7 +1463,7 @@ async function actualizarBitacora() {
       return;
     }
     resultado.innerHTML = `
-            <div class="card"><div class="card-header"><h6 class="mb-0 fw-bold">Bitácora de Actividades (${data.cantidad} registros)</h6></div>
+            <div class="card"><div class="card-header"><h6 class="mb-0 fw-bold">Bitácora de Actividades (${data.cantidad} registros${data.cantidad >= 500 ? ", se muestran los 500 más recientes; reduce el rango de fechas para ver el resto" : ""})</h6></div>
             <div class="card-body"><div class="table-responsive" style="max-height:400px;overflow-y:auto;">
             <table class="table table-hover table-striped table-sm">
             <thead class="sticky-top bg-light"><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Módulo</th></tr></thead>
@@ -1796,11 +1882,11 @@ async function cargarReporteMovimientosResumen() {
             <div class="row mb-3">
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Desde</label>
-                    <input type="date" class="form-control form-control-sm" id="movResumenDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="movResumenDesde" value="${_fechaLocalISO(hace30Dias)}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Hasta</label>
-                    <input type="date" class="form-control form-control-sm" id="movResumenHasta" value="${hoy.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="movResumenHasta" value="${_fechaLocalISO(hoy)}">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button class="btn btn-primary btn-sm" onclick="actualizarMovimientosResumen()">
@@ -1875,11 +1961,11 @@ async function cargarReporteLoginResumen() {
             <div class="row mb-3">
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Desde</label>
-                    <input type="date" class="form-control form-control-sm" id="loginDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="loginDesde" value="${_fechaLocalISO(hace30Dias)}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Hasta</label>
-                    <input type="date" class="form-control form-control-sm" id="loginHasta" value="${hoy.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="loginHasta" value="${_fechaLocalISO(hoy)}">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button class="btn btn-primary btn-sm" onclick="actualizarLoginResumen()">
@@ -1922,11 +2008,11 @@ async function cargarReporteUsuariosActivos() {
             <div class="row mb-3">
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Desde</label>
-                    <input type="date" class="form-control form-control-sm" id="activosDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="activosDesde" value="${_fechaLocalISO(hace30Dias)}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Hasta</label>
-                    <input type="date" class="form-control form-control-sm" id="activosHasta" value="${hoy.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="activosHasta" value="${_fechaLocalISO(hoy)}">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label small">Límite</label>
@@ -1973,11 +2059,11 @@ async function cargarReporteBitacora() {
             <div class="row mb-3">
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Desde</label>
-                    <input type="date" class="form-control form-control-sm" id="bitacoraDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="bitacoraDesde" value="${_fechaLocalISO(hace30Dias)}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Hasta</label>
-                    <input type="date" class="form-control form-control-sm" id="bitacoraHasta" value="${hoy.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="bitacoraHasta" value="${_fechaLocalISO(hoy)}">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button class="btn btn-primary btn-sm" onclick="actualizarBitacora()">
@@ -2126,7 +2212,7 @@ async function exportarPDF(containerId, titulo = "Reporte") {
       },
     });
 
-    doc.save(`${titulo}_${new Date().toISOString().split("T")[0]}.pdf`);
+    doc.save(`${titulo}_${_fechaLocalISO()}.pdf`);
     showToast("✅ PDF exportado correctamente", "success");
   } catch (error) {
     console.error("Error exportando PDF:", error);
@@ -2161,7 +2247,7 @@ function exportarExcel(containerId, titulo = "Reporte") {
     });
 
     // Generar archivo
-    const nombre = `${titulo}_${new Date().toISOString().split("T")[0]}.xlsx`;
+    const nombre = `${titulo}_${_fechaLocalISO()}.xlsx`;
     XLSX.writeFile(wb, nombre);
 
     showToast("✅ Excel exportado correctamente", "success");

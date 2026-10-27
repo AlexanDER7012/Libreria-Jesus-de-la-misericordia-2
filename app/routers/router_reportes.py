@@ -397,7 +397,7 @@ def reporte_excesos_inventario(
             stock_maximo=float(producto.stock_maximo),
             exceso=float(producto.stock_actual or 0) - float(producto.stock_maximo),
             dias_sin_movimiento=(
-                (hoy - fecha_ultima_venta.date()).days
+                max(0, (hoy - fecha_ultima_venta.date()).days)
                 if fecha_ultima_venta is not None
                 else None
             ),
