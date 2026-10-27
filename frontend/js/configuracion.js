@@ -641,7 +641,7 @@ function crearModalConfig() {
 
   const html = `
     <div class="modal fade" id="configModal" tabindex="-1">
-      <div class="modal-dialog modal-lg">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable modal-workspace">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title" id="configModalTitle">Configuración</h5>
@@ -703,7 +703,7 @@ function crearModalConfig() {
                 </div>
               </div>
               <div class="row">
-                <div class="col-md-12 mb-3">
+                <div class="col-md-4 mb-3">
                   <label class="form-label">Conservar bitácora</label>
                   <select class="form-select" id="configRetencionBitacora">
                     <option value="0">Siempre (no borrar nunca)</option>
@@ -714,18 +714,16 @@ function crearModalConfig() {
                   </select>
                   <small class="text-muted">Los registros de la bitácora más viejos que esto se borran solos (se revisa una vez al día).</small>
                 </div>
-              </div>
-              <div class="row">
-                <div class="col-md-12 mb-3">
+                <div class="col-md-4 mb-3">
                   <label class="form-label">Ubicación por Defecto</label>
                   <select class="form-select" id="configUbicacion">
                     <option value="">Seleccionar ubicación</option>
                   </select>
                 </div>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Ruta Logo</label>
-                <input type="text" class="form-control" id="configLogo" placeholder="/assets/img/logo.png" />
+                <div class="col-md-4 mb-3">
+                  <label class="form-label">Ruta Logo</label>
+                  <input type="text" class="form-control" id="configLogo" placeholder="/assets/img/logo.png" />
+                </div>
               </div>
               <button type="submit" class="btn btn-dark w-100">Guardar</button>
             </form>
