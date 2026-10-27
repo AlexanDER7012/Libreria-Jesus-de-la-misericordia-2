@@ -1007,6 +1007,11 @@ async function cargarReporteExcesosInventario() {
           </button>
         </div>
       </div>
+      <p class="text-muted small mb-3">
+        Productos activos cuyo stock actual supera el máximo configurado.
+        Exporta el reporte a Excel para revisar qué productos pedir en menor cantidad
+        durante la temporada.
+      </p>
       <div id="excesosInventarioResultado">
         <div class="text-center py-5">
           <div class="spinner-border text-primary" role="status"></div>
@@ -1048,7 +1053,7 @@ async function cargarReporteExcesosInventario() {
                 <tr>
                   <th>ID</th><th>Código</th><th>Nombre</th>
                   <th class="text-end">Stock Actual</th><th class="text-end">Stock Máximo</th>
-                  <th class="text-end">Exceso</th><th class="text-end">Días sin movimiento</th>
+                  <th class="text-end">Exceso</th><th class="text-end">Días desde última venta</th>
                 </tr>
               </thead>
               <tbody>
