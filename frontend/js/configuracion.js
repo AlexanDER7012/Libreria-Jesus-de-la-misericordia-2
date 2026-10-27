@@ -2,6 +2,8 @@
 
 let configuracionData = null;
 let metasData = [];
+let ubicacionesListaData = [];
+let filtroEstadoUbicaciones = "todos";
 
 // =============================================
 // FUNCIONES AUXILIARES
@@ -10,6 +12,21 @@ let metasData = [];
 function getNombreUbicacion(id) {
   const ubicacion = (window.ubicacionesData || []).find((u) => u.id === id);
   return ubicacion ? ubicacion.nombre : `ID: ${id}`;
+}
+
+async function obtenerTodasLasUbicaciones() {
+  const ubicaciones = [];
+  for (let skip = 0; skip < 20000; skip += 200) {
+    const pagina = await api.request(
+      `/ubicaciones?estado=todos&limit=200&skip=${skip}`,
+    );
+    if (!Array.isArray(pagina)) {
+      throw new Error("La respuesta de ubicaciones no es válida");
+    }
+    ubicaciones.push(...pagina);
+    if (pagina.length < 200) break;
+  }
+  return ubicaciones;
 }
 
 // =============================================
@@ -96,7 +113,7 @@ async function loadConfiguracionModule() {
     const [configuracion, metas, ubicaciones] = await Promise.all([
       api.getConfiguracion().catch(() => null),
       api.getMetasFinancieras().catch(() => []),
-      api.request("/ubicaciones").catch((err) => {
+      obtenerTodasLasUbicaciones().catch((err) => {
         console.warn("Error al cargar ubicaciones:", err);
         return [];
       }),
@@ -104,7 +121,8 @@ async function loadConfiguracionModule() {
 
     configuracionData = configuracion;
     metasData = metas || [];
-    window.ubicacionesData = ubicaciones || [];
+    ubicacionesListaData = ubicaciones || [];
+    window.ubicacionesData = ubicacionesListaData.filter((u) => u.activo !== 0);
 
     // Guardar backup en localStorage
     try {
@@ -116,7 +134,7 @@ async function loadConfiguracionModule() {
 
     renderConfiguracion(configuracionData);
     renderMetas(metasData);
-    renderUbicaciones(window.ubicacionesData);
+    renderUbicaciones(ubicacionesListaData);
     await cargarBackups();
   } catch (error) {
     document.getElementById("configuracionContainer").innerHTML = `
@@ -787,8 +805,9 @@ async function cargarUbicaciones() {
   if (!container) return;
 
   try {
-    const ubicaciones = await api.request("/ubicaciones").catch(() => []);
-    window.ubicacionesData = ubicaciones || [];
+    const ubicaciones = await obtenerTodasLasUbicaciones();
+    ubicacionesListaData = ubicaciones || [];
+    window.ubicacionesData = ubicacionesListaData.filter((u) => u.activo !== 0);
 
     try {
       localStorage.setItem(
@@ -797,18 +816,30 @@ async function cargarUbicaciones() {
       );
     } catch (e) {}
 
-    renderUbicaciones(ubicaciones);
+    renderUbicaciones(ubicacionesListaData);
     actualizarSelectsUbicacion();
   } catch (error) {
     container.innerHTML = `<div class="alert alert-danger">Error al cargar ubicaciones: ${error.message}</div>`;
   }
 }
 
+function filtrarUbicacionesEstado(estado) {
+  filtroEstadoUbicaciones = estado || "todos";
+  renderUbicaciones(ubicacionesListaData);
+}
+
 function renderUbicaciones(ubicaciones) {
   const container = document.getElementById("ubicacionesContainer");
   if (!container) return;
 
-  if (!ubicaciones || ubicaciones.length === 0) {
+  const todas = ubicaciones || [];
+  const filtradas = todas.filter((ubicacion) => {
+    if (filtroEstadoUbicaciones === "activos") return ubicacion.activo !== 0;
+    if (filtroEstadoUbicaciones === "inactivos") return ubicacion.activo === 0;
+    return true;
+  });
+
+  if (todas.length === 0) {
     container.innerHTML = `
       <div class="text-center py-4 text-muted">
         <i class="fas fa-map-marker-alt fa-3x mb-3"></i>
@@ -824,10 +855,19 @@ function renderUbicaciones(ubicaciones) {
   let html = `
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h6 class="mb-0">Listado de Ubicaciones</h6>
-      ${tienePermiso("Configuracion", "Crear") ? `<button class="btn btn-primary btn-sm" onclick="showCreateUbicacionModal()">
-        <i class="fas fa-plus me-1"></i>Nueva Ubicación
-      </button>` : ""}
+      <div class="d-flex align-items-center gap-2">
+        <label class="small text-muted mb-0" for="filtroEstadoUbicaciones">Mostrar</label>
+        <select class="form-select form-select-sm" id="filtroEstadoUbicaciones" style="width:auto" onchange="filtrarUbicacionesEstado(this.value)">
+          <option value="todos" ${filtroEstadoUbicaciones === "todos" ? "selected" : ""}>Todas</option>
+          <option value="activos" ${filtroEstadoUbicaciones === "activos" ? "selected" : ""}>Activas</option>
+          <option value="inactivos" ${filtroEstadoUbicaciones === "inactivos" ? "selected" : ""}>Inactivas</option>
+        </select>
+        ${tienePermiso("Configuracion", "Crear") ? `<button class="btn btn-primary btn-sm text-nowrap" onclick="showCreateUbicacionModal()">
+          <i class="fas fa-plus me-1"></i>Nueva Ubicación
+        </button>` : ""}
+      </div>
     </div>
+    ${filtradas.length === 0 ? `<div class="alert alert-info">No hay ubicaciones ${filtroEstadoUbicaciones}.</div>` : ""}
     <div class="table-responsive">
       <table class="table table-hover table-striped">
         <thead class="table-light">
@@ -843,7 +883,7 @@ function renderUbicaciones(ubicaciones) {
         <tbody>
   `;
 
-  ubicaciones.forEach((u) => {
+  filtradas.forEach((u) => {
     const activo = u.activo !== 0;
     html += `
       <tr>
@@ -873,7 +913,7 @@ function renderUbicaciones(ubicaciones) {
       </table>
     </div>
     <div class="text-end">
-      <small class="text-muted">Total: ${ubicaciones.length} ubicaciones</small>
+      <small class="text-muted">Mostrando ${filtradas.length} de ${todas.length} ubicaciones</small>
     </div>
   `;
 
@@ -904,7 +944,7 @@ function showCreateUbicacionModal() {
 
 async function showEditUbicacionModal(id) {
   try {
-    const ubicacion = window.ubicacionesData.find((u) => u.id === id);
+    const ubicacion = ubicacionesListaData.find((u) => u.id === id);
     if (!ubicacion) {
       showToast("Ubicación no encontrada", "error");
       return;
@@ -979,7 +1019,7 @@ async function saveUbicacion(event) {
 }
 
 async function toggleUbicacionEstado(id) {
-  const ubicacion = window.ubicacionesData.find((u) => u.id === id);
+  const ubicacion = ubicacionesListaData.find((u) => u.id === id);
   if (!ubicacion) return;
 
   const accion = ubicacion.activo !== 0 ? "inactivar" : "activar";
@@ -1092,6 +1132,7 @@ window.showCreateMetaModal = showCreateMetaModal;
 window.saveMeta = saveMeta;
 window.deleteMeta = deleteMeta;
 window.cargarUbicaciones = cargarUbicaciones;
+window.filtrarUbicacionesEstado = filtrarUbicacionesEstado;
 window.showCreateUbicacionModal = showCreateUbicacionModal;
 window.showEditUbicacionModal = showEditUbicacionModal;
 window.saveUbicacion = saveUbicacion;
