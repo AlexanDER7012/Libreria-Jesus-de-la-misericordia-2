@@ -528,6 +528,21 @@ async function cargarReporteVentasDiarias() {
   }
 }
 
+// Fecha local (YYYY-MM-DD). toISOString usa UTC y después de las 6 p. m. daba el día siguiente.
+function _fechaLocalISO(d = new Date()) {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// Devuelve true (y avisa) si el rango de fechas no es válido
+function _rangoFechasInvalido(desde, hasta, resultado) {
+  if (desde && hasta && desde > hasta) {
+    resultado.innerHTML = `<div class="alert alert-warning">La fecha "Desde" no puede ser mayor que la fecha "Hasta".</div>`;
+    return true;
+  }
+  return false;
+}
+
 async function actualizarVentasDiarias() {
   const fecha = document.getElementById("ventasDiariasFecha")?.value;
   const resultado = document.getElementById("ventasDiariasResultado");
@@ -548,6 +563,16 @@ async function actualizarVentasDiarias() {
                 <div class="col-md-3"><div class="card bg-success bg-opacity-10"><div class="card-body text-center"><h6 class="text-muted">Total</h6><h3 class="text-success">Q${(data.total || 0).toFixed(2)}</h3></div></div></div>
             </div>
             <div class="mt-3 text-muted small"><i class="fas fa-info-circle me-1"></i>Reporte del día: ${fecha}</div>
+            <table class="table table-sm table-bordered mt-3">
+                <thead class="table-light"><tr><th>Concepto</th><th>Valor</th></tr></thead>
+                <tbody>
+                    <tr><td>Fecha</td><td>${fecha}</td></tr>
+                    <tr><td>Cantidad de Ventas</td><td>${data.cantidad_ventas || 0}</td></tr>
+                    <tr><td>Subtotal</td><td>Q${(data.subtotal || 0).toFixed(2)}</td></tr>
+                    <tr><td>Descuentos</td><td>Q${(data.descuento || 0).toFixed(2)}</td></tr>
+                    <tr><td>Total</td><td>Q${(data.total || 0).toFixed(2)}</td></tr>
+                </tbody>
+            </table>
         `;
   } catch (error) {
     resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
@@ -635,7 +660,11 @@ async function cargarReporteCuadreCaja() {
 async function actualizarCuadreCaja() {
   const turnoId = document.getElementById("cuadreTurnoSelect")?.value;
   const resultado = document.getElementById("cuadreCajaResultado");
-  if (!turnoId || !resultado) return;
+  if (!resultado) return;
+  if (!turnoId) {
+    resultado.innerHTML = `<div class="alert alert-warning">Selecciona un turno para ver el cuadre</div>`;
+    return;
+  }
   try {
     const data = await api.request(`/reportes/cuadre-caja/${turnoId}`);
     if (!data) {
@@ -657,7 +686,19 @@ async function actualizarCuadreCaja() {
                 <div class="col-md-3"><div class="card bg-${diferenciaColor} bg-opacity-10"><div class="card-body text-center"><h6 class="text-muted">Diferencia</h6><h4 class="text-${diferenciaColor}">Q${(diferencia || 0).toFixed(2)}</h4></div></div></div>
             </div>
             <div class="row mt-3"><div class="col-md-6"><p><strong>Fecha Apertura:</strong> ${data.fecha_apertura ? new Date(data.fecha_apertura).toLocaleString() : "--"}</p></div>
-            <div class="col-md-6"><p><strong>Fecha Cierre:</strong> ${data.fecha_cierre ? new Date(data.fecha_cierre).toLocaleString() : "--"}</p></div></div></div></div>
+            <div class="col-md-6"><p><strong>Fecha Cierre:</strong> ${data.fecha_cierre ? new Date(data.fecha_cierre).toLocaleString() : "--"}</p></div></div>
+            <table class="table table-sm table-bordered mt-2">
+                <thead class="table-light"><tr><th>Concepto</th><th>Valor</th></tr></thead>
+                <tbody>
+                    <tr><td>Turno</td><td>#${data.id_turno} (${data.estado})</td></tr>
+                    <tr><td>Fecha Apertura</td><td>${data.fecha_apertura ? new Date(data.fecha_apertura).toLocaleString() : "--"}</td></tr>
+                    <tr><td>Fecha Cierre</td><td>${data.fecha_cierre ? new Date(data.fecha_cierre).toLocaleString() : "--"}</td></tr>
+                    <tr><td>Fondo Inicial</td><td>Q${(data.fondo_inicial || 0).toFixed(2)}</td></tr>
+                    <tr><td>Total Ventas</td><td>Q${(data.total_ventas || 0).toFixed(2)}</td></tr>
+                    <tr><td>Total Contado</td><td>Q${(data.total_contado || 0).toFixed(2)}</td></tr>
+                    <tr><td>Diferencia</td><td>Q${(diferencia || 0).toFixed(2)}</td></tr>
+                </tbody>
+            </table></div></div>
         `;
   } catch (error) {
     resultado.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
@@ -693,6 +734,7 @@ async function actualizarUtilidad() {
   const hasta = document.getElementById("utilidadFechaFin")?.value;
   const resultado = document.getElementById("utilidadResultado");
   if (!desde || !hasta || !resultado) return;
+  if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     const data = await api.request(
       `/reportes/utilidad?desde=${desde}&hasta=${hasta}`,
@@ -760,6 +802,12 @@ async function actualizarTopProductos() {
   const limite = document.getElementById("topLimite")?.value || 10;
   const resultado = document.getElementById("topProductosResultado");
   if (!desde || !hasta || !resultado) return;
+  if (_rangoFechasInvalido(desde, hasta, resultado)) return;
+  const lim = Number(limite);
+  if (!Number.isInteger(lim) || lim < 1 || lim > 50) {
+    resultado.innerHTML = `<div class="alert alert-warning">El límite debe ser un número entero entre 1 y 50.</div>`;
+    return;
+  }
   try {
     const data = await api.request(
       `/reportes/productos-mas-vendidos?desde=${desde}&hasta=${hasta}&limite=${limite}`,
@@ -768,8 +816,10 @@ async function actualizarTopProductos() {
       resultado.innerHTML = `<div class="alert alert-warning">No hay productos vendidos en el período</div>`;
       return;
     }
-    const maxCantidad = Math.max(
-      ...data.map((item) => item.cantidad_vendida || 0),
+    // % de participación = cantidad del producto / total de unidades del top
+    const totalCantidad = data.reduce(
+      (suma, item) => suma + (Number(item.cantidad_vendida) || 0),
+      0,
     );
     let html = `<div class="card"><div class="card-header"><h6 class="mb-0 fw-bold">Top ${data.length} Productos Más Vendidos</h6></div>
             <div class="card-body"><div class="table-responsive"><table class="table table-hover table-striped">
@@ -777,8 +827,8 @@ async function actualizarTopProductos() {
             <tbody>${data
               .map((item, index) => {
                 const pct =
-                  maxCantidad > 0
-                    ? (item.cantidad_vendida / maxCantidad) * 100
+                  totalCantidad > 0
+                    ? (item.cantidad_vendida / totalCantidad) * 100
                     : 0;
                 const medal =
                   index === 0
@@ -787,8 +837,8 @@ async function actualizarTopProductos() {
                       ? "🥈"
                       : index === 2
                         ? "🥉"
-                        : `#${index + 1}`;
-                return `<tr><td>${medal}</td><td><strong>${item.producto}</strong></td>
+                        : "";
+                return `<tr><td>${medal} ${index + 1}</td><td><strong>${item.producto}</strong></td>
                         <td class="text-end"><span class="fw-bold">${item.cantidad_vendida}</span></td>
                         <td class="text-end">Q${(item.total_vendido || 0).toFixed(2)}</td>
                         <td><div class="progress" style="height:20px;"><div class="progress-bar ${index === 0 ? "bg-success" : "bg-primary"}" role="progressbar" style="width:${pct}%;" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">${pct.toFixed(1)}%</div></div></td></tr>`;
@@ -831,6 +881,7 @@ async function actualizarComprasResumen() {
   const hasta = document.getElementById("comprasResumenHasta")?.value;
   const resultado = document.getElementById("comprasResumenResultado");
   if (!desde || !hasta || !resultado) return;
+  if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     const data = await api.request(
       `/reportes/compras/resumen?desde=${desde}&hasta=${hasta}`,
@@ -888,6 +939,7 @@ async function actualizarComprasProveedor() {
   const hasta = document.getElementById("comprasProvHasta")?.value;
   const resultado = document.getElementById("comprasProvResultado");
   if (!desde || !hasta || !resultado) return;
+  if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     const data = await api.request(
       `/reportes/compras/por-proveedor?desde=${desde}&hasta=${hasta}`,
@@ -1352,7 +1404,7 @@ async function cargarReporteVentasDiarias() {
 
   try {
     const hoy = new Date();
-    const fecha = hoy.toISOString().split("T")[0];
+    const fecha = _fechaLocalISO(hoy);
 
     container.innerHTML = `
             <div class="row mb-3">
@@ -1394,7 +1446,7 @@ async function cargarReporteConciliacion() {
 
   try {
     const hoy = new Date();
-    const fecha = hoy.toISOString().split("T")[0];
+    const fecha = _fechaLocalISO(hoy);
 
     container.innerHTML = `
             <div class="row mb-3">
@@ -1490,11 +1542,11 @@ async function cargarReporteUtilidad() {
             <div class="row mb-3">
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Desde</label>
-                    <input type="date" class="form-control form-control-sm" id="utilidadFechaInicio" value="${hace30Dias.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="utilidadFechaInicio" value="${_fechaLocalISO(hace30Dias)}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Hasta</label>
-                    <input type="date" class="form-control form-control-sm" id="utilidadFechaFin" value="${hoy.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="utilidadFechaFin" value="${_fechaLocalISO(hoy)}">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button class="btn btn-primary btn-sm" onclick="actualizarUtilidad()">
@@ -1537,11 +1589,11 @@ async function cargarReporteTopProductos() {
             <div class="row mb-3">
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Desde</label>
-                    <input type="date" class="form-control form-control-sm" id="topFechaInicio" value="${hace30Dias.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="topFechaInicio" value="${_fechaLocalISO(hace30Dias)}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Hasta</label>
-                    <input type="date" class="form-control form-control-sm" id="topFechaFin" value="${hoy.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="topFechaFin" value="${_fechaLocalISO(hoy)}">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label small">Límite</label>
@@ -1588,11 +1640,11 @@ async function cargarReporteComprasResumen() {
             <div class="row mb-3">
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Desde</label>
-                    <input type="date" class="form-control form-control-sm" id="comprasResumenDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="comprasResumenDesde" value="${_fechaLocalISO(hace30Dias)}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Hasta</label>
-                    <input type="date" class="form-control form-control-sm" id="comprasResumenHasta" value="${hoy.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="comprasResumenHasta" value="${_fechaLocalISO(hoy)}">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button class="btn btn-primary btn-sm" onclick="actualizarComprasResumen()">
@@ -1635,11 +1687,11 @@ async function cargarReporteComprasProveedor() {
             <div class="row mb-3">
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Desde</label>
-                    <input type="date" class="form-control form-control-sm" id="comprasProvDesde" value="${hace30Dias.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="comprasProvDesde" value="${_fechaLocalISO(hace30Dias)}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small">Fecha Hasta</label>
-                    <input type="date" class="form-control form-control-sm" id="comprasProvHasta" value="${hoy.toISOString().split("T")[0]}">
+                    <input type="date" class="form-control form-control-sm" id="comprasProvHasta" value="${_fechaLocalISO(hoy)}">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button class="btn btn-primary btn-sm" onclick="actualizarComprasProveedor()">
@@ -2000,7 +2052,7 @@ async function exportarPDF(containerId, titulo = "Reporte") {
   // Buscar la tabla dentro del contenedor
   const tabla = container.querySelector("table");
   if (!tabla) {
-    showToast("No se encontró una tabla para exportar", "warning");
+    showToast("No hay datos para exportar en este reporte", "warning");
     return;
   }
 
@@ -2009,7 +2061,10 @@ async function exportarPDF(containerId, titulo = "Reporte") {
     await cargarScriptUnaVez(URL_JSPDF_AUTOTABLE);
     const { jsPDF } = window.jspdf;
 
-    const texto = (el) => (el?.innerText || el?.textContent || "").replace(/\s+/g, " ").trim();
+    // jsPDF no puede dibujar emojis (salían como "Ø>ÝG"), así que se quitan
+    const texto = (el) => (el?.innerText || el?.textContent || "")
+      .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "")
+      .replace(/\s+/g, " ").trim();
 
     // Encabezados (se omite la columna de botones "Acciones")
     const filaEncabezado = tabla.querySelector("thead tr") || tabla.querySelector("tr");
@@ -2094,7 +2149,7 @@ function exportarExcel(containerId, titulo = "Reporte") {
   // Buscar la tabla dentro del contenedor
   const tabla = container.querySelector("table");
   if (!tabla) {
-    showToast("No se encontró una tabla para exportar", "warning");
+    showToast("No hay datos para exportar en este reporte", "warning");
     return;
   }
 

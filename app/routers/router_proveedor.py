@@ -95,8 +95,18 @@ def obtener_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuario_
     return proveedor
 
 
+def _validar_proveedor(datos, creando: bool) -> None:
+    if creando or datos.nombre is not None:
+        datos.nombre = " ".join((datos.nombre or "").split())
+        if not datos.nombre:
+            raise HTTPException(status_code=400, detail="El nombre del proveedor es obligatorio")
+    if datos.dias_credito is not None and datos.dias_credito < 0:
+        raise HTTPException(status_code=400, detail="Los días de crédito no pueden ser negativos")
+
+
 @router.post("", response_model=ProveedorResponse, status_code=201)
 def crear_proveedor(datos: ProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
+    _validar_proveedor(datos, creando=True)
     repetido = _nit_repetido(db, Proveedor, datos.nit)
     if repetido:
         raise HTTPException(status_code=400, detail=f"Ya existe un proveedor con ese NIT ({repetido.nombre})")
@@ -116,6 +126,7 @@ def actualizar_proveedor(proveedor_id: int, datos: ProveedorUpdate, db: Session 
     proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+    _validar_proveedor(datos, creando=False)
     if datos.nit is not None:
         repetido = _nit_repetido(db, Proveedor, datos.nit, excluir_id=proveedor_id)
         if repetido:
@@ -274,6 +285,10 @@ def agregar_producto_a_pedido(pedido_id: int, datos: DetallePedidoCreate, db: Se
         raise HTTPException(status_code=400, detail=f"No se pueden agregar productos a un pedido en estado '{pedido.estado}'")
     if not db.query(Producto).filter(Producto.id == datos.id_producto).first():
         raise HTTPException(status_code=404, detail="Producto no encontrado")
+    if float(datos.cantidad_pedida or 0) <= 0:
+        raise HTTPException(status_code=400, detail="La cantidad pedida debe ser mayor a 0")
+    if datos.precio_compra is not None and float(datos.precio_compra) < 0:
+        raise HTTPException(status_code=400, detail="El costo no puede ser negativo")
 
     # Si no mandan precio_compra, usar el del producto
     precio = datos.precio_compra
@@ -326,7 +341,14 @@ def cambiar_estado_pedido(
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     if nuevo_estado not in ESTADOS_PEDIDO:
-        raise HTTPException(status_code=400, detail=f"Estado inválido. Debe ser uno de: {ESTADOS_PEDIDO}")
+        raise HTTPException(status_code=400, detail=f"Estado inválido. Debe ser uno de: {', '.join(ESTADOS_PEDIDO)}")
+    # Un pedido ya comprado o cancelado no puede regresar a otro estado
+    # (antes se podía devolver a Pendiente y volver a cargarlo en otra compra)
+    if pedido.estado in ("Comprado", "Cancelado") and nuevo_estado != pedido.estado:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El pedido #{pedido.id} ya está {pedido.estado.lower()} y no puede cambiar de estado",
+        )
 
     if nuevo_estado == "Aprobado" and not forzar:
         total = _calcular_total_pedido(db, pedido)
@@ -334,8 +356,8 @@ def cambiar_estado_pedido(
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    f"El pedido suma Q{total} y el mínimo para aprobar es Q{MONTO_MINIMO_PEDIDO}. "
-                    f"Agrega más productos, o usa forzar=true si de verdad quieres aprobarlo así."
+                    f"El pedido suma Q{total:.2f} y el mínimo para aprobar es Q{MONTO_MINIMO_PEDIDO:.2f}. "
+                    f"Agrega más productos o apruébalo de todas formas."
                 ),
             )
 

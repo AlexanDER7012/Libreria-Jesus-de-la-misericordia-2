@@ -34,6 +34,16 @@ class ApiClient {
     try {
       const response = await fetch(url, config);
 
+      // 401 en una petición SIN sesión (ej. autorizar con usuario y
+      // contraseña de administrador) es solo "datos incorrectos": antes se
+      // tomaba como sesión vencida y sacaba al usuario del sistema.
+      if (response.status === 401 && !requiresAuth) {
+        const datos = await response.json().catch(() => ({}));
+        throw new Error(
+          (typeof datos.detail === "string" && datos.detail) || "Usuario o contraseña incorrectos",
+        );
+      }
+
       if (response.status === 401) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");

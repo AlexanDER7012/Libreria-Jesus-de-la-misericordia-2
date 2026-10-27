@@ -2989,14 +2989,25 @@ async function cambiarEstadoPedido(id) {
     return showToast(`Estado inválido. Use: ${estados.join(", ")}`, "error");
   }
 
-  const forzar = await confirmarAccion(
-    "¿Forzar aprobación aunque no alcance el mínimo de Q500?",
-    { titulo: "Mínimo de pedido", textoAceptar: "Sí, forzar", textoCancelar: "No", peligro: false },
-  );
-
+  // Solo se pregunta por el mínimo de Q500 si de verdad no lo alcanza
+  // (antes se preguntaba siempre, aunque se eligiera "Cancelado")
+  const cambiar = (forzar) =>
+    api.request(
+      `/pedidos/${id}/estado?nuevo_estado=${encodeURIComponent(estadoActual)}&forzar=${forzar}`,
+      "PATCH",
+    );
   try {
-    const url = `/pedidos/${id}/estado?nuevo_estado=${encodeURIComponent(estadoActual)}&forzar=${forzar}`;
-    await api.request(url, "PATCH");
+    try {
+      await cambiar(false);
+    } catch (error) {
+      if (!/mínimo para aprobar/i.test(error.message || "")) throw error;
+      const forzar = await confirmarAccion(
+        `${error.message}\n\n¿Aprobarlo de todas formas?`,
+        { titulo: "Mínimo de pedido", textoAceptar: "Sí, aprobar", textoCancelar: "No", peligro: false },
+      );
+      if (!forzar) return;
+      await cambiar(true);
+    }
     showToast(`Pedido #${id} actualizado a "${estadoActual}"`, "success");
     await loadComprasModule();
   } catch (error) {
@@ -3855,19 +3866,13 @@ async function cargarPedidoEnCompra() {
       info.textContent = `Pedido #${pedido.id} cargado (${compraDetallesTemp.length} productos). Revisa costos.`;
     }
 
-    // Cambiar estado del pedido a "Comprado"
-    try {
-      await api.request(
-        `/pedidos/${idPedido}/estado?nuevo_estado=Comprado&forzar=true`,
-        "PATCH",
-      );
-      showToast(`Pedido #${idPedido} marcado como Comprado`, "success");
-    } catch (err) {
-      showToast(
-        `Pedido cargado, pero no se pudo cambiar su estado: ${err.message}`,
-        "warning",
-      );
-    }
+    // El pedido pasa a "Comprado" cuando se GUARDA la compra (lo hace el
+    // servidor). Antes se marcaba al cargarlo: si se cerraba la ventana sin
+    // guardar, el pedido quedaba "Comprado" sin ninguna compra.
+    showToast(
+      `Pedido #${idPedido} cargado. Quedará como Comprado al guardar la compra.`,
+      "success",
+    );
   } catch (error) {
     showToast(error.message || "Error al cargar pedido", "error");
   }
@@ -3938,12 +3943,19 @@ function agregarDetalleCompra(event) {
   const costoInput = row.querySelector(".compra-detalle-costo");
 
   const id_producto = parseInt(productSelect.value);
-  const cantidad = parseInt(cantidadInput.value) || 1;
-  if (cantidad <= 0) {
-    showToast("La cantidad debe ser mayor a 0", "error");
+  // Antes una cantidad de 0 (o vacía) se convertía en 1 sin avisar, y se
+  // aceptaban costos negativos (el total de la compra quedaba en negativo)
+  const cantidadTexto = String(cantidadInput.value || "").trim();
+  const cantidad = Number(cantidadTexto);
+  if (!cantidadTexto || !Number.isInteger(cantidad) || cantidad <= 0) {
+    showToast("La cantidad debe ser un número entero mayor a 0", "error");
     return;
   }
   const costo_unitario = parseFloat(costoInput.value) || 0;
+  if (costo_unitario < 0) {
+    showToast("El costo no puede ser negativo", "error");
+    return;
+  }
 
   if (!id_producto) return showToast("Selecciona un producto", "error");
 
@@ -4950,7 +4962,7 @@ async function toggleTipoGastoEstado(id) {
   const tipo = (window.tiposGastoData || []).find((t) => t.id === id);
   if (!tipo) return;
 
-  const nuevo = tipo.activo === 1 ? 0 : 1;
+  const nuevo = tipo.activo === 0 ? 1 : 0;
   const accion = nuevo === 1 ? "activar" : "inactivar";
   const ok = await confirmarAccion(
     `¿Está seguro de ${accion} el tipo de gasto "${tipo.nombre}"?`,

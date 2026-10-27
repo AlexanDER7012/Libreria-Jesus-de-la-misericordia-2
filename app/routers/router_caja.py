@@ -366,7 +366,29 @@ def eliminar_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get
     if not mov:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
     detalle_mov = f"Eliminó el movimiento de caja chica ({mov.tipo}, Q{mov.monto})"
+    id_ubicacion = mov.id_ubicacion
     db.delete(mov)
+    db.flush()
+    # Cada movimiento guarda el saldo que quedó después de él: al quitar uno
+    # hay que recalcular los siguientes (antes quedaban con el saldo viejo y
+    # los movimientos nuevos partían de un saldo equivocado)
+    saldo = 0.0
+    movimientos = (
+        db.query(CajaChicaMovimiento)
+        .filter(CajaChicaMovimiento.id_ubicacion == id_ubicacion)
+        .order_by(CajaChicaMovimiento.fecha.asc(), CajaChicaMovimiento.id.asc())
+        .all()
+    )
+    for m in movimientos:
+        signo = -1 if (m.tipo or "").lower() == "egreso" else 1
+        saldo = round(saldo + signo * abs(float(m.monto or 0)), 2)
+        m.saldo = saldo
+    if saldo < 0:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar: sin este movimiento la caja chica quedaría en negativo",
+        )
     registrar_actividad(db, usuario_actual.id, "ELIMINAR", "CajaChica", detalle=detalle_mov)
     db.commit()
 

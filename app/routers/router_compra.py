@@ -10,7 +10,8 @@ from app.security import get_current_user, requiere_permiso
 from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
 from app.models.model_usuario import Usuario
-from app.models.model_proveedor import Pedido
+from app.models.model_proveedor import Pedido, Proveedor
+from app.models.model_ubicacion import Ubicacion
 from app.models.model_compra import Compra, DetalleCompra, CompraPago, NotaEntrega, DevolucionCompra
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario
 from app.stock import mover_stock, resolver_ubicacion, tipo_movimiento
@@ -129,9 +130,41 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
     if not datos.detalles:
         raise HTTPException(status_code=400, detail="La compra debe incluir al menos un producto")
 
+    proveedor = db.query(Proveedor).filter(Proveedor.id == datos.id_proveedor).first()
+    if not proveedor:
+        raise HTTPException(status_code=404, detail="El proveedor seleccionado no existe")
+    if proveedor.activo == 0:
+        raise HTTPException(status_code=400, detail=f"El proveedor '{proveedor.nombre}' está inactivo. Reactívalo para registrarle compras.")
+    if datos.id_ubicacion_destino and not db.query(Ubicacion).filter(Ubicacion.id == datos.id_ubicacion_destino).first():
+        raise HTTPException(status_code=404, detail="La ubicación de destino no existe")
+
     for d in datos.detalles:
-        if not db.query(Producto).filter(Producto.id == d.id_producto).first():
+        producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
+        if not producto:
             raise HTTPException(status_code=404, detail="Uno de los productos ya no existe en el sistema. Quítalo de la lista e intenta de nuevo.")
+        if d.cantidad_comprada <= 0 or (d.cantidad_unidades is not None and d.cantidad_unidades <= 0):
+            raise HTTPException(status_code=400, detail=f"La cantidad de '{producto.nombre}' debe ser mayor a 0")
+        if d.costo_unitario is None or float(d.costo_unitario) < 0:
+            raise HTTPException(status_code=400, detail=f"El costo de '{producto.nombre}' no puede ser negativo")
+
+    # Mismo número de factura del mismo proveedor = compra registrada dos veces
+    factura = " ".join((datos.numero_factura or "").split())
+    datos.numero_factura = factura or None
+    if factura:
+        repetida = (
+            db.query(Compra)
+            .filter(
+                Compra.id_proveedor == datos.id_proveedor,
+                func.lower(func.trim(Compra.numero_factura)) == factura.lower(),
+                Compra.estado != "Cancelada",
+            )
+            .first()
+        )
+        if repetida:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La factura '{factura}' de '{proveedor.nombre}' ya está registrada en la compra #{repetida.id}",
+            )
 
     pedido = None
     if datos.id_pedido:

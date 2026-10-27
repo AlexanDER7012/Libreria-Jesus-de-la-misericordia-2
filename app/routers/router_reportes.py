@@ -244,7 +244,16 @@ def reporte_compras_resumen(
     if hasta < desde:
         raise HTTPException(status_code=400, detail="'hasta' no puede ser antes que 'desde'")
 
-    compras = db.query(Compra).filter(func.date(Compra.fecha) >= desde, func.date(Compra.fecha) <= hasta).all()
+    # Las compras canceladas no cuentan (antes se sumaban al total comprado)
+    compras = (
+        db.query(Compra)
+        .filter(
+            func.date(Compra.fecha) >= desde,
+            func.date(Compra.fecha) <= hasta,
+            Compra.estado != "Cancelada",
+        )
+        .all()
+    )
     return CompraResumenResponse(
         desde=desde,
         hasta=hasta,
@@ -268,7 +277,11 @@ def reporte_compras_por_proveedor(
     resultados = (
         db.query(Proveedor.id, Proveedor.nombre, func.count(Compra.id), func.sum(Compra.total))
         .join(Compra, Compra.id_proveedor == Proveedor.id)
-        .filter(func.date(Compra.fecha) >= desde, func.date(Compra.fecha) <= hasta)
+        .filter(
+            func.date(Compra.fecha) >= desde,
+            func.date(Compra.fecha) <= hasta,
+            Compra.estado != "Cancelada",
+        )
         .group_by(Proveedor.id, Proveedor.nombre)
         .order_by(func.sum(Compra.total).desc())
         .all()
@@ -288,7 +301,7 @@ def reporte_cuentas_por_pagar(db: Session = Depends(get_db), usuario_actual: Usu
     """Compras que todavia tienen saldo pendiente de pago a proveedores (a la fecha de hoy)."""
     compras = (
         db.query(Compra)
-        .filter(Compra.saldo_pendiente > 0)
+        .filter(Compra.saldo_pendiente > 0, Compra.estado != "Cancelada")
         .order_by(Compra.fecha_vencimiento_pago.asc())
         .all()
     )
