@@ -6,7 +6,7 @@ from collections import defaultdict, deque
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
-from openai import OpenAI, RateLimitError
+from openai import AuthenticationError, OpenAI, RateLimitError
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -107,13 +107,84 @@ def _obtener_contexto_negocio(db: Session) -> str:
 
         total_clientes = db.query(models.Cliente).count()
 
+        # Más datos para que pueda contestar preguntas comunes (antes solo
+        # sabía ventas de hoy/30 días y stock bajo, y a casi todo respondía
+        # que no tenía el dato).
+        inicio_mes = inicio_hoy.replace(day=1)
+        total_mes = (
+            db.query(func.coalesce(func.sum(models.Venta.total), 0))
+            .filter(models.Venta.fecha >= inicio_mes, no_cancelada)
+            .scalar()
+        )
+        top_30d = (
+            db.query(models.Producto.nombre, func.sum(models.DetalleVenta.cantidad))
+            .join(models.DetalleVenta, models.DetalleVenta.id_producto == models.Producto.id)
+            .join(models.Venta, models.Venta.id == models.DetalleVenta.id_venta)
+            .filter(models.Venta.fecha >= inicio_30d, no_cancelada)
+            .group_by(models.Producto.id, models.Producto.nombre)
+            .order_by(func.sum(models.DetalleVenta.cantidad).desc())
+            .limit(5)
+            .all()
+        )
+        pagado = dict(
+            db.query(models.MetodoPagoVenta.id_venta, func.sum(models.MetodoPagoVenta.monto))
+            .group_by(models.MetodoPagoVenta.id_venta)
+            .all()
+        )
+        por_cobrar = 0.0
+        ventas_por_cobrar = 0
+        for id_venta, total in db.query(models.Venta.id, models.Venta.total).filter(no_cancelada).all():
+            saldo = float(total or 0) - float(pagado.get(id_venta) or 0)
+            if saldo > 0.009:
+                por_cobrar += saldo
+                ventas_por_cobrar += 1
+        cant_por_pagar, total_por_pagar = (
+            db.query(
+                func.count(models.Compra.id),
+                func.coalesce(func.sum(models.Compra.saldo_pendiente), 0),
+            )
+            .filter(models.Compra.saldo_pendiente > 0, models.Compra.estado != "Cancelada")
+            .one()
+        )
+        compras_mes = (
+            db.query(func.coalesce(func.sum(models.Compra.total), 0))
+            .filter(models.Compra.fecha >= inicio_mes, models.Compra.estado != "Cancelada")
+            .scalar()
+        )
+        gastos_mes = (
+            db.query(func.coalesce(func.sum(models.Gasto.monto), 0))
+            .filter(models.Gasto.fecha >= inicio_mes)
+            .scalar()
+        )
+        productos_activos = db.query(models.Producto).filter(models.Producto.activo == 1).count()
+        turnos_abiertos = db.query(models.CajaTurno).filter(models.CajaTurno.estado == "Abierto").count()
+        meta = (
+            db.query(models.MetaFinanciera)
+            .filter(models.MetaFinanciera.mes == inicio_hoy.month, models.MetaFinanciera.anio == inicio_hoy.year)
+            .first()
+        )
+
         contexto = (
             "Datos del negocio (Libreria y Papeleria Jesus de la Misericordia):\n"
             f"- Ventas de hoy: {cant_hoy} transacciones, total Q{float(total_hoy):.2f}\n"
             f"- Ventas ultimos 30 dias: Q{float(total_30d):.2f}\n"
+            f"- Ventas de este mes: Q{float(total_mes):.2f}\n"
+            f"- Por cobrar (ventas con saldo pendiente): {ventas_por_cobrar} ventas, Q{por_cobrar:.2f}\n"
+            f"- Por pagar a proveedores: {cant_por_pagar} compras, Q{float(total_por_pagar):.2f}\n"
+            f"- Compras de este mes: Q{float(compras_mes):.2f}\n"
+            f"- Gastos de este mes: Q{float(gastos_mes):.2f}\n"
             f"- Clientes registrados: {total_clientes}\n"
+            f"- Productos activos: {productos_activos}\n"
+            f"- Turnos de caja abiertos: {turnos_abiertos}\n"
             f"- Productos bajo stock minimo: {total_bajo}\n"
         )
+        if meta and meta.meta_ingresos:
+            avance = float(total_mes) / float(meta.meta_ingresos) * 100 if float(meta.meta_ingresos) else 0
+            contexto += f"- Meta de ingresos del mes: Q{float(meta.meta_ingresos):.2f} (avance {avance:.0f}%)\n"
+        if top_30d:
+            contexto += "  Productos mas vendidos (ultimos 30 dias):\n"
+            for nombre, cantidad in top_30d:
+                contexto += f"    - {nombre}: {float(cantidad or 0):g} unidades\n"
         if productos_bajo:
             contexto += "  Productos criticos (los 10 con menos stock):\n"
             for p in productos_bajo:
@@ -137,6 +208,16 @@ def chat_con_ia(
     db: Session = Depends(get_db),
     usuario_actual=Depends(get_current_user),
 ):
+    # El asistente muestra cifras del negocio: solo para roles con acceso a Reportes
+    if not usuario_actual.id_rol or not (
+        db.query(models.RolPermiso)
+        .join(models.Permiso, models.Permiso.id == models.RolPermiso.id_permiso)
+        .join(models.Modulo, models.Modulo.id == models.Permiso.id_modulo)
+        .filter(models.RolPermiso.id_rol == usuario_actual.id_rol, func.lower(models.Modulo.nombre) == "reportes")
+        .first()
+    ):
+        raise HTTPException(status_code=403, detail="Tu rol no tiene acceso al asistente (necesita permisos de Reportes)")
+
     if not settings.OPENROUTER_API_KEY:
         raise HTTPException(
             status_code=503, detail="El asistente de IA no está configurado"
@@ -190,6 +271,15 @@ def chat_con_ia(
 
         return ChatResponse(respuesta=respuesta, modelo=modelo_usado)
 
+    except AuthenticationError:
+        # 401 de OpenRouter ("User not found" / "No auth credentials"): la
+        # clave OPENROUTER_API_KEY del .env no es válida, fue borrada o la
+        # cuenta ya no existe. Antes salía "No se pudo obtener respuesta".
+        logger.error("OpenRouter rechazó la clave OPENROUTER_API_KEY (401)")
+        raise HTTPException(
+            status_code=503,
+            detail="La clave del asistente de IA no es válida. El administrador debe poner una clave nueva de OpenRouter en el archivo .env.",
+        )
     except RateLimitError:
         logger.warning("OpenRouter devolvió límite de uso (429)")
         raise HTTPException(

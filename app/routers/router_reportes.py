@@ -652,3 +652,149 @@ def reporte_usuarios_inteligente(
         query = query.filter(func.date(Usuario.fecha_creacion) <= fecha_hasta)
     query = _aplicar_orden_usuario(query, orden_por, orden_direccion)
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
+
+# ============================================================================
+# DASHBOARD (pantalla de inicio de Reportes)
+# ============================================================================
+# Antes el dashboard calculaba todo en el navegador con las últimas 50 ventas
+# y 200 compras que traía la API: los "Ingresos totales" no eran totales,
+# contaba ventas anuladas y compras canceladas, y como el estado de una venta
+# es "Completada" (nunca "Pagada"), todas salían como "pendientes". Ahora el
+# servidor calcula las cifras con todas las ventas y compras válidas.
+
+@router.get("/dashboard")
+def reporte_dashboard(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+    from datetime import timedelta
+    from app.models.model_cliente import Cliente
+    from app.models.model_producto import Categoria
+
+    hoy = date.today()
+    ventas_validas = db.query(Venta).filter(Venta.estado == "Completada")
+
+    def _suma(q):
+        return round(float(q.scalar() or 0), 2)
+
+    ventas_hoy = ventas_validas.filter(func.date(Venta.fecha) == hoy)
+    cantidad_hoy = ventas_hoy.count()
+    total_hoy = _suma(ventas_hoy.with_entities(func.sum(Venta.total)))
+
+    cantidad_ventas = ventas_validas.count()
+    ingresos_total = _suma(ventas_validas.with_entities(func.sum(Venta.total)))
+    compras_total = _suma(
+        db.query(func.sum(Compra.total)).filter(Compra.estado != "Cancelada")
+    )
+
+    pagado_por_venta = dict(
+        db.query(MetodoPagoVenta.id_venta, func.sum(MetodoPagoVenta.monto))
+        .group_by(MetodoPagoVenta.id_venta)
+        .all()
+    )
+    con_saldo = 0
+    for id_venta, total in ventas_validas.with_entities(Venta.id, Venta.total).all():
+        if float(total or 0) - float(pagado_por_venta.get(id_venta) or 0) > 0.009:
+            con_saldo += 1
+
+    # Últimos 7 días
+    inicio_7 = hoy - timedelta(days=6)
+    por_dia = {
+        str(fila[0]): (int(fila[1]), float(fila[2] or 0))
+        for fila in ventas_validas.filter(func.date(Venta.fecha) >= inicio_7)
+        .with_entities(func.date(Venta.fecha), func.count(Venta.id), func.sum(Venta.total))
+        .group_by(func.date(Venta.fecha))
+        .all()
+    }
+    ventas_7dias = []
+    for i in range(7):
+        dia = inicio_7 + timedelta(days=i)
+        cantidad, total = por_dia.get(str(dia), (0, 0.0))
+        ventas_7dias.append({"fecha": str(dia), "cantidad": cantidad, "total": round(total, 2)})
+
+    # Últimos 6 meses
+    meses = []
+    anio, mes = hoy.year, hoy.month
+    for _ in range(6):
+        meses.append((anio, mes))
+        mes -= 1
+        if mes == 0:
+            anio, mes = anio - 1, 12
+    meses.reverse()
+    primer_mes = date(meses[0][0], meses[0][1], 1)
+    totales_mes = {}
+    for fecha, total in ventas_validas.filter(func.date(Venta.fecha) >= primer_mes).with_entities(Venta.fecha, Venta.total).all():
+        if fecha:
+            clave = (fecha.year, fecha.month)
+            totales_mes[clave] = totales_mes.get(clave, 0) + float(total or 0)
+    ingresos_6meses = [
+        {"anio": a, "mes": m, "total": round(totales_mes.get((a, m), 0), 2)} for a, m in meses
+    ]
+
+    # Top 5 productos (todas las ventas válidas)
+    top = (
+        db.query(Producto.nombre, func.sum(DetalleVenta.cantidad))
+        .join(DetalleVenta, DetalleVenta.id_producto == Producto.id)
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .filter(Venta.estado == "Completada")
+        .group_by(Producto.id, Producto.nombre)
+        .order_by(func.sum(DetalleVenta.cantidad).desc())
+        .limit(5)
+        .all()
+    )
+    top_productos = [{"producto": n or "--", "cantidad": float(c or 0)} for n, c in top]
+
+    # Productos activos por categoría
+    categorias = dict(db.query(Categoria.id, Categoria.nombre).all())
+    por_categoria = {}
+    for id_cat, cantidad in (
+        db.query(Producto.id_categoria, func.count(Producto.id))
+        .filter(Producto.activo == 1)
+        .group_by(Producto.id_categoria)
+        .all()
+    ):
+        nombre = categorias.get(id_cat) or "Sin categoría"
+        por_categoria[nombre] = por_categoria.get(nombre, 0) + int(cantidad)
+    productos_activos = sum(por_categoria.values())
+
+    # Productos bajo stock (activos, con mínimo, y que ya llegaron al mínimo)
+    bajo = (
+        db.query(Producto)
+        .filter(Producto.activo == 1, Producto.stock_minimo.isnot(None), Producto.stock_actual <= Producto.stock_minimo)
+        .order_by((Producto.stock_actual - Producto.stock_minimo).asc())
+        .all()
+    )
+    bajo_stock = [
+        {"producto": p.nombre, "stock_actual": float(p.stock_actual or 0), "stock_minimo": float(p.stock_minimo or 0)}
+        for p in bajo[:5]
+    ]
+
+    # Últimas 5 ventas (incluye anuladas, marcadas como tal)
+    clientes = {}
+    recientes = []
+    for v in db.query(Venta).order_by(Venta.fecha.desc(), Venta.id.desc()).limit(5).all():
+        if v.id_cliente and v.id_cliente not in clientes:
+            c = db.query(Cliente).filter(Cliente.id == v.id_cliente).first()
+            clientes[v.id_cliente] = c.nombre if c else None
+        saldo = round(float(v.total or 0) - float(pagado_por_venta.get(v.id) or 0), 2)
+        recientes.append({
+            "id": v.id,
+            "cliente": clientes.get(v.id_cliente) if v.id_cliente else None,
+            "fecha": v.fecha,
+            "total": float(v.total or 0),
+            "estado": "Anulada" if v.estado == "Cancelada" else ("Pagada" if saldo <= 0.009 else "Pendiente"),
+        })
+
+    return {
+        "ventas_hoy": {"cantidad": cantidad_hoy, "total": total_hoy},
+        "cantidad_ventas": cantidad_ventas,
+        "ingresos_total": ingresos_total,
+        "compras_total": compras_total,
+        "saldo_neto": round(ingresos_total - compras_total, 2),
+        "ventas_con_saldo": con_saldo,
+        "productos_activos": productos_activos,
+        "cantidad_bajo_stock": len(bajo),
+        "bajo_stock": bajo_stock,
+        "ventas_7dias": ventas_7dias,
+        "ingresos_6meses": ingresos_6meses,
+        "top_productos": top_productos,
+        "productos_por_categoria": [{"categoria": k, "cantidad": v} for k, v in por_categoria.items()],
+        "ventas_recientes": recientes,
+    }

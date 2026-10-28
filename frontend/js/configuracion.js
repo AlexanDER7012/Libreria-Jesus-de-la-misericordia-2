@@ -539,9 +539,9 @@ function renderMetas(metas) {
             <tr>
                 <td>${meses[m.mes - 1] || m.mes}</td>
                 <td>${m.anio}</td>
-                <td>Q${m.meta_ingresos || 0}</td>
-                <td>Q${m.meta_utilidad || 0}</td>
-                <td>Q${m.meta_gastos || 0}</td>
+                <td>Q${Number(m.meta_ingresos || 0).toFixed(2)}</td>
+                <td>Q${Number(m.meta_utilidad || 0).toFixed(2)}</td>
+                <td>Q${Number(m.meta_gastos || 0).toFixed(2)}</td>
                 <td>${m.fecha_registro ? new Date(m.fecha_registro).toLocaleDateString() : "--"}</td>
                 <td>
                     ${tienePermiso("Configuracion", "Eliminar") ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteMeta(${m.id})">

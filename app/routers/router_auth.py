@@ -135,9 +135,37 @@ def recuperar_admin(datos: AdminRecoveryRequest, db: Session = Depends(get_db)):
     }
 
 
+def _buscar_usuario(db: Session, nombre_usuario: str):
+    """Busca el usuario sin importar mayúsculas ni espacios al inicio/final."""
+    nombre = (nombre_usuario or "").strip()
+    return db.query(Usuario).filter(func.lower(Usuario.nombre_usuario) == nombre.lower()).first()
+
+
+def _registrar_intento_fallido(db: Session, usuario: Usuario, donde: str) -> HTTPException:
+    """Suma un intento fallido y devuelve el error a mostrar (con los intentos que quedan)."""
+    usuario.intentos_fallidos = (usuario.intentos_fallidos or 0) + 1
+    db.add(LogActividad(
+        id_usuario=usuario.id, accion="LOGIN_FALLIDO", modulo="auth",
+        detalles=f"Contraseña incorrecta para '{usuario.nombre_usuario}' en {donde} (intento #{usuario.intentos_fallidos})",
+    ))
+    db.commit()
+    restantes = MAX_INTENTOS_FALLIDOS - usuario.intentos_fallidos
+    if restantes <= 0:
+        return HTTPException(
+            status_code=403,
+            detail="Usuario bloqueado por demasiados intentos fallidos. Contacta al administrador para desbloquearlo.",
+        )
+    if restantes <= 3:
+        return HTTPException(
+            status_code=401,
+            detail=f"Usuario o contraseña incorrectos. Te queda{'n' if restantes > 1 else ''} {restantes} intento{'s' if restantes > 1 else ''} antes de que se bloquee el usuario.",
+        )
+    return HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+
+
 @router.post("", response_model=TokenResponse)
 def login(datos: LoginRequest, db: Session = Depends(get_db)):
-    usuario = db.query(Usuario).filter(Usuario.nombre_usuario == datos.nombre_usuario).first()
+    usuario = _buscar_usuario(db, datos.nombre_usuario)
 
 
     credenciales_invalidas = HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
@@ -151,17 +179,11 @@ def login(datos: LoginRequest, db: Session = Depends(get_db)):
     if (usuario.intentos_fallidos or 0) >= MAX_INTENTOS_FALLIDOS:
         raise HTTPException(
             status_code=403,
-            detail="Usuario bloqueado por demasiados intentos fallidos. Contacta al administrador para reactivarlo.",
+            detail="Usuario bloqueado por demasiados intentos fallidos. Contacta al administrador para desbloquearlo.",
         )
 
     if not verify_password(datos.password, usuario.password):
-        usuario.intentos_fallidos = (usuario.intentos_fallidos or 0) + 1
-        db.add(LogActividad(
-            id_usuario=usuario.id, accion="LOGIN_FALLIDO", modulo="auth",
-            detalles=f"Intento de inicio de sesión fallido para '{usuario.nombre_usuario}' (intento #{usuario.intentos_fallidos})",
-        ))
-        db.commit()
-        raise credenciales_invalidas
+        raise _registrar_intento_fallido(db, usuario, "el inicio de sesión")
 
     # Login correcto
     usuario.intentos_fallidos = 0
@@ -222,13 +244,20 @@ def _es_admin(usuario: Usuario) -> bool:
 def verificar_admin(datos: LoginRequest, db: Session = Depends(get_db)):
     """Verifica credenciales de un usuario y confirma que sea Administrador o Dueña.
     NO genera token; solo valida. Se usa para autorizar acciones sensibles (ej. eliminar)."""
-    usuario = db.query(Usuario).filter(Usuario.nombre_usuario == datos.nombre_usuario).first()
+    # Antes aquí se podía probar contraseñas sin límite; ahora cuenta los
+    # intentos fallidos igual que el inicio de sesión.
+    usuario = _buscar_usuario(db, datos.nombre_usuario)
     if not usuario:
         raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
     if usuario.activo == 0:
         raise HTTPException(status_code=403, detail="Usuario inactivo")
+    if (usuario.intentos_fallidos or 0) >= MAX_INTENTOS_FALLIDOS:
+        raise HTTPException(status_code=403, detail="Ese usuario está bloqueado por demasiados intentos fallidos")
     if not verify_password(datos.password, usuario.password):
-        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+        raise _registrar_intento_fallido(db, usuario, "una autorización de administrador")
+    if usuario.intentos_fallidos:
+        usuario.intentos_fallidos = 0
+        db.commit()
     if not _es_admin(usuario):
         raise HTTPException(status_code=403, detail="El usuario no tiene rol de Administrador")
     return VerificarAdminResponse(autorizado=True, mensaje=f"Autorizado por {usuario.nombre_usuario}")

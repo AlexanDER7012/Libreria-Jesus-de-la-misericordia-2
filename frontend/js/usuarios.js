@@ -235,6 +235,8 @@ function renderUsuarios(usuarios) {
     const empleado = empleadosData.find((e) => e.id === u.id_empleado);
     const rol = rolesData.find((r) => r.id === u.id_rol);
     const activo = u.activo !== 0;
+    // 5 intentos fallidos = bloqueado (no puede entrar aunque esté activo)
+    const bloqueado = activo && (u.intentos_fallidos || 0) >= 5;
 
     html += `
             <tr>
@@ -245,14 +247,21 @@ function renderUsuarios(usuarios) {
                 <td>${u.fecha_ultimo_acceso ? new Date(u.fecha_ultimo_acceso).toLocaleString() : "--"}</td>
                 <td>${u.intentos_fallidos || 0}</td>
                 <td>
-                    <span class="badge ${activo ? "bg-success" : "bg-danger"}">
-                        ${activo ? "Activo" : "Inactivo"}
+                    <span class="badge ${bloqueado ? "bg-warning text-dark" : activo ? "bg-success" : "bg-danger"}">
+                        ${bloqueado ? "Bloqueado" : activo ? "Activo" : "Inactivo"}
                     </span>
                 </td>
                 <td>
                     ${tienePermiso("Usuarios", "Editar") ? `<button class="btn btn-sm btn-outline-primary" onclick="showEditUsuarioModal(${u.id})" title="Editar">
                         <i class="fas fa-edit"></i>
                     </button>` : ""}
+                    ${
+                      bloqueado && tienePermiso("Usuarios", "Eliminar")
+                        ? `<button class="btn btn-sm btn-outline-warning" onclick="reactivarUsuario(${u.id}, true)" title="Desbloquear">
+                            <i class="fas fa-unlock"></i>
+                        </button>`
+                        : ""
+                    }
                     ${
                       activo
                         ? (tienePermiso("Usuarios", "Eliminar") ? `
@@ -1162,16 +1171,18 @@ async function deleteUsuario(id) {
   }
 }
 
-async function reactivarUsuario(id) {
+async function reactivarUsuario(id, desbloquear = false) {
   const confirmado = await mostrarConfirmacion(
-    "Reactivar usuario",
-    "¿Reactivar este usuario?",
-    "Reactivar",
+    desbloquear ? "Desbloquear usuario" : "Reactivar usuario",
+    desbloquear
+      ? "¿Desbloquear este usuario? Se reinician sus intentos fallidos y podrá volver a entrar."
+      : "¿Reactivar este usuario?",
+    desbloquear ? "Desbloquear" : "Reactivar",
   );
   if (!confirmado) return;
   try {
     await api.request(`/usuarios/${id}/reactivar`, "PATCH");
-    showToast("Usuario reactivado correctamente", "success");
+    showToast(desbloquear ? "Usuario desbloqueado correctamente" : "Usuario reactivado correctamente", "success");
     await cargarDatos();
   } catch (error) {
     showToast(error.message || "Error al reactivar usuario", "error");

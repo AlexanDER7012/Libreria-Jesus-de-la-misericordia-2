@@ -1,11 +1,13 @@
+import glob
 import logging
 import os
 import re
+import shutil
 import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -74,6 +76,35 @@ def _rotar_backups(directorio: Path) -> None:
             archivo.unlink()
 
 
+def _version_carpeta(ruta: str) -> int:
+    """'.../PostgreSQL/16/bin/pg_dump.exe' -> 16 (para usar la versión más nueva)."""
+    numeros = re.findall(r"[\\/](\d+)[\\/]bin[\\/]", ruta)
+    return int(numeros[-1]) if numeros else 0
+
+
+def _ruta_pg_dump() -> str:
+    """
+    Busca pg_dump. Antes estaba fijo en /usr/bin/pg_dump (Linux), así que en
+    Windows el backup siempre fallaba con "No se encontró pg_dump".
+    Orden: variable PG_DUMP_PATH, el PATH del sistema, y las carpetas
+    normales de PostgreSQL en Windows/Linux.
+    """
+    candidatos = [os.environ.get("PG_DUMP_PATH"), shutil.which("pg_dump")]
+    candidatos += sorted(glob.glob(r"C:\Program Files\PostgreSQL\*\bin\pg_dump.exe"), key=_version_carpeta, reverse=True)
+    candidatos += sorted(glob.glob("/usr/lib/postgresql/*/bin/pg_dump"), key=_version_carpeta, reverse=True)
+    candidatos += ["/usr/bin/pg_dump", "/usr/local/bin/pg_dump"]
+    for ruta in candidatos:
+        if ruta and os.path.isfile(ruta):
+            return ruta
+    raise HTTPException(
+        status_code=500,
+        detail=(
+            "No se encontró pg_dump. Instala PostgreSQL (o postgresql-client) en el servidor, "
+            "o indica su ruta en la variable PG_DUMP_PATH del archivo .env."
+        ),
+    )
+
+
 @router.post("/backup")
 def generar_backup(
     usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Editar")),
@@ -105,8 +136,12 @@ def generar_backup(
 
     entorno = os.environ.copy()
     entorno["PGPASSWORD"] = password
+    # Bases en la nube (ej. Neon) piden SSL: se respeta ?sslmode=... de la URL
+    sslmode = parse_qs(datos_url.query).get("sslmode", [None])[0]
+    if sslmode:
+        entorno["PGSSLMODE"] = sslmode
     comando = [
-        "/usr/bin/pg_dump",
+        _ruta_pg_dump(),
         "-h", host,
         "-p", puerto,
         "-U", usuario,
@@ -244,6 +279,8 @@ def obtener_configuracion(db: Session = Depends(get_db), usuario_actual: Usuario
 def bitacora_a_borrar(dias: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
     """Cuántos registros de bitácora se borrarían al conservar solo 'dias' días
     (para avisar antes de guardar el cambio)."""
+    if dias < 0:
+        raise HTTPException(status_code=400, detail="Los días no pueden ser negativos")
     return {"dias": dias, "cantidad": contar_bitacora_a_borrar(db, dias)}
 
 
@@ -251,6 +288,24 @@ def bitacora_a_borrar(dias: int, db: Session = Depends(get_db), usuario_actual: 
 def actualizar_configuracion(datos: ConfiguracionGeneralUpdate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Editar"))):
     config = _obtener_o_crear_configuracion(db)
     cambios = datos.model_dump(exclude_unset=True)
+    if "nombre_negocio" in cambios and not (cambios["nombre_negocio"] or "").strip():
+        raise HTTPException(status_code=400, detail="El nombre del negocio es obligatorio")
+    iva = cambios.get("iva_porcentaje")
+    if iva is not None and not (0 <= float(iva) <= 100):
+        raise HTTPException(status_code=400, detail="El IVA debe estar entre 0% y 100%")
+    if cambios.get("monto_caja_chica_default") is not None and float(cambios["monto_caja_chica_default"]) < 0:
+        raise HTTPException(status_code=400, detail="El monto de caja chica no puede ser negativo")
+    if cambios.get("dias_alerta_stock") is not None and int(cambios["dias_alerta_stock"]) < 0:
+        raise HTTPException(status_code=400, detail="Los días de alerta de stock no pueden ser negativos")
+    if "id_ubicacion" in cambios:
+        from app.models.model_ubicacion import Ubicacion
+        if not cambios["id_ubicacion"]:
+            raise HTTPException(status_code=400, detail="Elige la ubicación principal (donde se vende)")
+        ubicacion = db.query(Ubicacion).filter(Ubicacion.id == cambios["id_ubicacion"]).first()
+        if not ubicacion:
+            raise HTTPException(status_code=400, detail="La ubicación elegida no existe")
+        if ubicacion.activo == 0:
+            raise HTTPException(status_code=400, detail=f"La ubicación '{ubicacion.nombre}' está inactiva; actívala primero")
     if cambios.get("dias_retencion_bitacora") is not None and cambios["dias_retencion_bitacora"] < 0:
         raise HTTPException(status_code=400, detail="Los días de la bitácora no pueden ser negativos (usa 0 para no borrar nunca)")
     for campo, valor in cambios.items():
@@ -282,8 +337,21 @@ def listar_metas(anio: Optional[int] = None, db: Session = Depends(get_db), usua
     return query.all()
 
 
+def _validar_meta(datos: MetaFinancieraCreate):
+    if not (1 <= int(datos.mes or 0) <= 12):
+        raise HTTPException(status_code=400, detail="El mes debe estar entre 1 y 12")
+    if not (2000 <= int(datos.anio or 0) <= 2100):
+        raise HTTPException(status_code=400, detail="El año no es válido")
+    for nombre, valor in (("ingresos", datos.meta_ingresos), ("utilidad", datos.meta_utilidad), ("gastos", datos.meta_gastos)):
+        if valor is not None and float(valor) < 0:
+            raise HTTPException(status_code=400, detail=f"La meta de {nombre} no puede ser negativa")
+    if not any(v for v in (datos.meta_ingresos, datos.meta_utilidad, datos.meta_gastos)):
+        raise HTTPException(status_code=400, detail="Escribe al menos una meta (ingresos, utilidad o gastos)")
+
+
 @router_meta.post("", response_model=MetaFinancieraResponse, status_code=201)
 def crear_meta(datos: MetaFinancieraCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Crear"))):
+    _validar_meta(datos)
     existente = db.query(MetaFinanciera).filter(
         MetaFinanciera.mes == datos.mes, MetaFinanciera.anio == datos.anio
     ).first()
@@ -306,6 +374,12 @@ def actualizar_meta(meta_id: int, datos: MetaFinancieraCreate, db: Session = Dep
     meta = db.query(MetaFinanciera).filter(MetaFinanciera.id == meta_id).first()
     if not meta:
         raise HTTPException(status_code=404, detail="Meta financiera no encontrada")
+    _validar_meta(datos)
+    otra = db.query(MetaFinanciera).filter(
+        MetaFinanciera.mes == datos.mes, MetaFinanciera.anio == datos.anio, MetaFinanciera.id != meta_id
+    ).first()
+    if otra:
+        raise HTTPException(status_code=400, detail=f"Ya existe una meta para {datos.mes}/{datos.anio}")
     for campo, valor in datos.model_dump().items():
         setattr(meta, campo, valor)
     registrar_actividad(

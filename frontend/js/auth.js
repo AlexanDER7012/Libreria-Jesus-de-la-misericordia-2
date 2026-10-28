@@ -1,8 +1,23 @@
 // AUTENTICACION
 
+// true si el token ya venció (se lee la fecha "exp" que trae el propio token)
+function tokenVencido(token) {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return !!payload.exp && payload.exp * 1000 <= Date.now();
+  } catch (e) {
+    return true;
+  }
+}
+
 function checkAuth() {
   const token = localStorage.getItem("token");
-  if (!token) {
+  // Antes, con un token vencido se abría el sistema, se veía un momento y
+  // luego salía "Tu sesión expiró". Ahora se manda directo al login.
+  if (!token || tokenVencido(token)) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("user_permisos");
     window.location.href = "login.html";
     return false;
   }

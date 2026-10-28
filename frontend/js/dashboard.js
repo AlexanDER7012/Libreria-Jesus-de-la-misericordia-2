@@ -9,6 +9,10 @@ let dashboardDataCache = null; // Cache de clientes/productos
 // =============================================
 // UTILIDADES
 // =============================================
+function escaparHtmlDashboard(valor) {
+  return String(valor ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
 function _formatMoney(n) {
   return (
     "Q" +
@@ -117,45 +121,26 @@ async function loadDashboardModule() {
     window.productosData = productos;
 
     // ============================================
-    // CARGAR EL RESTO DE DATOS EN PARALELO
+    // CIFRAS CALCULADAS EN EL SERVIDOR
+    // (antes se calculaban aquí con solo las últimas 50 ventas, incluyendo
+    // anuladas, y todas las ventas salían como "Pendiente")
     // ============================================
-    const [ventas, alertas, categorias, compras, cajaChica] = await Promise.all(
-      [
-        api.getVentas().catch(() => []),
-        api.getAlertasStock().catch(() => []),
-        api.request("/categorias").catch(() => []),
-        api.request("/compras?skip=0&limit=200").catch(() => []),
-        api.request("/caja-chica?skip=0&limit=20").catch(() => []),
-      ],
-    );
+    const [d, cajaChica] = await Promise.all([
+      api.request("/reportes/dashboard"),
+      api.request("/caja-chica?skip=0&limit=5").catch(() => []),
+    ]);
 
     clearTimeout(timeoutId);
 
-    // ============================================
-    // CALCULAR MÉTRICAS
-    // ============================================
-    const hoy = new Date();
-    const hoyStr = hoy.toDateString();
-
-    const ventasHoy = ventas.filter(
-      (v) => v.fecha && new Date(v.fecha).toDateString() === hoyStr,
-    );
-    const ingresosHoy = ventasHoy.reduce((s, v) => s + Number(v.total || 0), 0);
-
-    const ingresosTotal = ventas.reduce((s, v) => s + Number(v.total || 0), 0);
-    const comprasTotal = compras.reduce((s, c) => s + Number(c.total || 0), 0);
-    const saldo = ingresosTotal - comprasTotal;
-
-    const pendientes = ventas.filter(
-      (v) => (v.estado || "").toLowerCase() !== "pagada",
-    ).length;
-
-    // Ordenar ventas por fecha DESC para "recientes"
-    const ventasOrdenadas = [...ventas].sort((a, b) => {
-      const fa = a.fecha ? new Date(a.fecha).getTime() : 0;
-      const fb = b.fecha ? new Date(b.fecha).getTime() : 0;
-      return fb - fa;
-    });
+    const ventasHoy = d.ventas_hoy || { cantidad: 0, total: 0 };
+    const saldo = Number(d.saldo_neto || 0);
+    const recientes = d.ventas_recientes || [];
+    const bajoStock = d.bajo_stock || [];
+    const badgeEstado = {
+      Pagada: "bg-success",
+      Pendiente: "bg-warning text-dark",
+      Anulada: "bg-secondary",
+    };
 
     // ============================================
     // RENDERIZAR
@@ -176,9 +161,9 @@ async function loadDashboardModule() {
               <div class="d-flex justify-content-between align-items-start">
                 <div>
                   <div class="kpi-label">Ventas Hoy</div>
-                  <div class="kpi-value">${ventasHoy.length}</div>
+                  <div class="kpi-value">${ventasHoy.cantidad}</div>
                   <div class="kpi-sub text-success">
-                    <i class="fas fa-arrow-up me-1"></i>${_formatMoney(ingresosHoy)}
+                    <i class="fas fa-arrow-up me-1"></i>${_formatMoney(ventasHoy.total)}
                   </div>
                 </div>
                 <div class="kpi-icon bg-primary">
@@ -195,8 +180,8 @@ async function loadDashboardModule() {
               <div class="d-flex justify-content-between align-items-start">
                 <div>
                   <div class="kpi-label">Ingresos Totales</div>
-                  <div class="kpi-value">${_formatMoney(ingresosTotal)}</div>
-                  <div class="kpi-sub text-muted">${ventas.length} ventas</div>
+                  <div class="kpi-value">${_formatMoney(d.ingresos_total)}</div>
+                  <div class="kpi-sub text-muted">${d.cantidad_ventas} ventas</div>
                 </div>
                 <div class="kpi-icon bg-success">
                   <i class="fas fa-dollar-sign"></i>
@@ -215,7 +200,7 @@ async function loadDashboardModule() {
                   <div class="kpi-value ${saldo >= 0 ? "text-success" : "text-danger"}">
                     ${_formatMoney(saldo)}
                   </div>
-                  <div class="kpi-sub text-muted">${pendientes} pendientes</div>
+                  <div class="kpi-sub text-muted" title="Ingresos por ventas menos compras">${d.ventas_con_saldo} ventas con saldo</div>
                 </div>
                 <div class="kpi-icon bg-warning">
                   <i class="fas fa-balance-scale"></i>
@@ -231,8 +216,8 @@ async function loadDashboardModule() {
               <div class="d-flex justify-content-between align-items-start">
                 <div>
                   <div class="kpi-label">Alertas Stock</div>
-                  <div class="kpi-value">${alertas.length}</div>
-                  <div class="kpi-sub text-muted">${productos.length} productos</div>
+                  <div class="kpi-value">${d.cantidad_bajo_stock}</div>
+                  <div class="kpi-sub text-muted">${d.productos_activos} productos activos</div>
                 </div>
                 <div class="kpi-icon bg-danger">
                   <i class="fas fa-exclamation-triangle"></i>
@@ -247,7 +232,7 @@ async function loadDashboardModule() {
       <div class="row g-3 mb-4">
         <div class="col-lg-8">
           <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white">
+            <div class="card-header bg-transparent">
               <h6 class="mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>Ventas últimos 7 días</h6>
             </div>
             <div class="card-body">
@@ -258,7 +243,7 @@ async function loadDashboardModule() {
 
         <div class="col-lg-4">
           <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white">
+            <div class="card-header bg-transparent">
               <h6 class="mb-0"><i class="fas fa-chart-pie me-2 text-success"></i>Productos por categoría</h6>
             </div>
             <div class="card-body d-flex align-items-center justify-content-center">
@@ -272,7 +257,7 @@ async function loadDashboardModule() {
       <div class="row g-3 mb-4">
         <div class="col-lg-6">
           <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white">
+            <div class="card-header bg-transparent">
               <h6 class="mb-0"><i class="fas fa-chart-bar me-2 text-info"></i>Top 5 productos más vendidos</h6>
             </div>
             <div class="card-body">
@@ -283,7 +268,7 @@ async function loadDashboardModule() {
 
         <div class="col-lg-6">
           <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white">
+            <div class="card-header bg-transparent">
               <h6 class="mb-0"><i class="fas fa-chart-bar me-2 text-warning"></i>Ingresos últimos 6 meses</h6>
             </div>
             <div class="card-body">
@@ -297,7 +282,7 @@ async function loadDashboardModule() {
       <div class="row g-3 mb-4">
         <div class="col-12">
           <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
               <h6 class="mb-0"><i class="fas fa-clock me-2 text-primary"></i>Ventas Recientes</h6>
               <button class="btn btn-sm btn-outline-primary" onclick="window.app.loadModule('ventas')">
                 Ver todas <i class="fas fa-arrow-right ms-1"></i>
@@ -305,7 +290,7 @@ async function loadDashboardModule() {
             </div>
             <div class="card-body p-0">
               ${
-                ventasOrdenadas.length > 0
+                recientes.length > 0
                   ? `
                   <div class="table-responsive">
                     <table class="table table-hover mb-0">
@@ -320,38 +305,22 @@ async function loadDashboardModule() {
                         </tr>
                       </thead>
                       <tbody>
-                        ${ventasOrdenadas
-                          .slice(0, 5)
-                          .map((v) => {
-                            const cliente = clientes.find(
-                              (c) => Number(c.id) === Number(v.id_cliente),
-                            );
-                            const nombre = cliente
-                              ? cliente.nombre
-                              : v.id_cliente
-                                ? `Cliente #${v.id_cliente}`
-                                : "Sin cliente";
-                            const pagada =
-                              (v.estado || "").toLowerCase() === "pagada";
-                            return `
+                        ${recientes
+                          .map((v) => `
                             <tr>
                               <td><strong>#${v.id}</strong></td>
-                              <td>${nombre}</td>
+                              <td>${v.cliente ? escaparHtmlDashboard(v.cliente) : "Consumidor final"}</td>
                               <td>${v.fecha ? new Date(v.fecha).toLocaleDateString() : "--"}</td>
                               <td class="text-end"><strong>${_formatMoney(v.total)}</strong></td>
                               <td class="text-center">
-                                <span class="badge ${pagada ? "bg-success" : "bg-warning text-dark"}">
-                                  ${pagada ? "Pagada" : "Pendiente"}
-                                </span>
+                                <span class="badge ${badgeEstado[v.estado] || "bg-secondary"}">${v.estado}</span>
                               </td>
                               <td class="text-end">
                                 <button class="btn btn-sm btn-outline-info" onclick="verVenta(${v.id})">
                                   <i class="fas fa-eye"></i>
                                 </button>
                               </td>
-                            </tr>
-                          `;
-                          })
+                            </tr>`)
                           .join("")}
                       </tbody>
                     </table>
@@ -373,12 +342,12 @@ async function loadDashboardModule() {
       <div class="row g-3">
         <div class="col-lg-6">
           <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white">
+            <div class="card-header bg-transparent">
               <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2 text-danger"></i>Productos bajo stock</h6>
             </div>
             <div class="card-body p-0">
               ${
-                alertas.length > 0
+                bajoStock.length > 0
                   ? `
                   <div class="table-responsive">
                     <table class="table table-sm table-hover mb-0">
@@ -390,30 +359,13 @@ async function loadDashboardModule() {
                         </tr>
                       </thead>
                       <tbody>
-                        ${alertas
-                          .slice(0, 5)
-                          .map((a) => {
-                            const idProd = a.id_producto || a.id;
-                            const p = productos.find(
-                              (x) => Number(x.id) === Number(idProd),
-                            );
-                            const nombre = p
-                              ? p.nombre
-                              : a.nombre_producto ||
-                                a.nombre ||
-                                `Producto #${idProd}`;
-                            const stockActual =
-                              a.stock_actual ?? a.stock ?? p?.stock_actual ?? 0;
-                            const stockMinimo =
-                              a.stock_minimo ?? p?.stock_minimo ?? 0;
-                            return `
+                        ${bajoStock
+                          .map((a) => `
                             <tr>
-                              <td>${nombre}</td>
-                              <td class="text-end text-danger"><strong>${stockActual}</strong></td>
-                              <td class="text-end text-muted">${stockMinimo}</td>
-                            </tr>
-                          `;
-                          })
+                              <td>${escaparHtmlDashboard(a.producto)}</td>
+                              <td class="text-end text-danger"><strong>${a.stock_actual}</strong></td>
+                              <td class="text-end text-muted">${a.stock_minimo}</td>
+                            </tr>`)
                           .join("")}
                       </tbody>
                     </table>
@@ -432,7 +384,7 @@ async function loadDashboardModule() {
 
         <div class="col-lg-6">
           <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white">
+            <div class="card-header bg-transparent">
               <h6 class="mb-0"><i class="fas fa-history me-2 text-info"></i>Últimos movimientos de caja</h6>
             </div>
             <div class="card-body p-0">
@@ -488,10 +440,10 @@ async function loadDashboardModule() {
     // ============================================
     // CREAR GRÁFICAS
     // ============================================
-    crearGraficaVentas7Dias(ventas);
-    crearGraficaCategorias(productos, categorias);
-    crearGraficaTopProductos(ventas, productos);
-    crearGraficaIngresosMes(ventas);
+    crearGraficaVentas7Dias(d.ventas_7dias || []);
+    crearGraficaCategorias(d.productos_por_categoria || []);
+    crearGraficaTopProductos(d.top_productos || []);
+    crearGraficaIngresosMes(d.ingresos_6meses || []);
   } catch (error) {
     clearTimeout(timeoutId);
     console.error("Error cargando dashboard:", error);
@@ -511,7 +463,7 @@ async function loadDashboardModule() {
 // =============================================
 // GRÁFICA 1: VENTAS ÚLTIMOS 7 DÍAS (Línea)
 // =============================================
-function crearGraficaVentas7Dias(ventas) {
+function crearGraficaVentas7Dias(dias) {
   const ctx = document.getElementById("chartVentas7dias");
   if (!ctx) return;
 
@@ -519,23 +471,12 @@ function crearGraficaVentas7Dias(ventas) {
   const dataCount = [];
   const dataMonto = [];
 
-  for (let i = 6; i >= 0; i--) {
-    const fecha = new Date();
-    fecha.setDate(fecha.getDate() - i);
-    const diaStr = fecha.toLocaleDateString("es", {
-      weekday: "short",
-      day: "numeric",
-    });
-
-    labels.push(diaStr);
-
-    const ventasDia = ventas.filter(
-      (v) =>
-        v.fecha && new Date(v.fecha).toDateString() === fecha.toDateString(),
-    );
-    dataCount.push(ventasDia.length);
-    dataMonto.push(ventasDia.reduce((s, v) => s + Number(v.total || 0), 0));
-  }
+  dias.forEach((dia) => {
+    const [y, m, dd] = dia.fecha.split("-").map(Number);
+    labels.push(new Date(y, m - 1, dd).toLocaleDateString("es", { weekday: "short", day: "numeric" }));
+    dataCount.push(dia.cantidad);
+    dataMonto.push(dia.total);
+  });
 
   const colorTexto = _estaOscuro() ? "#e8e8f0" : "#495057";
   const colorGrid = _estaOscuro()
@@ -601,19 +542,12 @@ function crearGraficaVentas7Dias(ventas) {
 // =============================================
 // GRÁFICA 2: PRODUCTOS POR CATEGORÍA (Dona)
 // =============================================
-function crearGraficaCategorias(productos, categorias) {
+function crearGraficaCategorias(porCategoria) {
   const ctx = document.getElementById("chartCategorias");
   if (!ctx) return;
 
-  const conteo = {};
-  productos.forEach((p) => {
-    const cat = categorias.find((c) => Number(c.id) === Number(p.id_categoria));
-    const nombre = cat ? cat.nombre : "Sin categoría";
-    conteo[nombre] = (conteo[nombre] || 0) + 1;
-  });
-
-  const labels = Object.keys(conteo);
-  const data = Object.values(conteo);
+  const labels = porCategoria.map((c) => c.categoria);
+  const data = porCategoria.map((c) => c.cantidad);
 
   if (labels.length === 0) {
     ctx.parentElement.innerHTML =
@@ -668,26 +602,11 @@ function crearGraficaCategorias(productos, categorias) {
 // =============================================
 // GRÁFICA 3: TOP 5 PRODUCTOS (Barras horizontales)
 // =============================================
-function crearGraficaTopProductos(ventas, productos) {
+function crearGraficaTopProductos(top5) {
   const ctx = document.getElementById("chartTopProductos");
   if (!ctx) return;
 
-  const conteo = {};
-  ventas.forEach((v) => {
-    (v.detalles || []).forEach((d) => {
-      const id = d.id_producto;
-      if (!id) return;
-      conteo[id] = (conteo[id] || 0) + (d.cantidad || 1);
-    });
-  });
-
-  const top5 = Object.entries(conteo)
-    .map(([id, cant]) => {
-      const p = productos.find((x) => Number(x.id) === Number(id));
-      return { nombre: p ? p.nombre : `Producto #${id}`, cantidad: cant };
-    })
-    .sort((a, b) => b.cantidad - a.cantidad)
-    .slice(0, 5);
+  top5 = top5.map((t) => ({ nombre: t.producto, cantidad: t.cantidad }));
 
   if (top5.length === 0) {
     ctx.parentElement.innerHTML =
@@ -752,7 +671,7 @@ function crearGraficaTopProductos(ventas, productos) {
 // =============================================
 // GRÁFICA 4: INGRESOS ÚLTIMOS 6 MESES (Barras)
 // =============================================
-function crearGraficaIngresosMes(ventas) {
+function crearGraficaIngresosMes(ingresosMeses) {
   const ctx = document.getElementById("chartIngresosMes");
   if (!ctx) return;
 
@@ -773,22 +692,10 @@ function crearGraficaIngresosMes(ventas) {
   const labels = [];
   const data = [];
 
-  for (let i = 5; i >= 0; i--) {
-    const fecha = new Date();
-    fecha.setMonth(fecha.getMonth() - i);
-    const mes = fecha.getMonth();
-    const year = fecha.getFullYear();
-
-    labels.push(`${meses[mes]} ${year}`);
-
-    const ventasMes = ventas.filter((v) => {
-      if (!v.fecha) return false;
-      const d = new Date(v.fecha);
-      return d.getMonth() === mes && d.getFullYear() === year;
-    });
-
-    data.push(ventasMes.reduce((s, v) => s + Number(v.total || 0), 0));
-  }
+  ingresosMeses.forEach((m) => {
+    labels.push(`${meses[m.mes - 1]} ${m.anio}`);
+    data.push(m.total);
+  });
 
   const colorTexto = _estaOscuro() ? "#e8e8f0" : "#495057";
   const colorGrid = _estaOscuro()

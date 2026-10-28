@@ -1,5 +1,5 @@
 // api.js
-const API_BASE_URL = window.location.origin;
+const API_BASE_URL = "http://localhost:8000"; // Cambia esto según tu configuración
 
 class ApiClient {
   constructor() {
@@ -34,9 +34,6 @@ class ApiClient {
     try {
       const response = await fetch(url, config);
 
-      // 401 en una petición SIN sesión (ej. autorizar con usuario y
-      // contraseña de administrador) es solo "datos incorrectos": antes se
-      // tomaba como sesión vencida y sacaba al usuario del sistema.
       if (response.status === 401 && !requiresAuth) {
         const datos = await response.json().catch(() => ({}));
         throw new Error(

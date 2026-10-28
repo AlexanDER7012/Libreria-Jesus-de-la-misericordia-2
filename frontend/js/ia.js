@@ -3,8 +3,21 @@
 let iaChatOpen = false;
 let iaHistorial = [];
 
+let iaEnviando = false;
+
+// Solo quien tiene algún permiso de Reportes ve el asistente (muestra cifras del negocio)
+function _puedeUsarIA() {
+  try {
+    const permisos = JSON.parse(localStorage.getItem("user_permisos") || "[]");
+    return permisos.some((p) => (p.modulo_nombre || "").toLowerCase() === "reportes");
+  } catch (e) {
+    return false;
+  }
+}
+
 function initIAChat() {
   if (document.getElementById("iaWidget")) return;
+  if (!localStorage.getItem("token") || !_puedeUsarIA()) return;
 
   const widget = document.createElement("div");
   widget.id = "iaWidget";
@@ -27,7 +40,7 @@ function initIAChat() {
       </div>
       <div class="ia-input-row">
         <input type="text" id="iaInput" class="form-control form-control-sm"
-               placeholder="Escribe tu pregunta..." onkeyup="if(event.key==='Enter') enviarMensajeIA()">
+               placeholder="Escribe tu pregunta..." maxlength="1000" onkeyup="if(event.key==='Enter') enviarMensajeIA()">
         <button class="btn btn-sm btn-primary" onclick="enviarMensajeIA()">
           <i class="fas fa-paper-plane"></i>
         </button>
@@ -162,7 +175,15 @@ function toggleIAChat() {
 async function enviarMensajeIA() {
   const input = document.getElementById("iaInput");
   const mensaje = input.value.trim();
-  if (!mensaje) return;
+  if (!mensaje || iaEnviando) return; // evita mandar otra pregunta mientras responde
+  if (mensaje.length > 1000) {
+    agregarMensajeAlChat("bot", "La pregunta es muy larga (máximo 1000 caracteres).");
+    return;
+  }
+  iaEnviando = true;
+  input.disabled = true;
+  const botonEnviar = document.querySelector("#iaPanel .ia-input-row button");
+  if (botonEnviar) botonEnviar.disabled = true;
 
   // Agregar mensaje del usuario al chat
   agregarMensajeAlChat("user", mensaje);
@@ -182,7 +203,16 @@ async function enviarMensajeIA() {
   } catch (error) {
     const escribiendo = document.querySelector(".ia-message-escribiendo");
     if (escribiendo) escribiendo.remove();
-    agregarMensajeAlChat("bot", `Error: ${error.message}`);
+    const texto = /failed to fetch|networkerror|load failed/i.test(error.message || "")
+      ? "No hay conexión con el servidor. Revisa tu internet e intenta de nuevo."
+      : error.message || "No se pudo obtener respuesta del asistente.";
+    agregarMensajeAlChat("bot", texto, "error");
+  } finally {
+    iaEnviando = false;
+    input.disabled = false;
+    const botonEnviar = document.querySelector("#iaPanel .ia-input-row button");
+    if (botonEnviar) botonEnviar.disabled = false;
+    input.focus();
   }
 }
 
