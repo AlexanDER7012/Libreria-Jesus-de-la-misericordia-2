@@ -2559,7 +2559,8 @@ async function cargarSubCotizaciones() {
           label: "Todos los estados",
           opciones: [
             ["Pendiente", "Pendientes"],
-            ["Aceptada", "Aceptadas"],
+            ["Aceptada", "Aceptadas (sin vender)"],
+            ["Vendida", "Vendidas"],
             ["Rechazada", "Rechazadas"],
           ],
         },
@@ -2577,7 +2578,7 @@ async function cargarSubCotizaciones() {
       searchHtml +
       `
       <div class="row">
-        <div class="col-md-4">
+        <div class="col-md-3">
           <div class="card bg-info bg-opacity-10 mb-3">
             <div class="card-body">
               <h6 class="fw-bold">Total Cotizaciones</h6>
@@ -2585,15 +2586,23 @@ async function cargarSubCotizaciones() {
             </div>
           </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
           <div class="card bg-success bg-opacity-10 mb-3">
             <div class="card-body">
-              <h6 class="fw-bold">Total Aceptadas</h6>
-              <h3 class="text-success">${cotizacionesData.filter((c) => esCotizacionAceptada(c)).length}</h3>
+              <h6 class="fw-bold">Aceptadas sin vender</h6>
+              <h3 class="text-success">${cotizacionesData.filter((c) => esCotizacionAceptada(c) && !c.id_venta).length}</h3>
             </div>
           </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+          <div class="card bg-primary bg-opacity-10 mb-3">
+            <div class="card-body">
+              <h6 class="fw-bold">Vendidas</h6>
+              <h3 class="text-primary">${cotizacionesData.filter((c) => c.id_venta).length}</h3>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
           <div class="card bg-warning bg-opacity-10 mb-3">
             <div class="card-body">
               <h6 class="fw-bold">Total Pendientes</h6>
@@ -2645,11 +2654,18 @@ async function cargarSubCotizaciones() {
                   </td>
                   <td>${c.fecha ? new Date(c.fecha).toLocaleString() : "--"}</td>
                   <td><strong>Q${(c.total || 0).toFixed(2)}</strong></td>
-                  <td><span class="badge bg-${estadoColor}">${c.estado || "Pendiente"}</span></td>
+                  <td>${badgeEstadoCotizacion(c, estadoColor)}</td>
                   <td>
                     <button class="btn btn-sm btn-outline-info" onclick="verCotizacion(${c.id})">
                       <i class="fas fa-eye"></i>
                     </button>
+                    ${
+                      esCotizacionAceptada(c) && !c.id_venta && tienePermiso("Ventas", "Crear")
+                        ? `<button class="btn btn-sm btn-outline-warning" onclick="crearVentaDesdeCotizacion(${c.id})" title="Convertir en venta">
+                        <i class="fas fa-cart-plus"></i>
+                      </button>`
+                        : ""
+                    }
                     ${
                       c.estado === "Pendiente" &&
                       tienePermiso("Ventas", "Editar")
@@ -2689,6 +2705,17 @@ async function cargarSubCotizaciones() {
 
 // El servidor guarda "Aceptada"; antes la pantalla buscaba "Aprobada" y
 // nunca mostraba las aceptadas (ni el botón para convertirlas en venta)
+// Si la cotización ya se vendió se muestra "Vendida" con el número de venta
+// (antes seguía diciendo "Aceptada" y no se sabía si ya se había vendido).
+function badgeEstadoCotizacion(c, colorAceptada) {
+  if (c && c.id_venta) {
+    return `<button type="button" class="btn btn-link p-0 text-decoration-none" onclick="verVenta(${c.id_venta})" title="Ver la venta">
+      <span class="badge bg-primary">Vendida · Venta #${c.id_venta}</span>
+    </button>`;
+  }
+  return `<span class="badge bg-${colorAceptada}">${c?.estado || "Pendiente"}</span>`;
+}
+
 function esCotizacionAceptada(c) {
   return c && (c.estado === "Aceptada" || c.estado === "Aprobada");
 }
@@ -3247,9 +3274,7 @@ async function verCotizacion(id) {
           </div>
           <div class="col-md-6">
             <strong>Estado:</strong> 
-            <span class="badge ${esCotizacionAceptada(cotizacion) ? "bg-success" : cotizacion.estado === "Rechazada" ? "bg-danger" : "bg-warning"}">
-              ${cotizacion.estado || "Pendiente"}
-            </span>
+            ${badgeEstadoCotizacion(cotizacion, esCotizacionAceptada(cotizacion) ? "success" : cotizacion.estado === "Rechazada" ? "danger" : "warning")}
           </div>
         </div>
         ${cotizacion.observaciones ? `<div class="mb-3"><strong>Observaciones:</strong> ${cotizacion.observaciones}</div>` : ""}
@@ -3302,7 +3327,7 @@ async function verCotizacion(id) {
             : ""
         }
         ${
-          esCotizacionAceptada(cotizacion) && tienePermiso("Ventas", "Crear")
+          esCotizacionAceptada(cotizacion) && !cotizacion.id_venta && tienePermiso("Ventas", "Crear")
             ? `
           <button class="btn btn-warning" onclick="crearVentaDesdeCotizacion(${cotizacion.id})">
             <i class="fas fa-shopping-cart me-1"></i>Convertir en Venta
@@ -3699,8 +3724,6 @@ function serviciosSiguiente() {
 }
 
 async function showCreateServicioModal() {
-  const ventasParaSelect =
-    (await api.request("/ventas?limit=100").catch(() => [])) || [];
   const modal = document.createElement("div");
   modal.className = "modal fade";
   modal.id = "servicioModal";
@@ -3715,67 +3738,36 @@ async function showCreateServicioModal() {
           <form id="servicioForm" onsubmit="saveServicio(event)">
             <input type="hidden" id="servicioId" value="">
             
-            <!-- ✅ BÚSQUEDA DE CLIENTE POR NIT O NOMBRE -->
-            <div class="row">
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <label class="form-label">Buscar Cliente</label>
-                  <div class="input-group">
-                    <input type="text" class="form-control" id="servicioBuscarCliente" 
-                          placeholder="Buscar por NIT o nombre del cliente" 
-                          onkeyup="if(event.key === 'Enter') buscarClienteServicio()">
-                    <button class="btn btn-outline-primary" type="button" onclick="buscarClienteServicio()">
-                      <i class="fas fa-search"></i>
-                    </button>
-                    <button class="btn btn-outline-secondary" type="button" onclick="limpiarBusquedaClienteServicio()">
-                      <i class="fas fa-times"></i>
-                    </button>
-                  </div>
-                  <div id="servicioClienteInfo" class="mt-1"></div>
-                </div>
+            <!-- Cliente (con sugerencias al escribir) y sus ventas para elegir.
+                 Antes había que escribir el nombre exacto o el número de venta,
+                 y la lista mostraba las últimas 100 ventas de todos los clientes. -->
+            <div class="card shadow-sm mb-3">
+              <div class="card-header bg-body-tertiary fw-bold">
+                <i class="fas fa-user me-2 text-info"></i>Cliente y venta
               </div>
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <label class="form-label">Cliente *</label>
-                  <select class="form-select" id="servicioCliente" required>
-                    <option value="">Seleccionar cliente</option>
-                  </select>
-                </div>
-              </div>
-            </div>
+              <div class="card-body">
+                <label class="form-label">Cliente *</label>
+                <div id="servicioClienteSelectorWrapper"></div>
+                <input type="hidden" id="servicioVenta" value="">
 
-            <!-- ✅ BÚSQUEDA DE VENTA -->
-            <div class="row">
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <label class="form-label">Buscar Venta por ID</label>
-                  <div class="input-group">
-                    <input type="number" class="form-control" id="servicioBuscarVenta" 
-                           placeholder="Ingresa ID de la venta" 
-                           onkeyup="if(event.key === 'Enter') buscarVentaServicio()">
-                    <button class="btn btn-outline-info" type="button" onclick="buscarVentaServicio()">
-                      <i class="fas fa-search"></i>
-                    </button>
-                    <button class="btn btn-outline-secondary" type="button" onclick="limpiarBusquedaVentaServicio()">
-                      <i class="fas fa-times"></i>
-                    </button>
-                  </div>
-                  <div id="servicioVentaInfo" class="mt-1"></div>
+                <label class="form-label mt-3 mb-1">¿A qué venta pertenece? <span class="text-muted small">(opcional)</span></label>
+                <div id="servicioVentasCliente" class="small text-muted">
+                  Elige primero el cliente para ver sus ventas.
                 </div>
-              </div>
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <label class="form-label">Venta (opcional)</label>
-                  <select class="form-select" id="servicioVenta">
-                    <option value="">Sin venta</option>
-                    ${ventasParaSelect
-                      .map(
-                        (v) => `
-                      <option value="${v.id}">#${v.id} - ${(window.clientesData || []).find((c) => c.id === v.id_cliente)?.nombre || "Sin cliente"} - Q${(v.total || 0).toFixed(2)}</option>
-                    `,
-                      )
-                      .join("")}
-                  </select>
+
+                <div class="mt-2 small">
+                  <a href="#" onclick="event.preventDefault(); document.getElementById('servicioVentaNumeroBox').classList.toggle('d-none'); document.getElementById('servicioBuscarVenta').focus();">
+                    ¿La venta fue a consumidor final (sin cliente)? Búscala por su número
+                  </a>
+                  <div id="servicioVentaNumeroBox" class="d-none mt-1" style="max-width: 340px;">
+                    <div class="input-group input-group-sm">
+                      <input type="number" class="form-control" id="servicioBuscarVenta" placeholder="Número de venta"
+                             onkeydown="if(event.key === 'Enter'){ event.preventDefault(); buscarVentaServicio(); }">
+                      <button class="btn btn-outline-info" type="button" onclick="buscarVentaServicio()">
+                        <i class="fas fa-search"></i>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3846,7 +3838,7 @@ async function showCreateServicioModal() {
 
   document.body.appendChild(modal);
 
-  llenarSelectClientesServicio();
+  crearSelectorClienteServicio();
 
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
@@ -3952,49 +3944,141 @@ function llenarSelectClientesServicio() {
 // ============================================================
 // BUSCAR VENTA PARA SERVICIO
 // ============================================================
-async function buscarVentaServicio() {
-  const input = document.getElementById("servicioBuscarVenta");
-  const id = parseInt(input.value.trim());
-  const infoDiv = document.getElementById("servicioVentaInfo");
-  const selectVenta = document.getElementById("servicioVenta");
+// Selector de cliente con sugerencias mientras se escribe (igual que en Nueva Venta)
+function crearSelectorClienteServicio() {
+  if (typeof crearSelectorBusqueda !== "function") return;
+  window.__servicioClienteSelector = crearSelectorBusqueda({
+    wrapperId: "servicioClienteSelectorWrapper",
+    hiddenInputId: "servicioCliente",
+    searchInputId: "servicioClienteSearchTxt",
+    dropdownId: "servicioClienteDropdown",
+    getData: () => window.clientesData || [],
+    getId: (c) => c.id,
+    getLabel: (c) =>
+      `${c.nombre}${c.nit ? " - NIT: " + c.nit : ""}${c.activo !== 0 ? "" : " (Inactivo)"}`,
+    getSearchText: (c) => `${c.nombre} ${c.nit || ""}`,
+    searchData: async (termino) =>
+      (await api.request(`/clientes?buscar=${encodeURIComponent(termino)}&limit=30`)) || [],
+    emptyText: "Escribe nombre o NIT para buscar",
+    placeholder: "Buscar cliente por nombre o NIT...",
+    onSelect: (cliente) => {
+      if (cliente) {
+        window.clientesData = window.clientesData || [];
+        if (!window.clientesData.some((c) => c.id === cliente.id)) window.clientesData.push(cliente);
+        cargarVentasClienteServicio(cliente.id);
+      } else {
+        document.getElementById("servicioVenta").value = "";
+        document.getElementById("servicioVentasCliente").innerHTML =
+          "Elige primero el cliente para ver sus ventas.";
+      }
+    },
+  });
+}
 
-  if (!id) {
-    infoDiv.innerHTML = "";
-    return;
+// Nombres de productos para la vista previa de cada venta
+async function _nombresProductosServicio(ids) {
+  const nombres = {};
+  (window.productosData || []).forEach((p) => (nombres[p.id] = p.nombre));
+  const faltan = [...new Set(ids)].filter((id) => !nombres[id]);
+  await Promise.all(
+    faltan.map(async (id) => {
+      const p = await api.request(`/productos/${id}`).catch(() => null);
+      nombres[id] = p ? p.nombre : "Producto";
+    }),
+  );
+  return nombres;
+}
+
+function _elegirVentaServicio(valor) {
+  document.getElementById("servicioVenta").value = valor || "";
+  document.querySelectorAll("#servicioVentasCliente .list-group-item").forEach((li) => {
+    li.classList.toggle("active", li.dataset.venta === String(valor || ""));
+  });
+}
+
+// Lista las ventas del cliente (no anuladas) con fecha, total, si está
+// pagada y qué productos llevó, para reconocer cuál es.
+async function _renderVentasServicio(ventas, contenedor) {
+  const ids = ventas.flatMap((v) => (v.detalles || []).map((d) => d.id_producto));
+  const nombres = await _nombresProductosServicio(ids);
+  const q = (n) => `Q${Number(n || 0).toFixed(2)}`;
+  const items = ventas.map((v) => {
+    const pagado = (v.pagos || []).reduce((s, p) => s + Number(p.monto || 0), 0);
+    const saldo = Math.round((Number(v.total || 0) - pagado) * 100) / 100;
+    const productos = (v.detalles || [])
+      .map((d) => `${escaparHtmlEscaner(nombres[d.id_producto] || "Producto")} x${Number(d.cantidad)}`)
+      .join(", ");
+    return `
+      <li class="list-group-item list-group-item-action" style="cursor:pointer" data-venta="${v.id}" onclick="_elegirVentaServicio(${v.id})">
+        <div class="d-flex justify-content-between flex-wrap gap-1">
+          <span><strong>Venta #${v.id}</strong> · ${v.fecha ? new Date(v.fecha).toLocaleString() : "--"}</span>
+          <span>Total ${q(v.total)}
+            ${saldo > 0.009
+              ? `<span class="badge bg-warning text-dark ms-1">Debe ${q(saldo)}</span>`
+              : `<span class="badge bg-success ms-1">Pagada</span>`}
+          </span>
+        </div>
+        <div class="small opacity-75">${productos || "Sin productos (solo servicios)"}</div>
+      </li>`;
+  });
+  contenedor.innerHTML = `
+    <ul class="list-group">
+      <li class="list-group-item list-group-item-action active" style="cursor:pointer" data-venta="" onclick="_elegirVentaServicio('')">
+        <strong>Sin venta</strong> — servicio suelto (se cobra aparte)
+      </li>
+      ${items.join("")}
+    </ul>
+    <div class="form-text">Si eliges una venta, el servicio se suma a su total y se cobra junto con ella.</div>`;
+  _elegirVentaServicio("");
+}
+
+async function cargarVentasClienteServicio(idCliente) {
+  const contenedor = document.getElementById("servicioVentasCliente");
+  if (!contenedor) return;
+  contenedor.innerHTML = '<span class="text-muted">Cargando ventas del cliente...</span>';
+  try {
+    const ventas =
+      (await api.request(`/ventas?id_cliente=${idCliente}&estado=Completada&limit=20`)) || [];
+    if (ventas.length === 0) {
+      contenedor.innerHTML =
+        '<span class="text-muted">Este cliente no tiene ventas. El servicio se registrará suelto.</span>';
+      _elegirVentaServicio("");
+      return;
+    }
+    await _renderVentasServicio(ventas, contenedor);
+  } catch (error) {
+    contenedor.innerHTML = `<span class="text-danger">No se pudieron cargar las ventas: ${escaparHtmlEscaner(error.message)}</span>`;
   }
+}
 
+// Para ventas a consumidor final (sin cliente): buscar por número
+async function buscarVentaServicio() {
+  const id = parseInt(document.getElementById("servicioBuscarVenta").value);
+  const contenedor = document.getElementById("servicioVentasCliente");
+  if (!id) return;
   try {
     const venta = await api.getVenta(id);
-    if (venta) {
-      const cliente = (window.clientesData || []).find(
-        (c) => c.id === venta.id_cliente,
-      );
-      const nombreCliente = cliente ? cliente.nombre : "Sin cliente";
-      infoDiv.innerHTML = `
-        <div class="alert alert-success small py-1 px-2 mb-0">
-          <i class="fas fa-check-circle me-1"></i>
-          Venta #${venta.id} - ${nombreCliente} - Total: Q${(venta.total || 0).toFixed(2)}
-          ${venta.estado ? ` - ${venta.estado}` : ""}
-        </div>
-      `;
-      selectVenta.value = venta.id;
-      showToast(`Venta #${venta.id} encontrada`, "success");
+    if (venta.estado === "Cancelada") {
+      showToast(`La venta #${id} está anulada; no se le pueden agregar servicios`, "warning");
+      return;
     }
+    if (venta.id_cliente && window.__servicioClienteSelector) {
+      const cliente = await api.getCliente(venta.id_cliente).catch(() => null);
+      if (cliente) {
+        window.clientesData = window.clientesData || [];
+        if (!window.clientesData.some((c) => c.id === cliente.id)) window.clientesData.push(cliente);
+        window.__servicioClienteSelector.setValue(cliente.id);
+      }
+    }
+    await _renderVentasServicio([venta], contenedor);
+    _elegirVentaServicio(venta.id);
   } catch (error) {
-    infoDiv.innerHTML = `
-      <div class="alert alert-warning small py-1 px-2 mb-0">
-        <i class="fas fa-exclamation-triangle me-1"></i>
-        No se encontró venta con ID: ${id}
-      </div>
-    `;
-    selectVenta.value = "";
+    showToast(`No se encontró la venta #${id}`, "warning");
   }
 }
 
 function limpiarBusquedaVentaServicio() {
-  document.getElementById("servicioBuscarVenta").value = "";
-  document.getElementById("servicioVentaInfo").innerHTML = "";
-  document.getElementById("servicioVenta").value = "";
+  _elegirVentaServicio("");
 }
 
 function calcularTotalServicio() {
@@ -4021,8 +4105,8 @@ async function saveServicio(event) {
     parseFloat(document.getElementById("servicioManoObra").value) || 0;
   const detalles = document.getElementById("servicioDetalles").value || null;
 
-  if (!id_cliente) {
-    showToast("Selecciona un cliente", "error");
+  if (!id_cliente && !id_venta) {
+    showToast("Selecciona un cliente (o una venta a consumidor final)", "error");
     return;
   }
 

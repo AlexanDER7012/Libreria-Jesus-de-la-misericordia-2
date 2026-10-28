@@ -668,7 +668,6 @@ function renderResumenInventario() {
   }
 
   html += `
-        ${controlesPaginacion}
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">

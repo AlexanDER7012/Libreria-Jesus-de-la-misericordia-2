@@ -34,6 +34,8 @@ class CotizacionResponse(BaseModel):
     archivo_pdf: Optional[str] = None
     observaciones: Optional[str] = None
     detalles: List[DetalleCotizacionResponse] = []
+    # Venta (no anulada) que se hizo con esta cotización; None si aún no se vende
+    id_venta: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 # ===================== Cotizacion -> Venta =====================

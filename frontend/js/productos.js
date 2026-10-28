@@ -11,7 +11,7 @@ let unidadesData = [];
 async function obtenerTodosLosProductosCatalogo() {
   const todos = [];
   for (let skip = 0; skip < 20000; skip += 200) {
-    const pagina = (await api.request(`/productos?limit=200&skip=${skip}`)) || [];
+    const pagina = (await api.request(`/productos?estado=todos&limit=200&skip=${skip}`)) || [];
     todos.push(...pagina);
     if (pagina.length < 200) break;
   }
@@ -823,7 +823,6 @@ function renderProductosTable(productos) {
                 </button>
             </div>
         </div>
-        ${controles}
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -1208,7 +1207,6 @@ function renderCategoriasTable(categorias) {
             }
         </div>
         ${htmlFiltrosListaCatalogo("categorias", "categorías", lista.estado)}
-        ${lista.controlesPaginacion}
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -1262,6 +1260,7 @@ function renderCategoriasTable(categorias) {
                 </tbody>
             </table>
         </div>
+        ${lista.controlesPaginacion}
     `;
 
   container.innerHTML = html;
@@ -1422,7 +1421,6 @@ function renderMarcasTable(marcas) {
             }
         </div>
         ${htmlFiltrosListaCatalogo("marcas", "marcas", lista.estado)}
-        ${lista.controlesPaginacion}
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -1476,6 +1474,7 @@ function renderMarcasTable(marcas) {
                 </tbody>
             </table>
         </div>
+        ${lista.controlesPaginacion}
     `;
 
   container.innerHTML = html;
@@ -1639,7 +1638,6 @@ function renderUnidadesTable(unidades) {
             }
         </div>
         ${htmlFiltrosListaCatalogo("unidades", "unidades", lista.estado)}
-        ${lista.controlesPaginacion}
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
@@ -1695,6 +1693,7 @@ function renderUnidadesTable(unidades) {
                 </tbody>
             </table>
         </div>
+        ${lista.controlesPaginacion}
     `;
 
   container.innerHTML = html;

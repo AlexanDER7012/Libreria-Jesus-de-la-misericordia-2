@@ -19,6 +19,24 @@ from app.schemas.schema_cotizacion import (
 router = APIRouter()
 
 
+def _marcar_vendidas(db: Session, cotizaciones):
+    """Agrega a cada cotización el número de la venta en que se vendió (si ya se vendió)."""
+    lista = cotizaciones if isinstance(cotizaciones, list) else [cotizaciones]
+    ids = [c.id for c in lista if c is not None]
+    ventas = {}
+    if ids:
+        for id_cot, id_venta in (
+            db.query(Venta.id_cotizacion, Venta.id)
+            .filter(Venta.id_cotizacion.in_(ids), Venta.estado != "Cancelada")
+            .all()
+        ):
+            ventas[id_cot] = id_venta
+    for c in lista:
+        if c is not None:
+            c.id_venta = ventas.get(c.id)
+    return cotizaciones
+
+
 def _venta_de_cotizacion(db: Session, id_cotizacion):
     """Venta (no anulada) que ya se hizo con esa cotización, o None."""
     return db.query(Venta).filter(
@@ -51,7 +69,15 @@ def listar_cotizaciones(
 ):
     """buscar: coincidencia en número de expediente (ej. '2026-014'). Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
     query = db.query(Cotizacion).order_by(Cotizacion.fecha.desc())
-    if estado is not None:
+    vendidas = db.query(Venta.id_cotizacion).filter(
+        Venta.id_cotizacion.isnot(None), Venta.estado != "Cancelada"
+    )
+    if estado == "Vendida":
+        query = query.filter(Cotizacion.id.in_(vendidas))
+    elif estado == "Aceptada":
+        # "Aceptada" = aprobada pero todavía sin vender
+        query = query.filter(Cotizacion.estado == "Aceptada", Cotizacion.id.notin_(vendidas))
+    elif estado is not None:
         query = query.filter(Cotizacion.estado == estado)
     if id_cliente is not None:
         query = query.filter(Cotizacion.id_cliente == id_cliente)
@@ -61,7 +87,7 @@ def listar_cotizaciones(
         query = query.filter(func.date(Cotizacion.fecha) >= fecha_desde)
     if fecha_hasta is not None:
         query = query.filter(func.date(Cotizacion.fecha) <= fecha_hasta)
-    return query.offset(paginacion.skip).limit(paginacion.limit).all()
+    return _marcar_vendidas(db, query.offset(paginacion.skip).limit(paginacion.limit).all())
 
 
 @router.get("/{cotizacion_id}", response_model=CotizacionResponse)
@@ -69,7 +95,7 @@ def obtener_cotizacion(cotizacion_id: int, db: Session = Depends(get_db), usuari
     cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
     if not cotizacion:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
-    return cotizacion
+    return _marcar_vendidas(db, cotizacion)
 
 
 @router.get("/expediente/{numero_expediente}", response_model=CotizacionResponse)
@@ -78,7 +104,7 @@ def buscar_por_expediente(numero_expediente: str, db: Session = Depends(get_db),
     cotizacion = db.query(Cotizacion).filter(Cotizacion.numero_expediente == numero_expediente).first()
     if not cotizacion:
         raise HTTPException(status_code=404, detail="No existe ninguna cotización con ese expediente")
-    return cotizacion
+    return _marcar_vendidas(db, cotizacion)
 
 
 @router.post("", response_model=CotizacionResponse, status_code=201)
@@ -149,7 +175,7 @@ def cambiar_estado_cotizacion(cotizacion_id: int, nuevo_estado: str, db: Session
     )
     db.commit()
     db.refresh(cotizacion)
-    return cotizacion
+    return _marcar_vendidas(db, cotizacion)
 
 
 @router.get("/{cotizacion_id}/para-venta", response_model=CotizacionParaVentaResponse)
@@ -194,4 +220,4 @@ def cotizacion_para_venta(cotizacion_id: int, db: Session = Depends(get_db), usu
         observaciones=cotizacion.observaciones,
         tiene_stock_suficiente=all(item.stock_suficiente for item in detalles),
         detalles=detalles,
-    )
+    )
