@@ -129,6 +129,7 @@ def reporte_cuadre_caja(turno_id: int, db: Session = Depends(get_db), usuario_ac
 
     return CuadreCajaResponse(
         id_turno=turno.id,
+        id_usuario=turno.id_usuario,
         id_ubicacion=turno.id_ubicacion,
         fecha_apertura=turno.fecha_apertura,
         fecha_cierre=turno.fecha_cierre,

@@ -603,6 +603,10 @@ async function cargarReporteVentasDiarias() {
   }
 }
 
+function escaparHtmlReporteTurno(v) {
+  return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
 // Fecha local (YYYY-MM-DD). toISOString usa UTC y después de las 6 p. m. daba el día siguiente.
 function _fechaLocalISO(d = new Date()) {
   const p = (n) => String(n).padStart(2, "0");
@@ -716,12 +720,13 @@ async function cargarReporteCuadreCaja() {
   if (!container) return;
   try {
     const turnos = await api.getCajaTurnos().catch(() => []);
+    await cargarNombresPersonas();
     container.innerHTML = `
             <div class="row mb-3">
                 <div class="col-md-4"><label class="form-label small">Seleccionar Turno</label>
                     <select class="form-select form-select-sm" id="cuadreTurnoSelect" onchange="actualizarCuadreCaja()">
                         <option value="">Seleccionar turno</option>
-                        ${turnos.map((t) => `<option value="${t.id}">Turno #${t.id} - ${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : ""} (${t.estado})</option>`).join("")}
+                        ${turnos.map((t) => `<option value="${t.id}">${escaparHtmlReporteTurno(etiquetaTurno(t, { conEstado: true }))}</option>`).join("")}
                     </select>
                 </div>
             </div>
@@ -753,7 +758,7 @@ async function actualizarCuadreCaja() {
     const estadoColor = data.estado === "Abierto" ? "success" : "secondary";
     const diferenciaColor = diferencia >= 0 ? "success" : "danger";
     resultado.innerHTML = `
-            <div class="card"><div class="card-header"><div class="d-flex justify-content-between align-items-center"><h6 class="mb-0 fw-bold">Cuadre de Caja - Turno #${data.id_turno}</h6><span class="badge bg-${estadoColor}">${data.estado}</span></div></div>
+            <div class="card"><div class="card-header"><div class="d-flex justify-content-between align-items-center"><h6 class="mb-0 fw-bold">Cuadre de Caja - ${escaparHtmlReporteTurno(nombrePersona(data.id_usuario))}</h6><span class="badge bg-${estadoColor}">${data.estado}</span></div></div>
             <div class="card-body"><div class="row">
                 <div class="col-md-3"><div class="card bg-info bg-opacity-10"><div class="card-body text-center"><h6 class="text-muted">Fondo Inicial</h6><h4 class="text-info">Q${(data.fondo_inicial || 0).toFixed(2)}</h4></div></div></div>
                 <div class="col-md-3"><div class="card bg-success bg-opacity-10"><div class="card-body text-center"><h6 class="text-muted">Total Ventas</h6><h4 class="text-success">Q${(data.total_ventas || 0).toFixed(2)}</h4></div></div></div>
@@ -765,7 +770,7 @@ async function actualizarCuadreCaja() {
             <table class="table table-sm table-bordered mt-2">
                 <thead class="table-light"><tr><th>Concepto</th><th>Valor</th></tr></thead>
                 <tbody>
-                    <tr><td>Turno</td><td>#${data.id_turno} (${data.estado})</td></tr>
+                    <tr><td>Caja de</td><td>${escaparHtmlReporteTurno(nombrePersona(data.id_usuario))} (${data.estado})</td></tr>
                     <tr><td>Fecha Apertura</td><td>${data.fecha_apertura ? new Date(data.fecha_apertura).toLocaleString() : "--"}</td></tr>
                     <tr><td>Fecha Cierre</td><td>${data.fecha_cierre ? new Date(data.fecha_cierre).toLocaleString() : "--"}</td></tr>
                     <tr><td>Fondo Inicial</td><td>Q${(data.fondo_inicial || 0).toFixed(2)}</td></tr>
@@ -1574,6 +1579,7 @@ async function cargarReporteCuadreCaja() {
 
   try {
     const turnos = await api.getCajaTurnos().catch(() => []);
+    await cargarNombresPersonas();
 
     container.innerHTML = `
             <div class="row mb-3">
@@ -1584,7 +1590,7 @@ async function cargarReporteCuadreCaja() {
                         ${turnos
                           .map(
                             (t) => `
-                            <option value="${t.id}">Turno #${t.id} - ${t.fecha_apertura ? new Date(t.fecha_apertura).toLocaleDateString() : ""} (${t.estado})</option>
+                            <option value="${t.id}">${escaparHtmlReporteTurno(etiquetaTurno(t, { conEstado: true }))}</option>
                         `,
                           )
                           .join("")}

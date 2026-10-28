@@ -23,6 +23,7 @@ class ConciliacionPagosResponse(BaseModel):
 
 class CuadreCajaResponse(BaseModel):
     id_turno: int
+    id_usuario: Optional[int] = None
     id_ubicacion: Optional[int] = None
     fecha_apertura: Optional[datetime] = None
     fecha_cierre: Optional[datetime] = None

@@ -222,6 +222,7 @@
 
       window.cajaTurnosData = turnos || [];
       window.tiposPagoData = tiposPago || [];
+      await cargarNombresPersonas();
       gastosData = gastos || [];
       tiposGastoData = tiposGasto || [];
       cajaChicaData = cajaChica || [];
@@ -245,7 +246,7 @@
             <table class="table table-sm table-striped">
               <thead>
                 <tr>
-                  <th>ID</th>
+                  <th>Cajero</th>
                   <th>Estado</th>
                   <th>Apertura</th>
                   <th>Fondo</th>
@@ -271,7 +272,7 @@
                       diferencia !== 0 ? "text-danger fw-bold" : "";
                     return `
                     <tr>
-                      <td>#${t.id}</td>
+                      <td>${escaparHtmlEscaner(nombrePersona(t.id_usuario))}</td>
                       <td><span class="badge ${estadoBadge}">${estado}</span></td>
                       <td>${fechaApertura}</td>
                       <td>Q${parseFloat(t.fondo_inicial || 0).toFixed(2)}</td>
@@ -611,6 +612,7 @@
   let turnoParaCerrar = null;
 
   async function showCerrarTurnoModal() {
+    await cargarNombresPersonas();
     try {
       const turnos = await api.getCajaTurnos();
       const abiertos = turnos.filter((t) => t.estado === "Abierto");
@@ -636,7 +638,7 @@
       _restaurarCajaModal();
 
       const title = document.getElementById("cajaModalTitle");
-      if (title) title.textContent = `Cerrar Turno #${turnoParaCerrar.id}`;
+      if (title) title.textContent = `Cerrar caja de ${nombrePersona(turnoParaCerrar.id_usuario)}`;
 
       // ✅ Mostrar denominaciones
       const denominacionesContainer = document.getElementById(
@@ -760,9 +762,9 @@
                     <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
                             onclick="window.seleccionarTurnoParaCerrar(${t.id})">
                       <div>
-                        <strong>Turno #${t.id}</strong>
+                        <strong>Caja de ${escaparHtmlEscaner(nombrePersona(t.id_usuario))}</strong>
                         <br>
-                        <small class="text-muted">Usuario: ${t.id_usuario || "--"} | Apertura: ${fechaApertura}</small>
+                        <small class="text-muted">Abierta: ${fechaApertura}</small>
                       </div>
                       <span class="badge bg-success">Abierto</span>
                     </button>
@@ -904,9 +906,12 @@
       );
 
       if (turnoExistente) {
+        const desde = turnoExistente.fecha_apertura
+          ? new Date(turnoExistente.fecha_apertura).toLocaleString()
+          : "";
         const confirmar = await mostrarConfirmacion(
           "Turno ya abierto",
-          `Ya tienes un turno abierto (ID: ${turnoExistente.id}). ¿Deseas abrir otro turno igual?`,
+          `Ya tienes una caja abierta${desde ? ` (desde el ${desde})` : ""}. ¿Deseas abrir otra igual?`,
         );
         if (!confirmar) return;
       }

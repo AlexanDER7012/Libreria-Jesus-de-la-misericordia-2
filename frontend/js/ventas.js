@@ -946,7 +946,8 @@ async function llenarSelectVendedores() {
     const selTurno = document.getElementById("ventaCajaTurno");
     if (turno && selTurno) {
       if (![...selTurno.options].some((o) => o.value === turno)) {
-        selTurno.innerHTML += `<option value="${turno}">Turno #${turno}</option>`;
+        const t = (cajaTurnosData || []).find((x) => String(x.id) === String(turno));
+        selTurno.innerHTML += `<option value="${turno}">${escaparHtmlEscaner(t ? etiquetaTurno(t) : "Caja del vendedor")}</option>`;
       }
       selTurno.value = turno;
     }
@@ -1519,9 +1520,9 @@ async function llenarSelectCajaTurno() {
     return;
   }
 
+  await cargarNombresPersonas();
   abiertos.forEach((t) => {
-    const usuario = t.id_usuario || "--";
-    select.innerHTML += `<option value="${t.id}">Turno #${t.id} - Usuario: ${usuario}</option>`;
+    select.innerHTML += `<option value="${t.id}">${escaparHtmlEscaner(etiquetaTurno(t))}</option>`;
   });
 }
 
@@ -4172,6 +4173,7 @@ async function pagarServicioIndependiente(idServicio) {
 // pago, y el servidor crea la venta del servicio con su pago completo.
 // (Antes se intentaba crear una venta sin turno ni productos y siempre fallaba.)
 async function mostrarModalPagoServicio(servicio) {
+  await cargarNombresPersonas();
   const turnos = (await api.getCajaTurnos().catch(() => [])) || [];
   const abiertos = turnos.filter((t) => t.estado === "Abierto");
   if (abiertos.length === 0) {
@@ -4199,7 +4201,7 @@ async function mostrarModalPagoServicio(servicio) {
             <div class="mb-3">
               <label class="form-label">Turno de caja *</label>
               <select class="form-select" id="pagoServicioTurno" required>
-                ${abiertos.map((t) => `<option value="${t.id}">Turno #${t.id} - ${escaparHtmlEscaner(usuarios[t.id_usuario] || "Usuario")}</option>`).join("")}
+                ${abiertos.map((t) => `<option value="${t.id}">${escaparHtmlEscaner(etiquetaTurno(t))}</option>`).join("")}
               </select>
             </div>
             <div class="mb-3">
@@ -4476,6 +4478,7 @@ function getCurrentUser() {
 // ============================================================
 async function cargarVendedoresConTurno() {
   try {
+    await cargarNombresPersonas();
     const turnos = await api.getCajaTurnos().catch(() => []);
     const abiertos = turnos.filter((t) => t.estado === "Abierto");
 
@@ -4494,7 +4497,7 @@ async function cargarVendedoresConTurno() {
       const user = usuariosMap[t.id_usuario];
       return {
         id_usuario: t.id_usuario,
-        nombre: user ? user.nombre_usuario : `Usuario ${t.id_usuario}`,
+        nombre: nombrePersona(t.id_usuario),
         turno_id: t.id,
         id_empleado: user ? user.id_empleado : null,
       };
@@ -4561,7 +4564,7 @@ async function cargarSubCajaBasico(container) {
                       .map(
                         (t) =>
                           `<div class="d-flex justify-content-between align-items-center border-bottom py-1">
-                    <span>Turno #${t.id}</span>
+                    <span>${escaparHtmlEscaner(etiquetaTurno(t))}</span>
                     <span class="badge bg-success">Abierto</span>
                   </div>`,
                       )
@@ -4898,7 +4901,7 @@ function llenarSelectCajaTurnoCM() {
     return;
   }
   abiertos.forEach((t) => {
-    select.innerHTML += `<option value="${t.id}">Turno #${t.id} - Usuario: ${t.id_usuario || "--"}</option>`;
+    select.innerHTML += `<option value="${t.id}">${escaparHtmlEscaner(etiquetaTurno(t))}</option>`;
   });
   if (abiertos.length === 1) select.value = abiertos[0].id;
 }

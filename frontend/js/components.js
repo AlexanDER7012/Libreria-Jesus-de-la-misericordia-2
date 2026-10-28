@@ -566,6 +566,50 @@ function tienePermiso(modulo, accion) {
 
 // EXPONER FUNCIONES GLOBALES
 
+// =============================================
+// NOMBRE DE QUIÉN ABRIÓ UN TURNO DE CAJA
+// Antes se mostraba "Turno #9 - Usuario: 4"; ahora "Caja de María López
+// (abierta 28/10 8:15 a. m.)". Usa el nombre del empleado y, si el usuario
+// no tiene empleado, su nombre de usuario.
+// =============================================
+window.__nombresPersonas = window.__nombresPersonas || {};
+
+async function cargarNombresPersonas(forzar = false) {
+  if (!forzar && Object.keys(window.__nombresPersonas).length) return window.__nombresPersonas;
+  const [usuarios, empleados] = await Promise.all([
+    api.getUsuarios().catch(() => []),
+    api.getEmpleados().catch(() => []),
+  ]);
+  const empleadosPorId = {};
+  (empleados || []).forEach((e) => (empleadosPorId[e.id] = e.nombre));
+  (usuarios || []).forEach((u) => {
+    window.__nombresPersonas[u.id] = empleadosPorId[u.id_empleado] || u.nombre_usuario || "Usuario";
+  });
+  return window.__nombresPersonas;
+}
+
+function nombrePersona(idUsuario) {
+  return window.__nombresPersonas[idUsuario] || "Usuario sin nombre";
+}
+
+function etiquetaTurno(turno, { conEstado = false } = {}) {
+  if (!turno) return "";
+  const fecha = turno.fecha_apertura
+    ? new Date(turno.fecha_apertura).toLocaleString([], {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "";
+  const estado = conEstado && turno.estado ? ` · ${turno.estado}` : "";
+  return `Caja de ${nombrePersona(turno.id_usuario)}${fecha ? ` (abierta ${fecha})` : ""}${estado}`;
+}
+
+window.cargarNombresPersonas = cargarNombresPersonas;
+window.nombrePersona = nombrePersona;
+window.etiquetaTurno = etiquetaTurno;
+
 window.showToast = showToast;
 window.moduloDePermiso = moduloDePermiso;
 window.mostrarErrorCampo = mostrarErrorCampo;
