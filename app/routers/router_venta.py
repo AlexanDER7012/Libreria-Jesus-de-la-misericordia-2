@@ -1,6 +1,6 @@
 from datetime import date
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -9,14 +9,15 @@ from app.security import get_current_user, requiere_permiso
 from app.bitacora import registrar_actividad
 from app.models.model_cliente import Cliente
 from app.models.model_producto import Producto
-from app.models.model_caja import CajaTurno
+from app.models.model_caja import CajaTurno, TipoPago
+from app.models.model_cotizacion import Cotizacion
 from app.models.model_usuario import Usuario
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario, Alerta
 from app.stock import mover_stock, stock_en, resolver_ubicacion, nombre_ubicacion, tipo_movimiento
 from app.models.model_venta import Venta, DetalleVenta, MetodoPagoVenta, ServicioAdicional, DetalleServicio
 from app.schemas.schema_venta import (
     VentaCreate, VentaUpdate, VentaResponse,
-    ServicioAdicionalCreate, ServicioAdicionalResponse, MetodoPagoVentaCreate,
+    ServicioAdicionalCreate, ServicioAdicionalResponse, MetodoPagoVentaCreate, PagoServicioCreate,
 )
 
 router = APIRouter()
@@ -37,6 +38,25 @@ def _generar_alerta_si_stock_bajo(db: Session, producto: Producto):
         id_producto=producto.id,
         leida=0,
     ))
+
+
+def _validar_tipo_pago_venta(db: Session, id_tipo_pago):
+    tipo = db.query(TipoPago).filter(TipoPago.id == id_tipo_pago).first()
+    if not tipo:
+        raise HTTPException(status_code=400, detail="El tipo de pago elegido no existe")
+    if tipo.activo == 0:
+        raise HTTPException(status_code=400, detail=f"El tipo de pago '{tipo.nombre}' está inactivo")
+    if tipo.para_ventas == 0:
+        raise HTTPException(status_code=400, detail=f"El tipo de pago '{tipo.nombre}' no está habilitado para ventas")
+    return tipo
+
+
+def _venta_de_cotizacion(db: Session, id_cotizacion, excluir_venta=None):
+    """Venta (no anulada) que ya se hizo con esa cotización, o None."""
+    query = db.query(Venta).filter(Venta.id_cotizacion == id_cotizacion, Venta.estado != "Cancelada")
+    if excluir_venta is not None:
+        query = query.filter(Venta.id != excluir_venta)
+    return query.first()
 
 
 # ===================================================================
@@ -69,6 +89,9 @@ def listar_ventas(
         )
         saldo = func.coalesce(Venta.total, 0) - pagado
         query = query.filter(saldo > 0.009 if estado_pago == "Pendiente" else saldo <= 0.009)
+        # Una venta anulada no está "pendiente" ni "pagada"
+        if not estado:
+            query = query.filter(Venta.estado != "Cancelada")
     if id_cliente is not None:
         query = query.filter(Venta.id_cliente == id_cliente)
     if id_caja_turno is not None:
@@ -123,6 +146,8 @@ def contar_ventas_agrupado(
         func.count(Venta.id).label("total"),
         func.coalesce(func.sum(Venta.total), 0).label("monto"),
     )
+    # Las ventas anuladas no cuentan
+    query = query.filter(Venta.estado != "Cancelada")
     if fecha_desde is not None:
         query = query.filter(func.date(Venta.fecha) >= fecha_desde)
     if fecha_hasta is not None:
@@ -149,7 +174,8 @@ def estadisticas_venta_producto(
             func.count(DetalleVenta.id).label("veces_vendido"),
             func.coalesce(func.sum(DetalleVenta.cantidad), 0).label("cantidad_total"),
         )
-        .filter(DetalleVenta.id_producto == producto_id)
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .filter(DetalleVenta.id_producto == producto_id, Venta.estado != "Cancelada")
         .first()
     )
     return {
@@ -177,6 +203,30 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
     if not datos.detalles:
         raise HTTPException(status_code=400, detail="La venta debe incluir al menos un producto")
 
+    descuento_pct = float(datos.descuento_porcentaje or 0)
+    if descuento_pct < 0 or descuento_pct > 100:
+        raise HTTPException(status_code=400, detail="El descuento debe estar entre 0% y 100%")
+
+    vendedor = db.query(Usuario).filter(Usuario.id == datos.id_usuario).first()
+    if not vendedor or vendedor.activo == 0:
+        raise HTTPException(status_code=400, detail="El vendedor elegido no existe o está inactivo")
+
+    if datos.id_cotizacion:
+        cotizacion = db.query(Cotizacion).filter(Cotizacion.id == datos.id_cotizacion).first()
+        if not cotizacion:
+            raise HTTPException(status_code=400, detail=f"La cotización #{datos.id_cotizacion} no existe")
+        if cotizacion.estado != "Aceptada":
+            raise HTTPException(
+                status_code=400,
+                detail=f"La cotización #{cotizacion.id} está '{cotizacion.estado}'; solo se puede vender una cotización Aceptada",
+            )
+        ya = _venta_de_cotizacion(db, cotizacion.id)
+        if ya:
+            raise HTTPException(status_code=400, detail=f"La cotización #{cotizacion.id} ya se vendió en la venta #{ya.id}")
+
+    for p in datos.pagos or []:
+        _validar_tipo_pago_venta(db, p.id_tipo_pago)
+
     tipo_venta = tipo_movimiento(db, "Venta", 2)
 
     # La venta descuenta de la ubicación donde se vende (la de la venta o,
@@ -191,6 +241,11 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
         producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
         if not producto:
             raise HTTPException(status_code=404, detail="Uno de los productos ya no existe en el sistema. Quítalo de la lista e intenta de nuevo.")
+        if producto.activo == 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El producto '{producto.nombre}' está inactivo. Actívalo en Inventario para poder venderlo.",
+            )
         productos[d.id_producto] = producto
         pedido_por_producto[d.id_producto] = pedido_por_producto.get(d.id_producto, 0) + float(d.cantidad)
 
@@ -207,7 +262,7 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
             )
 
     subtotal = sum(float(productos[d.id_producto].precio_venta or 0) * d.cantidad for d in datos.detalles)
-    descuento = round(subtotal * (datos.descuento_porcentaje or 0) / 100, 2)
+    descuento = round(subtotal * descuento_pct / 100, 2)
     total = round(subtotal - descuento, 2)
 
     if any(float(p.monto or 0) <= 0 for p in datos.pagos or []):
@@ -289,12 +344,13 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
 
 
 @router.patch("/{venta_id}/cancelar", response_model=VentaResponse)
-def cancelar_venta(venta_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Editar"))):
+def cancelar_venta(venta_id: int, motivo: Optional[str] = None, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Editar"))):
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
     if venta.estado == "Cancelada":
-        raise HTTPException(status_code=400, detail="Esta venta ya está cancelada")
+        raise HTTPException(status_code=400, detail="Esta venta ya está anulada")
+    motivo = (motivo or "").strip()
 
     # El stock regresa a la ubicación donde se vendió, y queda el movimiento
     # en el historial (antes se devolvía sin dejar rastro).
@@ -328,7 +384,13 @@ def cancelar_venta(venta_id: int, db: Session = Depends(get_db), usuario_actual:
             turno.total_ventas = round(float(turno.total_ventas or 0) - float(venta.total or 0), 2)
 
     venta.estado = "Cancelada"
-    registrar_actividad(db, usuario_actual.id, "CANCELAR", "Venta")
+    if motivo:
+        nota = f"Anulada: {motivo}"
+        venta.observaciones = f"{venta.observaciones}\n{nota}" if venta.observaciones else nota
+    registrar_actividad(
+        db, usuario_actual.id, "CANCELAR", "Venta",
+        detalle=f"Anuló la venta #{venta.id}" + (f" (motivo: {motivo})" if motivo else ""),
+    )
     db.commit()
     db.refresh(venta)
     return venta
@@ -378,6 +440,8 @@ def registrar_pago_venta(venta_id: int, pago_data: MetodoPagoVentaCreate, db: Se
             detail=f"El pago (Q{monto:.2f}) es mayor que el saldo pendiente (Q{saldo:.2f})",
         )
 
+    _validar_tipo_pago_venta(db, pago_data.id_tipo_pago)
+
     nuevo_pago = MetodoPagoVenta(
         id_venta=venta_id,
         id_tipo_pago=pago_data.id_tipo_pago,
@@ -404,6 +468,9 @@ def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: S
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    if venta.estado == "Cancelada":
+        raise HTTPException(status_code=400, detail="No se pueden modificar los pagos de una venta anulada")
 
     pago = db.query(MetodoPagoVenta).filter(
         MetodoPagoVenta.id == pago_id, MetodoPagoVenta.id_venta == venta_id
@@ -460,26 +527,57 @@ def listar_servicios(
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
+def _validar_servicio(datos: ServicioAdicionalCreate):
+    if not (datos.tipo_servicio or "").strip():
+        raise HTTPException(status_code=400, detail="Selecciona el tipo de servicio")
+    if float(datos.monto_mano_obra or 0) < 0 or float(datos.monto_material or 0) < 0:
+        raise HTTPException(status_code=400, detail="Los montos del servicio no pueden ser negativos")
+    for d in datos.detalles:
+        if float(d.cantidad or 0) <= 0:
+            raise HTTPException(status_code=400, detail="La cantidad de cada material debe ser mayor a 0")
+        if float(d.costo_unitario or 0) < 0:
+            raise HTTPException(status_code=400, detail="El costo de los materiales no puede ser negativo")
+
+
+def _sumar_a_turno(db: Session, id_turno, monto: float):
+    if not id_turno:
+        return
+    turno = db.query(CajaTurno).filter(CajaTurno.id == id_turno).first()
+    if turno:
+        turno.total_ventas = round(float(turno.total_ventas or 0) + monto, 2)
+
+
 @router_servicio.post("", response_model=ServicioAdicionalResponse, status_code=201)
 def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Crear"))):
     """
-    Si vienen 'detalles' (materiales usados), monto_material SIEMPRE se
-    calcula desde ahí -- no se confía en lo que mande el cliente (mismo
-    criterio que usamos en producto.py para el precio). Si no vienen
-    detalles (ej. un servicio como "Pago de circulación" que no usa
-    materiales), sí se toma el monto_material que mande el cliente.
+    Si vienen 'detalles' (materiales usados), monto_material se calcula
+    desde ahí. Si el servicio va ligado a una venta, su total se SUMA al
+    total de esa venta (antes el frontend intentaba cambiar el total con un
+    PUT que el servidor ignoraba, y el servicio nunca se cobraba).
     """
+    _validar_servicio(datos)
+
     if datos.detalles:
         monto_material = round(sum(d.cantidad * d.costo_unitario for d in datos.detalles), 2)
     else:
         monto_material = round(datos.monto_material or 0, 2)
 
     total = round(monto_material + (datos.monto_mano_obra or 0), 2)
+    if total <= 0:
+        raise HTTPException(status_code=400, detail="El total del servicio debe ser mayor a Q0.00")
+
+    venta = None
+    if datos.id_venta:
+        venta = db.query(Venta).filter(Venta.id == datos.id_venta).first()
+        if not venta:
+            raise HTTPException(status_code=404, detail=f"La venta #{datos.id_venta} no existe")
+        if venta.estado == "Cancelada":
+            raise HTTPException(status_code=400, detail=f"La venta #{venta.id} está anulada; no se le pueden agregar servicios")
 
     nuevo = ServicioAdicional(
         id_venta=datos.id_venta,
-        id_cliente=datos.id_cliente,
-        tipo_servicio=datos.tipo_servicio,
+        id_cliente=datos.id_cliente if datos.id_cliente else (venta.id_cliente if venta else None),
+        tipo_servicio=datos.tipo_servicio.strip(),
         descripcion=datos.descripcion,
         monto_mano_obra=datos.monto_mano_obra or 0,
         monto_material=monto_material,
@@ -497,10 +595,66 @@ def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get
             subtotal=round(d.cantidad * d.costo_unitario, 2),
         ))
 
-    registrar_actividad(db, usuario_actual.id, "CREAR", "ServicioAdicional")
+    if venta:
+        venta.total = round(float(venta.total or 0) + total, 2)
+        _sumar_a_turno(db, venta.id_caja_turno, total)
+
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "ServicioAdicional",
+        detalle=f"Registró el servicio '{nuevo.tipo_servicio}' por Q{total:.2f}" + (f" en la venta #{venta.id}" if venta else ""),
+    )
     db.commit()
     db.refresh(nuevo)
     return nuevo
+
+
+@router_servicio.post("/{servicio_id}/pagar", response_model=ServicioAdicionalResponse)
+def pagar_servicio(servicio_id: int, datos: PagoServicioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Crear"))):
+    """
+    Cobra un servicio que no está ligado a una venta: crea una venta solo con
+    el servicio (sin productos), le registra el pago completo y la deja en el
+    turno de caja elegido.
+    """
+    servicio = db.query(ServicioAdicional).filter(ServicioAdicional.id == servicio_id).first()
+    if not servicio:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    if servicio.id_venta:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Este servicio pertenece a la venta #{servicio.id_venta}; regístrale el pago desde esa venta",
+        )
+    turno = db.query(CajaTurno).filter(CajaTurno.id == datos.id_caja_turno).first()
+    if not turno or turno.estado != "Abierto":
+        raise HTTPException(status_code=400, detail="Elige un turno de caja abierto para cobrar el servicio")
+    _validar_tipo_pago_venta(db, datos.id_tipo_pago)
+
+    total = round(float(servicio.total or 0), 2)
+    cliente = db.query(Cliente).filter(Cliente.id == servicio.id_cliente).first() if servicio.id_cliente else None
+    venta = Venta(
+        id_cliente=servicio.id_cliente,
+        id_usuario=turno.id_usuario or usuario_actual.id,
+        id_ubicacion=resolver_ubicacion(db, turno.id_ubicacion),
+        id_caja_turno=turno.id,
+        subtotal=0,
+        descuento=0,
+        descuento_porcentaje=0,
+        total=total,
+        estado="Completada",
+        observaciones=f"Cobro del servicio #{servicio.id}: {servicio.tipo_servicio}",
+        nit=cliente.nit if cliente and cliente.nit else None,
+    )
+    db.add(venta)
+    db.flush()
+    db.add(MetodoPagoVenta(id_venta=venta.id, id_tipo_pago=datos.id_tipo_pago, monto=total, referencia=datos.referencia))
+    servicio.id_venta = venta.id
+    turno.total_ventas = round(float(turno.total_ventas or 0) + total, 2)
+    registrar_actividad(
+        db, usuario_actual.id, "CREAR", "Venta",
+        detalle=f"Cobró el servicio #{servicio.id} (Q{total:.2f}) en la venta #{venta.id}",
+    )
+    db.commit()
+    db.refresh(servicio)
+    return servicio
 
 
 @router_servicio.delete("/{servicio_id}", status_code=204)
@@ -508,6 +662,22 @@ def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db), usuario_a
     servicio = db.query(ServicioAdicional).filter(ServicioAdicional.id == servicio_id).first()
     if not servicio:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    if servicio.id_venta:
+        venta = db.query(Venta).filter(Venta.id == servicio.id_venta).first()
+        if venta and venta.estado != "Cancelada":
+            total_servicio = float(servicio.total or 0)
+            pagado = sum(float(p.monto or 0) for p in venta.pagos)
+            nuevo_total = round(float(venta.total or 0) - total_servicio, 2)
+            if pagado > nuevo_total + 0.009:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"El servicio ya se cobró en la venta #{venta.id}. "
+                        "Para quitarlo, anula esa venta."
+                    ),
+                )
+            venta.total = nuevo_total
+            _sumar_a_turno(db, venta.id_caja_turno, -total_servicio)
     db.delete(servicio)
     registrar_actividad(db, usuario_actual.id, "ELIMINAR", "ServicioAdicional")
-    db.commit()
+    db.commit()

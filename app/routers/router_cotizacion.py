@@ -10,12 +10,20 @@ from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
 from app.models.model_usuario import Usuario
 from app.models.model_cotizacion import Cotizacion, DetalleCotizacion
+from app.models.model_venta import Venta
 from app.schemas.schema_cotizacion import (
     CotizacionCreate, CotizacionResponse,
     CotizacionParaVentaResponse, CotizacionParaVentaDetalleItem,
 )
 
-router = APIRouter()  # /cotizaciones
+router = APIRouter()
+
+
+def _venta_de_cotizacion(db: Session, id_cotizacion):
+    """Venta (no anulada) que ya se hizo con esa cotización, o None."""
+    return db.query(Venta).filter(
+        Venta.id_cotizacion == id_cotizacion, Venta.estado != "Cancelada"
+    ).first()  # /cotizaciones
 
 
 def _generar_numero_expediente(db: Session) -> str:
@@ -83,6 +91,10 @@ def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db), usu
         producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
         if not producto:
             raise HTTPException(status_code=404, detail="Uno de los productos ya no existe en el sistema. Quítalo de la lista e intenta de nuevo.")
+        if float(d.cantidad or 0) <= 0:
+            raise HTTPException(status_code=400, detail=f"La cantidad de '{producto.nombre}' debe ser mayor a 0")
+        if producto.activo == 0:
+            raise HTTPException(status_code=400, detail=f"El producto '{producto.nombre}' está inactivo y no se puede cotizar")
         productos[d.id_producto] = producto
 
     total = sum(float(productos[d.id_producto].precio_venta or 0) * d.cantidad for d in datos.detalles)
@@ -123,6 +135,12 @@ def cambiar_estado_cotizacion(cotizacion_id: int, nuevo_estado: str, db: Session
     cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
     if not cotizacion:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    vendida = _venta_de_cotizacion(db, cotizacion.id)
+    if vendida:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La cotización {cotizacion.numero_expediente} ya se vendió en la venta #{vendida.id} y no puede cambiar de estado",
+        )
 
     cotizacion.estado = nuevo_estado
     registrar_actividad(
@@ -144,6 +162,9 @@ def cotizacion_para_venta(cotizacion_id: int, db: Session = Depends(get_db), usu
             status_code=400,
             detail=f"Solo se puede convertir en venta una cotización Aceptada (esta está en '{cotizacion.estado}')",
         )
+    vendida = _venta_de_cotizacion(db, cotizacion.id)
+    if vendida:
+        raise HTTPException(status_code=400, detail=f"Esta cotización ya se vendió en la venta #{vendida.id}")
 
     detalles = []
     total = 0.0

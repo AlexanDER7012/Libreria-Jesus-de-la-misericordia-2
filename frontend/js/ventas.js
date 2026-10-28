@@ -173,6 +173,7 @@ async function loadVentasModule() {
       servicios,
       cotizaciones,
       ubicaciones,
+      usuarios,
     ] = await Promise.all([
       api.getClientes().catch(() => []),
       api.getProductos().catch(() => []),
@@ -181,8 +182,14 @@ async function loadVentasModule() {
       api.request("/servicios-adicionales").catch(() => []),
       api.request("/cotizaciones").catch(() => []),
       api.request("/ubicaciones").catch(() => []),
+      api.getUsuarios().catch(() => []),
     ]);
 
+    // Para mostrar el nombre del vendedor en la tabla (antes salía "--")
+    vendedoresData = (usuarios || []).map((u) => ({
+      id_usuario: u.id,
+      nombre: u.nombre_usuario,
+    }));
     window.clientesData = clientes || [];
     window.productosData = productos || [];
     tiposPagoData = tiposPago || [];
@@ -422,6 +429,7 @@ function renderVentasTable(ventas) {
       0,
     );
     const saldo = (v.total || 0) - totalPagos;
+    if (v.estado === "Cancelada") return; // las anuladas no suman
     totalVentas += v.total || 0;
     if (saldo > 0) totalPendiente += saldo;
   });
@@ -488,22 +496,19 @@ function renderVentasTable(ventas) {
     const cliente = (window.clientesData || []).find(
       (c) => c.id === v.id_cliente,
     );
-    const nombreCliente = cliente ? cliente.nombre : "--";
-    const nitCliente = cliente ? cliente.nit || "--" : "--";
+    const nombreCliente = cliente ? cliente.nombre : v.id_cliente ? "Cliente" : "Consumidor final";
+    const nitCliente = v.nit || (cliente ? cliente.nit || "--" : "--");
     const totalPagos = (v.pagos || []).reduce(
       (sum, p) => sum + (p.monto || 0),
       0,
     );
-    const saldo = (v.total || 0) - totalPagos;
+    const anulada = v.estado === "Cancelada";
+    const saldo = anulada ? 0 : (v.total || 0) - totalPagos;
     const pagada = saldo <= 0;
 
     let nombreVendedor = "--";
-    if (v.id_vendedor) {
-      const vendedor = vendedoresData.find(
-        (e) => e.id_usuario === v.id_vendedor,
-      );
-      if (vendedor) nombreVendedor = vendedor.nombre || "--";
-    }
+    const vendedor = vendedoresData.find((e) => e.id_usuario === v.id_usuario);
+    if (vendedor) nombreVendedor = vendedor.nombre || "--";
 
     html += `
             <tr>
@@ -525,8 +530,8 @@ function renderVentasTable(ventas) {
                 <td><strong>Q${(v.total || 0).toFixed(2)}</strong></td>
                 <td>Q${saldo.toFixed(2)}</td>
                 <td>
-                    <span class="badge ${pagada ? "bg-success" : "bg-danger"}">
-                        ${pagada ? "Pagada" : "Pendiente"}
+                    <span class="badge ${anulada ? "bg-secondary" : pagada ? "bg-success" : "bg-danger"}">
+                        ${anulada ? "Anulada" : pagada ? "Pagada" : "Pendiente"}
                     </span>
                 </td>
                 <td>
@@ -536,10 +541,10 @@ function renderVentasTable(ventas) {
                     <button class="btn btn-sm btn-outline-success" onclick="imprimirVenta(${v.id})" title="Imprimir venta">
                         <i class="fas fa-print"></i>
                     </button>
-                    ${!pagada && tienePermiso("Ventas", "Editar") ? `<button class="btn btn-sm btn-outline-success" onclick="mostrarModalPago(${v.id})" title="Registrar pago"><i class="fas fa-money-bill-wave"></i></button>` : ""}
+                    ${!anulada && !pagada && tienePermiso("Ventas", "Editar") ? `<button class="btn btn-sm btn-outline-success" onclick="mostrarModalPago(${v.id})" title="Registrar pago"><i class="fas fa-money-bill-wave"></i></button>` : ""}
                     ${
-                      tienePermiso("Ventas", "Editar")
-                        ? `<button class="btn btn-sm btn-outline-danger" onclick="anularVenta(${v.id})">
+                      !anulada && tienePermiso("Ventas", "Editar")
+                        ? `<button class="btn btn-sm btn-outline-danger" onclick="anularVenta(${v.id})" title="Anular venta">
                         <i class="fas fa-times"></i>
                     </button>`
                         : ""
@@ -935,6 +940,17 @@ async function llenarSelectVendedores() {
   vendedores.forEach((v) => {
     select.innerHTML += `<option value="${v.id_usuario}" data-turno="${v.turno_id}">${v.nombre}</option>`;
   });
+  // Al elegir el vendedor se usa su turno de caja abierto
+  select.onchange = () => {
+    const turno = select.selectedOptions[0]?.dataset.turno;
+    const selTurno = document.getElementById("ventaCajaTurno");
+    if (turno && selTurno) {
+      if (![...selTurno.options].some((o) => o.value === turno)) {
+        selTurno.innerHTML += `<option value="${turno}">Turno #${turno}</option>`;
+      }
+      selTurno.value = turno;
+    }
+  };
 
   // ✅ AUTO-SELECCIÓN: Si solo hay 1 vendedor, seleccionarlo automáticamente
   if (vendedores.length === 1) {
@@ -1632,10 +1648,17 @@ function agregarDetalleVenta(event) {
   const cantidadInput = document.getElementById("ventaDetalleCantidad");
 
   const id_producto = parseInt(productSelect.value);
-  const cantidad = parseFloat(cantidadInput.value) || 1;
+  const cantidad = Number(cantidadInput.value);
 
   if (!id_producto) {
     showToast("Selecciona un producto", "error");
+    return;
+  }
+
+  // Antes una cantidad vacía o 0 se cambiaba a 1 y se aceptaban negativos
+  if (!Number.isInteger(cantidad) || cantidad <= 0) {
+    showToast("La cantidad debe ser un número entero mayor a 0", "error");
+    cantidadInput.focus();
     return;
   }
 
@@ -1644,6 +1667,10 @@ function agregarDetalleVenta(event) {
   );
   if (!producto) {
     showToast("Producto no encontrado", "error");
+    return;
+  }
+  if (producto.activo === 0) {
+    showToast(`El producto "${producto.nombre}" está inactivo. Actívalo en Inventario para venderlo.`, "error");
     return;
   }
 
@@ -1773,9 +1800,11 @@ function renderDetallesVenta() {
 async function saveVenta(event) {
   if (event) event.preventDefault();
 
-  const id_caja_turno = parseInt(
-    document.getElementById("ventaCajaTurno").value,
-  );
+  const opcionVendedor = document.getElementById("ventaVendedor")?.selectedOptions?.[0];
+  const id_caja_turno =
+    parseInt(document.getElementById("ventaCajaTurno").value) ||
+    parseInt(opcionVendedor?.dataset?.turno) ||
+    0;
   if (!id_caja_turno) {
     showToast("Selecciona un turno de caja", "error");
     return;
@@ -1827,6 +1856,11 @@ async function saveVenta(event) {
   }
   const descuento_porcentaje =
     parseFloat(document.getElementById("ventaDescuento").value) || 0;
+  if (descuento_porcentaje < 0 || descuento_porcentaje > 100) {
+    showToast("El descuento debe estar entre 0% y 100%", "error");
+    document.getElementById("ventaDescuento").focus();
+    return;
+  }
   const observaciones =
     document.getElementById("ventaObservaciones").value || null;
   const id_cotizacion =
@@ -1849,9 +1883,10 @@ async function saveVenta(event) {
     }
   }
 
+  // La venta queda a nombre del vendedor elegido (antes se guardaba con
+  // el usuario que tenía la sesión abierta y el vendedor se ignoraba)
   const data = {
-    id_usuario: id_usuario,
-    id_vendedor: id_vendedor,
+    id_usuario: id_vendedor || id_usuario,
     id_cliente: id_cliente,
     id_caja_turno: id_caja_turno,
     id_ubicacion: id_ubicacion,
@@ -1909,19 +1944,21 @@ async function verVenta(id) {
 
     // Estado
     const estadoBadge = document.getElementById("verVentaEstado");
-    const estado = venta.estado_pago || (pagada ? "PAGADA" : "PENDIENTE");
+    const anulada = venta.estado === "Cancelada";
+    const estado = anulada ? "ANULADA" : pagada ? "PAGADA" : "PENDIENTE";
     estadoBadge.textContent = estado;
-    estadoBadge.className = `badge ${estado === "PAGADA" || estado === "Pagada" ? "bg-success" : estado === "PENDIENTE" || estado === "Pendiente" ? "bg-warning text-dark" : "bg-danger"}`;
+    estadoBadge.className = `badge ${anulada ? "bg-secondary" : pagada ? "bg-success" : "bg-warning text-dark"}`;
 
     // Totales
     document.getElementById("verVentaSubtotal").textContent =
       `Q${(venta.subtotal || 0).toFixed(2)}`;
+    // "descuento" es el monto en quetzales; antes se mostraba como si fuera %
     document.getElementById("verVentaDescuento").textContent =
-      `${venta.descuento || 0}%`;
+      `Q${(venta.descuento || 0).toFixed(2)} (${venta.descuento_porcentaje || 0}%)`;
     document.getElementById("verVentaTotal").textContent =
       `Q${(venta.total || 0).toFixed(2)}`;
     document.getElementById("verVentaSaldo").textContent =
-      `Q${saldo.toFixed(2)}`;
+      anulada ? "--" : `Q${saldo.toFixed(2)}`;
 
     // Detalles (productos)
     const detallesBody = document.getElementById("verVentaDetallesBody");
@@ -2051,16 +2088,17 @@ async function eliminarPagoVenta(idVenta, idPago) {
 // ANULAR VENTA
 // ============================================================
 async function anularVenta(id) {
-  const confirmado = await mostrarConfirmacion(
-    "Anular Venta",
-    "¿Estás seguro de anular esta venta? Esta acción no se puede deshacer.",
-    "Anular",
+  const motivo = await pedirTextoModal(
+    `¿Por qué se anula la venta #${id}? Los productos regresan al inventario y esto no se puede deshacer.`,
+    { titulo: "Anular venta", textoAceptar: "Anular venta", obligatorio: true },
   );
-
-  if (!confirmado) return;
+  if (motivo === null) return;
 
   try {
-    await api.request(`/ventas/${id}/cancelar`, "PATCH");
+    await api.request(
+      `/ventas/${id}/cancelar?motivo=${encodeURIComponent(motivo)}`,
+      "PATCH",
+    );
     showToast("Venta anulada correctamente", "success");
     await loadVentasModule();
   } catch (error) {
@@ -4001,60 +4039,31 @@ async function saveServicio(event) {
     descripcion,
     monto_material: monto_material,
     monto_mano_obra: monto_mano_obra,
-    detalles: detalles
-      ? [{ material: detalles, cantidad: 1, costo_unitario: 0 }]
-      : [],
+    // Antes el detalle iba con costo 0 y el servidor recalculaba el
+    // material en Q0. El texto de detalles va en la descripción.
+    detalles: [],
   };
+  if (detalles) {
+    data.descripcion = descripcion ? `${descripcion} - ${detalles}` : detalles;
+  }
+  if (monto_material < 0 || monto_mano_obra < 0) {
+    showToast("Los montos no pueden ser negativos", "error");
+    return;
+  }
+  if (total <= 0) {
+    showToast("El total del servicio debe ser mayor a Q0.00", "error");
+    return;
+  }
 
   try {
     const result = await api.request("/servicios-adicionales", "POST", data);
     showToast(`Servicio #${result.id} creado correctamente`, "success");
 
-    // ACTUALIZAR EL TOTAL DE LA VENTA
     if (id_venta) {
-      try {
-        // 1. Obtener la venta actual
-        const venta = await api.getVenta(id_venta);
-        console.log("📦 Venta actual:", venta);
-
-        // 2. Obtener TODOS los servicios de la venta
-        const serviciosVenta = await api.request(
-          `/servicios-adicionales?id_venta=${id_venta}`,
-        );
-        console.log("📦 Servicios de la venta:", serviciosVenta);
-
-        // 3. Calcular total de servicios
-        const totalServicios = serviciosVenta.reduce(
-          (sum, s) => sum + (s.total || 0),
-          0,
-        );
-
-        // 4. NUEVO TOTAL = subtotal (productos) + total de servicios
-        const nuevoTotal = (venta.subtotal || 0) + totalServicios;
-        console.log(`📦 Nuevo total: ${nuevoTotal}`);
-
-        // 5. Actualizar la venta
-        await api.request(`/ventas/${id_venta}`, "PUT", {
-          total: nuevoTotal,
-        });
-
-        // 6. Refrescar la tabla de ventas visible (respeta filtros y página actuales)
-        await cargarVentasTabla();
-
-        // 7. Refrescar también el caché de ventas que usan los servicios
-        const ventaActualizada = await api.getVenta(id_venta).catch(() => null);
-        if (ventaActualizada && window.__ventasPorServicioMap) {
-          window.__ventasPorServicioMap[id_venta] = ventaActualizada;
-        }
-
-        showToast(
-          `Venta #${id_venta} actualizada. Nuevo total: Q${nuevoTotal.toFixed(2)}`,
-          "success",
-        );
-      } catch (error) {
-        console.error("❌ Error actualizando total de venta:", error);
-        showToast("Error al actualizar el total de la venta", "error");
-      }
+      showToast(
+        `Se sumaron Q${total.toFixed(2)} al total de la venta #${id_venta}`,
+        "info",
+      );
     }
 
     // Si NO tiene venta asociada, mostrar opción de pago
@@ -4063,9 +4072,15 @@ async function saveServicio(event) {
         "Pago del Servicio",
         `El servicio #${result.id} tiene un total de Q${total.toFixed(2)}.\n¿Deseas registrar el pago ahora?`,
       );
+      bootstrap.Modal.getInstance(document.getElementById("servicioModal"))?.hide();
+      await loadVentasModule();
       if (confirmarPago) {
-        await pagarServicioIndependiente(result.id);
+        serviciosAdicionalesData = serviciosAdicionalesData.some((x) => x.id === result.id)
+          ? serviciosAdicionalesData
+          : [...serviciosAdicionalesData, result];
+        mostrarModalPagoServicio(result);
       }
+      return;
     }
 
     bootstrap.Modal.getInstance(
@@ -4134,55 +4149,8 @@ async function pagarServicio(idServicio) {
       }
     }
 
-    // Servicio independiente - crear venta express
-    const id_usuario = getCurrentUser()?.id || 1;
-
-    // Obtener ubicación de configuración
-    let id_ubicacion = null;
-    try {
-      const config = await api.request("/configuracion").catch(() => ({}));
-      id_ubicacion = config.id_ubicacion || null;
-      if (!id_ubicacion) {
-        showToast("No hay ubicación configurada", "error");
-        return;
-      }
-    } catch (error) {
-      showToast("Error al obtener configuración", "error");
-      return;
-    }
-
-    // Crear venta para el servicio
-    const ventaData = {
-      id_usuario: id_usuario,
-      id_cliente: servicio.id_cliente,
-      id_caja_turno: null,
-      id_ubicacion: id_ubicacion,
-      id_cotizacion: null,
-      descuento_porcentaje: 0,
-      observaciones: `Servicio: ${servicio.tipo_servicio}`,
-      nit: null,
-      detalles: [],
-      pagos: [],
-    };
-
-    const result = await api.createVenta(ventaData);
-    showToast(`Venta #${result.id} creada para el servicio`, "success");
-
-    // Actualizar el servicio con el id_venta
-    await api.request(`/servicios-adicionales/${idServicio}`, "PATCH", {
-      id_venta: result.id,
-    });
-
-    // Actualizar el total de la venta con el monto del servicio
-    await api.request(`/ventas/${result.id}`, "PATCH", {
-      total: servicio.total,
-      subtotal: 0,
-    });
-
-    // Mostrar modal de pago para la venta
-    mostrarModalPago(result.id);
-
-    await loadVentasModule();
+    // Servicio independiente: se cobra en un turno de caja
+    mostrarModalPagoServicio(servicio);
   } catch (error) {
     showToast(error.message || "Error al procesar pago", "error");
   }
@@ -4192,65 +4160,94 @@ async function pagarServicio(idServicio) {
 // PAGAR SERVICIO INDEPENDIENTE
 // ============================================================
 async function pagarServicioIndependiente(idServicio) {
-  try {
-    const servicio = serviciosAdicionalesData.find((s) => s.id === idServicio);
-    if (!servicio) {
-      showToast("Servicio no encontrado", "error");
-      return;
-    }
-
-    // Crear una venta express para el servicio
-    const id_usuario = getCurrentUser()?.id || 1;
-
-    // Obtener ubicación de configuración
-    let id_ubicacion = null;
-    try {
-      const config = await api.request("/configuracion").catch(() => ({}));
-      id_ubicacion = config.id_ubicacion || null;
-      if (!id_ubicacion) {
-        showToast("No hay ubicación configurada", "error");
-        return;
-      }
-    } catch (error) {
-      showToast("Error al obtener configuración", "error");
-      return;
-    }
-
-    // Crear venta para el servicio
-    const ventaData = {
-      id_usuario: id_usuario,
-      id_cliente: servicio.id_cliente,
-      id_caja_turno: null,
-      id_ubicacion: id_ubicacion,
-      id_cotizacion: null,
-      descuento_porcentaje: 0,
-      observaciones: `Servicio: ${servicio.tipo_servicio}`,
-      nit: null,
-      detalles: [],
-      pagos: [],
-    };
-
-    const result = await api.createVenta(ventaData);
-    showToast(`Venta #${result.id} creada para el servicio`, "success");
-
-    // Actualizar el servicio con el id_venta
-    await api.request(`/servicios-adicionales/${idServicio}`, "PATCH", {
-      id_venta: result.id,
-    });
-
-    // Actualizar el total de la venta con el monto del servicio
-    await api.request(`/ventas/${result.id}`, "PATCH", {
-      total: servicio.total,
-      subtotal: 0,
-    });
-
-    // Mostrar modal de pago para la venta
-    mostrarModalPago(result.id);
-
-    await loadVentasModule();
-  } catch (error) {
-    showToast(error.message || "Error al procesar pago", "error");
+  const servicio = serviciosAdicionalesData.find((s) => s.id === idServicio);
+  if (!servicio) {
+    showToast("Servicio no encontrado", "error");
+    return;
   }
+  mostrarModalPagoServicio(servicio);
+}
+
+// Cobro de un servicio sin venta: se elige el turno de caja y el tipo de
+// pago, y el servidor crea la venta del servicio con su pago completo.
+// (Antes se intentaba crear una venta sin turno ni productos y siempre fallaba.)
+async function mostrarModalPagoServicio(servicio) {
+  const turnos = (await api.getCajaTurnos().catch(() => [])) || [];
+  const abiertos = turnos.filter((t) => t.estado === "Abierto");
+  if (abiertos.length === 0) {
+    showToast("No hay turnos de caja abiertos. Abre un turno para cobrar el servicio.", "warning");
+    return;
+  }
+  const usuarios = Object.fromEntries((vendedoresData || []).map((u) => [u.id_usuario, u.nombre]));
+  document.getElementById("pagoServicioModal")?.remove();
+  const modal = document.createElement("div");
+  modal.className = "modal fade";
+  modal.id = "pagoServicioModal";
+  modal.tabIndex = -1;
+  modal.innerHTML = `
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Cobrar servicio #${servicio.id}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="pagoServicioForm">
+          <div class="modal-body">
+            <div class="alert alert-info py-2">
+              ${escaparHtmlEscaner(servicio.tipo_servicio || "Servicio")} — Total: <strong>Q${Number(servicio.total || 0).toFixed(2)}</strong>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Turno de caja *</label>
+              <select class="form-select" id="pagoServicioTurno" required>
+                ${abiertos.map((t) => `<option value="${t.id}">Turno #${t.id} - ${escaparHtmlEscaner(usuarios[t.id_usuario] || "Usuario")}</option>`).join("")}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Tipo de pago *</label>
+              <select class="form-select" id="pagoServicioTipo" required>
+                <option value="">Seleccionar tipo</option>
+                ${tiposPagoData
+                  .filter((t) => t.para_ventas === 1 && t.activo !== 0)
+                  .map((t) => `<option value="${t.id}">${escaparHtmlEscaner(t.nombre)}</option>`)
+                  .join("")}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Referencia (opcional)</label>
+              <input type="text" class="form-control" id="pagoServicioReferencia" maxlength="100">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-success"><i class="fas fa-save me-2"></i>Cobrar</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  const instancia = new bootstrap.Modal(modal);
+  modal.addEventListener("hidden.bs.modal", () => modal.remove());
+  modal.querySelector("#pagoServicioForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id_tipo_pago = parseInt(document.getElementById("pagoServicioTipo").value);
+    if (!id_tipo_pago) {
+      showToast("Selecciona un tipo de pago", "error");
+      return;
+    }
+    try {
+      const res = await api.request(`/servicios-adicionales/${servicio.id}/pagar`, "POST", {
+        id_caja_turno: parseInt(document.getElementById("pagoServicioTurno").value),
+        id_tipo_pago,
+        referencia: document.getElementById("pagoServicioReferencia").value.trim() || null,
+      });
+      instancia.hide();
+      showToast(`Servicio cobrado. Se registró en la venta #${res.id_venta}`, "success");
+      await loadVentasModule();
+    } catch (error) {
+      showToast(error.message || "Error al cobrar el servicio", "error");
+    }
+  });
+  instancia.show();
 }
 
 // ============================================================

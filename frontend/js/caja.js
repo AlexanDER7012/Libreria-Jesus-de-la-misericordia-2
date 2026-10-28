@@ -650,6 +650,18 @@
       );
       if (denominacionesList) denominacionesList.innerHTML = "";
 
+      // Cuánto efectivo debería haber al contar (fondo inicial + efectivo cobrado)
+      document.getElementById("cajaEfectivoEsperado")?.remove();
+      try {
+        const info = await api.request(`/caja-turno/${turnoParaCerrar.id}/efectivo-esperado`);
+        const aviso = document.createElement("div");
+        aviso.id = "cajaEfectivoEsperado";
+        aviso.className = "alert alert-info py-2 small";
+        aviso.innerHTML = `Efectivo que debería haber en caja: <strong>Q${Number(info.esperado || 0).toFixed(2)}</strong>
+          (fondo inicial Q${Number(info.fondo_inicial || 0).toFixed(2)} + ventas cobradas en efectivo)`;
+        denominacionesContainer?.prepend(aviso);
+      } catch (e) {}
+
       const observaciones = document.getElementById("cajaObservaciones");
       if (observaciones) observaciones.value = "";
 

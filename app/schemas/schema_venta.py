@@ -96,6 +96,13 @@ class ServicioAdicionalCreate(BaseModel):
     detalles: List[DetalleServicioCreate] = []  # materiales usados (vacío si no aplica, ej. pago de circulación)
 
 
+class PagoServicioCreate(BaseModel):
+    """Cobro de un servicio que no está ligado a ninguna venta."""
+    id_caja_turno: int
+    id_tipo_pago: int
+    referencia: Optional[str] = None
+
+
 class ServicioAdicionalResponse(BaseModel):
     id: int
     id_venta: Optional[int] = None

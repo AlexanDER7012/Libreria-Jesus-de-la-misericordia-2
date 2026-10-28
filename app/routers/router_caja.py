@@ -105,6 +105,31 @@ def abrir_turno(datos: CajaTurnoAbrir, db: Session = Depends(get_db), usuario_ac
     return nuevo
 
 
+def _efectivo_esperado(db: Session, turno: CajaTurno) -> float:
+    from app.models.model_venta import Venta, MetodoPagoVenta
+    efectivo = (
+        db.query(func.coalesce(func.sum(MetodoPagoVenta.monto), 0))
+        .join(Venta, Venta.id == MetodoPagoVenta.id_venta)
+        .join(TipoPago, TipoPago.id == MetodoPagoVenta.id_tipo_pago)
+        .filter(
+            Venta.id_caja_turno == turno.id,
+            Venta.estado != "Cancelada",
+            func.lower(TipoPago.nombre) == "efectivo",
+        )
+        .scalar()
+    )
+    return round(float(turno.fondo_inicial or 0) + float(efectivo or 0), 2)
+
+
+@router.get("/{turno_id}/efectivo-esperado")
+def efectivo_esperado_turno(turno_id: int, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
+    """Fondo inicial + efectivo cobrado en el turno (lo que debería haber al contar la caja)."""
+    turno = db.query(CajaTurno).filter(CajaTurno.id == turno_id).first()
+    if not turno:
+        raise HTTPException(status_code=404, detail="Turno no encontrado")
+    return {"fondo_inicial": float(turno.fondo_inicial or 0), "esperado": _efectivo_esperado(db, turno)}
+
+
 @router.patch("/{turno_id}/cerrar", response_model=CajaTurnoResponse)
 def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Caja", "Editar"))):
     turno = db.query(CajaTurno).filter(CajaTurno.id == turno_id).first()
@@ -131,7 +156,11 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
     from datetime import datetime as dt
     turno.fecha_cierre = dt.now()
     turno.total_contado = round(total_contado, 2)
-    turno.diferencia = round(total_contado - float(turno.total_ventas or 0), 2)
+    # Lo que debería haber en caja = fondo inicial + lo cobrado en EFECTIVO
+    # por las ventas del turno. Antes se restaba el total de ventas (que
+    # incluye tarjeta, transferencias y ventas al crédito) y no se tomaba en
+    # cuenta el fondo inicial, así que la diferencia casi nunca cuadraba.
+    turno.diferencia = round(total_contado - _efectivo_esperado(db, turno), 2)
     turno.estado = "Cerrado"
     turno.observaciones = datos.observaciones
 

@@ -94,6 +94,8 @@ def obtener_cliente(cliente_id: int, db: Session = Depends(get_db), usuario_actu
 @router.post("", response_model=ClienteResponse, status_code=201)
 def crear_cliente(datos: ClienteCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Crear"))):
     """Crea un nuevo cliente (siempre queda activo=1)."""
+    if not (datos.nombre or "").strip():
+        raise HTTPException(status_code=400, detail="El nombre del cliente es obligatorio")
     repetido = _nit_repetido(db, Cliente, datos.nit)
     if repetido:
         raise HTTPException(status_code=400, detail=f"Ya existe un cliente con ese NIT ({repetido.nombre})")
@@ -115,6 +117,8 @@ def actualizar_cliente(cliente_id: int, datos: ClienteUpdate, db: Session = Depe
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
+    if datos.nombre is not None and not datos.nombre.strip():
+        raise HTTPException(status_code=400, detail="El nombre del cliente es obligatorio")
     if datos.nit is not None:
         repetido = _nit_repetido(db, Cliente, datos.nit, excluir_id=cliente_id)
         if repetido:
