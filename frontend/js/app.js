@@ -37,6 +37,7 @@ class App {
 
   init() {
     console.log("App iniciada");
+    this.vigilarPermisosPestanas();
     this.setupNavigation();
     this.setupUserInfo();
     this.setupLogout();
@@ -46,6 +47,39 @@ class App {
     this.refrescarPermisos();
     this.recordarPestanas();
     this.restaurarPantalla();
+  }
+
+  // =============================================
+  // OCULTAR PESTAÑAS SIN PERMISO DESDE EL PRIMER MOMENTO
+  // Antes las pestañas sin permiso se ocultaban hasta que el módulo terminaba
+  // de cargar sus datos, así que se alcanzaban a ver un momento. Ahora, cada
+  // vez que se dibuja algo en la pantalla, se ocultan antes de que el
+  // navegador lo muestre (MutationObserver corre antes de pintar).
+  // =============================================
+  vigilarPermisosPestanas() {
+    const mainContent = document.getElementById("mainContent");
+    if (!mainContent || typeof MutationObserver === "undefined") return;
+    let aplicando = false;
+    const observador = new MutationObserver((cambios) => {
+      if (aplicando || !this.currentModule) return;
+      if (typeof window.aplicarPermisosPestanasModulo !== "function") return;
+      const hayPestanas = cambios.some((c) =>
+        [...c.addedNodes].some(
+          (n) =>
+            n.nodeType === 1 &&
+            (n.matches?.(".nav-tabs, .nav-pills, .nav-link, .tab-pane") ||
+              n.querySelector?.(".nav-tabs, .nav-pills")),
+        ),
+      );
+      if (!hayPestanas) return;
+      aplicando = true;
+      try {
+        window.aplicarPermisosPestanasModulo(this.currentModule, mainContent);
+      } finally {
+        aplicando = false;
+      }
+    });
+    observador.observe(mainContent, { childList: true, subtree: true });
   }
 
   // =============================================
@@ -146,8 +180,12 @@ class App {
   tienePermiso(moduleId) {
     // ⭐ CAMBIO: "reportes" siempre visible (antes era "dashboard").
     //    Si el usuario podía ver Dashboard, sigue viendo Reportes.
+    // Ahora solo si el rol tiene algún permiso de Reportes (antes se mostraba
+    // a todos, y quien no tenía ningún permiso veía todos los reportes).
     if (moduleId === "reportes") {
-      return true;
+      return this.getPermisosUsuario().some(
+        (p) => (p.modulo_nombre || "").toLowerCase() === "reportes",
+      );
     }
 
     // ⭐ CAMBIO: compatibilidad con permisos antiguos.

@@ -167,6 +167,8 @@ class UsuarioCreate(UsuarioBase):
 
 
 class UsuarioUpdate(BaseModel):
+    nombre_usuario: Optional[str] = None
+    id_empleado: Optional[int] = None
     id_rol: Optional[int] = None
     activo: Optional[int] = None
     password: Optional[str] = None  # si viene, se re-cifra

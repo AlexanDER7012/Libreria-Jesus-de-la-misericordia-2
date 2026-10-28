@@ -4174,10 +4174,10 @@ async function verCompra(id) {
         );
         return `
                     <tr>
-                        <td>${producto ? producto.nombre : "--"}</td>
+                        <td class="ps-3">${producto ? producto.nombre : "--"}</td>
                         <td class="text-end">${d.cantidad_comprada || 0}</td>
-                        <td class="text-end">Q${d.costo_unitario || 0}</td>
-                        <td class="text-end">Q${d.subtotal || 0}</td>
+                        <td class="text-end">Q${Number(d.costo_unitario || 0).toFixed(2)}</td>
+                        <td class="text-end pe-3">Q${Number(d.subtotal || 0).toFixed(2)}</td>
                     </tr>
                 `;
       })
@@ -4196,7 +4196,7 @@ async function verCompra(id) {
               return `
         <tr class="${anulado ? "text-muted" : ""}">
           <td>${tipo ? tipo.nombre : "--"} ${anulado ? '<span class="badge bg-secondary ms-1">Anulado</span>' : ""}${anulado && p.observaciones ? `<div class="small">${escaparHtmlEscaner(p.observaciones)}</div>` : ""}</td>
-          <td class="text-end" style="${anulado ? "text-decoration: line-through;" : ""}">Q${p.monto || 0}</td>
+          <td class="text-end" style="${anulado ? "text-decoration: line-through;" : ""}">Q${Number(p.monto || 0).toFixed(2)}</td>
           <td>${p.referencia || "--"}</td>
           <td>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleDateString() : "--"}</td>
           <td class="text-end">
@@ -4252,76 +4252,117 @@ async function verCompra(id) {
               ? "bg-info"
               : "bg-secondary";
 
+    const q = (n) => `Q${Number(n || 0).toFixed(2)}`;
+    const pagado =
+      compra.estado === "Cancelada"
+        ? 0
+        : Math.max(0, Number(compra.total || 0) - Number(compra.saldo_pendiente || 0));
+
     const modalContent = `
             <div class="modal-header">
-                <h5 class="modal-title">Compra #${compra.id}</h5>
+                <h5 class="modal-title"><i class="fas fa-truck me-2"></i>Compra #${compra.id}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-                <div class="row mb-3">
-                    <div class="col-md-6"><strong>Proveedor:</strong> ${nombreProveedor}</div>
-                    <div class="col-md-6"><strong>Factura:</strong> ${compra.numero_factura || "--"}</div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-6"><strong>Fecha:</strong> ${compra.fecha ? new Date(compra.fecha).toLocaleString() : "--"}</div>
-                    <div class="col-md-6"><strong>Estado:</strong> <span class="badge ${estadoBadge}">${compra.estado || "Pendiente"}</span></div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-6"><strong>Recepción:</strong> ${_badgeRecepcionCompra(compra)}</div>
-                    <div class="col-md-6"><strong>Pedido:</strong> ${compra.id_pedido ? `#${compra.id_pedido}` : "Sin pedido"}</div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-6"><strong>Subtotal:</strong> Q${compra.subtotal || 0}</div>
-                    <div class="col-md-6"><strong>Total:</strong> Q${compra.total || 0}</div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-6"><strong>Saldo Pendiente:</strong> Q${compra.saldo_pendiente || 0}</div>
-                    <div class="col-md-6"><strong>Vencimiento:</strong> ${compra.fecha_vencimiento_pago || "--"}</div>
-                </div>
-                ${compra.observaciones ? `<div class="mb-3"><strong>Observaciones:</strong> ${compra.observaciones}</div>` : ""}
-                ${compra.estado === "Cancelada" && compra.motivo_cancelacion ? `<div class="mb-3 text-danger"><strong>Motivo de cancelación:</strong> ${compra.motivo_cancelacion}</div>` : ""}
-
-                <h6 class="fw-bold mt-3">Detalles</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr><th>Producto</th><th class="text-end">Cantidad</th><th class="text-end">Costo Unitario</th><th class="text-end">Subtotal</th></tr>
-                        </thead>
-                        <tbody>${detallesHtml || '<tr><td colspan="4" class="text-center">Sin detalles</td></tr>'}</tbody>
-                    </table>
+            <div class="modal-body detalle-compra">
+                <!-- Cada apartado va en su propia tarjeta con título, para que se
+                     distinga dónde empieza y termina (antes todo se veía seguido). -->
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <div class="border rounded-3 p-3 h-100 text-center bg-body-tertiary">
+                            <div class="small text-muted">Total de la factura</div>
+                            <div class="fs-4 fw-bold">${q(compra.total)}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border rounded-3 p-3 h-100 text-center bg-body-tertiary">
+                            <div class="small text-muted">Pagado</div>
+                            <div class="fs-4 fw-bold text-success">${q(pagado)}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border rounded-3 p-3 h-100 text-center bg-body-tertiary">
+                            <div class="small text-muted">Saldo pendiente</div>
+                            <div class="fs-4 fw-bold ${Number(compra.saldo_pendiente || 0) > 0 && compra.estado !== "Cancelada" ? "text-danger" : "text-success"}">${compra.estado === "Cancelada" ? "--" : q(compra.saldo_pendiente)}</div>
+                        </div>
+                    </div>
                 </div>
 
-                <h6 class="fw-bold mt-4">Pagos</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Tipo</th>
-                                <th class="text-end">Monto</th>
-                                <th>Referencia</th>
-                                <th>Fecha</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>${pagosHtml}</tbody>
-                    </table>
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header bg-body-tertiary fw-bold">
+                        <i class="fas fa-file-invoice me-2 text-primary"></i>Información de la compra
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4"><div class="small text-muted">Proveedor</div><div class="fw-semibold">${nombreProveedor}</div></div>
+                            <div class="col-md-4"><div class="small text-muted">N° de factura</div><div class="fw-semibold">${compra.numero_factura || "--"}</div></div>
+                            <div class="col-md-4"><div class="small text-muted">Fecha</div><div class="fw-semibold">${compra.fecha ? new Date(compra.fecha).toLocaleString() : "--"}</div></div>
+                            <div class="col-md-4"><div class="small text-muted">Estado</div><span class="badge ${estadoBadge}">${compra.estado || "Pendiente"}</span></div>
+                            <div class="col-md-4"><div class="small text-muted">Recepción</div>${_badgeRecepcionCompra(compra)}</div>
+                            <div class="col-md-4"><div class="small text-muted">Pedido</div><div class="fw-semibold">${compra.id_pedido ? `#${compra.id_pedido}` : "Sin pedido"}</div></div>
+                            <div class="col-md-4"><div class="small text-muted">Subtotal (sin IVA)</div><div class="fw-semibold">${q(compra.subtotal)}</div></div>
+                            <div class="col-md-4"><div class="small text-muted">Vencimiento del pago</div><div class="fw-semibold">${compra.fecha_vencimiento_pago || "--"}</div></div>
+                        </div>
+                        ${compra.observaciones ? `<div class="mt-3 pt-3 border-top"><div class="small text-muted">Observaciones</div>${escaparHtmlEscaner(compra.observaciones)}</div>` : ""}
+                        ${compra.estado === "Cancelada" && compra.motivo_cancelacion ? `<div class="alert alert-danger mt-3 mb-0 py-2"><strong>Motivo de cancelación:</strong> ${escaparHtmlEscaner(compra.motivo_cancelacion)}</div>` : ""}
+                    </div>
                 </div>
 
-                <h6 class="fw-bold mt-4">Notas de entrega (recepción)</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>N° Nota</th>
-                                <th>Fecha</th>
-                                <th>Resultado</th>
-                                <th>Recibió</th>
-                                <th>Observaciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>${notasHtml}</tbody>
-                    </table>
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header bg-body-tertiary fw-bold">
+                        <i class="fas fa-boxes-stacked me-2 text-primary"></i>Productos
+                        <span class="badge bg-secondary ms-1">${(compra.detalles || []).length}</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr><th class="ps-3">Producto</th><th class="text-end">Cantidad</th><th class="text-end">Costo Unitario</th><th class="text-end pe-3">Subtotal</th></tr>
+                                </thead>
+                                <tbody>${detallesHtml || '<tr><td colspan="4" class="text-center py-3 text-muted">Sin detalles</td></tr>'}</tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
+
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header bg-body-tertiary fw-bold">
+                        <i class="fas fa-money-bill-wave me-2 text-success"></i>Pagos
+                        <span class="badge bg-secondary ms-1">${(compra.pagos || []).length}</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0 tabla-con-margen">
+                                <thead class="table-light">
+                                    <tr><th>Tipo</th><th class="text-end">Monto</th><th>Referencia</th><th>Fecha</th><th></th></tr>
+                                </thead>
+                                <tbody>${pagosHtml}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-1">
+                    <div class="card-header bg-body-tertiary fw-bold">
+                        <i class="fas fa-truck-ramp-box me-2 text-info"></i>Notas de entrega (recepción)
+                        <span class="badge bg-secondary ms-1">${notasEntrega.length}</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0 tabla-con-margen">
+                                <thead class="table-light">
+                                    <tr><th>N° Nota</th><th>Fecha</th><th>Resultado</th><th>Recibió</th><th>Observaciones</th></tr>
+                                </thead>
+                                <tbody>${notasHtml}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <style>
+                  .detalle-compra .tabla-con-margen th:first-child,
+                  .detalle-compra .tabla-con-margen td:first-child { padding-left: 1rem; }
+                  .detalle-compra .tabla-con-margen th:last-child,
+                  .detalle-compra .tabla-con-margen td:last-child { padding-right: 1rem; }
+                </style>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>

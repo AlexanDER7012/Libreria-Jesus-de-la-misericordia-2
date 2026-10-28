@@ -1068,10 +1068,21 @@ async function saveUsuario(event) {
   const id_empleado =
     parseInt(document.getElementById("usuarioEmpleado")?.value) || null;
   const id_rol = parseInt(document.getElementById("usuarioRol")?.value) || null;
-  const activo = parseInt(document.getElementById("usuarioActivo")?.value) || 1;
+  // Antes "|| 1" convertía el 0 (Inactivo) en 1 y nunca se desactivaba
+  const activoValor = parseInt(document.getElementById("usuarioActivo")?.value);
+  const activo = activoValor === 0 ? 0 : 1;
 
   if (!nombre_usuario) {
     showToast("El nombre de usuario es obligatorio", "error");
+    return;
+  }
+  if (/\s/.test(nombre_usuario)) {
+    showToast("El nombre de usuario no puede llevar espacios", "error");
+    return;
+  }
+  if (password && password.length < 6) {
+    showToast("La contraseña debe tener al menos 6 caracteres", "error");
+    document.getElementById("usuarioPassword")?.focus();
     return;
   }
 
@@ -1083,7 +1094,8 @@ async function saveUsuario(event) {
 
   try {
     if (id) {
-      const data = { id_rol, activo };
+      // Ahora también se guardan el nombre y el empleado (antes se ignoraban)
+      const data = { nombre_usuario, id_empleado, id_rol, activo };
       if (password) data.password = password;
       await api.request(`/usuarios/${id}`, "PUT", data);
       showToast("Usuario actualizado correctamente", "success");

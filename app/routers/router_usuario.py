@@ -265,6 +265,48 @@ def _asegurar_permisos_pestanas(db: Session) -> None:
 
 
 ORDEN_USUARIO_PERMITIDO = {"id", "nombre_usuario", "fecha_creacion", "fecha_ultimo_acceso", "activo"}
+LARGO_MINIMO_PASSWORD = 6
+
+
+def _validar_datos_usuario(db: Session, datos: dict, usuario_id=None) -> dict:
+    """Valida nombre, contraseña, rol y empleado de un usuario (crear o editar)."""
+    if "nombre_usuario" in datos:
+        nombre = (datos["nombre_usuario"] or "").strip()
+        if not nombre:
+            raise HTTPException(status_code=400, detail="El nombre de usuario es obligatorio")
+        if " " in nombre:
+            raise HTTPException(status_code=400, detail="El nombre de usuario no puede llevar espacios")
+        query = db.query(Usuario).filter(func.lower(Usuario.nombre_usuario) == nombre.lower())
+        if usuario_id is not None:
+            query = query.filter(Usuario.id != usuario_id)
+        if query.first():
+            raise HTTPException(status_code=400, detail=f"El nombre de usuario '{nombre}' ya existe")
+        datos["nombre_usuario"] = nombre
+    if "password" in datos and datos["password"] is not None:
+        if len(datos["password"].strip()) < LARGO_MINIMO_PASSWORD:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La contraseña debe tener al menos {LARGO_MINIMO_PASSWORD} caracteres",
+            )
+    if datos.get("id_rol") is not None:
+        if not db.query(Rol).filter(Rol.id == datos["id_rol"]).first():
+            raise HTTPException(status_code=400, detail="El rol elegido no existe")
+    if datos.get("id_empleado") is not None:
+        empleado = db.query(Empleado).filter(Empleado.id == datos["id_empleado"]).first()
+        if not empleado:
+            raise HTTPException(status_code=400, detail="El empleado elegido no existe")
+        if empleado.activo == 0:
+            raise HTTPException(status_code=400, detail=f"El empleado '{empleado.nombre}' está inactivo")
+        query = db.query(Usuario).filter(Usuario.id_empleado == empleado.id)
+        if usuario_id is not None:
+            query = query.filter(Usuario.id != usuario_id)
+        otro = query.first()
+        if otro:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El empleado '{empleado.nombre}' ya tiene el usuario '{otro.nombre_usuario}'",
+            )
+    return datos
 
 
 # ===================================================================
@@ -329,11 +371,7 @@ def obtener_usuario(usuario_id: int, db: Session = Depends(get_db), usuario_actu
 
 @router.post("", response_model=UsuarioResponse, status_code=201)
 def crear_usuario(datos: UsuarioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Crear"))):
-    existente = db.query(Usuario).filter(Usuario.nombre_usuario == datos.nombre_usuario).first()
-    if existente:
-        raise HTTPException(status_code=400, detail="Ese nombre de usuario ya existe")
-
-    datos_dict = datos.model_dump()
+    datos_dict = _validar_datos_usuario(db, datos.model_dump())
     password_plano = datos_dict.pop("password")
 
     nuevo = Usuario(
@@ -345,7 +383,7 @@ def crear_usuario(datos: UsuarioCreate, db: Session = Depends(get_db), usuario_a
     db.add(nuevo)
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "Usuario",
-        detalle=f"Creó el usuario '{datos.nombre_usuario}'",
+        detalle=f"Creó el usuario '{nuevo.nombre_usuario}'",
     )
     db.commit()
     db.refresh(nuevo)
@@ -359,8 +397,19 @@ def actualizar_usuario(usuario_id: int, datos: UsuarioUpdate, db: Session = Depe
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     datos_dict = datos.model_dump(exclude_unset=True)
+    if not datos_dict.get("password"):
+        datos_dict.pop("password", None)
+    _validar_datos_usuario(db, datos_dict, usuario_id=usuario_id)
+    # Evita que alguien se deje a sí mismo sin acceso
+    if usuario_id == usuario_actual.id:
+        if datos_dict.get("activo") == 0:
+            raise HTTPException(status_code=400, detail="No puedes desactivar tu propio usuario")
+        if "id_rol" in datos_dict and datos_dict["id_rol"] != usuario.id_rol:
+            raise HTTPException(status_code=400, detail="No puedes cambiar tu propio rol; pídeselo a otro administrador")
     if "password" in datos_dict:
         datos_dict["password"] = hash_password(datos_dict["password"])
+    if datos_dict.get("activo") == 1:
+        usuario.intentos_fallidos = 0
 
     for campo, valor in datos_dict.items():
         setattr(usuario, campo, valor)
@@ -384,6 +433,8 @@ def eliminar_usuario(usuario_id: int, db: Session = Depends(get_db), usuario_act
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if usuario.id == usuario_actual.id:
+        raise HTTPException(status_code=400, detail="No puedes desactivar tu propio usuario")
     usuario.activo = 0
     registrar_actividad(
         db, usuario_actual.id, "ELIMINAR", "Usuario",
@@ -450,8 +501,26 @@ def _dpi_repetido(db: Session, dpi, excluir_id=None):
     return query.first()
 
 
+def _validar_empleado(datos: dict, actual: Optional[Empleado] = None):
+    if "nombre" in datos and not (datos["nombre"] or "").strip():
+        raise HTTPException(status_code=400, detail="El nombre del empleado es obligatorio")
+    if datos.get("salario_base") is not None and float(datos["salario_base"]) < 0:
+        raise HTTPException(status_code=400, detail="El salario no puede ser negativo")
+    hoy = date.today()
+    nacimiento = datos.get("fecha_nacimiento", actual.fecha_nacimiento if actual else None)
+    contratacion = datos.get("fecha_contratacion", actual.fecha_contratacion if actual else None)
+    if nacimiento and nacimiento >= hoy:
+        raise HTTPException(status_code=400, detail="La fecha de nacimiento no puede ser hoy ni una fecha futura")
+    if contratacion and contratacion > hoy:
+        raise HTTPException(status_code=400, detail="La fecha de contratación no puede ser futura")
+    if nacimiento and contratacion and contratacion <= nacimiento:
+        raise HTTPException(status_code=400, detail="La fecha de contratación debe ser después de la fecha de nacimiento")
+
+
 @router_empleado.post("", response_model=EmpleadoResponse, status_code=201)
 def crear_empleado(datos: EmpleadoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Crear"))):
+    _validar_empleado(datos.model_dump())
+    datos.nombre = datos.nombre.strip()
     existente = _dpi_repetido(db, datos.dpi)
     if existente:
         raise HTTPException(status_code=400, detail=f"Ya existe un empleado con ese DPI ({existente.nombre})")
@@ -474,6 +543,7 @@ def actualizar_empleado(empleado_id: int, datos: EmpleadoUpdate, db: Session = D
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
     cambios = datos.model_dump(exclude_unset=True)
+    _validar_empleado(cambios, empleado)
     # El DPI solo se valida si cambió: así un empleado viejo con DPI mal
     # guardado se puede seguir editando sin tocarle el DPI.
     if "dpi" in cambios:
@@ -544,9 +614,8 @@ def listar_roles(db: Session = Depends(get_db), usuario_actual: Usuario = Depend
 
 @router_rol.post("", response_model=RolResponse, status_code=201)
 def crear_rol(datos: RolCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Crear"))):
-    existente = db.query(Rol).filter(Rol.nombre == datos.nombre).first()
-    if existente:
-        raise HTTPException(status_code=400, detail="Ya existe un rol con este nombre")
+    from app.catalogos import validar_nombre_unico
+    datos.nombre = validar_nombre_unico(db, Rol, datos.nombre, "un rol")
 
     nuevo = Rol(**datos.model_dump())
     db.add(nuevo)
@@ -567,12 +636,9 @@ def actualizar_rol(rol_id: int, datos: RolUpdate, db: Session = Depends(get_db),
         raise HTTPException(status_code=404, detail="Rol no encontrado")
 
     datos_dict = datos.model_dump(exclude_unset=True)
-    if datos_dict.get("nombre"):
-        existente = db.query(Rol).filter(
-            Rol.nombre == datos_dict["nombre"], Rol.id != rol_id
-        ).first()
-        if existente:
-            raise HTTPException(status_code=400, detail="Ya existe otro rol con este nombre")
+    if "nombre" in datos_dict:
+        from app.catalogos import validar_nombre_unico
+        datos_dict["nombre"] = validar_nombre_unico(db, Rol, datos_dict["nombre"], "un rol", excluir_id=rol_id)
 
     for campo, valor in datos_dict.items():
         setattr(rol, campo, valor)
@@ -657,6 +723,12 @@ def asignar_permiso_a_rol(datos: RolPermisoCreate, db: Session = Depends(get_db)
     modulo = db.query(Modulo).filter(Modulo.id == permiso.id_modulo).first()
     nombre_permiso = f"{modulo.nombre} - {permiso.nombre}" if modulo else permiso.nombre
 
+    ya_asignado = db.query(RolPermiso).filter(
+        RolPermiso.id_rol == datos.id_rol, RolPermiso.id_permiso == datos.id_permiso
+    ).first()
+    if ya_asignado:
+        return ya_asignado
+
     nueva_asignacion = RolPermiso(**datos.model_dump())
     db.add(nueva_asignacion)
     registrar_actividad(
@@ -684,6 +756,20 @@ def quitar_permiso_de_rol(rol_permiso_id: int, db: Session = Depends(get_db), us
         if modulo and permiso
         else (permiso.nombre if permiso else f"id={asignacion.id_permiso}")
     )
+
+    # Si quien está editando se quita a sí mismo un permiso de Usuarios, nadie
+    # con su rol podría volver a entrar a Roles y Permisos para arreglarlo.
+    if (
+        asignacion.id_rol == usuario_actual.id_rol
+        and modulo is not None
+        and (modulo.nombre or "").strip().lower() == "usuarios"
+        and permiso is not None
+        and (permiso.nombre or "").strip().lower() in ("ver", "editar", "tab:usuarios:roles")
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="No puedes quitarle a tu propio rol el acceso a Roles y Permisos; pídeselo a otro administrador",
+        )
 
     detalle_quitar = f"Quitó el permiso '{nombre_permiso}' del rol '{nombre_rol}'"
     db.delete(asignacion)
@@ -827,6 +913,8 @@ def registrar_pago(datos: HistoricoPagoEmpleadoCreate, db: Session = Depends(get
     empleado = db.query(Empleado).filter(Empleado.id == datos.id_empleado).first()
     if not empleado:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
+    if empleado.activo == 0:
+        raise HTTPException(status_code=400, detail=f"El empleado '{empleado.nombre}' está inactivo")
     if float(datos.monto or 0) <= 0:
         raise HTTPException(status_code=400, detail="El monto del pago debe ser mayor a Q0.00")
 

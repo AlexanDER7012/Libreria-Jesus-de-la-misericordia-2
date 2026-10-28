@@ -1192,6 +1192,14 @@
             <form id="compraForm">
               <input type="hidden" id="compraId" />
 
+              <!-- Apartado 1: datos generales (cada apartado va en su tarjeta
+                   para que se distinga bien de la sección de productos) -->
+              <div class="card shadow-sm mb-3">
+                <div class="card-header bg-body-tertiary fw-bold">
+                  <i class="fas fa-file-invoice me-2 text-info"></i>Datos de la compra
+                </div>
+                <div class="card-body">
+
               <!-- Nº Pedido + Proveedor + N° Factura -->
               <div class="row g-2 mb-2 align-items-end">
                 <div class="col-md-2">
@@ -1275,10 +1283,15 @@
                 </div>
               </div>
 
-              <hr class="my-2" />
-              <h6 class="fw-bold mb-2">
-                <i class="fas fa-list me-2"></i>Detalles de Compra
-              </h6>
+                </div>
+              </div>
+
+              <!-- Apartado 2: productos -->
+              <div class="card shadow-sm">
+                <div class="card-header bg-body-tertiary fw-bold">
+                  <i class="fas fa-boxes-stacked me-2 text-info"></i>Productos de la compra
+                </div>
+                <div class="card-body">
 
               <div id="compraDetallesContainer">
                 <div class="row g-2 align-items-end" id="compraDetalleRow">
@@ -1316,6 +1329,8 @@
                 </div>
               </div>
               <div id="compraDetallesList" class="mt-2"></div>
+                </div>
+              </div>
 
               <button
                 type="submit"
