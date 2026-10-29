@@ -311,6 +311,12 @@ function ventasTablaSiguiente() {
   cargarVentasTabla();
 }
 
+// Parte del total que corresponde a servicios adicionales
+// (total = subtotal de productos - descuento + servicios)
+function serviciosEnVenta(v) {
+  return Math.round((Number(v.total || 0) - (Number(v.subtotal || 0) - Number(v.descuento || 0))) * 100) / 100;
+}
+
 function renderVentasTable(ventas) {
   const container = document.getElementById("ventasTableContainer");
   if (!container) return;
@@ -527,7 +533,11 @@ function renderVentasTable(ventas) {
                 <td>${v.fecha ? new Date(v.fecha).toLocaleString() : "--"}</td>
                 <td>Q${(v.subtotal || 0).toFixed(2)}</td>
                 <td>Q${(v.descuento || 0).toFixed(2)}</td>
-                <td><strong>Q${(v.total || 0).toFixed(2)}</strong></td>
+                <td><strong>Q${(v.total || 0).toFixed(2)}</strong>${
+                  serviciosEnVenta(v) > 0.009
+                    ? `<div class="small text-muted" title="El total incluye servicios adicionales">incl. Q${serviciosEnVenta(v).toFixed(2)} en servicios</div>`
+                    : ""
+                }</td>
                 <td>Q${saldo.toFixed(2)}</td>
                 <td>
                     <span class="badge ${anulada ? "bg-secondary" : pagada ? "bg-success" : "bg-danger"}">
@@ -707,14 +717,36 @@ async function imprimirVenta(id) {
     const nombreCliente = cliente ? cliente.nombre : "Sin cliente";
     const nitCliente = cliente ? cliente.nit || "N/A" : "N/A";
 
+    const nombresProd = await _nombresProductosServicio(
+      (venta.detalles || []).map((d) => d.id_producto),
+    );
+    const serviciosVenta =
+      (await api.request(`/servicios-adicionales?id_venta=${id}`).catch(() => [])) || [];
+    const totalServicios = serviciosVenta.reduce((s, x) => s + Number(x.total || 0), 0);
+    const nombreTipoServicio = {
+      ForradoLibros: "Forrado de libros",
+      Impresion: "Impresión",
+      Emplasticado: "Emplasticado",
+      PagoImpuestos: "Pago de impuestos",
+      Otro: "Otro servicio",
+    };
+    const serviciosHtml = serviciosVenta
+      .map(
+        (s) => `
+        <tr>
+          <td>Servicio: ${escaparHtmlEscaner(nombreTipoServicio[s.tipo_servicio] || s.tipo_servicio || "Servicio")}${s.descripcion ? ` - ${escaparHtmlEscaner(s.descripcion)}` : ""}</td>
+          <td>1</td>
+          <td>Q${Number(s.total || 0).toFixed(2)}</td>
+          <td>Q${Number(s.total || 0).toFixed(2)}</td>
+        </tr>`,
+      )
+      .join("");
+
     let detallesHtml = (venta.detalles || [])
       .map((d) => {
-        const producto = (window.productosData || []).find(
-          (p) => p.id === d.id_producto,
-        );
         return `
         <tr>
-          <td>${producto ? producto.nombre : "--"}</td>
+          <td>${escaparHtmlEscaner(nombresProd[d.id_producto] || "Producto")}</td>
           <td>${d.cantidad || 0}</td>
           <td>Q${(d.precio_unitario || 0).toFixed(2)}</td>
           <td>Q${(d.subtotal || 0).toFixed(2)}</td>
@@ -757,15 +789,23 @@ async function imprimirVenta(id) {
             </tr>
           </thead>
           <tbody>
-            ${detallesHtml || '<tr><td colspan="4" class="text-center">Sin detalles</td></tr>'}
+            ${detallesHtml || serviciosHtml ? detallesHtml + serviciosHtml : '<tr><td colspan="4" class="text-center">Sin detalles</td></tr>'}
             <tr class="total-row">
-              <td colspan="3" style="text-align:right;">Subtotal:</td>
+              <td colspan="3" style="text-align:right;">Subtotal productos:</td>
               <td>Q${(venta.subtotal || 0).toFixed(2)}</td>
             </tr>
             <tr class="total-row">
               <td colspan="3" style="text-align:right;">Descuento:</td>
               <td>Q${(venta.descuento || 0).toFixed(2)}</td>
             </tr>
+            ${
+              totalServicios > 0
+                ? `<tr class="total-row">
+              <td colspan="3" style="text-align:right;">Servicios:</td>
+              <td>Q${totalServicios.toFixed(2)}</td>
+            </tr>`
+                : ""
+            }
             <tr class="total-row">
               <td colspan="3" style="text-align:right;"><strong>TOTAL:</strong></td>
               <td><strong>Q${(venta.total || 0).toFixed(2)}</strong></td>
@@ -1961,20 +2001,32 @@ async function verVenta(id) {
     document.getElementById("verVentaSaldo").textContent =
       anulada ? "--" : `Q${saldo.toFixed(2)}`;
 
+    // Servicios de esta venta (se piden al servidor: antes se usaba una
+    // lista guardada al abrir el módulo y los servicios nuevos no salían)
+    const serviciosDeVenta =
+      (await api.request(`/servicios-adicionales?id_venta=${id}`).catch(() => [])) || [];
+    const totalServicios = serviciosDeVenta.reduce((s, x) => s + Number(x.total || 0), 0);
+    const filaServicios = document.getElementById("verVentaServiciosFila");
+    if (filaServicios) {
+      filaServicios.style.display = totalServicios > 0 ? "" : "none";
+      document.getElementById("verVentaServiciosTotal").textContent =
+        `Q${totalServicios.toFixed(2)} (${serviciosDeVenta.length} servicio${serviciosDeVenta.length === 1 ? "" : "s"})`;
+    }
+    const nombresProd = await _nombresProductosServicio(
+      (venta.detalles || []).map((d) => d.id_producto),
+    );
+
     // Detalles (productos)
     const detallesBody = document.getElementById("verVentaDetallesBody");
     if (venta.detalles && venta.detalles.length > 0) {
       let html = "";
       let totalDetalles = 0;
       venta.detalles.forEach((d) => {
-        const producto = (window.productosData || []).find(
-          (p) => p.id === d.id_producto,
-        );
         const subtotal = (d.cantidad || 0) * (d.precio_unitario || 0);
         totalDetalles += subtotal;
         html += `
           <tr>
-            <td>${producto ? producto.nombre : "Producto"}</td>
+            <td>${escaparHtmlEscaner(nombresProd[d.id_producto] || "Producto")}</td>
             <td class="text-center">${d.cantidad || 0}</td>
             <td class="text-end">Q${(d.precio_unitario || 0).toFixed(2)}</td>
             <td class="text-end">Q${subtotal.toFixed(2)}</td>
@@ -2016,9 +2068,7 @@ async function verVenta(id) {
 
     // Servicios adicionales
     const serviciosBody = document.getElementById("verVentaServiciosBody");
-    const serviciosVenta = serviciosAdicionalesData.filter(
-      (s) => s.id_venta === id,
-    );
+    const serviciosVenta = serviciosDeVenta;
     if (serviciosVenta.length > 0) {
       let html = "";
       serviciosVenta.forEach((s) => {
@@ -3989,11 +4039,26 @@ async function _nombresProductosServicio(ids) {
   return nombres;
 }
 
+// Marca la opción elegida con un check verde y escribe abajo a qué venta
+// se va a agregar el servicio (antes solo cambiaba de color y no se notaba).
 function _elegirVentaServicio(valor) {
-  document.getElementById("servicioVenta").value = valor || "";
-  document.querySelectorAll("#servicioVentasCliente .list-group-item").forEach((li) => {
-    li.classList.toggle("active", li.dataset.venta === String(valor || ""));
+  const elegido = String(valor || "");
+  document.getElementById("servicioVenta").value = elegido;
+  document.querySelectorAll("#servicioVentasCliente .opcion-venta-servicio").forEach((li) => {
+    const sel = li.dataset.venta === elegido;
+    li.style.borderLeft = sel ? "5px solid #198754" : "5px solid transparent";
+    li.style.background = sel ? "rgba(25,135,84,0.12)" : "";
+    const icono = li.querySelector(".icono-eleccion");
+    if (icono) icono.className = `icono-eleccion fas ${sel ? "fa-check-circle text-success" : "fa-circle text-secondary opacity-50"} me-2`;
   });
+  const resumen = document.getElementById("servicioVentaElegida");
+  if (resumen) {
+    const li = document.querySelector(`#servicioVentasCliente .opcion-venta-servicio[data-venta="${elegido}"]`);
+    resumen.innerHTML = elegido
+      ? `<i class="fas fa-check-circle me-1"></i>El servicio se agregará a la <strong>${li?.dataset.texto || "venta #" + elegido}</strong>`
+      : `<i class="fas fa-info-circle me-1"></i>El servicio se registrará <strong>suelto</strong> (sin venta) y se cobra aparte`;
+    resumen.className = `alert ${elegido ? "alert-success" : "alert-secondary"} py-2 px-3 mt-2 mb-0 small`;
+  }
 }
 
 // Lista las ventas del cliente (no anuladas) con fecha, total, si está
@@ -4009,26 +4074,28 @@ async function _renderVentasServicio(ventas, contenedor) {
       .map((d) => `${escaparHtmlEscaner(nombres[d.id_producto] || "Producto")} x${Number(d.cantidad)}`)
       .join(", ");
     return `
-      <li class="list-group-item list-group-item-action" style="cursor:pointer" data-venta="${v.id}" onclick="_elegirVentaServicio(${v.id})">
+      <li class="list-group-item list-group-item-action opcion-venta-servicio" style="cursor:pointer" data-venta="${v.id}"
+          data-texto="venta #${v.id} del ${v.fecha ? new Date(v.fecha).toLocaleDateString() : "--"} (total ${q(v.total)})" onclick="_elegirVentaServicio(${v.id})">
         <div class="d-flex justify-content-between flex-wrap gap-1">
-          <span><strong>Venta #${v.id}</strong> · ${v.fecha ? new Date(v.fecha).toLocaleString() : "--"}</span>
+          <span><i class="icono-eleccion fas fa-circle text-secondary opacity-50 me-2"></i><strong>Venta #${v.id}</strong> · ${v.fecha ? new Date(v.fecha).toLocaleString() : "--"}</span>
           <span>Total ${q(v.total)}
             ${saldo > 0.009
               ? `<span class="badge bg-warning text-dark ms-1">Debe ${q(saldo)}</span>`
               : `<span class="badge bg-success ms-1">Pagada</span>`}
           </span>
         </div>
-        <div class="small opacity-75">${productos || "Sin productos (solo servicios)"}</div>
+        <div class="small text-muted ms-4">${productos || "Sin productos (solo servicios)"}</div>
       </li>`;
   });
   contenedor.innerHTML = `
     <ul class="list-group">
-      <li class="list-group-item list-group-item-action active" style="cursor:pointer" data-venta="" onclick="_elegirVentaServicio('')">
-        <strong>Sin venta</strong> — servicio suelto (se cobra aparte)
+      <li class="list-group-item list-group-item-action opcion-venta-servicio" style="cursor:pointer" data-venta="" onclick="_elegirVentaServicio('')">
+        <i class="icono-eleccion fas fa-circle text-secondary opacity-50 me-2"></i><strong>Sin venta</strong> — servicio suelto (se cobra aparte)
       </li>
       ${items.join("")}
     </ul>
-    <div class="form-text">Si eliges una venta, el servicio se suma a su total y se cobra junto con ella.</div>`;
+    <div id="servicioVentaElegida"></div>
+    <div class="form-text">Haz clic en la venta a la que pertenece el servicio: se suma a su total y se cobra junto con ella.</div>`;
   _elegirVentaServicio("");
 }
 
