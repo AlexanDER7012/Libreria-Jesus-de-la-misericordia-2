@@ -4,6 +4,7 @@ let productosData = [];
 let categoriasData = [];
 let marcasData = [];
 let unidadesData = [];
+let selectoresCatalogoProducto = {};
 
 // CARGA DEL MÓDULO PRINCIPAL CON PESTAÑAS
 // Trae TODOS los productos (el servidor da máximo 200 por petición). Antes
@@ -381,15 +382,11 @@ function ensureAllModals() {
                 <div class="row g-3 mb-3">
                   <div class="col-md-6">
                     <label class="form-label fw-bold">Categoría</label>
-                    <select class="form-select" id="productoCategoria">
-                      <option value="">Seleccionar categoría</option>
-                    </select>
+                    <div id="productoCategoriaSelector"></div>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label fw-bold">Marca</label>
-                    <select class="form-select" id="productoMarca">
-                      <option value="">Seleccionar marca</option>
-                    </select>
+                    <div id="productoMarcaSelector"></div>
                   </div>
                 </div>
 
@@ -636,27 +633,40 @@ function _vincularFormulariosCatalogo() {
   _vincularFormulario("unidadForm", saveUnidad);
 }
 
-// POBLAR SELECTS DEL MODAL PRODUCTO
+// POBLAR SELECTORES DEL MODAL PRODUCTO
 function populateSelects() {
-  const categoriaSelect = document.getElementById("productoCategoria");
-  if (categoriaSelect) {
-    categoriaSelect.innerHTML =
-      '<option value="">Seleccionar categoría</option>';
-    categoriasData
-      .filter((c) => c.activo !== 0)
-      .forEach((c) => {
-        categoriaSelect.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
-      });
+  if (typeof window.crearSelectorBusqueda !== "function") {
+    throw new Error("No se pudo cargar el selector de búsqueda de productos");
   }
 
-  const marcaSelect = document.getElementById("productoMarca");
-  if (marcaSelect) {
-    marcaSelect.innerHTML = '<option value="">Seleccionar marca</option>';
-    marcasData
-      .filter((m) => m.activo !== 0)
-      .forEach((m) => {
-        marcaSelect.innerHTML += `<option value="${m.id}">${m.nombre}</option>`;
-      });
+  if (!selectoresCatalogoProducto.categoria) {
+    selectoresCatalogoProducto.categoria = window.crearSelectorBusqueda({
+      wrapperId: "productoCategoriaSelector",
+      hiddenInputId: "productoCategoria",
+      searchInputId: "productoCategoriaSearchTxt",
+      dropdownId: "productoCategoriaDropdown",
+      getData: () => (window.categoriasData || []).filter((c) => c.activo !== 0),
+      getId: (categoria) => categoria.id,
+      getLabel: (categoria) => categoria.nombre || "",
+      getSearchText: (categoria) => categoria.nombre || "",
+      placeholder: "Buscar categoría...",
+      emptyText: "Escribe para buscar categorías...",
+    });
+  }
+
+  if (!selectoresCatalogoProducto.marca) {
+    selectoresCatalogoProducto.marca = window.crearSelectorBusqueda({
+      wrapperId: "productoMarcaSelector",
+      hiddenInputId: "productoMarca",
+      searchInputId: "productoMarcaSearchTxt",
+      dropdownId: "productoMarcaDropdown",
+      getData: () => (window.marcasData || []).filter((m) => m.activo !== 0),
+      getId: (marca) => marca.id,
+      getLabel: (marca) => marca.nombre || "",
+      getSearchText: (marca) => marca.nombre || "",
+      placeholder: "Buscar marca...",
+      emptyText: "Escribe para buscar marcas...",
+    });
   }
 
   const unidadCompraSelect = document.getElementById("productoUnidadCompra");
@@ -916,6 +926,8 @@ function showCreateProductoModal() {
   limpiarErroresFormulario("productoForm");
 
   document.getElementById("productoId").value = "";
+  selectoresCatalogoProducto.categoria?.reset();
+  selectoresCatalogoProducto.marca?.reset();
   document.getElementById("productoActivo").value = "1";
   document.getElementById("productoPrecioAutomatico").value = "0";
   document.getElementById("productoMargenGanancia").value = "0";
@@ -957,9 +969,8 @@ async function showEditProductoModal(id) {
     document.getElementById("productoNombre").value = producto.nombre || "";
     document.getElementById("productoDescripcion").value =
       producto.descripcion || "";
-    document.getElementById("productoCategoria").value =
-      producto.id_categoria || "";
-    document.getElementById("productoMarca").value = producto.id_marca || "";
+    selectoresCatalogoProducto.categoria?.setValue(producto.id_categoria || "");
+    selectoresCatalogoProducto.marca?.setValue(producto.id_marca || "");
     document.getElementById("productoUnidadCompra").value =
       producto.id_unidad_compra || "";
     document.getElementById("productoUnidadVenta").value =
