@@ -854,6 +854,7 @@ class App {
                 id: "trasladosF",
                 placeholder: "Buscar por nota de envío, producto o código...",
                 selects: [
+                  { id: "Direccion", label: "Todas las direcciones", opciones: [["Saliente", "Salientes"], ["Entrante", "Entrantes"], ["Entre ubicaciones", "Entre ubicaciones"]] },
                   { id: "Estado", label: "Todos los estados", opciones: [["EnProceso", "En camino"], ["Completado", "Recibido"], ["Cancelado", "Cancelado"]] },
                   { id: "Pago", label: "Todos los pagos", opciones: [["Con saldo", "Con saldo pendiente"], ["Pendiente", "Pendiente"], ["Parcial", "Parcial"], ["Pagado", "Pagado"], ["No aplica", "No se cobra"]] },
                   { id: "Ubicacion", label: "Todas las ubicaciones", opciones: opcionesUbicacionesFiltro() },

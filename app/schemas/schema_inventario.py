@@ -110,6 +110,7 @@ class TrasladoSucursalCreate(BaseModel):
 class TrasladoSucursalResponse(BaseModel):
     id: int
     fecha: Optional[datetime] = None
+    direccion: Optional[str] = None
     id_producto: int
     cantidad: Optional[float] = None
     id_ubicacion_origen: Optional[int] = None

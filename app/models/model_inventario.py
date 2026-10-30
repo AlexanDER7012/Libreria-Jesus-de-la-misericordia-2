@@ -79,6 +79,12 @@ class TrasladoSucursal(Base):
 
     costo_unitario = Column(DECIMAL(12, 2))  
     metodo_traslado = Column(String(50)) 
+    direccion = Column(
+        String(20),
+        nullable=False,
+        default="Entre ubicaciones",
+        server_default="Entre ubicaciones",
+    )
     id_usuario_autoriza = Column(Integer, ForeignKey("usuario.id"))
     id_usuario_recibe = Column(Integer, ForeignKey("usuario.id"))
     fecha_recepcion = Column(DateTime)

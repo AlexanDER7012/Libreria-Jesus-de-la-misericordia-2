@@ -1133,6 +1133,9 @@ function crearModalesInventario() {
                                     <select class="form-select inv-ubicacion-select" id="trasladoDestino" required></select>
                                     <div class="invalid-feedback" id="trasladoDestinoError">Seleccione una ubicación</div>
                                 </div>
+                                <div class="alert alert-light border mb-3 inventory-grid-wide" id="trasladoDireccionInfo">
+                                    Selecciona origen y destino para ver la dirección y el control de pago.
+                                </div>
                                 <div class="mb-3">
                                     <label class="form-label">Cantidad *</label>
                                     <input type="number" step="0.01" class="form-control" id="trasladoCantidad" required />
@@ -1166,11 +1169,11 @@ function crearModalesInventario() {
                                 <div class="mb-3 inventory-grid-wide">
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="trasladoCobrar" checked>
-                                        <label class="form-check-label" for="trasladoCobrar">
-                                            Cobrar a la sucursal destino (a precio de costo)
+                                        <label class="form-check-label" for="trasladoCobrar" id="trasladoCobrarLabel">
+                                            Llevar control del saldo de este traslado (a precio de costo)
                                         </label>
                                     </div>
-                                    <div class="form-text">Desmárcalo si es un movimiento interno que no se cobra (ej. Bodega → Área de ventas de la misma tienda).</div>
+                                    <div class="form-text" id="trasladoCobrarHelp">Desmárcalo si es un movimiento interno que no se cobra.</div>
                                 </div>
                                 <button type="submit" class="btn btn-info w-100">Guardar Traslado</button>
                             </form>
@@ -1307,13 +1310,21 @@ function showTrasladoModal() {
     origenTraslado.onchange = () => {
       bloquearMismaUbicacionTraslado();
       actualizarDisponibleTraslado();
+      actualizarDireccionTraslado();
     };
   }
-  if (destinoTraslado) destinoTraslado.onchange = bloquearMismaUbicacionTraslado;
+  if (destinoTraslado) {
+    destinoTraslado.onchange = () => {
+      bloquearMismaUbicacionTraslado();
+      actualizarDireccionTraslado();
+    };
+  }
+  delete modal.dataset.direccionAuto;
   const cantidadTraslado = document.getElementById("trasladoCantidad");
   if (cantidadTraslado) cantidadTraslado.oninput = actualizarCostoTraslado;
   bloquearMismaUbicacionTraslado();
   actualizarDisponibleTraslado();
+  actualizarDireccionTraslado();
   prepararEscanerInventario(
     "trasladoProducto",
     seleccionarProductoEscaneadoTraslado,
@@ -1325,6 +1336,63 @@ function showTrasladoModal() {
   );
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
+}
+
+function actualizarDireccionTraslado() {
+  const modal = document.getElementById("trasladoModal");
+  const info = document.getElementById("trasladoDireccionInfo");
+  const origen = document.getElementById("trasladoOrigen")?.value;
+  const destino = document.getElementById("trasladoDestino")?.value;
+  const principal = window.ubicacionPrincipalId;
+  const checkRecibido = document.getElementById("trasladoRecibidoYa");
+  const etiquetaCobro = document.getElementById("trasladoCobrarLabel");
+  const ayudaCobro = document.getElementById("trasladoCobrarHelp");
+  if (!info) return;
+
+  let direccion = "";
+  if (origen && destino) {
+    if (principal && String(origen) === String(principal)) {
+      direccion = "Saliente";
+    } else if (principal && String(destino) === String(principal)) {
+      direccion = "Entrante";
+    } else {
+      direccion = "Entre ubicaciones";
+    }
+  }
+
+  if (!direccion) {
+    info.className = "alert alert-light border mb-3 inventory-grid-wide";
+    info.textContent = "Selecciona origen y destino para ver la dirección y el control de pago.";
+    return;
+  }
+
+  if (modal && modal.dataset.direccionAuto !== direccion) {
+    if (checkRecibido) checkRecibido.checked = direccion === "Entre ubicaciones";
+    modal.dataset.direccionAuto = direccion;
+  }
+
+  const nombreOtraSucursal =
+    direccion === "Saliente"
+      ? nombreUbicacionInv(destino)
+      : direccion === "Entrante"
+        ? nombreUbicacionInv(origen)
+        : "";
+  if (direccion === "Saliente") {
+    info.className = "alert alert-primary mb-3 inventory-grid-wide";
+    info.innerHTML = `Traslado <strong>saliente</strong>: se envía desde la ubicación principal hacia ${escInv(nombreOtraSucursal)}. El saldo quedará <strong>por cobrar</strong> a la sucursal destino.`;
+    if (etiquetaCobro) etiquetaCobro.textContent = "Llevar cuenta por cobrar a la sucursal destino (a precio de costo)";
+    if (ayudaCobro) ayudaCobro.textContent = "Desmárcalo si este traslado no genera un cobro.";
+  } else if (direccion === "Entrante") {
+    info.className = "alert alert-info mb-3 inventory-grid-wide";
+    info.innerHTML = `Traslado <strong>entrante</strong>: ${escInv(nombreOtraSucursal)} envía producto a la ubicación principal. El saldo quedará <strong>por pagar</strong> a la sucursal origen.`;
+    if (etiquetaCobro) etiquetaCobro.textContent = "Llevar cuenta por pagar a la sucursal origen (a precio de costo)";
+    if (ayudaCobro) ayudaCobro.textContent = "Desmárcalo si este traslado no genera un pago.";
+  } else {
+    info.className = "alert alert-secondary mb-3 inventory-grid-wide";
+    info.innerHTML = "Traslado <strong>entre ubicaciones</strong>: registra el movimiento de stock y, si corresponde, el saldo a precio de costo.";
+    if (etiquetaCobro) etiquetaCobro.textContent = "Llevar control del saldo de este traslado (a precio de costo)";
+    if (ayudaCobro) ayudaCobro.textContent = "Desmárcalo si es un movimiento interno que no se cobra.";
+  }
 }
 
 function llenarSelectorProductoMovimiento() {
@@ -2033,13 +2101,33 @@ function _infoPagoTraslado(t) {
   const total = parseFloat(t.monto_total) || 0;
   const pagado = parseFloat(t.monto_pagado) || 0;
   const saldo = Math.max(0, total - pagado);
+  const direccion = direccionTraslado(t);
   const clases = {
     Pendiente: "bg-danger",
     Parcial: "bg-warning text-dark",
     Pagado: "bg-success",
     "No aplica": "bg-light text-muted border",
   };
-  return { total, pagado, saldo, estado: t.estado_pago || "No aplica", clase: clases[t.estado_pago] || "bg-secondary" };
+  return {
+    total,
+    pagado,
+    saldo,
+    direccion,
+    saldoEtiqueta: direccion === "Saliente" ? "Nos deben" : direccion === "Entrante" ? "Debemos" : "Saldo",
+    pagoEtiqueta: direccion === "Saliente" ? "Cobro recibido" : direccion === "Entrante" ? "Pago realizado" : "Pago",
+    estado: t.estado_pago || "No aplica",
+    clase: clases[t.estado_pago] || "bg-secondary",
+  };
+}
+
+function direccionTraslado(t) {
+  if (["Saliente", "Entrante", "Entre ubicaciones"].includes(t?.direccion)) {
+    return t.direccion;
+  }
+  const principal = window.ubicacionPrincipalId;
+  if (principal && String(t?.id_ubicacion_origen) === String(principal)) return "Saliente";
+  if (principal && String(t?.id_ubicacion_destino) === String(principal)) return "Entrante";
+  return "Entre ubicaciones";
 }
 
 function renderTraslados(traslados) {
@@ -2071,6 +2159,7 @@ function renderTraslados(traslados) {
                     <tr>
                         <th>Nota de envío</th>
                         <th>Producto</th>
+                        <th>Dirección</th>
                         <th>Origen → Destino</th>
                         <th class="text-end">Cant.</th>
                         <th class="text-end">Total (costo)</th>
@@ -2096,17 +2185,24 @@ function renderTraslados(traslados) {
         Cancelado: { texto: "Cancelado", clase: "bg-secondary" },
       }[estado] || { texto: estado, clase: "bg-secondary" };
     const pago = _infoPagoTraslado(t);
+    const claseDireccion =
+      pago.direccion === "Saliente"
+        ? "bg-primary"
+        : pago.direccion === "Entrante"
+          ? "bg-info text-dark"
+          : "bg-secondary";
 
     html += `
             <tr>
                 <td><strong>${escInv(t.numero_nota_envio || "#" + t.id)}</strong></td>
                 <td>${escInv(producto ? producto.nombre : "--")}</td>
+                <td><span class="badge ${claseDireccion}">${escInv(pago.direccion)}</span></td>
                 <td><small>${escInv(nombreUbicacionInv(t.id_ubicacion_origen))} → ${escInv(nombreUbicacionInv(t.id_ubicacion_destino))}</small></td>
                 <td class="text-end">${t.cantidad || 0}</td>
                 <td class="text-end">Q${pago.total.toFixed(2)}</td>
                 <td>
                     <span class="badge ${pago.clase}">${pago.estado}</span>
-                    ${pago.estado === "Pendiente" || pago.estado === "Parcial" ? `<div class="small text-muted">Saldo Q${pago.saldo.toFixed(2)}</div>` : ""}
+                    ${pago.estado === "Pendiente" || pago.estado === "Parcial" ? `<div class="small text-muted">${pago.saldoEtiqueta}: Q${pago.saldo.toFixed(2)}</div>` : ""}
                 </td>
                 <td><span class="badge ${estadoInfo.clase}">${estadoInfo.texto}</span></td>
                 <td><small>${t.fecha ? new Date(t.fecha).toLocaleString("es-GT") : "--"}</small></td>
@@ -2116,7 +2212,7 @@ function renderTraslados(traslados) {
                     </button>
                     ${
                       pago.estado !== "No aplica" && estado !== "Cancelado"
-                        ? `<button class="btn btn-sm btn-outline-primary" onclick="mostrarPagosTraslado(${t.id})" title="Pagos del traslado">
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="mostrarPagosTraslado(${t.id})" title="Control de cobros y pagos">
                         <i class="fas fa-money-bill-wave"></i>
                     </button>`
                         : ""
@@ -2239,10 +2335,11 @@ async function imprimirNotaEnvio(id) {
       <h2>NOTA DE ENVÍO — ${escInv(t.numero_nota_envio || "#" + t.id)}</h2>
       <table class="datos">
         <tr><td><strong>Fecha:</strong></td><td>${fecha}</td></tr>
+        <tr><td><strong>Dirección:</strong></td><td>${escInv(direccionTraslado(t))}</td></tr>
         <tr><td><strong>Origen:</strong></td><td>${escInv(nombreUbicacionInv(t.id_ubicacion_origen))}</td></tr>
         <tr><td><strong>Destino:</strong></td><td>${escInv(nombreUbicacionInv(t.id_ubicacion_destino))}</td></tr>
         <tr><td><strong>Método de envío:</strong></td><td>${escInv(t.metodo_traslado || "")}</td></tr>
-        <tr><td><strong>Estado de pago:</strong></td><td>${escInv(pago.estado)}</td></tr>
+        <tr><td><strong>Estado de pago:</strong></td><td>${escInv(pago.estado)}${pago.saldo > 0 && pago.estado !== "No aplica" ? ` — ${pago.saldoEtiqueta}: Q${pago.saldo.toFixed(2)}` : ""}</td></tr>
       </table>
       <table>
         <thead><tr><th>Código</th><th>Producto</th><th class="der">Cantidad</th><th class="der">Costo unitario</th><th class="der">Total</th></tr></thead>
@@ -2282,6 +2379,12 @@ async function mostrarPagosTraslado(id) {
     if (!t) throw new Error("No se encontró el traslado");
     _trasladoPagosActual = t;
     const pago = _infoPagoTraslado(t);
+    const contraparte =
+      pago.direccion === "Saliente"
+        ? nombreUbicacionInv(t.id_ubicacion_destino)
+        : pago.direccion === "Entrante"
+          ? nombreUbicacionInv(t.id_ubicacion_origen)
+          : `${nombreUbicacionInv(t.id_ubicacion_origen)} / ${nombreUbicacionInv(t.id_ubicacion_destino)}`;
     const tipos = (tiposPago || []).filter((tp) => tp.activo !== 0);
     const nombreTipo = (idTipo) =>
       (tiposPago || []).find((tp) => tp.id === idTipo)?.nombre || "--";
@@ -2322,9 +2425,17 @@ async function mostrarPagosTraslado(id) {
     document.getElementById("trasladoPagosBody").innerHTML = `
       <div class="row g-2 mb-3 text-center">
         <div class="col"><div class="border rounded p-2"><small class="text-muted d-block">Total a costo</small><strong>Q${pago.total.toFixed(2)}</strong></div></div>
-        <div class="col"><div class="border rounded p-2"><small class="text-muted d-block">Pagado</small><strong class="text-success">Q${pago.pagado.toFixed(2)}</strong></div></div>
-        <div class="col"><div class="border rounded p-2"><small class="text-muted d-block">Saldo</small><strong class="text-danger">Q${pago.saldo.toFixed(2)}</strong></div></div>
+        <div class="col"><div class="border rounded p-2"><small class="text-muted d-block">${pago.pagoEtiqueta}${contraparte ? ` ${escInv(contraparte)}` : ""}</small><strong class="text-success">Q${pago.pagado.toFixed(2)}</strong></div></div>
+        <div class="col"><div class="border rounded p-2"><small class="text-muted d-block">${pago.saldoEtiqueta}</small><strong class="text-danger">Q${pago.saldo.toFixed(2)}</strong></div></div>
         <div class="col"><div class="border rounded p-2"><small class="text-muted d-block">Estado</small><span class="badge ${pago.clase}">${pago.estado}</span></div></div>
+      </div>
+      <div class="alert alert-light border small">
+        ${pago.direccion === "Saliente"
+          ? `La sucursal destino <strong>${escInv(contraparte)}</strong> debe pagar este traslado a la ubicación principal.`
+          : pago.direccion === "Entrante"
+            ? `La ubicación principal debe pagar este traslado a la sucursal origen <strong>${escInv(contraparte)}</strong>.`
+            : `Control de pagos entre ${escInv(contraparte)}.`
+        }
       </div>
       <h6>Pagos registrados</h6>
       ${
@@ -2334,10 +2445,10 @@ async function mostrarPagosTraslado(id) {
       }
       ${
         pago.saldo > 0 && puedeEditar
-          ? `<hr><h6>Registrar pago</h6>
+          ? `<hr><h6>Registrar ${pago.direccion === "Saliente" ? "cobro recibido" : pago.direccion === "Entrante" ? "pago realizado" : "abono"}</h6>
         <form id="trasladoPagoForm" onsubmit="registrarPagoTraslado(event)" class="row g-2" novalidate>
           <div class="col-md-3">
-            <label class="form-label small">Monto *</label>
+            <label class="form-label small">Monto del ${pago.direccion === "Saliente" ? "cobro" : "pago"} *</label>
             <input type="number" step="0.01" min="0.01" max="${pago.saldo.toFixed(2)}" class="form-control form-control-sm" id="trasladoPagoMonto" value="${pago.saldo.toFixed(2)}" required>
           </div>
           <div class="col-md-3">
@@ -2351,7 +2462,7 @@ async function mostrarPagosTraslado(id) {
             <input type="text" class="form-control form-control-sm" id="trasladoPagoReferencia" placeholder="No. de boleta, transferencia...">
           </div>
           <div class="col-md-3 d-flex align-items-end">
-            <button type="submit" class="btn btn-success btn-sm w-100"><i class="fas fa-save me-1"></i>Registrar pago</button>
+            <button type="submit" class="btn btn-success btn-sm w-100"><i class="fas fa-save me-1"></i>Registrar ${pago.direccion === "Saliente" ? "cobro" : "pago"}</button>
           </div>
         </form>`
           : ""
@@ -2383,7 +2494,8 @@ async function registrarPagoTraslado(event) {
       id_tipo_pago: parseInt(document.getElementById("trasladoPagoTipo")?.value) || null,
       referencia: document.getElementById("trasladoPagoReferencia")?.value.trim() || null,
     });
-    showToast(`Pago de Q${monto.toFixed(2)} registrado`, "success");
+    const accion = direccionTraslado(t) === "Saliente" ? "Cobro recibido" : "Pago registrado";
+    showToast(`${accion} de Q${monto.toFixed(2)}`, "success");
     await recargarTraslados();
     await mostrarPagosTraslado(t.id);
   } catch (error) {
@@ -2622,6 +2734,7 @@ async function cargarTrasladosTabla() {
     if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
     if (f.Estado) url += `&estado=${f.Estado}`;
     if (f.Pago) url += `&estado_pago=${encodeURIComponent(f.Pago)}`;
+    if (f.Direccion) url += `&direccion=${encodeURIComponent(f.Direccion)}`;
     if (f.Ubicacion) url += `&id_ubicacion=${f.Ubicacion}`;
     if (f.desde) url += `&fecha_desde=${f.desde}`;
     if (f.hasta) url += `&fecha_hasta=${f.hasta}`;

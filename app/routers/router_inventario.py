@@ -434,6 +434,7 @@ def aplicar_ajuste(conteo_id: int, db: Session = Depends(get_db), usuario_actual
 def listar_traslados(
     estado: Optional[Literal["EnProceso", "Recibido", "Completado", "Cancelado"]] = None,
     estado_pago: Optional[Literal["Pendiente", "Parcial", "Pagado", "No aplica", "Con saldo"]] = None,
+    direccion: Optional[Literal["Saliente", "Entrante", "Entre ubicaciones"]] = None,
     numero_nota: Optional[str] = None,
     buscar: Optional[str] = None,
     id_producto: Optional[int] = None,
@@ -452,6 +453,8 @@ def listar_traslados(
     query = db.query(TrasladoSucursal).order_by(TrasladoSucursal.fecha.desc(), TrasladoSucursal.id.desc())
     if estado is not None:
         query = query.filter(TrasladoSucursal.estado == estado)
+    if direccion is not None:
+        query = query.filter(TrasladoSucursal.direccion == direccion)
     if estado_pago == "Con saldo":
         query = query.filter(TrasladoSucursal.estado_pago.in_(["Pendiente", "Parcial"]))
     elif estado_pago is not None:
@@ -482,11 +485,10 @@ def listar_traslados(
 @router_traslado.post("", response_model=TrasladoSucursalResponse, status_code=201)
 def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Crear"))):
     """
-    Registra el envío de producto de una ubicación a otra (ej. Bodega ->
-    Área de ventas). La cantidad se resta del origen en este momento
-    (queda "en camino", así no se puede vender ni mover otra vez) y se
-    suma al destino cuando se confirma la recepción. Si se cancela,
-    regresa al origen.
+    Registra un envío saliente, entrante o entre ubicaciones. La cantidad
+    se resta del origen en este momento (queda "en camino", así no se puede
+    vender ni mover otra vez) y se suma al destino cuando se confirma la
+    recepción. Si se cancela, regresa al origen.
     """
     producto = db.query(Producto).filter(Producto.id == datos.id_producto).first()
     if not producto:
@@ -516,12 +518,20 @@ def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db),
     valores = datos.model_dump()
     cobrar = valores.pop("cobrar", True)
     valores["id_usuario_autoriza"] = usuario_actual.id
+    ubicacion_principal = ubicacion_principal_id(db)
+    if datos.id_ubicacion_origen == ubicacion_principal:
+        direccion = "Saliente"
+    elif datos.id_ubicacion_destino == ubicacion_principal:
+        direccion = "Entrante"
+    else:
+        direccion = "Entre ubicaciones"
     # Siempre a precio de costo (el de compra del producto si no se indica)
     if valores.get("costo_unitario") is None:
         valores["costo_unitario"] = float(producto.precio_compra or 0)
     monto_total = round(float(datos.cantidad) * float(valores["costo_unitario"] or 0), 2)
     nuevo = TrasladoSucursal(
         **valores,
+        direccion=direccion,
         estado="EnProceso",
         monto_total=monto_total,
         monto_pagado=0,
@@ -561,7 +571,7 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: Optional[int] = Non
     traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).first()
     if not traslado:
         raise HTTPException(status_code=404, detail="Traslado no encontrado")
-    if traslado.estado == "Completado":
+    if traslado.estado in ("Completado", "Recibido"):
         raise HTTPException(status_code=400, detail="Este traslado ya fue recibido")
     if traslado.estado == "Cancelado":
         raise HTTPException(status_code=400, detail="Este traslado fue cancelado")
@@ -700,7 +710,7 @@ def listar_pagos_traslado(traslado_id: int, db: Session = Depends(get_db), usuar
 
 @router_traslado.post("/{traslado_id}/pagos", response_model=TrasladoPagoResponse, status_code=201)
 def registrar_pago_traslado(traslado_id: int, datos: TrasladoPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar"))):
-    """La sucursal destino paga (total o parcial) el traslado, a precio de costo."""
+    """Registra un abono de la sucursal destino a la de origen, a precio de costo."""
     traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).first()
     if not traslado:
         raise HTTPException(status_code=404, detail="Traslado no encontrado")
@@ -730,9 +740,17 @@ def registrar_pago_traslado(traslado_id: int, datos: TrasladoPagoCreate, db: Ses
     db.flush()
     db.refresh(traslado)
     _recalcular_pago_traslado(traslado)
+    accion_pago = {
+        "Saliente": "cobro recibido",
+        "Entrante": "pago realizado",
+    }.get(traslado.direccion, "abono")
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "TrasladoPago",
-        detalle=f"Registró pago de Q{monto:.2f} del traslado {traslado.numero_nota_envio} (saldo antes: Q{saldo:.2f})",
+        detalle=(
+            f"Registró {accion_pago} "
+            f"de Q{monto:.2f} del traslado {traslado.numero_nota_envio} "
+            f"(saldo antes: Q{saldo:.2f})"
+        ),
     )
     db.commit()
     db.refresh(pago)
