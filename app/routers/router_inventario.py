@@ -575,6 +575,8 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: Optional[int] = Non
         raise HTTPException(status_code=400, detail="Este traslado ya fue recibido")
     if traslado.estado == "Cancelado":
         raise HTTPException(status_code=400, detail="Este traslado fue cancelado")
+    if traslado.direccion != "Entrante":
+        raise HTTPException(status_code=400, detail="Solo se pueden recibir traslados entrantes")
 
     producto = db.query(Producto).filter(Producto.id == traslado.id_producto).first()
     if not producto:
@@ -623,6 +625,99 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: Optional[int] = Non
     registrar_actividad(
         db, usuario_actual.id, "EDITAR", "TrasladoSucursal",
         detalle=f"Confirmó la recepción del traslado #{traslado.id} ({cantidad:g} '{producto.nombre}')",
+    )
+    db.commit()
+    db.refresh(traslado)
+    return traslado
+
+
+@router_traslado.patch("/{traslado_id}/eliminar", response_model=TrasladoSucursalResponse)
+def eliminar_traslado(
+    traslado_id: int,
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar")),
+):
+    """Revierte un traslado y conserva sus movimientos y pagos anulados para auditoría."""
+    traslado = (
+        db.query(TrasladoSucursal)
+        .filter(TrasladoSucursal.id == traslado_id)
+        .with_for_update()
+        .first()
+    )
+    if not traslado:
+        raise HTTPException(status_code=404, detail="Traslado no encontrado")
+    if traslado.estado == "Cancelado":
+        raise HTTPException(status_code=400, detail="Este traslado ya fue eliminado o cancelado")
+
+    producto = db.query(Producto).filter(Producto.id == traslado.id_producto).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    cantidad = float(traslado.cantidad or 0)
+    if traslado.estado in ("Completado", "Recibido"):
+        mover_stock(db, producto, traslado.id_ubicacion_destino, -cantidad)
+        _registrar_movimiento_traslado(
+            db,
+            usuario_actual.id,
+            traslado,
+            producto,
+            "Traslado - reversión de salida",
+            2,
+            traslado.id_ubicacion_destino,
+            f"Eliminación autorizada del traslado {traslado.numero_nota_envio}: "
+            f"sale de {nombre_ubicacion(db, traslado.id_ubicacion_destino)}",
+        )
+        mover_stock(db, producto, traslado.id_ubicacion_origen, cantidad)
+        _registrar_movimiento_traslado(
+            db,
+            usuario_actual.id,
+            traslado,
+            producto,
+            "Traslado - reversión de entrada",
+            1,
+            traslado.id_ubicacion_origen,
+            f"Eliminación autorizada del traslado {traslado.numero_nota_envio}: "
+            f"regresa a {nombre_ubicacion(db, traslado.id_ubicacion_origen)}",
+        )
+    elif traslado.estado == "EnProceso" and traslado.stock_descontado == 1:
+        mover_stock(db, producto, traslado.id_ubicacion_origen, cantidad)
+        _registrar_movimiento_traslado(
+            db,
+            usuario_actual.id,
+            traslado,
+            producto,
+            "Traslado - cancelado",
+            1,
+            traslado.id_ubicacion_origen,
+            f"Eliminación autorizada del traslado {traslado.numero_nota_envio}: "
+            f"regresa a {nombre_ubicacion(db, traslado.id_ubicacion_origen)}",
+        )
+    elif traslado.estado != "EnProceso":
+        raise HTTPException(status_code=400, detail="No se puede eliminar un traslado en este estado")
+
+    pagos_anulados = 0
+    for pago in traslado.pagos:
+        if not pago.anulado:
+            pago.anulado = 1
+            pago.motivo_anulacion = "Pago anulado por eliminación autorizada del traslado"
+            pagos_anulados += 1
+
+    traslado.estado = "Cancelado"
+    traslado.estado_pago = "No aplica"
+    traslado.monto_pagado = 0
+    traslado.stock_descontado = 0
+    detalle = (
+        f"Eliminó el traslado {traslado.numero_nota_envio}; "
+        f"revirtió {cantidad:g} '{producto.nombre}'"
+    )
+    if pagos_anulados:
+        detalle += f" y anuló {pagos_anulados} pago(s)"
+    registrar_actividad(
+        db,
+        usuario_actual.id,
+        "ELIMINAR",
+        "TrasladoSucursal",
+        detalle=detalle,
     )
     db.commit()
     db.refresh(traslado)

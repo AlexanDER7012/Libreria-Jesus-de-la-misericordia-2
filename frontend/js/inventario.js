@@ -2218,12 +2218,25 @@ function renderTraslados(traslados) {
                         : ""
                     }
                     ${
-                      estado === "EnProceso" && puedeEditar
+                      estado === "EnProceso" && pago.direccion === "Entrante" && puedeEditar
                         ? `<button class="btn btn-sm btn-outline-success" onclick="recibirTraslado(${t.id})" title="Confirmar que llegó">
                         <i class="fas fa-check me-1"></i>Recibir
                     </button>
+                    `
+                        : ""
+                    }
+                    ${
+                      estado === "EnProceso" && puedeEditar
+                        ? `
                     <button class="btn btn-sm btn-outline-danger" onclick="cancelarTraslado(${t.id})" title="Cancelar traslado">
                         <i class="fas fa-times"></i>
+                    </button>`
+                        : ""
+                    }
+                    ${
+                      estado !== "Cancelado" && puedeEditar
+                        ? `<button class="btn btn-sm btn-outline-danger" onclick="eliminarTraslado(${t.id})" title="Eliminar con autorización de Administrador o Dueña">
+                        <i class="fas fa-trash"></i>
                     </button>`
                         : ""
                     }
@@ -2267,6 +2280,10 @@ async function recibirPorNotaEnvio() {
       `La nota ${traslado.numero_nota_envio} ya está ${traslado.estado === "Cancelado" ? "cancelada" : "recibida"}`,
       "warning",
     );
+    return;
+  }
+  if (direccionTraslado(traslado) !== "Entrante") {
+    showToast("Solo se pueden recibir traslados entrantes", "warning");
     return;
   }
   await asegurarProductosCargados([traslado.id_producto]);
@@ -2526,6 +2543,11 @@ async function anularPagoTraslado(idTraslado, idPago) {
 // RECIBIR TRASLADO
 // =============================================
 async function recibirTraslado(id) {
+  const traslado = (trasladosData || []).find((t) => String(t.id) === String(id));
+  if (traslado && direccionTraslado(traslado) !== "Entrante") {
+    showToast("Solo se pueden recibir traslados entrantes", "warning");
+    return;
+  }
   const confirmado = await mostrarConfirmacion(
     "Recibir Traslado",
     "¿Confirmar recepción del traslado? Esto actualizará el stock en la ubicación destino.",
@@ -2541,6 +2563,39 @@ async function recibirTraslado(id) {
   } catch (error) {
     console.error("❌ Error al recibir traslado:", error);
     showToast(error.message || "Error al recibir traslado", "error");
+  }
+}
+
+async function eliminarTraslado(id) {
+  const traslado = (trasladosData || []).find((t) => String(t.id) === String(id));
+  if (!traslado) {
+    showToast("No se encontró el traslado para eliminar", "error");
+    return;
+  }
+
+  const nota = traslado.numero_nota_envio || `#${traslado.id}`;
+  const ok = await confirmarAccion(
+    `Se revertirá el traslado ${nota}. Se ajustará el stock, se anularán los pagos asociados y se conservará el historial. Si el destino ya no tiene suficiente stock, no se podrá eliminar.\n¿Continuar?`,
+    { titulo: "Eliminar traslado", textoAceptar: "Continuar", peligro: true },
+  );
+  if (!ok) return;
+
+  if (typeof window.confirmarAdmin !== "function") {
+    showToast("No está disponible la autorización de Administrador. Recarga la página e inténtalo de nuevo.", "error");
+    return;
+  }
+  const autorizado = await window.confirmarAdmin(
+    `Se eliminará el traslado ${nota}, se revertirá el stock y se anularán sus pagos.`,
+  );
+  if (!autorizado) return;
+
+  try {
+    await api.request(`/traslados/${id}/eliminar`, "PATCH");
+    showToast(`Traslado ${nota} eliminado; stock y pagos revertidos con historial conservado`, "success");
+    await recargarTraslados();
+    await recargarResumenInventario();
+  } catch (error) {
+    showToast(error.message || "No se pudo eliminar el traslado", "error");
   }
 }
 
@@ -3580,6 +3635,7 @@ window.recargarAlertas = recargarAlertas;
 window.recargarTiposMovimiento = recargarTiposMovimiento;
 
 window.cancelarTraslado = cancelarTraslado;
+window.eliminarTraslado = eliminarTraslado;
 window.actualizarStockSistemaConteo = actualizarStockSistemaConteo;
 window.actualizarDisponibleTraslado = actualizarDisponibleTraslado;
 window.cambiarPaginaResumen = cambiarPaginaResumen;

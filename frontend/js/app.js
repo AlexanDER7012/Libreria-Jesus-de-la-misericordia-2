@@ -838,6 +838,11 @@ class App {
             </div>
             <div class="tab-pane fade" id="panel-inv-traslados" role="tabpanel">
               <div class="row mb-2 g-2 align-items-center">
+                ${tienePermiso("Inventario", "Crear") ? `<div class="col-auto">
+                  <button class="btn btn-info btn-sm" type="button" onclick="showTrasladoModal()">
+                    <i class="fas fa-plus me-1"></i>Nuevo traslado
+                  </button>
+                </div>` : ""}
                 <div class="col-md-5">
                   <div class="input-group input-group-sm">
                     <span class="input-group-text"><i class="fas fa-barcode me-1"></i>Recibir por nota de envío</span>
