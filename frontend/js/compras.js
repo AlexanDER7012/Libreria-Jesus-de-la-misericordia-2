@@ -2674,14 +2674,23 @@ function agregarDetallePedido(event) {
   );
   if (!producto) return showToast("Producto no encontrado", "error");
 
-  pedidoDetallesTemp.push({
-    id_producto,
-    cantidad_pedida,
-    cantidad_sugerida: 0,
-    costo_estimado,
-    observaciones: null,
-    producto,
-  });
+  // Mismo producto con el mismo costo: se suma a la línea que ya está
+  // (antes quedaban dos líneas repetidas, igual que no pasa en Nueva Compra)
+  const yaAgregado = pedidoDetallesTemp.find(
+    (d) => d.id_producto === id_producto && Number(d.costo_estimado) === Number(costo_estimado),
+  );
+  if (yaAgregado) {
+    yaAgregado.cantidad_pedida = Number(yaAgregado.cantidad_pedida) + Number(cantidad_pedida);
+  } else {
+    pedidoDetallesTemp.push({
+      id_producto,
+      cantidad_pedida,
+      cantidad_sugerida: 0,
+      costo_estimado,
+      observaciones: null,
+      producto,
+    });
+  }
 
   renderDetallesPedido();
   actualizarTotalesPedidoPreview();
@@ -3002,13 +3011,9 @@ async function verTotalPedido(id) {
 }
 
 async function cambiarEstadoPedido(id) {
-  const estados = [
-    "Pendiente",
-    "Cotizado",
-    "Aprobado",
-    "Comprado",
-    "Cancelado",
-  ];
+  // "Comprado" no se elige a mano: lo pone el sistema al guardar la compra
+  // del pedido (Nueva Compra > N.º de pedido)
+  const estados = ["Pendiente", "Cotizado", "Aprobado", "Cancelado"];
   const estadoActual = await elegirOpcionModal(
     `Nuevo estado del pedido #${id}:`,
     estados,
@@ -3884,6 +3889,17 @@ async function cargarPedidoEnCompra() {
       );
     }
 
+    await _asegurarNombresCompra(pedido.id_proveedor, (pedido.detalles || []).map((d) => d.id_producto));
+    const proveedorPedido = (window.proveedoresData || []).find((p) => p.id === pedido.id_proveedor);
+    if (proveedorPedido && proveedorPedido.activo === 0) {
+      return showToast(
+        `El proveedor de este pedido (${proveedorPedido.nombre}) está inactivo. Reactívalo en Proveedores para registrar la compra.`,
+        "error",
+      );
+    }
+    if ((pedido.detalles || []).length === 0) {
+      return showToast("Ese pedido no tiene productos", "error");
+    }
     if (pedido.id_proveedor && window.__compraProveedorSelector) {
       window.__compraProveedorSelector.setValue(pedido.id_proveedor);
     }

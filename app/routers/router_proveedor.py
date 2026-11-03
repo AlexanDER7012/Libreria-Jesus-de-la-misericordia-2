@@ -95,18 +95,45 @@ def obtener_proveedor(proveedor_id: int, db: Session = Depends(get_db), usuario_
     return proveedor
 
 
-def _validar_proveedor(datos, creando: bool) -> None:
+def _validar_proveedor(datos, creando: bool, db: Session = None, excluir_id=None, tipo_actual=None) -> None:
     if creando or datos.nombre is not None:
         datos.nombre = " ".join((datos.nombre or "").split())
         if not datos.nombre:
             raise HTTPException(status_code=400, detail="El nombre del proveedor es obligatorio")
     if datos.dias_credito is not None and datos.dias_credito < 0:
         raise HTTPException(status_code=400, detail="Los días de crédito no pueden ser negativos")
+    if datos.dias_credito is not None and datos.dias_credito > 365:
+        raise HTTPException(status_code=400, detail="Los días de crédito no pueden ser más de 365")
+    if db is None:
+        return
+    # El tipo de proveedor debe existir y estar activo (antes daba error 500)
+    if datos.id_tipo_proveedor is not None:
+        tipo = db.query(TipoProveedor).filter(TipoProveedor.id == datos.id_tipo_proveedor).first()
+        if not tipo:
+            raise HTTPException(status_code=400, detail="El tipo de proveedor elegido no existe")
+        # Si ya lo tenía, se deja editar lo demás aunque el tipo se haya inactivado
+        if tipo.activo == 0 and tipo.id != tipo_actual:
+            raise HTTPException(status_code=400, detail=f"El tipo de proveedor '{tipo.nombre}' está inactivo")
+    # El código de proveedor no se puede repetir (antes se aceptaba)
+    if datos.codigo_proveedor is not None:
+        datos.codigo_proveedor = " ".join(datos.codigo_proveedor.split()) or None
+        if datos.codigo_proveedor:
+            query = db.query(Proveedor).filter(
+                func.lower(Proveedor.codigo_proveedor) == datos.codigo_proveedor.lower()
+            )
+            if excluir_id is not None:
+                query = query.filter(Proveedor.id != excluir_id)
+            repetido = query.first()
+            if repetido:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"El código '{datos.codigo_proveedor}' ya lo tiene el proveedor '{repetido.nombre}'",
+                )
 
 
 @router.post("", response_model=ProveedorResponse, status_code=201)
 def crear_proveedor(datos: ProveedorCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
-    _validar_proveedor(datos, creando=True)
+    _validar_proveedor(datos, creando=True, db=db)
     repetido = _nit_repetido(db, Proveedor, datos.nit)
     if repetido:
         raise HTTPException(status_code=400, detail=f"Ya existe un proveedor con ese NIT ({repetido.nombre})")
@@ -126,7 +153,7 @@ def actualizar_proveedor(proveedor_id: int, datos: ProveedorUpdate, db: Session 
     proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
-    _validar_proveedor(datos, creando=False)
+    _validar_proveedor(datos, creando=False, db=db, excluir_id=proveedor_id, tipo_actual=proveedor.id_tipo_proveedor)
     if datos.nit is not None:
         repetido = _nit_repetido(db, Proveedor, datos.nit, excluir_id=proveedor_id)
         if repetido:
@@ -288,8 +315,11 @@ def agregar_producto_a_pedido(pedido_id: int, datos: DetallePedidoCreate, db: Se
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     if pedido.estado not in ("Pendiente", "Cotizado"):
         raise HTTPException(status_code=400, detail=f"No se pueden agregar productos a un pedido en estado '{pedido.estado}'")
-    if not db.query(Producto).filter(Producto.id == datos.id_producto).first():
+    producto_pedido = db.query(Producto).filter(Producto.id == datos.id_producto).first()
+    if not producto_pedido:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
+    if producto_pedido.activo == 0:
+        raise HTTPException(status_code=400, detail=f"El producto '{producto_pedido.nombre}' está inactivo")
     if float(datos.cantidad_pedida or 0) <= 0:
         raise HTTPException(status_code=400, detail="La cantidad pedida debe ser mayor a 0")
     if datos.precio_compra is not None and float(datos.precio_compra) < 0:

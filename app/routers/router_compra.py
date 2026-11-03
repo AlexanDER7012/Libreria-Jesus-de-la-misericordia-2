@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
@@ -21,7 +21,7 @@ from app.schemas.schema_compra import (
     CompraPagoCreate, CompraPagoResponse,
     DevolucionCompraCreate, DevolucionCompraResponse,
 )
-from app.timezone import now_gt_naive
+from app.timezone import now_gt_naive, today_gt
 
 router = APIRouter()             
 router_devolucion = APIRouter()  
@@ -146,6 +146,11 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
         raise HTTPException(status_code=400, detail="El monto exento no puede ser negativo")
     if not datos.id_usuario_registra:
         datos.id_usuario_registra = usuario_actual.id
+    # Si no se indica cuándo vence el pago, se calcula con los días de crédito
+    # del proveedor (antes el campo no se usaba y "Cuentas por pagar" siempre
+    # decía vencimiento "--")
+    if datos.fecha_vencimiento_pago is None and (proveedor.dias_credito or 0) > 0:
+        datos.fecha_vencimiento_pago = today_gt() + timedelta(days=int(proveedor.dias_credito))
 
     for d in datos.detalles:
         producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
