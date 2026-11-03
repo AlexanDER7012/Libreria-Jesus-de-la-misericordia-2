@@ -764,3 +764,192 @@ body.dark-mode .login-alert-danger i {
     font-size: 0.72rem;
   }
 }
+
+@media (min-width: 1440px) {
+  .login-card {
+    max-width: clamp(440px, 30vw, 680px);
+  }
+
+  .login-card-content {
+    padding: clamp(40px, 3vw, 64px) clamp(44px, 3.5vw, 76px);
+  }
+
+  .login-logo-container {
+    width: clamp(140px, 10vw, 200px);
+    height: clamp(140px, 10vw, 200px);
+    margin-bottom: clamp(18px, 2vh, 30px);
+  }
+
+  .login-title {
+    font-size: clamp(1.9rem, 2.2vw, 2.8rem);
+  }
+
+  .login-subtitle {
+    font-size: clamp(0.92rem, 1vw, 1.2rem);
+    margin-bottom: clamp(28px, 2.5vh, 40px);
+  }
+
+  .login-field label {
+    font-size: clamp(0.85rem, 0.8vw, 1rem);
+  }
+
+  .login-field .form-control {
+    padding-top: clamp(16px, 1vw, 22px);
+    padding-bottom: clamp(16px, 1vw, 22px);
+    font-size: clamp(0.95rem, 0.9vw, 1.15rem);
+  }
+
+  .btn-login {
+    padding: clamp(17px, 1vw, 24px);
+    font-size: clamp(1rem, 1vw, 1.25rem);
+  }
+
+  .login-top-actions {
+    top: clamp(20px, 2vh, 40px);
+    right: clamp(20px, 2vw, 48px);
+    gap: clamp(12px, 1vw, 20px);
+  }
+
+  .theme-toggle-login {
+    width: clamp(50px, 3.5vw, 68px);
+    height: clamp(50px, 3.5vw, 68px);
+    flex-basis: clamp(50px, 3.5vw, 68px);
+    font-size: clamp(1.3rem, 1.5vw, 1.8rem);
+  }
+
+  .site-link-login {
+    padding-right: clamp(18px, 1.5vw, 28px);
+    padding-left: clamp(18px, 1.5vw, 28px);
+    min-height: clamp(50px, 3.5vw, 68px);
+    font-size: clamp(0.85rem, 0.9vw, 1.1rem);
+  }
+}
+
+@media (max-height: 700px) and (min-width: 521px) {
+  body.login-page {
+    align-items: flex-start;
+    padding-top: 76px;
+    padding-bottom: 20px;
+  }
+
+  .login-card-content {
+    padding-top: 22px;
+    padding-bottom: 20px;
+  }
+
+  .login-logo-container {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 10px;
+  }
+
+  .login-title {
+    font-size: 1.6rem;
+  }
+
+  .login-subtitle {
+    margin-bottom: 16px;
+  }
+
+  .login-field {
+    margin-bottom: 12px;
+  }
+
+  .login-field .form-control {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .btn-login {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 520px) {
+  body.login-page {
+    padding: 68px 12px 16px;
+  }
+
+  .login-page .bubble-extra {
+    display: none;
+  }
+
+  .login-card {
+    width: 100%;
+  }
+
+  .login-card-content {
+    padding: 28px 20px 24px;
+  }
+
+  .login-logo-container {
+    width: 88px;
+    height: 88px;
+    margin-bottom: 12px;
+  }
+
+  .login-title {
+    font-size: clamp(1.2rem, 4.7vw, 1.5rem);
+    line-height: 1.2;
+  }
+
+  .login-subtitle {
+    font-size: 0.8rem;
+    margin-bottom: 20px;
+  }
+
+  .login-field {
+    margin-bottom: 16px;
+  }
+
+  .login-field .form-control {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .btn-login {
+    padding: 13px;
+  }
+}
+
+@media (max-width: 520px) and (max-height: 700px) {
+  body.login-page {
+    align-items: flex-start;
+    padding-top: 64px;
+  }
+
+  .login-card-content {
+    padding: 20px 18px 22px;
+  }
+
+  .login-logo-container {
+    width: 72px;
+    height: 72px;
+    margin-bottom: 8px;
+  }
+
+  .login-title {
+    font-size: 1.15rem;
+  }
+
+  .login-subtitle {
+    margin-bottom: 14px;
+  }
+
+  .login-field {
+    margin-bottom: 12px;
+  }
+
+  .login-field label {
+    margin-bottom: 4px;
+  }
+
+  .login-field .form-control {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .btn-login {
+    padding: 11px;
+  }
+}
