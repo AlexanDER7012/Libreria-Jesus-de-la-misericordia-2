@@ -2224,20 +2224,21 @@ function renderTraslados(traslados) {
                 <td><span class="badge ${estadoInfo.clase}">${estadoInfo.texto}</span></td>
                 <td><small>${t.fecha ? new Date(t.fecha).toLocaleString("es-GT") : "--"}</small></td>
                 <td class="text-nowrap">
-                    <button class="btn btn-sm btn-outline-secondary" onclick="imprimirNotaEnvio(${t.id})" title="Imprimir nota de envío">
+                    <div class="d-inline-flex align-items-center gap-1">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="imprimirNotaEnvio(${t.id})" title="Imprimir nota de envío" aria-label="Imprimir nota de envío">
                         <i class="fas fa-print"></i>
                     </button>
                     ${
                       pago.estado !== "No aplica" && estado !== "Cancelado"
-                        ? `<button class="btn btn-sm btn-outline-primary" onclick="mostrarPagosTraslado(${t.id})" title="Control de cobros y pagos">
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="mostrarPagosTraslado(${t.id})" title="Control de cobros y pagos" aria-label="Control de cobros y pagos">
                         <i class="fas fa-money-bill-wave"></i>
                     </button>`
                         : ""
                     }
                     ${
                       estado === "EnProceso" && puedeEditar
-                        ? `<button class="btn btn-sm btn-outline-success" onclick="recibirTraslado(${t.id})" title="Confirmar que fue entregado">
-                        <i class="fas fa-check me-1"></i>Entregado
+                        ? `<button class="btn btn-sm btn-outline-success" onclick="recibirTraslado(${t.id})" title="Confirmar que fue entregado" aria-label="Confirmar que fue entregado">
+                        <i class="fas fa-check"></i>
                     </button>
                     `
                         : ""
@@ -2245,18 +2246,19 @@ function renderTraslados(traslados) {
                     ${
                       estado === "EnProceso" && puedeEditar
                         ? `
-                    <button class="btn btn-sm btn-outline-danger" onclick="cancelarTraslado(${t.id})" title="Cancelar traslado">
+                    <button class="btn btn-sm btn-outline-danger" onclick="cancelarTraslado(${t.id})" title="Cancelar traslado" aria-label="Cancelar traslado">
                         <i class="fas fa-times"></i>
                     </button>`
                         : ""
                     }
                     ${
                       estado !== "Cancelado" && puedeEditar
-                        ? `<button class="btn btn-sm btn-outline-danger" onclick="eliminarTraslado(${t.id})" title="Eliminar con autorización de Administrador o Dueña">
+                        ? `<button class="btn btn-sm btn-outline-danger" onclick="eliminarTraslado(${t.id})" title="Eliminar con autorización de Administrador o Dueña" aria-label="Eliminar con autorización de Administrador o Dueña">
                         <i class="fas fa-trash"></i>
                     </button>`
                         : ""
                     }
+                    </div>
                 </td>
             </tr>
         `;
