@@ -25,7 +25,7 @@ body {
     color 0.4s ease;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  padding-top: 65px;
+  padding-top: 56px;
 }
 
 /* ================================================================
@@ -44,6 +44,12 @@ body {
 }
 
 .navbar-brand {
+  min-width: 0;
+  flex-shrink: 1;
+  max-width: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 700;
   font-size: 1.2rem;
   letter-spacing: -0.3px;
@@ -1339,10 +1345,25 @@ textarea.form-control {
   margin-left: 64px;
 }
 
+@media (min-width: 992px) and (max-width: 1199.98px) {
+  .sidebar,
+  .sidebar.active {
+    width: 200px;
+  }
+
+  .sidebar.active ~ .main-content {
+    margin-left: 200px;
+  }
+
+  .main-content {
+    padding: 1rem;
+  }
+}
+
 /* ================================================================
    SIDEBAR - RESPONSIVE
    ================================================================ */
-@media (max-width: 768px) {
+@media (max-width: 991.98px) {
   .sidebar {
     width: 280px !important;
     top: 56px;
@@ -1388,6 +1409,42 @@ textarea.form-control {
 
   .main-content {
     padding: 1rem;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .navbar-action-label,
+  .navbar .text-white-50 {
+    display: none;
+  }
+
+  .navbar .container-fluid > .d-flex {
+    gap: 0.5rem !important;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .navbar {
+    padding-right: 0.75rem;
+    padding-left: 0.75rem;
+  }
+
+  .navbar-brand {
+    max-width: none;
+    margin-right: 0.5rem;
+  }
+
+  .navbar-brand-label,
+  .navbar-action-label {
+    display: none;
+  }
+
+  .navbar .container-fluid > .d-flex {
+    gap: 0.5rem !important;
+  }
+
+  .main-content {
+    padding: 0.75rem;
   }
 }
 

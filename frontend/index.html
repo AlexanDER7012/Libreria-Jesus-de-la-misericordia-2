@@ -47,9 +47,15 @@
       class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm fixed-top"
     >
       <div class="container-fluid">
-        <a class="navbar-brand fw-bold" href="#">
+        <a
+          class="navbar-brand fw-bold"
+          href="#"
+          aria-label="Librería y Papelería Jesús de la Misericordia"
+        >
           <i class="fas fa-book-open me-2"></i>
-          Librería y Papelería Jesús de la Misericordia
+          <span class="navbar-brand-label">
+            Librería y Papelería Jesús de la Misericordia
+          </span>
         </a>
 
         <div class="d-flex align-items-center gap-3">
@@ -61,8 +67,10 @@
             class="btn btn-outline-light btn-sm"
             onclick="window.app?.goHome()"
             title="Volver al inicio"
+            aria-label="Volver al inicio"
           >
-            <i class="fas fa-home me-1"></i> Inicio
+            <i class="fas fa-home me-1"></i>
+            <span class="navbar-action-label">Inicio</span>
           </button>
           <!-- BOTÓN SITIO WEB -->
           <button
@@ -72,17 +80,25 @@
                 'https://lail-web.github.io/Libreria-y-Papeleria-Jesus-de-la-Misericordia-II-/#servicios'
             "
             title="Visitar el sitio web de la librería"
+            aria-label="Visitar el sitio web de la librería"
           >
-            <i class="fas fa-store me-1"></i> Sitio Web
+            <i class="fas fa-store me-1"></i>
+            <span class="navbar-action-label">Sitio Web</span>
           </button>
           <button
             class="btn btn-outline-light btn-sm"
             onclick="toggleTheme()"
             title="Alternar modo oscuro"
+            aria-label="Alternar modo oscuro"
           >
             <i class="fas fa-moon" id="themeIcon"></i>
           </button>
-          <button class="btn btn-outline-light btn-sm" onclick="logout()">
+          <button
+            class="btn btn-outline-light btn-sm"
+            onclick="logout()"
+            title="Cerrar sesión"
+            aria-label="Cerrar sesión"
+          >
             <i class="fas fa-sign-out-alt"></i>
           </button>
         </div>
