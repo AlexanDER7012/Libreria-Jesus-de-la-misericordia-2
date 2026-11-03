@@ -2,8 +2,8 @@
 
 let iaChatOpen = false;
 let iaHistorial = [];
-
 let iaEnviando = false;
+const IA_MAX_HISTORIAL = 10;
 
 // Solo quien tiene algún permiso de Reportes ve el asistente (muestra cifras del negocio)
 function _puedeUsarIA() {
@@ -31,11 +31,18 @@ function initIAChat() {
           <i class="fas fa-robot me-2"></i>
           <strong>Asistente IA</strong>
         </div>
-        <button class="btn-close btn-close-white btn-sm" onclick="toggleIAChat()"></button>
+        <button class="btn-close btn-close-white btn-sm" onclick="toggleIAChat()" aria-label="Cerrar asistente"></button>
       </div>
       <div id="iaMessages" class="ia-messages">
         <div class="ia-message ia-message-bot">
-          ¡Hola! Soy tu asistente. Pregúntame sobre ventas, stock o clientes.
+          ¡Hola! Puedo ayudarte a analizar ventas, clientes, productos, compras, proveedores y existencias.
+        </div>
+        <div id="iaSuggestions" class="ia-suggestions" aria-label="Consultas sugeridas">
+          <button type="button" class="ia-suggestion" data-question="¿Cuántas ventas y cuánto ingresó en los últimos 30 días?">Ventas últimos 30 días</button>
+          <button type="button" class="ia-suggestion" data-question="¿Qué clientes compraron más este año y cuánto compró cada uno?">Mejores clientes</button>
+          <button type="button" class="ia-suggestion" data-question="¿Qué productos se vendieron más por unidades y cuáles generaron más ingresos en los últimos 30 días?">Productos más vendidos</button>
+          <button type="button" class="ia-suggestion" data-question="¿A qué proveedores les compramos más este año y cuánto?">Compras por proveedor</button>
+          <button type="button" class="ia-suggestion" data-question="¿Qué productos debo reponer primero según su stock mínimo y las ventas recientes?">Qué reponer</button>
         </div>
       </div>
       <div class="ia-input-row">
@@ -48,6 +55,9 @@ function initIAChat() {
     </div>
   `;
   document.body.appendChild(widget);
+  widget.querySelectorAll(".ia-suggestion").forEach((boton) => {
+    boton.addEventListener("click", () => preguntaSugeridaIA(boton.dataset.question));
+  });
   hacerBotonIAArrastrable();
 }
 
@@ -172,6 +182,13 @@ function toggleIAChat() {
   }
 }
 
+function preguntaSugeridaIA(pregunta) {
+  const input = document.getElementById("iaInput");
+  if (!input || !pregunta) return;
+  input.value = pregunta;
+  enviarMensajeIA();
+}
+
 async function enviarMensajeIA() {
   const input = document.getElementById("iaInput");
   const mensaje = input.value.trim();
@@ -182,6 +199,7 @@ async function enviarMensajeIA() {
   }
   iaEnviando = true;
   input.disabled = true;
+  document.getElementById("iaSuggestions")?.remove();
   const botonEnviar = document.querySelector("#iaPanel .ia-input-row button");
   if (botonEnviar) botonEnviar.disabled = true;
 
@@ -193,13 +211,21 @@ async function enviarMensajeIA() {
   agregarMensajeAlChat("bot", "...", "escribiendo");
 
   try {
-    const respuesta = await api.request("/ia/chat", "POST", { mensaje });
+    const respuesta = await api.request("/ia/chat", "POST", {
+      mensaje,
+      historial: iaHistorial.slice(-IA_MAX_HISTORIAL),
+    });
 
     // Quitar el "escribiendo..."
     const escribiendo = document.querySelector(".ia-message-escribiendo");
     if (escribiendo) escribiendo.remove();
 
     agregarMensajeAlChat("bot", respuesta.respuesta);
+    iaHistorial = [
+      ...iaHistorial,
+      { role: "user", content: mensaje },
+      { role: "assistant", content: respuesta.respuesta },
+    ].slice(-IA_MAX_HISTORIAL);
   } catch (error) {
     const escribiendo = document.querySelector(".ia-message-escribiendo");
     if (escribiendo) escribiendo.remove();
@@ -230,3 +256,4 @@ function agregarMensajeAlChat(tipo, texto, claseExtra = "") {
 window.initIAChat = initIAChat;
 window.toggleIAChat = toggleIAChat;
 window.enviarMensajeIA = enviarMensajeIA;
+window.preguntaSugeridaIA = preguntaSugeridaIA;
