@@ -21,6 +21,12 @@ async def revalidar_recursos_frontend(request, call_next):
     ruta = request.url.path
     if ruta in {"/", "/index.html", "/login.html"} or ruta.endswith((".js", ".css")):
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    # Protecciones básicas del navegador: que otra página no pueda meter el
+    # sistema dentro de un marco (para engañar al usuario y que haga clic o
+    # escriba su contraseña ahí) y que no adivine tipos de archivo.
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "same-origin")
     return response
 
 origins = [
@@ -103,4 +109,4 @@ def read_status():
     """Antes vivia en '/', se movio aqui para que '/' pueda servir el frontend en su lugar."""
     return {"status": "Online", "docs": "/docs"}
 
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

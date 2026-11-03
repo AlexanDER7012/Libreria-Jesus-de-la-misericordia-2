@@ -15,6 +15,7 @@ class TokenResponse(BaseModel):
 class VerificarAdminResponse(BaseModel):
     autorizado: bool
     mensaje: str
+    token_autorizacion: Optional[str] = None
 
 
 class AdminRecoveryRequest(BaseModel):
@@ -32,4 +33,4 @@ class AdminRecoveryRequest(BaseModel):
 
 
 class AdminRecoveryStatus(BaseModel):
-    disponible: bool
+    disponible: bool

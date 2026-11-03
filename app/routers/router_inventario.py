@@ -5,7 +5,7 @@ from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user, requiere_permiso
+from app.security import get_current_user, requiere_permiso, requiere_autorizacion_admin
 from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
 from app.models.model_usuario import Usuario
@@ -102,7 +102,7 @@ def listar_movimientos(
     usuario_actual: Usuario = Depends(get_current_user),
 ):
     """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
-    query = db.query(MovimientoInventario).order_by(MovimientoInventario.fecha.desc(), MovimientoInventario.id.desc())
+    query = db.query(MovimientoInventario).order_by(MovimientoInventario.id.desc())
     if id_producto is not None:
         query = query.join(MovimientoInventarioDetalle).filter(
             MovimientoInventarioDetalle.id_producto == id_producto
@@ -295,7 +295,7 @@ def listar_conteos(
     Filtra por producto (buscar: nombre o código), ubicación, ajuste
     (ajustado=1 aplicado, 0 pendiente) y fechas. Paginado: ?skip=0&limit=50.
     """
-    query = db.query(InventarioFisico).order_by(InventarioFisico.fecha.desc(), InventarioFisico.id.desc())
+    query = db.query(InventarioFisico).order_by(InventarioFisico.id.desc())
     if id_producto is not None:
         query = query.filter(InventarioFisico.id_producto == id_producto)
     if id_ubicacion is not None:
@@ -451,7 +451,7 @@ def listar_traslados(
     número de nota de envío, texto (nota, producto o código), ubicación
     (origen o destino) y fechas. Paginado: ?skip=0&limit=50.
     """
-    query = db.query(TrasladoSucursal).order_by(TrasladoSucursal.fecha.desc(), TrasladoSucursal.id.desc())
+    query = db.query(TrasladoSucursal).order_by(TrasladoSucursal.id.desc())
     if estado is not None:
         query = query.filter(TrasladoSucursal.estado == estado)
     if direccion is not None:
@@ -650,7 +650,7 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: Optional[int] = Non
 
     traslado.estado = "Completado"
     traslado.id_usuario_recibe = usuario_actual.id
-    traslado.fecha_recepcion = func.now()
+    traslado.fecha_recepcion = now_gt_naive()
 
     registrar_actividad(
         db, usuario_actual.id, "EDITAR", "TrasladoSucursal",
@@ -666,6 +666,7 @@ def eliminar_traslado(
     traslado_id: int,
     db: Session = Depends(get_db),
     usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar")),
+    _autorizacion=Depends(requiere_autorizacion_admin),
 ):
     """Revierte un traslado y conserva sus movimientos y pagos anulados para auditoría."""
     traslado = (
@@ -964,7 +965,7 @@ def listar_alertas(
     estado: pendientes (sin cerrar), cerradas o todas; si no se manda se usa
     solo_no_leidas. buscar: mensaje, producto o código. Paginado: ?skip=0&limit=50.
     """
-    query = db.query(Alerta).order_by(Alerta.fecha.desc(), Alerta.id.desc())
+    query = db.query(Alerta).order_by(Alerta.id.desc())
     if estado == "pendientes" or (estado is None and solo_no_leidas):
         query = query.filter(func.coalesce(Alerta.leida, 0) == 0)
     elif estado == "cerradas":
@@ -995,4 +996,4 @@ def marcar_leida(alerta_id: int, db: Session = Depends(get_db), usuario_actual: 
     )
     db.commit()
     db.refresh(alerta)
-    return alerta
+    return alerta

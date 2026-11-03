@@ -1,3 +1,4 @@
+from app.timezone import now_gt_naive
 from sqlalchemy import Column, Integer, String, Text, DateTime, DECIMAL, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -9,7 +10,7 @@ class Cotizacion(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_cliente = Column(Integer, ForeignKey("cliente.id"))
     numero_expediente = Column(String(20))  # correlativo Anioo-No., ej. "2026-014"
-    fecha = Column(DateTime, server_default=func.now())
+    fecha = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     total = Column(DECIMAL(12, 2))
     estado = Column(String(20), default="Pendiente")  # Pendiente, Aceptada, Rechazada
     archivo_pdf = Column(String(255))  

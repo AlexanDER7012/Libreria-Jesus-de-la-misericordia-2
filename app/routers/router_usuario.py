@@ -284,11 +284,16 @@ def _validar_datos_usuario(db: Session, datos: dict, usuario_id=None) -> dict:
             raise HTTPException(status_code=400, detail=f"El nombre de usuario '{nombre}' ya existe")
         datos["nombre_usuario"] = nombre
     if "password" in datos and datos["password"] is not None:
-        if len(datos["password"].strip()) < LARGO_MINIMO_PASSWORD:
+        # Se guarda sin espacios al inicio/final, igual que se compara al iniciar sesión
+        datos["password"] = datos["password"].strip()
+        if len(datos["password"]) < LARGO_MINIMO_PASSWORD:
             raise HTTPException(
                 status_code=400,
                 detail=f"La contraseña debe tener al menos {LARGO_MINIMO_PASSWORD} caracteres",
             )
+        # bcrypt solo usa los primeros 72 bytes; más largo daba error 500
+        if len(datos["password"].encode("utf-8")) > 72:
+            raise HTTPException(status_code=400, detail="La contraseña no puede tener más de 72 caracteres")
     if datos.get("id_rol") is not None:
         if not db.query(Rol).filter(Rol.id == datos["id_rol"]).first():
             raise HTTPException(status_code=400, detail="El rol elegido no existe")
@@ -991,7 +996,7 @@ def registrar_pago(datos: HistoricoPagoEmpleadoCreate, db: Session = Depends(get
 
 @router_log.get("", response_model=List[LogActividadResponse])
 def listar_logs(id_usuario: int | None = None, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
-    query = db.query(LogActividad).order_by(LogActividad.fecha.desc())
+    query = db.query(LogActividad).order_by(LogActividad.id.desc())
     if id_usuario is not None:
         query = query.filter(LogActividad.id_usuario == id_usuario)
-    return query.limit(200).all()
+    return query.limit(200).all()

@@ -8,10 +8,11 @@ Funciones de seguridad reutilizables en todo el proyecto:
     un token válido en el header 'Authorization: Bearer <token>').
 """
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -59,19 +60,79 @@ def decode_access_token(token: str) -> dict:
         )
 
 
+def huella_password(password_hash: str) -> str:
+    """Huella corta del hash de la contraseña (no permite saber la contraseña).
+    Va dentro del token: si la contraseña cambia, los tokens viejos dejan de servir."""
+    return hashlib.sha256((password_hash or "").encode("utf-8")).hexdigest()[:16]
+
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
 
     from app.models.model_usuario import Usuario
 
     payload = decode_access_token(token)
     usuario_id = payload.get("sub")
-    if usuario_id is None:
+    # Un token de autorización de administrador no sirve como sesión
+    if usuario_id is None or payload.get("tipo") is not None:
         raise HTTPException(status_code=401, detail="Token inválido")
 
-    usuario = db.query(Usuario).filter(Usuario.id == int(usuario_id)).first()
+    try:
+        usuario = db.query(Usuario).filter(Usuario.id == int(usuario_id)).first()
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Token inválido")
     if not usuario or usuario.activo == 0:
         raise HTTPException(status_code=401, detail="Usuario no válido o inactivo")
+    # Antes, al cambiarle la contraseña a alguien, quien ya tenía la sesión
+    # abierta (o un token robado) seguía entrando hasta que el token vencía.
+    if "pv" in payload and payload["pv"] != huella_password(usuario.password):
+        raise HTTPException(status_code=401, detail="La contraseña cambió. Vuelve a iniciar sesión.")
     return usuario
+
+
+MINUTOS_AUTORIZACION_ADMIN = 2
+
+
+def crear_token_autorizacion_admin(admin) -> str:
+    """Autorización corta que da un Administrador/Dueña para una acción delicada."""
+    return create_access_token(
+        data={"sub_admin": str(admin.id), "tipo": "autorizacion_admin"},
+        expires_minutes=MINUTOS_AUTORIZACION_ADMIN,
+    )
+
+
+def requiere_autorizacion_admin(
+    x_autorizacion_admin: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """
+    Dependencia para acciones que en pantalla piden usuario y contraseña de
+    un administrador (cancelar compra, eliminar gasto, caja chica, traslado).
+    Antes eso solo se revisaba en la pantalla: con llamar al servidor directo
+    se saltaba. Ahora el servidor exige la autorización (header
+    X-Autorizacion-Admin) que entrega /login/verificar-admin.
+    """
+    from app.models.model_usuario import Usuario
+    from app.routers.router_auth import _es_admin
+
+    error = HTTPException(
+        status_code=403,
+        detail="Esta acción necesita la autorización de un administrador. Vuelve a intentarlo.",
+    )
+    if not x_autorizacion_admin:
+        raise error
+    try:
+        payload = jwt.decode(x_autorizacion_admin, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except JWTError:
+        raise HTTPException(status_code=403, detail="La autorización del administrador venció. Vuelve a intentarlo.")
+    if payload.get("tipo") != "autorizacion_admin":
+        raise error
+    try:
+        admin = db.query(Usuario).filter(Usuario.id == int(payload.get("sub_admin"))).first()
+    except (TypeError, ValueError):
+        raise error
+    if not admin or admin.activo == 0 or not _es_admin(admin):
+        raise error
+    return admin
 
 
 # Caja no tiene permisos propios: usa los de Ventas. Quien tiene permisos
@@ -191,4 +252,4 @@ def requiere_permiso_alguno(pares: list):
 
         raise HTTPException(status_code=403, detail=f"No tienes permiso para {detalle}")
 
-    return _dependencia
+    return _dependencia

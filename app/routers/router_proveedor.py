@@ -232,7 +232,7 @@ def listar_pedidos(
     usuario_actual=Depends(get_current_user),
 ):
     """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
-    query = db.query(Pedido).order_by(Pedido.fecha.desc())
+    query = db.query(Pedido).order_by(Pedido.id.desc())
     if estado is not None:
         query = query.filter(Pedido.estado == estado)
     if id_proveedor is not None:
@@ -264,6 +264,11 @@ def calcular_total_pedido(pedido_id: int, db: Session = Depends(get_db), usuario
 
 @router_pedido.post("", response_model=PedidoResponse, status_code=201)
 def crear_pedido(datos: PedidoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Crear"))):
+    proveedor = db.query(Proveedor).filter(Proveedor.id == datos.id_proveedor).first() if datos.id_proveedor else None
+    if datos.id_proveedor and not proveedor:
+        raise HTTPException(status_code=404, detail="El proveedor seleccionado no existe")
+    if proveedor and proveedor.activo == 0:
+        raise HTTPException(status_code=400, detail=f"El proveedor '{proveedor.nombre}' está inactivo")
     nuevo = Pedido(**datos.model_dump(), estado="Pendiente")
     db.add(nuevo)
     db.flush()
@@ -321,6 +326,9 @@ def quitar_producto_de_pedido(pedido_id: int, detalle_id: int, db: Session = Dep
     ).first()
     if not detalle:
         raise HTTPException(status_code=404, detail="Detalle no encontrado en este pedido")
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    if pedido and pedido.estado not in ("Pendiente", "Cotizado"):
+        raise HTTPException(status_code=400, detail=f"No se pueden quitar productos de un pedido en estado '{pedido.estado}'")
     producto_quitado = db.query(Producto).filter(Producto.id == detalle.id_producto).first()
     nombre_quitado = producto_quitado.nombre if producto_quitado else "sin nombre"
     detalle_quitar_pedido = f"Quitó el producto '{nombre_quitado}' del pedido #{pedido_id}"
@@ -350,6 +358,13 @@ def cambiar_estado_pedido(
             detail=f"El pedido #{pedido.id} ya está {pedido.estado.lower()} y no puede cambiar de estado",
         )
 
+    # "Comprado" lo pone el sistema al registrar la compra del pedido
+    if nuevo_estado == "Comprado" and pedido.estado != "Comprado":
+        raise HTTPException(
+            status_code=400,
+            detail="Un pedido queda como Comprado al registrar su compra (Nueva Compra > Número de pedido)",
+        )
+
     if nuevo_estado == "Aprobado" and not forzar:
         total = _calcular_total_pedido(db, pedido)
         if total < MONTO_MINIMO_PEDIDO:
@@ -368,4 +383,4 @@ def cambiar_estado_pedido(
     )
     db.commit()
     db.refresh(pedido)
-    return pedido
+    return pedido

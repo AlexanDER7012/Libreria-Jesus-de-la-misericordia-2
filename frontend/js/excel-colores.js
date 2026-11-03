@@ -8,14 +8,16 @@
 // la plantilla se descarga igual, sin colores.
 //
 // Colores de los encabezados:
-//   - Verde:  columnas obligatorias
-//   - Azul:   columnas opcionales
+//   - Verde:   columnas obligatorias
+//   - Naranja: columnas recomendadas (no son obligatorias, pero conviene llenarlas)
+//   - Azul:    columnas opcionales
 //   - Gris:   columnas informativas (se ignoran al subir)
 
 const EXCEL_COLORES_URL =
   "https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js";
 
 const EXCEL_COLOR_OBLIGATORIA = "1E7B34";
+const EXCEL_COLOR_RECOMENDADA = "C55A11";
 const EXCEL_COLOR_OPCIONAL = "1F4E78";
 const EXCEL_COLOR_INFORMATIVA = "7F7F7F";
 
@@ -56,12 +58,13 @@ function _pintarEncabezados(wb, opcionesPorHoja) {
       opciones = opcionesPorHoja[nombreHoja];
     } else if (
       opcionesPorHoja &&
-      (opcionesPorHoja.obligatorias || opcionesPorHoja.informativas)
+      (opcionesPorHoja.obligatorias || opcionesPorHoja.informativas || opcionesPorHoja.recomendadas)
     ) {
       opciones = opcionesPorHoja;
     }
     const obligatorias = opciones.obligatorias || [];
     const informativas = opciones.informativas || [];
+    const recomendadas = opciones.recomendadas || [];
     const rango = XLSX.utils.decode_range(ws["!ref"]);
     const anchos = [];
 
@@ -72,7 +75,9 @@ function _pintarEncabezados(wb, opcionesPorHoja) {
       const titulo = String(celda.v ?? "");
       const color = obligatorias.includes(titulo)
         ? EXCEL_COLOR_OBLIGATORIA
-        : informativas.includes(titulo)
+        : recomendadas.includes(titulo)
+          ? EXCEL_COLOR_RECOMENDADA
+          : informativas.includes(titulo)
           ? EXCEL_COLOR_INFORMATIVA
           : EXCEL_COLOR_OPCIONAL;
       celda.s = {
@@ -111,3 +116,45 @@ async function descargarExcelConColores(wb, nombreArchivo, opciones) {
 }
 
 window.descargarExcelConColores = descargarExcelConColores;
+
+// Tabla que explica cada columna de una carga masiva, con el mismo color
+// que lleva su encabezado en la plantilla de Excel.
+// columnas: [{ nombre, tipo: "obligatoria"|"recomendada"|"opcional"|"informativa", detalle }]
+function htmlGuiaColumnas(columnas) {
+  const estilos = {
+    obligatoria: ["Obligatoria", EXCEL_COLOR_OBLIGATORIA],
+    recomendada: ["Recomendada", EXCEL_COLOR_RECOMENDADA],
+    opcional: ["Opcional", EXCEL_COLOR_OPCIONAL],
+    informativa: ["Solo informativa", EXCEL_COLOR_INFORMATIVA],
+  };
+  const badge = (tipo) => {
+    const [texto, color] = estilos[tipo] || estilos.opcional;
+    return `<span class="badge" style="background:#${color}">${texto}</span>`;
+  };
+  return `
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered align-middle mb-1 small bg-body">
+        <thead class="table-light">
+          <tr><th style="width:190px">Columna</th><th style="width:130px">¿Es obligatoria?</th><th>Qué poner</th></tr>
+        </thead>
+        <tbody>
+          ${columnas
+            .map(
+              (c) => `<tr>
+                <td><code>${c.nombre}</code></td>
+                <td>${badge(c.tipo)}</td>
+                <td>${c.detalle}</td>
+              </tr>`,
+            )
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+    <div class="small text-muted mb-1">
+      En la plantilla de Excel el encabezado de cada columna tiene el mismo color:
+      ${badge("obligatoria")} ${badge("recomendada")} ${badge("opcional")}${columnas.some((c) => c.tipo === "informativa") ? " " + badge("informativa") : ""}.
+      No cambies los nombres de los encabezados.
+    </div>`;
+}
+
+window.htmlGuiaColumnas = htmlGuiaColumnas;

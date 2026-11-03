@@ -4976,16 +4976,21 @@ function showCargaMasivaVentasModal() {
         <div class="modal-body">
 
           <div class="alert alert-info small">
-            <strong>Formato esperado del archivo (fila de encabezados obligatoria):</strong>
-            <code>NIT_Cliente | Codigo_Producto | Cantidad | Descuento_Porcentaje | Observaciones</code>
-            <br>
-            Las filas con el <strong>mismo NIT + Observaciones</strong> se agrupan en una sola venta.
-            Si el NIT no existe se usará el "Cliente por defecto"; si tampoco hay, la venta queda sin cliente.
-            <div class="mt-2">
-              <button class="btn btn-sm btn-outline-primary" onclick="descargarPlantillaVentas()">
-                <i class="fas fa-download me-1"></i>Descargar plantilla
-              </button>
-            </div>
+            <strong>Columnas del archivo</strong> (la primera fila deben ser estos encabezados):
+            ${htmlGuiaColumnas([
+              { nombre: "Codigo_Producto", tipo: "obligatoria", detalle: "Código del producto, tal como está en Inventario. El producto debe estar activo." },
+              { nombre: "Cantidad", tipo: "obligatoria", detalle: "Número entero mayor a 0." },
+              { nombre: "NIT_Cliente", tipo: "recomendada", detalle: "NIT del cliente ya registrado. Vacío o <code>CF</code> = consumidor final. Si el NIT no existe se usa el <em>Cliente por defecto</em> de abajo." },
+              { nombre: "Descuento_Porcentaje", tipo: "opcional", detalle: "De 0 a 100. Aplica a <strong>toda la venta</strong>: pon el mismo valor en todas sus filas. Vacío = 0." },
+              { nombre: "Observaciones", tipo: "opcional", detalle: "Nota de la venta. Sirve para separar ventas: las filas con el <strong>mismo NIT y la misma observación</strong> forman una sola venta." },
+            ])}
+            <ul class="mb-1 small">
+              <li>El precio de cada producto es el de Inventario.</li>
+              <li>Antes de crear nada se revisa todo el archivo (productos, stock y descuentos); si hay errores no se crea ninguna venta.</li>
+            </ul>
+            <button class="btn btn-sm btn-outline-primary" onclick="descargarPlantillaVentas()">
+              <i class="fas fa-download me-1"></i>Descargar plantilla
+            </button>
           </div>
 
           <div class="row g-2 mb-3">
@@ -5002,10 +5007,17 @@ function showCargaMasivaVentasModal() {
               </select>
             </div>
             <div class="col-md-4">
-              <label class="form-label fw-bold">Cliente por defecto (opcional)</label>
-              <select class="form-select" id="cmClienteDefault">
-                <option value="">Sin cliente</option>
+              <label class="form-label fw-bold">Cliente por defecto <span class="badge" style="background:#1F4E78">Opcional</span></label>
+              <select class="form-select" id="cmClienteDefault" onchange="if (cargaMasivaFilas.length) validarYPrevisualizarVentasMasivas()">
+                <option value="">Sin cliente (consumidor final)</option>
               </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">¿Ya se cobraron? <span class="badge" style="background:#C55A11">Recomendada</span></label>
+              <select class="form-select" id="cmTipoPago">
+                <option value="">No, dejarlas pendientes de pago</option>
+              </select>
+              <div class="form-text">Si eliges un tipo de pago, cada venta se registra pagada por su total.</div>
             </div>
           </div>
 
@@ -5033,6 +5045,14 @@ function showCargaMasivaVentasModal() {
   instance.show();
 
   // Llenar selects
+  const selPago = document.getElementById("cmTipoPago");
+  (tiposPagoData || [])
+    .filter((t) => t.para_ventas === 1 && t.activo !== 0)
+    .forEach((t) => {
+      selPago.innerHTML += `<option value="${t.id}">Sí, pagadas en ${escaparHtmlEscaner(t.nombre)}</option>`;
+    });
+  cargaMasivaFilas = [];
+  cargaMasivaVentasAgrupadas = [];
   llenarSelectCajaTurnoCM();
   llenarSelectVendedoresCM();
   llenarSelectClienteDefaultCM();
@@ -5112,6 +5132,7 @@ function descargarPlantillaVentas() {
   XLSX.utils.book_append_sheet(wb, ws, "PlantillaVentas");
   descargarExcelConColores(wb, "Plantilla_Carga_Masiva_Ventas.xlsx", {
     obligatorias: ["Codigo_Producto", "Cantidad"],
+    recomendadas: ["NIT_Cliente"],
   });
   showToast("Plantilla descargada", "success");
 }
@@ -5149,62 +5170,102 @@ function procesarArchivoVentasMasivas(event) {
 // ============================================================
 // VALIDACIÓN Y PREVISUALIZACIÓN
 // ============================================================
-function validarYPrevisualizarVentasMasivas() {
-  const productos = window.productosData || [];
-  const clientes = window.clientesData || [];
+// Igual que el servidor: total = subtotal - descuento (redondeado a centavos)
+function _totalVentaMasiva(g) {
+  const subtotal = g.items.reduce((s, it) => s + it.cantidad * Number(it.producto.precio_venta || 0), 0);
+  const descuento = Math.round(subtotal * (g.descuento || 0)) / 100;
+  return { subtotal, total: Math.round((subtotal - descuento) * 100) / 100 };
+}
+
+const _normalizarNitCM = (v) => String(v || "").replace(/[\s-]/g, "").toUpperCase();
+
+async function validarYPrevisualizarVentasMasivas() {
+  const resumen = document.getElementById("cmResumen");
+  if (resumen) {
+    resumen.innerHTML =
+      '<div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Revisando el archivo...</div>';
+  }
   const clienteDefaultId =
     parseInt(document.getElementById("cmClienteDefault").value) || null;
 
-  const errores = [];
-  const filasValidas = [];
+  // Productos y clientes se buscan en el servidor: antes solo se buscaba
+  // entre los primeros 50 cargados y el resto salía "no encontrado".
+  const productosPorCodigo = {};
+  const clientesPorNit = {};
+  async function buscarProducto(codigo) {
+    const clave = codigo.toLowerCase();
+    if (!(clave in productosPorCodigo)) {
+      productosPorCodigo[clave] = await api
+        .request(`/productos/buscar-codigo/${encodeURIComponent(codigo)}`)
+        .catch(() => null);
+    }
+    return productosPorCodigo[clave];
+  }
+  async function buscarClientePorNit(nit) {
+    const clave = _normalizarNitCM(nit);
+    if (!(clave in clientesPorNit)) {
+      const lista = (await api.request(`/clientes?buscar=${encodeURIComponent(nit)}&limit=30`).catch(() => [])) || [];
+      clientesPorNit[clave] = lista.find((c) => _normalizarNitCM(c.nit) === clave) || null;
+      if (clientesPorNit[clave]) {
+        window.clientesData = window.clientesData || [];
+        if (!window.clientesData.some((c) => c.id === clientesPorNit[clave].id)) {
+          window.clientesData.push(clientesPorNit[clave]);
+        }
+      }
+    }
+    return clientesPorNit[clave];
+  }
 
-  cargaMasivaFilas.forEach((row, idx) => {
-    const numFila = idx + 2; // +2: fila 1 es encabezado
+  const errores = [];
+  const avisos = [];
+  const filasValidas = [];
+  for (let idx = 0; idx < cargaMasivaFilas.length; idx++) {
+    const row = cargaMasivaFilas[idx];
+    const numFila = idx + 2; // fila 1 = encabezados
     const nitRaw = String(row.NIT_Cliente || "").trim();
     const codigo = String(row.Codigo_Producto || "").trim();
-    const cantidad = parseFloat(row.Cantidad);
-    const descuento = parseFloat(row.Descuento_Porcentaje) || 0;
+    const cantidad = Number(String(row.Cantidad).trim());
+    const descTexto = String(row.Descuento_Porcentaje ?? "").trim();
+    const descuento = descTexto === "" ? 0 : Number(descTexto);
     const observaciones = String(row.Observaciones || "").trim();
 
+    if (!codigo && !String(row.Cantidad || "").trim() && !nitRaw) continue; // fila vacía
     if (!codigo) {
       errores.push(`Fila ${numFila}: falta Codigo_Producto`);
-      return;
+      continue;
     }
-    if (!cantidad || cantidad <= 0) {
-      errores.push(`Fila ${numFila}: Cantidad inválida (${row.Cantidad})`);
-      return;
+    if (!Number.isInteger(cantidad) || cantidad <= 0) {
+      errores.push(`Fila ${numFila}: la Cantidad debe ser un número entero mayor a 0 (tiene "${row.Cantidad}")`);
+      continue;
     }
-    if (descuento < 0 || descuento > 100) {
-      errores.push(`Fila ${numFila}: Descuento fuera de rango (0-100)`);
-      return;
+    if (isNaN(descuento) || descuento < 0 || descuento > 100) {
+      errores.push(`Fila ${numFila}: el Descuento_Porcentaje debe estar entre 0 y 100`);
+      continue;
     }
-
-    const producto = productos.find((p) => p.codigo === codigo);
+    const producto = await buscarProducto(codigo);
     if (!producto) {
-      errores.push(`Fila ${numFila}: producto "${codigo}" no encontrado`);
-      return;
+      errores.push(`Fila ${numFila}: no existe ningún producto con el código "${codigo}"`);
+      continue;
+    }
+    if (producto.activo === 0) {
+      errores.push(`Fila ${numFila}: el producto "${producto.nombre}" está inactivo`);
+      continue;
     }
 
-    // Resolver cliente
     let idCliente = null;
     let nitCliente = null;
-    if (nitRaw && nitRaw.toUpperCase() !== "CF") {
-      const cliente = clientes.find((c) => c.nit === nitRaw);
+    if (nitRaw && !["CF", "C/F"].includes(_normalizarNitCM(nitRaw))) {
+      const cliente = await buscarClientePorNit(nitRaw);
       if (cliente) {
         idCliente = cliente.id;
         nitCliente = cliente.nit;
-      } else if (clienteDefaultId) {
-        idCliente = clienteDefaultId;
-        const cdef = clientes.find((c) => c.id === clienteDefaultId);
-        nitCliente = cdef ? cdef.nit : null;
       } else {
-        // Sin coincidencia y sin default: se permite sin cliente (CF)
-        idCliente = null;
-        nitCliente = null;
+        avisos.push(`Fila ${numFila}: no hay ningún cliente con NIT "${nitRaw}"; se usará ${clienteDefaultId ? "el cliente por defecto" : "consumidor final"}`);
       }
-    } else if (clienteDefaultId) {
+    }
+    if (!idCliente && clienteDefaultId) {
       idCliente = clienteDefaultId;
-      const cdef = clientes.find((c) => c.id === clienteDefaultId);
+      const cdef = (window.clientesData || []).find((c) => c.id === clienteDefaultId);
       nitCliente = cdef ? cdef.nit : null;
     }
 
@@ -5219,12 +5280,12 @@ function validarYPrevisualizarVentasMasivas() {
       descuento,
       observaciones,
     });
-  });
+  }
 
-  // Agrupar por (nitRaw + observaciones)
+  // Agrupar por NIT + Observaciones (cada grupo es una venta)
   const grupos = {};
   filasValidas.forEach((f) => {
-    const key = `${f.nitRaw}||${f.observaciones}`;
+    const key = `${_normalizarNitCM(f.nitRaw)}||${f.observaciones.toLowerCase()}`;
     if (!grupos[key]) {
       grupos[key] = {
         nitRaw: f.nitRaw,
@@ -5232,35 +5293,56 @@ function validarYPrevisualizarVentasMasivas() {
         nitCliente: f.nitCliente,
         observaciones: f.observaciones,
         descuento: f.descuento,
+        filas: [],
         items: [],
       };
     }
-    grupos[key].items.push(f);
+    const g = grupos[key];
+    if (g.descuento !== f.descuento) {
+      errores.push(
+        `Fila ${f.numFila}: el descuento (${f.descuento}%) es distinto al de las otras filas de la misma venta (${g.descuento}%). El descuento es para toda la venta: pon el mismo en todas sus filas`,
+      );
+      return;
+    }
+    g.filas.push(f.numFila);
+    // Mismo producto repetido en la venta: se suman las cantidades
+    const existente = g.items.find((it) => it.producto.id === f.producto.id);
+    if (existente) existente.cantidad += f.cantidad;
+    else g.items.push({ ...f });
   });
 
-  cargaMasivaVentasAgrupadas = Object.values(grupos);
+  // Stock: suma de todo el archivo por producto (antes fallaba a medio
+  // camino y quedaban unas ventas creadas y otras no)
+  const pedido = {};
+  Object.values(grupos).forEach((g) =>
+    g.items.forEach((it) => {
+      pedido[it.producto.id] = pedido[it.producto.id] || { producto: it.producto, cantidad: 0 };
+      pedido[it.producto.id].cantidad += it.cantidad;
+    }),
+  );
+  Object.values(pedido).forEach(({ producto, cantidad }) => {
+    const stock = Number(producto.stock_actual || 0);
+    if (cantidad > stock) {
+      errores.push(`Stock insuficiente de "${producto.nombre}": el archivo vende ${cantidad} y hay ${stock}`);
+    }
+  });
 
-  // Render previsualización
-  renderPreviewVentasMasivas(errores, cargaMasivaVentasAgrupadas);
+  cargaMasivaVentasAgrupadas = Object.values(grupos).filter((g) => g.items.length);
+  renderPreviewVentasMasivas(errores, cargaMasivaVentasAgrupadas, avisos);
 
   const btn = document.getElementById("cmBtnConfirmar");
-  if (btn)
-    btn.disabled =
-      errores.length > 0 || cargaMasivaVentasAgrupadas.length === 0;
+  if (btn) btn.disabled = errores.length > 0 || cargaMasivaVentasAgrupadas.length === 0;
 }
 
-function renderPreviewVentasMasivas(errores, grupos) {
+function renderPreviewVentasMasivas(errores, grupos, avisos = []) {
   const resumen = document.getElementById("cmResumen");
   const preview = document.getElementById("cmPreview");
 
   let totalGeneral = 0;
   grupos.forEach((g) => {
-    let sub = 0;
-    g.items.forEach((it) => {
-      sub += it.cantidad * (it.producto.precio_venta || 0);
-    });
-    g.subtotal = sub;
-    g.total = sub - (sub * (g.descuento || 0)) / 100;
+    const { subtotal, total } = _totalVentaMasiva(g);
+    g.subtotal = subtotal;
+    g.total = total;
     totalGeneral += g.total;
   });
 
@@ -5268,7 +5350,7 @@ function renderPreviewVentasMasivas(errores, grupos) {
     <div class="row g-2">
       <div class="col-md-3">
         <div class="alert alert-${errores.length ? "warning" : "success"} py-2 mb-0">
-          <strong>${grupos.length}</strong> ventas válidas
+          <strong>${grupos.length}</strong> ventas a crear
         </div>
       </div>
       <div class="col-md-3">
@@ -5287,7 +5369,16 @@ function renderPreviewVentasMasivas(errores, grupos) {
         ? `
       <div class="alert alert-danger small mt-2 mb-0" style="max-height:150px; overflow:auto;">
         <strong>Errores detectados (corrige el archivo y vuelve a cargarlo):</strong>
-        <ul class="mb-0">${errores.map((e) => `<li>${e}</li>`).join("")}</ul>
+        <ul class="mb-0">${errores.map((e) => `<li>${escaparHtmlEscaner(e)}</li>`).join("")}</ul>
+      </div>`
+        : ""
+    }
+    ${
+      avisos.length
+        ? `
+      <div class="alert alert-warning small mt-2 mb-0" style="max-height:120px; overflow:auto;">
+        <strong>Avisos (no impiden la carga):</strong>
+        <ul class="mb-0">${avisos.map((e) => `<li>${escaparHtmlEscaner(e)}</li>`).join("")}</ul>
       </div>`
         : ""
     }
@@ -5303,7 +5394,7 @@ function renderPreviewVentasMasivas(errores, grupos) {
     <table class="table table-sm table-striped">
       <thead class="table-light">
         <tr>
-          <th>#</th>
+          <th>Filas</th>
           <th>Cliente</th>
           <th>Productos</th>
           <th>Descuento</th>
@@ -5320,16 +5411,16 @@ function renderPreviewVentasMasivas(errores, grupos) {
       : "Sin cliente (CF)";
     html += `
       <tr>
-        <td>${i + 1}</td>
-        <td>${clienteMostrar}</td>
+        <td>${g.filas.join(", ")}</td>
+        <td>${escaparHtmlEscaner(clienteMostrar)}</td>
         <td>
           <ul class="mb-0 ps-3">
-            ${g.items.map((it) => `<li>${it.producto.codigo} - ${it.producto.nombre} x ${it.cantidad}</li>`).join("")}
+            ${g.items.map((it) => `<li>${escaparHtmlEscaner(it.producto.codigo)} - ${escaparHtmlEscaner(it.producto.nombre)} x ${it.cantidad} (Q${Number(it.producto.precio_venta || 0).toFixed(2)} c/u)</li>`).join("")}
           </ul>
         </td>
         <td>${g.descuento}%</td>
         <td><strong>Q${g.total.toFixed(2)}</strong></td>
-        <td>${g.observaciones || "--"}</td>
+        <td>${escaparHtmlEscaner(g.observaciones || "--")}</td>
       </tr>
     `;
   });
@@ -5371,7 +5462,7 @@ async function confirmarCargaMasivaVentas() {
     return;
   }
 
-  const id_usuario = getCurrentUser()?.id || 1;
+  const id_tipo_pago = parseInt(document.getElementById("cmTipoPago")?.value) || null;
 
   const btn = document.getElementById("cmBtnConfirmar");
   btn.disabled = true;
@@ -5383,9 +5474,9 @@ async function confirmarCargaMasivaVentas() {
 
   for (const g of cargaMasivaVentasAgrupadas) {
     try {
+      // La venta queda a nombre del vendedor elegido (antes, del usuario de la sesión)
       const data = {
-        id_usuario,
-        id_vendedor,
+        id_usuario: id_vendedor,
         id_cliente: g.idCliente,
         id_caja_turno,
         id_ubicacion,
@@ -5397,26 +5488,21 @@ async function confirmarCargaMasivaVentas() {
           id_producto: it.producto.id,
           cantidad: it.cantidad,
         })),
-        pagos: [],
+        pagos: id_tipo_pago ? [{ id_tipo_pago, monto: _totalVentaMasiva(g).total }] : [],
       };
       await api.createVenta(data);
       ok++;
     } catch (err) {
       fail++;
-      errores.push(
-        `Cliente ${g.nitRaw} (${g.observaciones || "s/obs"}): ${err.message}`,
-      );
+      errores.push(`Filas ${g.filas.join(", ")} (NIT ${g.nitRaw}): ${err.message}`);
     }
   }
 
   if (fail === 0) {
     showToast(`✅ ${ok} ventas creadas correctamente`, "success");
   } else {
-    showToast(
-      `⚠ ${ok} creadas, ${fail} fallidas. Revisa la consola.`,
-      "warning",
-    );
-    console.warn("Errores carga masiva:", errores);
+    // Antes decía "Revisa la consola" y el usuario no veía qué falló
+    mostrarResumenCargaMasiva("ventas creadas", ok, fail, errores);
   }
 
   // Cerrar modal y recargar

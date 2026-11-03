@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user, requiere_permiso
+from app.security import get_current_user, requiere_permiso, requiere_autorizacion_admin
 from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
 from app.models.model_usuario import Usuario
@@ -92,7 +92,7 @@ def listar_compras(
     recepcion: 'pendiente' = compras sin nota de entrega conforme (y no canceladas);
     'recibida' = compras con nota de entrega conforme.
     Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
-    query = db.query(Compra).order_by(Compra.fecha.desc())
+    query = db.query(Compra).order_by(Compra.id.desc())
     if estado is not None:
         query = query.filter(Compra.estado == estado)
     if id_proveedor is not None:
@@ -138,6 +138,14 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
         raise HTTPException(status_code=400, detail=f"El proveedor '{proveedor.nombre}' está inactivo. Reactívalo para registrarle compras.")
     if datos.id_ubicacion_destino and not db.query(Ubicacion).filter(Ubicacion.id == datos.id_ubicacion_destino).first():
         raise HTTPException(status_code=404, detail="La ubicación de destino no existe")
+    # IVA: antes un 0 se cambiaba solo a 12 (y no se podía registrar a un
+    # pequeño contribuyente, que no cobra IVA) y se aceptaban valores raros
+    if datos.iva is not None and not (0 <= float(datos.iva) <= 100):
+        raise HTTPException(status_code=400, detail="El IVA debe estar entre 0 y 100")
+    if datos.monto_exento is not None and float(datos.monto_exento) < 0:
+        raise HTTPException(status_code=400, detail="El monto exento no puede ser negativo")
+    if not datos.id_usuario_registra:
+        datos.id_usuario_registra = usuario_actual.id
 
     for d in datos.detalles:
         producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
@@ -174,6 +182,11 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
             raise HTTPException(status_code=404, detail=f"No existe el pedido número {datos.id_pedido}")
         if pedido.estado == "Cancelado":
             raise HTTPException(status_code=400, detail="No se puede crear compra desde un pedido cancelado")
+        if pedido.id_proveedor and pedido.id_proveedor != datos.id_proveedor:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El pedido #{pedido.id} es de otro proveedor ({_nombre_proveedor(db, pedido.id_proveedor)})",
+            )
         compra_existente = db.query(Compra).filter(Compra.id_pedido == datos.id_pedido).first()
         if compra_existente:
             raise HTTPException(
@@ -196,7 +209,7 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
 
     gravado = round(total_factura - exento, 2)
 
-    iva_porcentaje = float(datos.iva or 12)
+    iva_porcentaje = float(datos.iva) if datos.iva is not None else 12.0
     if iva_porcentaje <= 0:
         monto_iva = 0
     else:
@@ -244,7 +257,7 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
 
 
 @router.patch("/{compra_id}/cancelar", response_model=CompraResponse)
-def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar"))):
+def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar")), _autorizacion=Depends(requiere_autorizacion_admin)):
     """
     Cancela una compra: revierte inventario (si aplica), ANULA los pagos
     (nunca los borra -- quedan en la tabla marcados con anulado=1 para
@@ -372,7 +385,9 @@ def eliminar_pago_compra(
 
 @router.post("/{compra_id}/nota-entrega", response_model=NotaEntregaResponse, status_code=201)
 def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar"))):
-    compra = db.query(Compra).filter(Compra.id == compra_id).first()
+    # with_for_update: si llegan dos "Recibir" al mismo tiempo (doble clic),
+    # el segundo espera al primero y ya no vuelve a sumar el inventario
+    compra = db.query(Compra).filter(Compra.id == compra_id).with_for_update().first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
     if compra.estado == "Cancelada":
@@ -380,6 +395,11 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
             status_code=400,
             detail="Esta compra está cancelada; no se puede registrar su recepción.",
         )
+
+    if datos.conforme not in (0, 1):
+        raise HTTPException(status_code=400, detail="Indica si la mercadería llegó conforme (sí o no)")
+    if not db.query(Usuario).filter(Usuario.id == datos.id_usuario_receptor).first():
+        datos.id_usuario_receptor = usuario_actual.id
 
     if datos.conforme == 1:
         ya_recibida = db.query(NotaEntrega).filter(
@@ -438,7 +458,8 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
 @router.post("/{compra_id}/pagos", response_model=CompraPagoResponse, status_code=201)
 def registrar_pago_compra(compra_id: int, datos: CompraPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar"))):
     """Registra un pago a proveedor y recalcula saldo_pendiente y el estado de la compra."""
-    compra = db.query(Compra).filter(Compra.id == compra_id).first()
+    # with_for_update: evita que un doble clic registre el pago dos veces
+    compra = db.query(Compra).filter(Compra.id == compra_id).with_for_update().first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
     if compra.estado == "Cancelada":
@@ -454,6 +475,14 @@ def registrar_pago_compra(compra_id: int, datos: CompraPagoCreate, db: Session =
             status_code=400,
             detail=f"El pago (Q{float(datos.monto):.2f}) es mayor al saldo pendiente (Q{saldo_actual:.2f})",
         )
+
+    if datos.id_tipo_pago is not None:
+        from app.models.model_caja import TipoPago
+        tipo = db.query(TipoPago).filter(TipoPago.id == datos.id_tipo_pago).first()
+        if not tipo:
+            raise HTTPException(status_code=400, detail="El tipo de pago elegido no existe")
+        if tipo.activo == 0:
+            raise HTTPException(status_code=400, detail=f"El tipo de pago '{tipo.nombre}' está inactivo")
 
     nuevo_pago = CompraPago(id_compra=compra_id, **datos.model_dump())
     db.add(nuevo_pago)
@@ -489,7 +518,7 @@ def listar_devoluciones(
     usuario_actual=Depends(get_current_user),
 ):
     """Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
-    query = db.query(DevolucionCompra).order_by(DevolucionCompra.fecha.desc())
+    query = db.query(DevolucionCompra).order_by(DevolucionCompra.id.desc())
     if id_proveedor is not None:
         query = query.filter(DevolucionCompra.id_proveedor == id_proveedor)
     if fecha_desde is not None:
@@ -510,4 +539,4 @@ def registrar_devolucion(datos: DevolucionCompraCreate, db: Session = Depends(ge
     )
     db.commit()
     db.refresh(nueva)
-    return nueva
+    return nueva

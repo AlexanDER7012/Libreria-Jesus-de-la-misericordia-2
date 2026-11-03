@@ -1,3 +1,4 @@
+from app.timezone import now_gt_naive
 from sqlalchemy import Column, Integer, String, Text, DateTime
 from sqlalchemy.sql import func
 
@@ -14,5 +15,5 @@ class Cliente(Base):
     direccion = Column(Text)
     nit = Column(String(20)) 
     tipo_cliente = Column(String(50))  # Persona, Empresa, Escuela, etc.
-    fecha_registro = Column(DateTime, server_default=func.now())
-    activo = Column(Integer, default=1)  
+    fecha_registro = Column(DateTime, server_default=func.now(), default=now_gt_naive)
+    activo = Column(Integer, default=1)  

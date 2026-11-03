@@ -5,6 +5,7 @@ Tablas: usuario, rol, permiso, rol_permiso, modulo, empleado, puesto,
         turno, historico_pago_empleado, log_actividad
 """
 
+from app.timezone import now_gt_naive
 from sqlalchemy import Column, Integer, String, Text, Date, DateTime, DECIMAL, Time, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -103,7 +104,7 @@ class Usuario(Base):
     nombre_usuario = Column(String(50), unique=True)
     password = Column(String(255))  # hash bcrypt (nunca texto plano)
     id_rol = Column(Integer, ForeignKey("rol.id"))
-    fecha_creacion = Column(DateTime, server_default=func.now())  # NUEVO: para el reporte por fecha
+    fecha_creacion = Column(DateTime, server_default=func.now(), default=now_gt_naive)  # NUEVO: para el reporte por fecha
     fecha_ultimo_acceso = Column(DateTime)
     intentos_fallidos = Column(Integer, default=0)
     activo = Column(Integer, default=1)
@@ -132,8 +133,8 @@ class LogActividad(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_usuario = Column(Integer, ForeignKey("usuario.id"))
-    fecha = Column(DateTime, server_default=func.now())
+    fecha = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     accion = Column(String(20))  # INSERT, UPDATE, DELETE, LOGIN, LOGOUT
     modulo = Column(String(50))
     ip = Column(String(45))
-    detalles = Column(Text)  # JSON con los datos cambiados
+    detalles = Column(Text)  # JSON con los datos cambiados

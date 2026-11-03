@@ -69,7 +69,7 @@ def listar_cotizaciones(
     usuario_actual=Depends(get_current_user),
 ):
     """buscar: coincidencia en número de expediente (ej. '2026-014'). Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
-    query = db.query(Cotizacion).order_by(Cotizacion.fecha.desc())
+    query = db.query(Cotizacion).order_by(Cotizacion.id.desc())
     vendidas = db.query(Venta.id_cotizacion).filter(
         Venta.id_cotizacion.isnot(None), Venta.estado != "Cancelada"
     )

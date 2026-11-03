@@ -624,7 +624,11 @@ function _rangoFechasInvalido(desde, hasta, resultado) {
 async function actualizarVentasDiarias() {
   const fecha = document.getElementById("ventasDiariasFecha")?.value;
   const resultado = document.getElementById("ventasDiariasResultado");
-  if (!fecha || !resultado) return;
+  if (!resultado) return;
+  if (!fecha) {
+    resultado.innerHTML = `<div class="alert alert-warning">Elige la fecha del reporte.</div>`;
+    return;
+  }
   try {
     const data = await api.request(
       `/reportes/ventas-diarias?desde=${fecha}&hasta=${fecha}`,
@@ -682,7 +686,11 @@ async function cargarReporteConciliacion() {
 async function actualizarConciliacion() {
   const fecha = document.getElementById("conciliacionFecha")?.value;
   const resultado = document.getElementById("conciliacionResultado");
-  if (!fecha || !resultado) return;
+  if (!resultado) return;
+  if (!fecha) {
+    resultado.innerHTML = `<div class="alert alert-warning">Elige la fecha del reporte.</div>`;
+    return;
+  }
   try {
     const data = await api.request(
       `/reportes/conciliacion-pagos?desde=${fecha}&hasta=${fecha}`,
@@ -750,19 +758,23 @@ async function actualizarCuadreCaja() {
       resultado.innerHTML = `<div class="alert alert-warning">No se encontraron datos</div>`;
       return;
     }
-    const diferencia =
-      data.diferencia !== null
-        ? data.diferencia
-        : (data.total_contado || 0) - (data.total_ventas || 0);
+    // Con el turno abierto todavía no se ha contado el dinero. Antes se
+    // mostraba "Contado Q0.00" y una diferencia negativa igual a las ventas,
+    // como si faltara todo el dinero.
+    const cerrado = data.total_contado !== null && data.total_contado !== undefined;
+    const diferencia = data.diferencia !== null && data.diferencia !== undefined ? data.diferencia : null;
     const estadoColor = data.estado === "Abierto" ? "success" : "secondary";
-    const diferenciaColor = diferencia >= 0 ? "success" : "danger";
+    const diferenciaColor = diferencia === null ? "secondary" : diferencia >= 0 ? "success" : "danger";
+    const pendiente = '<span class="text-muted small">Pendiente (se calcula al cerrar el turno)</span>';
+    const txtContado = cerrado ? `Q${Number(data.total_contado).toFixed(2)}` : "--";
+    const txtDiferencia = diferencia === null ? "--" : `Q${Number(diferencia).toFixed(2)}`;
     resultado.innerHTML = `
             <div class="card"><div class="card-header"><div class="d-flex justify-content-between align-items-center"><h6 class="mb-0 fw-bold">Cuadre de Caja - ${escaparHtmlReporteTurno(nombrePersona(data.id_usuario))}</h6><span class="badge bg-${estadoColor}">${data.estado}</span></div></div>
             <div class="card-body"><div class="row">
                 <div class="col-md-3"><div class="card bg-info bg-opacity-10"><div class="card-body text-center"><h6 class="text-muted">Fondo Inicial</h6><h4 class="text-info">Q${(data.fondo_inicial || 0).toFixed(2)}</h4></div></div></div>
                 <div class="col-md-3"><div class="card bg-success bg-opacity-10"><div class="card-body text-center"><h6 class="text-muted">Total Ventas</h6><h4 class="text-success">Q${(data.total_ventas || 0).toFixed(2)}</h4></div></div></div>
-                <div class="col-md-3"><div class="card bg-primary bg-opacity-10"><div class="card-body text-center"><h6 class="text-muted">Total Contado</h6><h4 class="text-primary">Q${(data.total_contado || 0).toFixed(2)}</h4></div></div></div>
-                <div class="col-md-3"><div class="card bg-${diferenciaColor} bg-opacity-10"><div class="card-body text-center"><h6 class="text-muted">Diferencia</h6><h4 class="text-${diferenciaColor}">Q${(diferencia || 0).toFixed(2)}</h4></div></div></div>
+                <div class="col-md-3"><div class="card bg-primary bg-opacity-10"><div class="card-body text-center"><h6 class="text-muted">Total Contado</h6><h4 class="text-primary">${txtContado}</h4></div></div></div>
+                <div class="col-md-3"><div class="card bg-${diferenciaColor} bg-opacity-10"><div class="card-body text-center"><h6 class="text-muted">Diferencia</h6><h4 class="text-${diferenciaColor}">${txtDiferencia}</h4></div></div></div>
             </div>
             <div class="row mt-3"><div class="col-md-6"><p><strong>Fecha Apertura:</strong> ${data.fecha_apertura ? formatearFechaHoraGuatemala(data.fecha_apertura) : "--"}</p></div>
             <div class="col-md-6"><p><strong>Fecha Cierre:</strong> ${data.fecha_cierre ? formatearFechaHoraGuatemala(data.fecha_cierre) : "--"}</p></div></div>
@@ -774,8 +786,8 @@ async function actualizarCuadreCaja() {
                     <tr><td>Fecha Cierre</td><td>${data.fecha_cierre ? formatearFechaHoraGuatemala(data.fecha_cierre) : "--"}</td></tr>
                     <tr><td>Fondo Inicial</td><td>Q${(data.fondo_inicial || 0).toFixed(2)}</td></tr>
                     <tr><td>Total Ventas</td><td>Q${(data.total_ventas || 0).toFixed(2)}</td></tr>
-                    <tr><td>Total Contado</td><td>Q${(data.total_contado || 0).toFixed(2)}</td></tr>
-                    <tr><td>Diferencia</td><td>Q${(diferencia || 0).toFixed(2)}</td></tr>
+                    <tr><td>Total Contado</td><td>${cerrado ? txtContado : pendiente}</td></tr>
+                    <tr><td>Diferencia</td><td>${diferencia === null ? pendiente : txtDiferencia}</td></tr>
                 </tbody>
             </table></div></div>
         `;
@@ -812,7 +824,12 @@ async function actualizarUtilidad() {
   const desde = document.getElementById("utilidadFechaInicio")?.value;
   const hasta = document.getElementById("utilidadFechaFin")?.value;
   const resultado = document.getElementById("utilidadResultado");
-  if (!desde || !hasta || !resultado) return;
+  if (!resultado) return;
+  // Antes, con una fecha vacía no pasaba nada y se quedaba el resultado anterior
+  if (!desde || !hasta) {
+    resultado.innerHTML = `<div class="alert alert-warning">Elige la fecha "Desde" y la fecha "Hasta".</div>`;
+    return;
+  }
   if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     const data = await api.request(
@@ -880,7 +897,12 @@ async function actualizarTopProductos() {
   const hasta = document.getElementById("topFechaFin")?.value;
   const limite = document.getElementById("topLimite")?.value || 10;
   const resultado = document.getElementById("topProductosResultado");
-  if (!desde || !hasta || !resultado) return;
+  if (!resultado) return;
+  // Antes, con una fecha vacía no pasaba nada y se quedaba el resultado anterior
+  if (!desde || !hasta) {
+    resultado.innerHTML = `<div class="alert alert-warning">Elige la fecha "Desde" y la fecha "Hasta".</div>`;
+    return;
+  }
   if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   const lim = Number(limite);
   if (!Number.isInteger(lim) || lim < 1 || lim > 50) {
@@ -959,7 +981,12 @@ async function actualizarComprasResumen() {
   const desde = document.getElementById("comprasResumenDesde")?.value;
   const hasta = document.getElementById("comprasResumenHasta")?.value;
   const resultado = document.getElementById("comprasResumenResultado");
-  if (!desde || !hasta || !resultado) return;
+  if (!resultado) return;
+  // Antes, con una fecha vacía no pasaba nada y se quedaba el resultado anterior
+  if (!desde || !hasta) {
+    resultado.innerHTML = `<div class="alert alert-warning">Elige la fecha "Desde" y la fecha "Hasta".</div>`;
+    return;
+  }
   if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     const data = await api.request(
@@ -1017,7 +1044,12 @@ async function actualizarComprasProveedor() {
   const desde = document.getElementById("comprasProvDesde")?.value;
   const hasta = document.getElementById("comprasProvHasta")?.value;
   const resultado = document.getElementById("comprasProvResultado");
-  if (!desde || !hasta || !resultado) return;
+  if (!resultado) return;
+  // Antes, con una fecha vacía no pasaba nada y se quedaba el resultado anterior
+  if (!desde || !hasta) {
+    resultado.innerHTML = `<div class="alert alert-warning">Elige la fecha "Desde" y la fecha "Hasta".</div>`;
+    return;
+  }
   if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     const data = await api.request(
@@ -1244,7 +1276,12 @@ async function actualizarMovimientosResumen() {
   const desde = document.getElementById("movResumenDesde")?.value;
   const hasta = document.getElementById("movResumenHasta")?.value;
   const resultado = document.getElementById("movResumenResultado");
-  if (!desde || !hasta || !resultado) return;
+  if (!resultado) return;
+  // Antes, con una fecha vacía no pasaba nada y se quedaba el resultado anterior
+  if (!desde || !hasta) {
+    resultado.innerHTML = `<div class="alert alert-warning">Elige la fecha "Desde" y la fecha "Hasta".</div>`;
+    return;
+  }
   if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     const data = await api.request(
@@ -1333,7 +1370,12 @@ async function actualizarLoginResumen() {
   const desde = document.getElementById("loginDesde")?.value;
   const hasta = document.getElementById("loginHasta")?.value;
   const resultado = document.getElementById("loginResumenResultado");
-  if (!desde || !hasta || !resultado) return;
+  if (!resultado) return;
+  // Antes, con una fecha vacía no pasaba nada y se quedaba el resultado anterior
+  if (!desde || !hasta) {
+    resultado.innerHTML = `<div class="alert alert-warning">Elige la fecha "Desde" y la fecha "Hasta".</div>`;
+    return;
+  }
   if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     const data = await api.request(
@@ -1382,7 +1424,12 @@ async function actualizarUsuariosActivos() {
   const hasta = document.getElementById("activosHasta")?.value;
   const limite = document.getElementById("activosLimite")?.value || 10;
   const resultado = document.getElementById("activosResultado");
-  if (!desde || !hasta || !resultado) return;
+  if (!resultado) return;
+  // Antes, con una fecha vacía no pasaba nada y se quedaba el resultado anterior
+  if (!desde || !hasta) {
+    resultado.innerHTML = `<div class="alert alert-warning">Elige la fecha "Desde" y la fecha "Hasta".</div>`;
+    return;
+  }
   if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   const lim = Number(limite);
   if (!Number.isInteger(lim) || lim < 1 || lim > 50) {
@@ -1456,7 +1503,12 @@ async function actualizarBitacora() {
   const desde = document.getElementById("bitacoraDesde")?.value;
   const hasta = document.getElementById("bitacoraHasta")?.value;
   const resultado = document.getElementById("bitacoraResultado");
-  if (!desde || !hasta || !resultado) return;
+  if (!resultado) return;
+  // Antes, con una fecha vacía no pasaba nada y se quedaba el resultado anterior
+  if (!desde || !hasta) {
+    resultado.innerHTML = `<div class="alert alert-warning">Elige la fecha "Desde" y la fecha "Hasta".</div>`;
+    return;
+  }
   if (_rangoFechasInvalido(desde, hasta, resultado)) return;
   try {
     const data = await api.request(

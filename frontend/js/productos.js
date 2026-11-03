@@ -1856,23 +1856,30 @@ function showCargaMasivaProductosModal() {
         <div class="modal-body">
 
           <div class="alert alert-info small">
-            <strong>Formato esperado del archivo (fila de encabezados obligatoria):</strong>
-            <div class="mt-1" style="font-family: monospace; font-size: 0.85rem;">
-              Codigo | Nombre | Descripcion | Categoria | Marca | Unidad_Compra | Unidad_Venta |
-              Factor_Conversion | Precio_Compra | Precio_Venta | Margen_Ganancia |
-              Precio_Automatico | Stock_Minimo | Stock_Maximo
-            </div>
-            <ul class="mb-0 mt-2 small">
-              <li>Las <strong>categorías, marcas y unidades</strong> que no existan se crearán automáticamente.</li>
-              <li>Todos los productos se crean como <strong>activos</strong>.</li>
-              <li>El <strong>stock actual</strong> arranca en 0. Los stocks iniciales se cargan con la Carga Masiva de Movimientos.</li>
-              <li>Si un <strong>código ya existe</strong>, la fila se reporta como error (no se sobrescribe).</li>
+            <strong>Columnas del archivo</strong> (la primera fila deben ser estos encabezados):
+            ${htmlGuiaColumnas([
+              { nombre: "Codigo", tipo: "obligatoria", detalle: "Código único del producto (el del código de barras, si tiene). No puede repetirse." },
+              { nombre: "Nombre", tipo: "obligatoria", detalle: "Nombre del producto." },
+              { nombre: "Precio_Venta", tipo: "obligatoria", detalle: "Precio al público, mayor a 0. <em>Excepción:</em> si <code>Precio_Automatico</code> = 1 se calcula solo con el precio de compra y el margen." },
+              { nombre: "Precio_Compra", tipo: "recomendada", detalle: "Costo del producto. Sin él no se calcula bien la utilidad ni el inventario valorizado." },
+              { nombre: "Categoria", tipo: "recomendada", detalle: "Por nombre (ej. <em>Cuadernos</em>). Si no existe se crea sola." },
+              { nombre: "Stock_Minimo", tipo: "recomendada", detalle: "Cantidad con la que avisa \"stock bajo\". Vacío = 0 (nunca avisa)." },
+              { nombre: "Unidad_Venta", tipo: "recomendada", detalle: "Por nombre (ej. <em>Unidad</em>, <em>Resma</em>). Si no existe se crea sola." },
+              { nombre: "Marca", tipo: "opcional", detalle: "Por nombre. Si no existe se crea sola." },
+              { nombre: "Descripcion", tipo: "opcional", detalle: "Texto libre." },
+              { nombre: "Unidad_Compra", tipo: "opcional", detalle: "Cómo se compra (ej. <em>Caja</em>). Si no existe se crea sola." },
+              { nombre: "Factor_Conversion", tipo: "opcional", detalle: "Cuántas unidades de venta trae una de compra (ej. caja de 12 = 12). Vacío = 1." },
+              { nombre: "Margen_Ganancia", tipo: "opcional", detalle: "Porcentaje de ganancia. Solo se usa con <code>Precio_Automatico</code> = 1." },
+              { nombre: "Precio_Automatico", tipo: "opcional", detalle: "1 = el precio de venta se calcula con compra + margen; 0 o vacío = se usa <code>Precio_Venta</code>." },
+              { nombre: "Stock_Maximo", tipo: "opcional", detalle: "Para el reporte de excesos. No puede ser menor que el mínimo. Vacío = sin máximo." },
+            ])}
+            <ul class="mb-1 small">
+              <li>Todos los productos se crean <strong>activos</strong> y con <strong>stock 0</strong>. El stock inicial se carga después con la <em>Carga Masiva de Movimientos</em> (Inventario → Movimientos).</li>
+              <li>Si un código ya existe, la fila sale como error (no se sobrescribe; para cambiar productos usa la <em>Actualización Masiva</em>).</li>
             </ul>
-            <div class="mt-2">
-              <button class="btn btn-sm btn-outline-primary" onclick="descargarPlantillaProductos()">
-                <i class="fas fa-download me-1"></i>Descargar plantilla
-              </button>
-            </div>
+            <button class="btn btn-sm btn-outline-primary" onclick="descargarPlantillaProductos()">
+              <i class="fas fa-download me-1"></i>Descargar plantilla
+            </button>
           </div>
 
           <div class="mb-3">
@@ -1946,7 +1953,8 @@ function descargarPlantillaProductos() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Productos");
   descargarExcelConColores(wb, "Plantilla_Carga_Masiva_Productos.xlsx", {
-    obligatorias: ["Codigo", "Nombre"],
+    obligatorias: ["Codigo", "Nombre", "Precio_Venta"],
+    recomendadas: ["Precio_Compra", "Categoria", "Stock_Minimo", "Unidad_Venta"],
   });
   showToast("Plantilla descargada", "success");
 }
@@ -1984,6 +1992,14 @@ function procesarArchivoProductos(event) {
 // ------------------------------------------------------------
 // VALIDACIÓN Y PREVISUALIZACIÓN
 // ------------------------------------------------------------
+let avisosCargaProductos = [];
+
+// Para comparar nombres sin importar mayúsculas, tildes ni espacios de más
+// (igual que el servidor: "Utiles" y "Útiles" son la misma categoría)
+function _claveNombreCM(v) {
+  return String(v || "").trim().replace(/\s+/g, " ").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 function validarYPrevisualizarProductos() {
   const categorias = categoriasData || [];
   const marcas = marcasData || [];
@@ -1991,6 +2007,7 @@ function validarYPrevisualizarProductos() {
 
   const errores = [];
   const filasValidas = [];
+  avisosCargaProductos = [];
 
   // Códigos ya existentes y duplicados en el archivo
   const codigosExistentes = new Set(
@@ -2037,27 +2054,68 @@ function validarYPrevisualizarProductos() {
 
     const categoriaExistente = categoriaNombre
       ? categorias.find(
-          (c) =>
-            (c.nombre || "").toLowerCase() === categoriaNombre.toLowerCase(),
+          (c) => _claveNombreCM(c.nombre) === _claveNombreCM(categoriaNombre),
         )
       : null;
     const marcaExistente = marcaNombre
       ? marcas.find(
-          (m) => (m.nombre || "").toLowerCase() === marcaNombre.toLowerCase(),
+          (m) => _claveNombreCM(m.nombre) === _claveNombreCM(marcaNombre),
         )
       : null;
     const unidadCompraExistente = unidadCompraNombre
       ? unidades.find(
-          (u) =>
-            (u.nombre || "").toLowerCase() === unidadCompraNombre.toLowerCase(),
+          (u) => _claveNombreCM(u.nombre) === _claveNombreCM(unidadCompraNombre),
         )
       : null;
     const unidadVentaExistente = unidadVentaNombre
       ? unidades.find(
-          (u) =>
-            (u.nombre || "").toLowerCase() === unidadVentaNombre.toLowerCase(),
+          (u) => _claveNombreCM(u.nombre) === _claveNombreCM(unidadVentaNombre),
         )
       : null;
+
+    // Números: vacío = valor por defecto; texto o negativo = error
+    // (antes un negativo o un texto pasaba y la fila fallaba al crearla)
+    const numero = (campo, porDefecto) => {
+      const t = String(row[campo] ?? "").trim();
+      if (t === "") return porDefecto;
+      const n = Number(t.replace(",", "."));
+      return isNaN(n) ? NaN : n;
+    };
+    const precioCompra = numero("Precio_Compra", 0);
+    const precioVenta = numero("Precio_Venta", 0);
+    const margen = numero("Margen_Ganancia", 0);
+    const factor = numero("Factor_Conversion", 1);
+    const stockMin = numero("Stock_Minimo", 0);
+    const stockMax = numero("Stock_Maximo", 0);
+    const automatico = parseInt(row.Precio_Automatico) === 1 ? 1 : 0;
+    const malos = [
+      ["Precio_Compra", precioCompra], ["Precio_Venta", precioVenta], ["Margen_Ganancia", margen],
+      ["Stock_Minimo", stockMin], ["Stock_Maximo", stockMax],
+    ].filter(([, v]) => isNaN(v) || v < 0);
+    if (malos.length) {
+      errores.push(`Fila ${numFila}: ${malos.map(([c]) => c).join(", ")} debe ser un número de 0 en adelante`);
+      return;
+    }
+    if (isNaN(factor) || factor <= 0) {
+      errores.push(`Fila ${numFila}: Factor_Conversion debe ser mayor a 0`);
+      return;
+    }
+    if (automatico) {
+      if (!(precioCompra > 0) || !(margen > 0)) {
+        errores.push(`Fila ${numFila}: con Precio_Automatico = 1 hay que poner Precio_Compra y Margen_Ganancia`);
+        return;
+      }
+    } else if (!(precioVenta > 0)) {
+      errores.push(`Fila ${numFila}: falta Precio_Venta (o usa Precio_Automatico = 1 con compra y margen)`);
+      return;
+    }
+    if (stockMax > 0 && stockMin > stockMax) {
+      errores.push(`Fila ${numFila}: Stock_Minimo (${stockMin}) es mayor que Stock_Maximo (${stockMax})`);
+      return;
+    }
+    if (!automatico && precioCompra > 0 && precioVenta < precioCompra) {
+      avisosCargaProductos.push(`Fila ${numFila}: "${nombre}" se vendería con pérdida (venta Q${precioVenta.toFixed(2)} < compra Q${precioCompra.toFixed(2)})`);
+    }
 
     filasValidas.push({
       numFila,
@@ -2072,13 +2130,13 @@ function validarYPrevisualizarProductos() {
       unidadCompraExistente,
       unidadVentaNombre: unidadVentaNombre || null,
       unidadVentaExistente,
-      factor_conversion: parseFloat(row.Factor_Conversion) || 1,
-      precio_compra: parseFloat(row.Precio_Compra) || 0,
-      precio_venta: parseFloat(row.Precio_Venta) || 0,
-      margen_ganancia: parseFloat(row.Margen_Ganancia) || 0,
-      precio_automatico: parseInt(row.Precio_Automatico) === 1 ? 1 : 0,
-      stock_minimo: parseFloat(row.Stock_Minimo) || 0,
-      stock_maximo: parseFloat(row.Stock_Maximo) || 0,
+      factor_conversion: factor,
+      precio_compra: precioCompra,
+      precio_venta: precioVenta,
+      margen_ganancia: margen,
+      precio_automatico: automatico,
+      stock_minimo: stockMin,
+      stock_maximo: stockMax,
     });
   });
 
@@ -2114,7 +2172,16 @@ function renderPreviewProductos(errores, filas) {
         ? `
       <div class="alert alert-danger small mt-2 mb-0" style="max-height:150px; overflow:auto;">
         <strong>Errores detectados (corrige el archivo y vuelve a cargarlo):</strong>
-        <ul class="mb-0">${errores.map((e) => `<li>${e}</li>`).join("")}</ul>
+        <ul class="mb-0">${errores.map((e) => `<li>${escaparHtmlEscaner(e)}</li>`).join("")}</ul>
+      </div>`
+        : ""
+    }
+    ${
+      avisosCargaProductos.length
+        ? `
+      <div class="alert alert-warning small mt-2 mb-0" style="max-height:120px; overflow:auto;">
+        <strong>Avisos (no impiden la carga):</strong>
+        <ul class="mb-0">${avisosCargaProductos.map((e) => `<li>${escaparHtmlEscaner(e)}</li>`).join("")}</ul>
       </div>`
         : ""
     }
@@ -2200,19 +2267,19 @@ async function confirmarCargaMasivaProductos() {
 
   // Precargar caches con los existentes
   (categoriasData || []).forEach((c) => {
-    cacheCategorias[(c.nombre || "").toLowerCase()] = c.id;
+    cacheCategorias[_claveNombreCM(c.nombre)] = c.id;
   });
   (marcasData || []).forEach((m) => {
-    cacheMarcas[(m.nombre || "").toLowerCase()] = m.id;
+    cacheMarcas[_claveNombreCM(m.nombre)] = m.id;
   });
   (unidadesData || []).forEach((u) => {
-    cacheUnidades[(u.nombre || "").toLowerCase()] = u.id;
+    cacheUnidades[_claveNombreCM(u.nombre)] = u.id;
   });
 
   // Helpers para crear si no existe
   async function obtenerCategoriaId(nombre) {
     if (!nombre) return null;
-    const key = nombre.toLowerCase();
+    const key = _claveNombreCM(nombre);
     if (cacheCategorias[key]) return cacheCategorias[key];
     try {
       const result = await api.createCategoria({ nombre, activo: 1 });
@@ -2223,7 +2290,7 @@ async function confirmarCargaMasivaProductos() {
       try {
         const cats = await api.getCategorias();
         const found = (cats || []).find(
-          (c) => (c.nombre || "").toLowerCase() === key,
+          (c) => _claveNombreCM(c.nombre) === key,
         );
         if (found) {
           cacheCategorias[key] = found.id;
@@ -2236,7 +2303,7 @@ async function confirmarCargaMasivaProductos() {
 
   async function obtenerMarcaId(nombre) {
     if (!nombre) return null;
-    const key = nombre.toLowerCase();
+    const key = _claveNombreCM(nombre);
     if (cacheMarcas[key]) return cacheMarcas[key];
     try {
       const result = await api.createMarca({ nombre, activo: 1 });
@@ -2246,7 +2313,7 @@ async function confirmarCargaMasivaProductos() {
       try {
         const arr = await api.getMarcas();
         const found = (arr || []).find(
-          (m) => (m.nombre || "").toLowerCase() === key,
+          (m) => _claveNombreCM(m.nombre) === key,
         );
         if (found) {
           cacheMarcas[key] = found.id;
@@ -2259,7 +2326,7 @@ async function confirmarCargaMasivaProductos() {
 
   async function obtenerUnidadId(nombre) {
     if (!nombre) return null;
-    const key = nombre.toLowerCase();
+    const key = _claveNombreCM(nombre);
     if (cacheUnidades[key]) return cacheUnidades[key];
     try {
       const result = await api.request("/unidades-medida", "POST", {
@@ -2272,7 +2339,7 @@ async function confirmarCargaMasivaProductos() {
       try {
         const arr = await api.getUnidadesMedida();
         const found = (arr || []).find(
-          (u) => (u.nombre || "").toLowerCase() === key,
+          (u) => _claveNombreCM(u.nombre) === key,
         );
         if (found) {
           cacheUnidades[key] = found.id;
@@ -2379,12 +2446,13 @@ function showActualizacionMasivaProductosModal() {
               <li>Edita los campos que desees cambiar.</li>
               <li>Sube el archivo → revisa el diff → confirma.</li>
             </ol>
-            <ul class="mb-2 small">
-              <li><strong>Codigo:</strong> no lo modifiques. Si lo cambias, se intentará buscar por Nombre.</li>
-              <li><strong>Stock_Actual:</strong> es informativa. Si la modificas, se ignora.</li>
-              <li><strong>Activo:</strong> acepta <code>Activo</code>, <code>Inactivo</code>, <code>SI</code>, <code>NO</code>, <code>1</code>, <code>0</code>.</li>
-              <li><strong>Actualizar:</strong> acepta <code>SI</code>, <code>S</code>, <code>1</code>, <code>X</code>, <code>YES</code>, <code>TRUE</code>.</li>
-            </ul>
+            ${htmlGuiaColumnas([
+              { nombre: "Actualizar", tipo: "obligatoria", detalle: "<code>SI</code> en las filas que quieres cambiar (también acepta S, 1, X). Las filas con <code>NO</code> se ignoran." },
+              { nombre: "Codigo", tipo: "obligatoria", detalle: "Identifica el producto. <strong>No lo cambies</strong>; si lo cambias se intenta buscar por Nombre." },
+              { nombre: "Nombre, Precio_Venta, Precio_Compra, Categoria, Stock_Minimo…", tipo: "opcional", detalle: "Edita solo lo que quieras cambiar; lo que dejes igual no se modifica. Categoría, marca y unidades van por nombre." },
+              { nombre: "Activo", tipo: "opcional", detalle: "<code>Activo</code>/<code>Inactivo</code> (también SI/NO, 1/0)." },
+              { nombre: "Stock_Actual", tipo: "informativa", detalle: "Solo para que lo veas: si lo cambias se ignora. El stock se cambia con movimientos o ajustes de inventario." },
+            ])}
             <div class="mt-2">
               <button class="btn btn-sm btn-outline-warning" onclick="descargarInventarioActual()">
                 <i class="fas fa-download me-1"></i>Descargar inventario actual
@@ -2642,7 +2710,7 @@ function validarYPrevisualizarActualizacion() {
       : null;
     const marcaExistente = marcaNombre
       ? marcas.find(
-          (m) => (m.nombre || "").toLowerCase() === marcaNombre.toLowerCase(),
+          (m) => _claveNombreCM(m.nombre) === _claveNombreCM(marcaNombre),
         )
       : null;
     const undCExistente = undCNombre

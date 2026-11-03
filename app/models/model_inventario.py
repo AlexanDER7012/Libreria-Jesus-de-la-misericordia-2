@@ -1,3 +1,4 @@
+from app.timezone import now_gt_naive
 from sqlalchemy import Column, Integer, String, Text, DateTime, DECIMAL, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -15,7 +16,7 @@ class MovimientoInventario(Base):
     __tablename__ = "movimiento_inventario"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    fecha = Column(DateTime, server_default=func.now())
+    fecha = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     id_usuario = Column(Integer, ForeignKey("usuario.id"))
     id_tipo_movimiento = Column(Integer, ForeignKey("tipo_movimiento_inventario.id"), nullable=False)
 
@@ -54,7 +55,7 @@ class InventarioFisico(Base):
     id_producto = Column(Integer, ForeignKey("producto.id"), nullable=False)
     id_ubicacion = Column(Integer, ForeignKey("ubicacion.id"))
     id_sububicacion = Column(Integer, ForeignKey("sububicacion.id"))
-    fecha = Column(DateTime, server_default=func.now())
+    fecha = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     stock_sistema = Column(DECIMAL(12, 2))  
     stock_real = Column(DECIMAL(12, 2))  
     diferencia = Column(DECIMAL(12, 2)) 
@@ -68,7 +69,7 @@ class TrasladoSucursal(Base):
     __tablename__ = "traslado_sucursal"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    fecha = Column(DateTime, server_default=func.now())
+    fecha = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     id_producto = Column(Integer, ForeignKey("producto.id"), nullable=False)
     cantidad = Column(DECIMAL(12, 2), nullable=False)
 
@@ -114,7 +115,7 @@ class TrasladoPago(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_traslado = Column(Integer, ForeignKey("traslado_sucursal.id"), nullable=False, index=True)
     id_tipo_pago = Column(Integer, ForeignKey("tipo_pago.id"))
-    fecha_pago = Column(DateTime, server_default=func.now())
+    fecha_pago = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     monto = Column(DECIMAL(12, 2), nullable=False)
     referencia = Column(String(100))
     observaciones = Column(Text)
@@ -129,7 +130,7 @@ class Alerta(Base):
     __tablename__ = "alerta"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    fecha = Column(DateTime, server_default=func.now())
+    fecha = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     tipo = Column(String(30)) 
     mensaje = Column(Text)
     id_producto = Column(Integer, ForeignKey("producto.id"))

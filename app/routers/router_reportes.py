@@ -158,7 +158,11 @@ def reporte_utilidad(
             Producto.id,
             Producto.nombre,
             func.sum(DetalleVenta.cantidad).label("cantidad"),
-            func.sum(DetalleVenta.subtotal).label("ingresos"),
+            # Ingreso real: se resta el descuento que se dio en la venta
+            # (antes se tomaba el precio sin descuento y la utilidad salía de más)
+            func.sum(
+                DetalleVenta.subtotal * (1 - func.coalesce(Venta.descuento_porcentaje, 0) / 100.0)
+            ).label("ingresos"),
             func.sum(DetalleVenta.cantidad * DetalleVenta.costo_unitario).label("costo"),
         )
         .join(DetalleVenta, DetalleVenta.id_producto == Producto.id)
@@ -554,7 +558,7 @@ def reporte_bitacora(
     if accion is not None:
         query = query.filter(LogActividad.accion == accion)
 
-    logs = query.order_by(LogActividad.fecha.desc()).limit(500).all()
+    logs = query.order_by(LogActividad.id.desc()).limit(500).all()
     detalle = []
     for log in logs:
         usuario = db.query(Usuario).filter(Usuario.id == log.id_usuario).first()
@@ -771,7 +775,7 @@ def reporte_dashboard(db: Session = Depends(get_db), usuario_actual: Usuario = D
     # Últimas 5 ventas (incluye anuladas, marcadas como tal)
     clientes = {}
     recientes = []
-    for v in db.query(Venta).order_by(Venta.fecha.desc(), Venta.id.desc()).limit(5).all():
+    for v in db.query(Venta).order_by(Venta.id.desc()).limit(5).all():
         if v.id_cliente and v.id_cliente not in clientes:
             c = db.query(Cliente).filter(Cliente.id == v.id_cliente).first()
             clientes[v.id_cliente] = c.nombre if c else None

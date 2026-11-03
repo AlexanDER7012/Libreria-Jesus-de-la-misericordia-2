@@ -77,7 +77,9 @@ def listar_ventas(
     usuario_actual=Depends(get_current_user),
 ):
     """estado_pago: "Pagada" (sin saldo) o "Pendiente" (con saldo)."""
-    query = db.query(Venta).order_by(Venta.fecha.desc(), Venta.id.desc())
+    # Se ordena por número (orden en que se registraron) y no por fecha: las ventas
+    # guardadas antes con la hora corrida quedaban encima y las nuevas no se veían arriba
+    query = db.query(Venta).order_by(Venta.id.desc())
     if estado:
         query = query.filter(Venta.estado == estado)
     if estado_pago in ("Pagada", "Pendiente"):

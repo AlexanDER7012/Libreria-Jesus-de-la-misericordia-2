@@ -1,3 +1,4 @@
+from app.timezone import now_gt_naive
 from sqlalchemy import Column, Integer, String, Text, DateTime, DECIMAL, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -38,7 +39,7 @@ class Pedido(Base):
     __tablename__ = "pedido"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    fecha = Column(DateTime, server_default=func.now())
+    fecha = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     id_usuario = Column(Integer, ForeignKey("usuario.id"))
     id_proveedor = Column(Integer, ForeignKey("proveedor.id"))
     estado = Column(String(20), default="Pendiente")

@@ -338,9 +338,12 @@ async function loadComprasModule() {
       usuarios,
     ] = await Promise.all([
       api.getCompras().catch(() => []),
-      api.getProveedores().catch(() => []),
+      // Antes se cargaban solo los primeros 50 y solo los activos: los
+      // proveedores inactivos o después del 50 salían como "--" en las
+      // compras y no se encontraban al buscar en Nueva Compra.
+      api.request("/proveedores?estado=todos&limit=200").catch(() => []),
       api.getTiposProveedor().catch(() => []),
-      api.getPedidos().catch(() => []),
+      api.request("/pedidos?limit=200").catch(() => []),
       api.getTiposGasto().catch(() => []),
       api.getTiposPago().catch(() => []),
       api.getProductos().catch(() => []),
@@ -2170,7 +2173,7 @@ async function saveProveedor(event) {
       bootstrap.Modal.getInstance(modalProveedor).hide();
       let proveedores;
       try {
-        proveedores = await api.getProveedores();
+        proveedores = await api.request("/proveedores?estado=todos&limit=200");
       } catch (error) {
         showToast(
           `Proveedor creado, pero no se pudo actualizar la lista: ${error.message}`,
@@ -2378,7 +2381,11 @@ function crearModalTipoProveedor() {
             </div>
         </div>
     `;
+  // Antes cada vez que se abría se agregaba otra copia del formulario
+  // (con los mismos id) y las viejas se quedaban escondidas en la página
+  document.getElementById("tipoProveedorModal")?.remove();
   document.body.insertAdjacentHTML("beforeend", html);
+  document.getElementById("tipoProveedorModal")?.addEventListener("hidden.bs.modal", (e) => { if (e.target.id === "tipoProveedorModal") e.target.remove(); });
   document
     .getElementById("tipoProveedorForm")
     .addEventListener("submit", saveTipoProveedor);
@@ -2481,7 +2488,11 @@ function showCreatePedidoModal() {
     </div>
   `;
 
+  // Antes cada vez que se abría se agregaba otra copia del formulario
+  // (con los mismos id) y las viejas se quedaban escondidas en la página
+  document.getElementById("pedidoModal")?.remove();
   document.body.insertAdjacentHTML("beforeend", html);
+  document.getElementById("pedidoModal")?.addEventListener("hidden.bs.modal", (e) => { if (e.target.id === "pedidoModal") e.target.remove(); });
   document
     .getElementById("pedidoForm")
     .addEventListener("submit", savePedidoCompleto);
@@ -2844,6 +2855,27 @@ async function savePedidoCompleto(event) {
   }
 }
 
+// Trae del servidor el proveedor y los productos que no estén en la lista
+// cargada (antes salían como "--" si no estaban entre los primeros 50).
+async function _asegurarNombresCompra(idProveedor, idsProductos) {
+  window.proveedoresData = window.proveedoresData || [];
+  window.productosData = window.productosData || [];
+  const tareas = [];
+  if (idProveedor && !window.proveedoresData.some((p) => p.id === idProveedor)) {
+    tareas.push(
+      api.request(`/proveedores/${idProveedor}`).then((p) => p && window.proveedoresData.push(p)).catch(() => {}),
+    );
+  }
+  [...new Set(idsProductos || [])].forEach((idProd) => {
+    if (idProd && !window.productosData.some((p) => p.id === idProd)) {
+      tareas.push(
+        api.request(`/productos/${idProd}`).then((p) => p && window.productosData.push(p)).catch(() => {}),
+      );
+    }
+  });
+  await Promise.all(tareas);
+}
+
 async function verPedido(id) {
   try {
     const [pedido, totalData] = await Promise.all([
@@ -2854,6 +2886,7 @@ async function verPedido(id) {
     ]);
 
     if (!pedido) return showToast("Pedido no encontrado", "error");
+    await _asegurarNombresCompra(pedido.id_proveedor, (pedido.detalles || []).map((d) => d.id_producto));
 
     const proveedor = (window.proveedoresData || []).find(
       (p) => p.id === pedido.id_proveedor,
@@ -3091,7 +3124,11 @@ function showCreateCajaChicaModal() {
         </div>
     `;
 
+  // Antes cada vez que se abría se agregaba otra copia del formulario
+  // (con los mismos id) y las viejas se quedaban escondidas en la página
+  document.getElementById("cajaChicaModal")?.remove();
   document.body.insertAdjacentHTML("beforeend", html);
+  document.getElementById("cajaChicaModal")?.addEventListener("hidden.bs.modal", (e) => { if (e.target.id === "cajaChicaModal") e.target.remove(); });
   document
     .getElementById("cajaChicaForm")
     .addEventListener("submit", saveCajaChica);
@@ -3251,7 +3288,11 @@ function showCreateGastoModal() {
         </div>
     `;
 
+  // Antes cada vez que se abría se agregaba otra copia del formulario
+  // (con los mismos id) y las viejas se quedaban escondidas en la página
+  document.getElementById("gastoModal")?.remove();
   document.body.insertAdjacentHTML("beforeend", html);
+  document.getElementById("gastoModal")?.addEventListener("hidden.bs.modal", (e) => { if (e.target.id === "gastoModal") e.target.remove(); });
   document.getElementById("gastoForm").addEventListener("submit", saveGasto);
   new bootstrap.Modal(document.getElementById("gastoModal")).show();
 }
@@ -3653,7 +3694,11 @@ function crearModalTipoPago() {
             </div>
         </div>
     `;
+  // Antes cada vez que se abría se agregaba otra copia del formulario
+  // (con los mismos id) y las viejas se quedaban escondidas en la página
+  document.getElementById("tipoPagoModal")?.remove();
   document.body.insertAdjacentHTML("beforeend", html);
+  document.getElementById("tipoPagoModal")?.addEventListener("hidden.bs.modal", (e) => { if (e.target.id === "tipoPagoModal") e.target.remove(); });
   document
     .getElementById("tipoPagoForm")
     .addEventListener("submit", saveTipoPagoCompra);
@@ -3827,6 +3872,7 @@ async function cargarPedidoEnCompra() {
   try {
     const pedido = await api.request(`/pedidos/${idPedido}`);
     if (!pedido) return showToast("Pedido no encontrado", "error");
+    await _asegurarNombresCompra(pedido.id_proveedor, (pedido.detalles || []).map((d) => d.id_producto));
 
     if (pedido.estado === "Cancelado") {
       return showToast("Ese pedido está cancelado", "error");
@@ -3949,6 +3995,11 @@ function agregarDetalleCompra(event) {
   const cantidad = Number(cantidadTexto);
   if (!cantidadTexto || !Number.isInteger(cantidad) || cantidad <= 0) {
     showToast("La cantidad debe ser un número entero mayor a 0", "error");
+    return;
+  }
+  // Antes un costo vacío entraba como Q0.00 sin avisar
+  if (String(costoInput.value || "").trim() === "") {
+    showToast("Escribe el costo del producto (puede ser 0 si fue regalado)", "error");
     return;
   }
   const costo_unitario = parseFloat(costoInput.value) || 0;
@@ -4089,6 +4140,8 @@ async function saveCompra(event) {
   if (!id_proveedor) return showToast("Selecciona un proveedor", "error");
   if (compraDetallesTemp.length === 0)
     return showToast("Agrega al menos un producto", "error");
+  if (parseFloat(document.getElementById("compraMontoExento").value) < 0)
+    return showToast("El monto exento no puede ser negativo", "error");
 
   // Ubicación elegida en el formulario; si no hay, la de Configuración
   let id_ubicacion_destino =
@@ -4161,6 +4214,7 @@ async function verCompra(id) {
   try {
     const compra = await api.request(`/compras/${id}`);
     if (!compra) return showToast("Compra no encontrada", "error");
+    await _asegurarNombresCompra(compra.id_proveedor, (compra.detalles || []).map((d) => d.id_producto));
 
     const proveedor = (window.proveedoresData || []).find(
       (p) => p.id === compra.id_proveedor,
@@ -4393,6 +4447,7 @@ async function imprimirCompra(id) {
   try {
     const compra = await api.request(`/compras/${id}`);
     if (!compra) return showToast("Compra no encontrada", "error");
+    await _asegurarNombresCompra(compra.id_proveedor, (compra.detalles || []).map((d) => d.id_producto));
 
     const proveedor = (window.proveedoresData || []).find(
       (p) => p.id === compra.id_proveedor,
@@ -4546,6 +4601,12 @@ async function registrarNotaEntrega(id) {
         observaciones,
       };
 
+      // Evita que un doble clic lo registre dos veces
+      const formEnvio = e.currentTarget;
+      if (formEnvio.dataset.enviando === "1") return;
+      formEnvio.dataset.enviando = "1";
+      const btnEnvio = formEnvio.querySelector('[type="submit"]');
+      if (btnEnvio) btnEnvio.disabled = true;
       try {
         await api.request(`/compras/${id}/nota-entrega`, "POST", data);
         showToast("Nota de entrega registrada correctamente", "success");
@@ -4556,6 +4617,9 @@ async function registrarNotaEntrega(id) {
           error.message || "Error al registrar nota de entrega",
           "error",
         );
+      } finally {
+        formEnvio.dataset.enviando = "";
+        if (btnEnvio) btnEnvio.disabled = false;
       }
     });
 
@@ -4657,6 +4721,12 @@ async function registrarPagoCompra(id) {
         );
       }
 
+      // Evita que un doble clic lo registre dos veces
+      const formEnvio = e.currentTarget;
+      if (formEnvio.dataset.enviando === "1") return;
+      formEnvio.dataset.enviando = "1";
+      const btnEnvio = formEnvio.querySelector('[type="submit"]');
+      if (btnEnvio) btnEnvio.disabled = true;
       try {
         await api.request(`/compras/${id}/pagos`, "POST", {
           id_tipo_pago,
@@ -4668,6 +4738,9 @@ async function registrarPagoCompra(id) {
         await loadComprasModule();
       } catch (error) {
         showToast(error.message || "Error al registrar pago", "error");
+      } finally {
+        formEnvio.dataset.enviando = "";
+        if (btnEnvio) btnEnvio.disabled = false;
       }
     });
 
@@ -5033,6 +5106,31 @@ async function toggleTipoGastoEstado(id) {
 
 window.loadComprasModule = loadComprasModule;
 window.showCreateCompraModal = showCreateCompraModal;
+// Evita registros dobles por doble clic en "Guardar" (antes un doble clic
+// creaba dos compras iguales). Mientras se guarda, los otros clics se ignoran.
+function _sinDobleEnvio(fn) {
+  let enCurso = false;
+  return async function (...args) {
+    const ev = args[0];
+    if (ev && typeof ev.preventDefault === "function") ev.preventDefault();
+    if (enCurso) return;
+    enCurso = true;
+    try {
+      return await fn.apply(this, args);
+    } finally {
+      enCurso = false;
+    }
+  };
+}
+saveCompra = _sinDobleEnvio(saveCompra);
+saveProveedor = _sinDobleEnvio(saveProveedor);
+saveTipoProveedor = _sinDobleEnvio(saveTipoProveedor);
+savePedidoCompleto = _sinDobleEnvio(savePedidoCompleto);
+saveCajaChica = _sinDobleEnvio(saveCajaChica);
+saveGasto = _sinDobleEnvio(saveGasto);
+saveTipoGasto = _sinDobleEnvio(saveTipoGasto);
+saveTipoPagoCompra = _sinDobleEnvio(saveTipoPagoCompra);
+
 window.saveCompra = saveCompra;
 window.verCompra = verCompra;
 window.imprimirCompra = imprimirCompra;

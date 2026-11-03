@@ -3122,17 +3122,16 @@ function showCargaMasivaMovimientosModal() {
         <div class="modal-body">
 
           <div class="alert alert-info small">
-            <strong>Formato esperado del archivo (fila de encabezados obligatoria):</strong>
-            <div class="mt-1" style="font-family: monospace; font-size: 0.85rem;">
-              Codigo_Producto | Tipo_Movimiento | Cantidad | Ubicacion | Costo_Unitario | Observacion
-            </div>
-            <ul class="mb-0 mt-2 small">
-              <li><strong>Codigo_Producto:</strong> debe existir en el catálogo.</li>
-              <li><strong>Tipo_Movimiento:</strong> por nombre, tal como está en "Tipos de movimiento" (la plantilla trae la lista en la hoja "Tipos").</li>
-              <li><strong>Cantidad:</strong> número positivo (el tipo define si es entrada o salida). Las salidas no pueden dejar el stock en negativo.</li>
-              <li><strong>Ubicacion:</strong> opcional, por nombre (ej. "Bodega"). Si va vacía se usa la ubicación principal.</li>
-              <li><strong>Costo_Unitario:</strong> opcional (útil para el inventario inicial).</li>
-              <li><strong>Observacion:</strong> opcional.</li>
+            <strong>Columnas del archivo</strong> (la primera fila deben ser estos encabezados):
+            ${htmlGuiaColumnas([
+              { nombre: "Codigo_Producto", tipo: "obligatoria", detalle: "Código del producto, tal como está en Inventario. Debe estar activo." },
+              { nombre: "Tipo_Movimiento", tipo: "obligatoria", detalle: "Nombre del tipo, tal como está en <em>Tipos de movimiento</em> (la plantilla trae la lista en la hoja <strong>Tipos</strong>). El tipo define si suma o resta stock." },
+              { nombre: "Cantidad", tipo: "obligatoria", detalle: "Número mayor a 0. Una salida no puede dejar el stock en negativo." },
+              { nombre: "Costo_Unitario", tipo: "recomendada", detalle: "Costo de cada unidad. Conviene ponerlo en las <strong>entradas</strong> (ej. inventario inicial) para que el inventario valorizado salga bien." },
+              { nombre: "Ubicacion", tipo: "opcional", detalle: "Por nombre (ej. <em>Bodega</em>). Vacía = la ubicación principal." },
+              { nombre: "Observacion", tipo: "opcional", detalle: "Texto libre (ej. <em>Inventario inicial</em>, <em>Producto dañado</em>)." },
+            ])}
+            <ul class="mb-0 small">
               <li>El usuario que registra es <strong>${getCurrentUser()?.nombre_usuario || "el usuario actual"}</strong>.</li>
             </ul>
             <div class="mt-2">
@@ -3252,6 +3251,7 @@ async function descargarPlantillaMovimientos() {
   descargarExcelConColores(wb, "Plantilla_Carga_Masiva_Movimientos.xlsx", {
     Movimientos: {
       obligatorias: ["Codigo_Producto", "Tipo_Movimiento", "Cantidad"],
+      recomendadas: ["Costo_Unitario"],
     },
     Tipos: { informativas: ["Tipo_Movimiento", "Efecto", "Descripcion"] },
   });

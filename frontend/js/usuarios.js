@@ -1374,6 +1374,14 @@ async function saveUsuario(event) {
       const data = { nombre_usuario, id_empleado, id_rol, activo };
       if (password) data.password = password;
       await api.request(`/usuarios/${id}`, "PUT", data);
+      // Al cambiar la contraseña se cierran las sesiones abiertas con la anterior.
+      // Si es la propia, se avisa y se manda a iniciar sesión de nuevo.
+      const yo = window.getCurrentUser ? window.getCurrentUser() : null;
+      if (password && yo && String(yo.id) === String(id)) {
+        showToast("Cambiaste tu contraseña. Vuelve a iniciar sesión con la nueva.", "success");
+        setTimeout(() => window.logout(), 1800);
+        return;
+      }
       showToast("Usuario actualizado correctamente", "success");
     } else {
       if (!password) {

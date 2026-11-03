@@ -1,3 +1,4 @@
+from app.timezone import now_gt_naive
 from sqlalchemy import Column, Integer, String, Text, DateTime, DECIMAL, ForeignKey
 from sqlalchemy.sql import func
 from app.database import Base
@@ -17,7 +18,7 @@ class ConfiguracionGeneral(Base):
     formato_impresion = Column(String(20))
     logo_ruta = Column(String(255))
     moneda = Column(String(10), default="GTQ")
-    fecha_actualizacion = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    fecha_actualizacion = Column(DateTime, server_default=func.now(), default=now_gt_naive, onupdate=now_gt_naive)
     id_ubicacion = Column(Integer, ForeignKey("ubicacion.id"), nullable=True)
     # Días que se conserva la bitácora (log_actividad). 0 = no borrar nunca.
     dias_retencion_bitacora = Column(Integer, default=0, server_default="0")
@@ -32,4 +33,4 @@ class MetaFinanciera(Base):
     meta_ingresos = Column(DECIMAL(12, 2))
     meta_utilidad = Column(DECIMAL(12, 2))
     meta_gastos = Column(DECIMAL(12, 2))
-    fecha_registro = Column(DateTime, server_default=func.now())
+    fecha_registro = Column(DateTime, server_default=func.now(), default=now_gt_naive)

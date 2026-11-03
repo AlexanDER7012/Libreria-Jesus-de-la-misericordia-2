@@ -5,6 +5,7 @@ Tablas: tipo_pago, tipo_gasto, gasto, caja_turno, caja_denominacion,
         caja_chica_movimiento
 """
 
+from app.timezone import now_gt_naive
 from sqlalchemy import Column, Integer, String, Text, DateTime, DECIMAL, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -40,7 +41,7 @@ class Gasto(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_tipo_gasto = Column(Integer, ForeignKey("tipo_gasto.id"))
     id_ubicacion = Column(Integer, ForeignKey("ubicacion.id"))
-    fecha = Column(DateTime, server_default=func.now())
+    fecha = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     concepto = Column(Text)
     monto = Column(DECIMAL(12, 2))
     id_usuario_registra = Column(Integer, ForeignKey("usuario.id"))
@@ -55,7 +56,7 @@ class CajaTurno(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_usuario = Column(Integer, ForeignKey("usuario.id"))
     id_ubicacion = Column(Integer, ForeignKey("ubicacion.id"))
-    fecha_apertura = Column(DateTime, server_default=func.now())
+    fecha_apertura = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     fondo_inicial = Column(DECIMAL(12, 2), default=500.00)  # Q500 por defecto
     fecha_cierre = Column(DateTime)
     total_contado = Column(DECIMAL(12, 2)) 
@@ -84,7 +85,7 @@ class CajaChicaMovimiento(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_ubicacion = Column(Integer, ForeignKey("ubicacion.id"))
-    fecha = Column(DateTime, server_default=func.now())
+    fecha = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     tipo = Column(String(20)) 
     monto = Column(DECIMAL(12, 2)) 
     saldo = Column(DECIMAL(12, 2))  

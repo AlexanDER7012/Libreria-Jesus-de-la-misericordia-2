@@ -1,10 +1,10 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.model_usuario import LogActividad
-from app.timezone import today_gt
+from app.timezone import now_gt_naive, today_gt
 
 ACCIONES_VALIDAS = {"CREAR", "EDITAR", "ELIMINAR", "CANCELAR", "REACTIVAR", "LOGIN", "LOGIN_FALLIDO"}
 
@@ -43,13 +43,9 @@ _ultima_limpieza: date | None = None
 
 
 def _fecha_limite_bitacora(db: Session, dias: int):
-    """Fecha antes de la cual se borra. Usa la hora de la BASE DE DATOS (la
-    misma con la que se guarda cada registro), sin depender de la zona
-    horaria del servidor."""
-    ahora = db.query(func.now()).scalar()
-    if getattr(ahora, "tzinfo", None) is not None:
-        ahora = ahora.replace(tzinfo=None)
-    return ahora - timedelta(days=dias)
+    """Fecha antes de la cual se borra. Los registros se guardan con la hora
+    de Guatemala del sistema (ver app/config.py), así que se usa la misma."""
+    return now_gt_naive() - timedelta(days=dias)
 
 
 def contar_bitacora_a_borrar(db: Session, dias: int) -> int:

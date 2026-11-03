@@ -352,10 +352,14 @@
         // ==========================================
         // ALERTAS
         // ==========================================
+        // Antes, si salía un error y luego otro, el segundo se ocultaba antes
+        // de tiempo porque seguía corriendo el temporizador del primero.
+        let temporizadorError = null;
         function showError(message) {
           errorMessage.textContent = message;
           loginAlert.classList.add("show");
-          setTimeout(() => {
+          clearTimeout(temporizadorError);
+          temporizadorError = setTimeout(() => {
             loginAlert.classList.remove("show");
           }, 5000);
         }

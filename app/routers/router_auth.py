@@ -1,4 +1,6 @@
 import hmac
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.bitacora import limpiar_bitacora_antigua
 from sqlalchemy import func
@@ -9,6 +11,7 @@ from app.config import settings
 from app.database import get_db
 from app.security import (
     verify_password, create_access_token, get_current_user, hash_password,
+    huella_password, crear_token_autorizacion_admin,
 )  # noqa: F401 - re-exportado, por si algo lo sigue importando desde aqui
 from app.models.model_usuario import (
     Usuario, LogActividad, Rol, RolPermiso, Modulo, Permiso,
@@ -23,6 +26,13 @@ from app.timezone import now_gt_naive
 router = APIRouter()
 
 MAX_INTENTOS_FALLIDOS = 5
+# Después de este tiempo sin intentos, el usuario bloqueado se desbloquea solo.
+# Antes el bloqueo era para siempre: cualquiera podía bloquear al administrador
+# escribiendo 5 veces mal su contraseña y nadie más podía desbloquearlo.
+MINUTOS_BLOQUEO = 15
+# Hash de relleno: cuando el usuario no existe se compara contra este para que
+# la respuesta tarde lo mismo (antes, por el tiempo, se sabía si el usuario existía).
+_HASH_RELLENO = hash_password("relleno-para-usuario-inexistente")
 USUARIO_RECUPERACION_ADMIN = "soporte_admin"
 ROL_ADMINISTRADOR = "Administrador"
 
@@ -140,52 +150,107 @@ def _buscar_usuario(db: Session, nombre_usuario: str):
     return db.query(Usuario).filter(func.lower(Usuario.nombre_usuario) == nombre.lower()).first()
 
 
-def _registrar_intento_fallido(db: Session, usuario: Usuario, donde: str) -> HTTPException:
-    """Suma un intento fallido y devuelve el error a mostrar (con los intentos que quedan)."""
-    usuario.intentos_fallidos = (usuario.intentos_fallidos or 0) + 1
-    db.add(LogActividad(
-        id_usuario=usuario.id, accion="LOGIN_FALLIDO", modulo="auth",
-        detalles=f"Contraseña incorrecta para '{usuario.nombre_usuario}' en {donde} (intento #{usuario.intentos_fallidos})",
-    ))
+def _password_correcta(password_plano: str, password_hash: str) -> bool:
+    """Compara la contraseña sin tronar: antes una contraseña muy larga daba error 500."""
+    try:
+        return verify_password((password_plano or "").strip(), password_hash)
+    except Exception:
+        return False
+
+
+def _mensaje_bloqueado(usuario: Usuario) -> str:
+    return (
+        f"Usuario bloqueado por demasiados intentos fallidos. Espera {MINUTOS_BLOQUEO} minutos "
+        "o pide a un administrador que lo desbloquee."
+    )
+
+
+def _desbloquear_si_ya_paso_el_tiempo(db: Session, usuario: Usuario):
+    """Si el último intento fallido fue hace más de MINUTOS_BLOQUEO, reinicia el contador."""
+    if (usuario.intentos_fallidos or 0) < MAX_INTENTOS_FALLIDOS:
+        return
+    ultimo = (
+        db.query(func.max(LogActividad.fecha))
+        .filter(LogActividad.id_usuario == usuario.id, LogActividad.accion == "LOGIN_FALLIDO")
+        .scalar()
+    )
+    if ultimo is None or now_gt_naive() - ultimo >= timedelta(minutes=MINUTOS_BLOQUEO):
+        usuario.intentos_fallidos = 0
+        db.commit()
+
+
+def _reservar_intento(db: Session, usuario: Usuario) -> bool:
+    """
+    Suma el intento ANTES de revisar la contraseña, en una sola instrucción
+    de la base de datos. Antes se leía y luego se sumaba: mandando 20
+    intentos al mismo tiempo solo se contaban 2, así que se podían probar
+    contraseñas sin que se bloqueara nunca. Devuelve False si ya está bloqueado.
+    """
+    filas = (
+        db.query(Usuario)
+        .filter(
+            Usuario.id == usuario.id,
+            func.coalesce(Usuario.intentos_fallidos, 0) < MAX_INTENTOS_FALLIDOS,
+        )
+        .update(
+            {Usuario.intentos_fallidos: func.coalesce(Usuario.intentos_fallidos, 0) + 1},
+            synchronize_session=False,
+        )
+    )
     db.commit()
-    restantes = MAX_INTENTOS_FALLIDOS - usuario.intentos_fallidos
-    if restantes <= 0:
-        return HTTPException(
-            status_code=403,
-            detail="Usuario bloqueado por demasiados intentos fallidos. Contacta al administrador para desbloquearlo.",
-        )
-    if restantes <= 3:
-        return HTTPException(
-            status_code=401,
-            detail=f"Usuario o contraseña incorrectos. Te queda{'n' if restantes > 1 else ''} {restantes} intento{'s' if restantes > 1 else ''} antes de que se bloquee el usuario.",
-        )
-    return HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+    db.refresh(usuario)
+    return filas == 1
 
 
-@router.post("", response_model=TokenResponse)
-def login(datos: LoginRequest, db: Session = Depends(get_db)):
+def _validar_credenciales(db: Session, datos: LoginRequest, donde: str) -> Usuario:
+    """Revisa usuario y contraseña (login y autorizaciones de administrador)."""
     usuario = _buscar_usuario(db, datos.nombre_usuario)
-
-
-    credenciales_invalidas = HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
-
     if not usuario:
-        raise credenciales_invalidas
+        _password_correcta(datos.password, _HASH_RELLENO)  # mismo tiempo de respuesta
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
 
     if usuario.activo == 0:
         raise HTTPException(status_code=403, detail="Este usuario está inactivo. Contacta al administrador.")
 
-    if (usuario.intentos_fallidos or 0) >= MAX_INTENTOS_FALLIDOS:
-        raise HTTPException(
-            status_code=403,
-            detail="Usuario bloqueado por demasiados intentos fallidos. Contacta al administrador para desbloquearlo.",
-        )
+    _desbloquear_si_ya_paso_el_tiempo(db, usuario)
+    if not _reservar_intento(db, usuario):
+        raise HTTPException(status_code=403, detail=_mensaje_bloqueado(usuario))
 
-    if not verify_password(datos.password, usuario.password):
-        raise _registrar_intento_fallido(db, usuario, "el inicio de sesión")
+    if not _password_correcta(datos.password, usuario.password):
+        db.add(LogActividad(
+            id_usuario=usuario.id, accion="LOGIN_FALLIDO", modulo="auth", fecha=now_gt_naive(),
+            detalles=f"Contraseña incorrecta para '{usuario.nombre_usuario}' en {donde} (intento #{usuario.intentos_fallidos})",
+        ))
+        db.commit()
+        restantes = MAX_INTENTOS_FALLIDOS - (usuario.intentos_fallidos or 0)
+        if restantes <= 0:
+            raise HTTPException(status_code=403, detail=_mensaje_bloqueado(usuario))
+        if restantes <= 3:
+            raise HTTPException(
+                status_code=401,
+                detail=f"Usuario o contraseña incorrectos. Te queda{'n' if restantes > 1 else ''} {restantes} intento{'s' if restantes > 1 else ''} antes de que se bloquee el usuario.",
+            )
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+
+    usuario.intentos_fallidos = 0
+    return usuario
+
+
+def _token_de(usuario: Usuario) -> str:
+    return create_access_token(data={
+        "sub": str(usuario.id),
+        "nombre_usuario": usuario.nombre_usuario,
+        # Si le cambian la contraseña, este dato ya no coincide y las sesiones
+        # abiertas con la contraseña anterior se cierran.
+        "pv": huella_password(usuario.password),
+    })
+
+
+@router.post("", response_model=TokenResponse)
+def login(datos: LoginRequest, db: Session = Depends(get_db)):
+    usuario = _validar_credenciales(db, datos, "el inicio de sesión")
 
     # Login correcto
-    usuario.intentos_fallidos = 0
     usuario.fecha_ultimo_acceso = now_gt_naive()
     db.add(LogActividad(
         id_usuario=usuario.id, accion="LOGIN", modulo="auth",
@@ -196,10 +261,8 @@ def login(datos: LoginRequest, db: Session = Depends(get_db)):
     # Borra la bitácora vieja según Configuración (máximo una vez al día)
     limpiar_bitacora_antigua(db, id_usuario=usuario.id)
 
-    token = create_access_token(data={"sub": str(usuario.id), "nombre_usuario": usuario.nombre_usuario})
-
     return TokenResponse(
-        access_token=token,
+        access_token=_token_de(usuario),
         usuario_id=usuario.id,
         nombre_usuario=usuario.nombre_usuario,
         rol=usuario.rol.nombre if usuario.rol else None,
@@ -219,11 +282,8 @@ def renovar_token(usuario_actual: Usuario = Depends(get_current_user), db: Sessi
     en bitácora porque no es una acción del usuario, es mantenimiento
     de sesión.
     """
-    token = create_access_token(
-        data={"sub": str(usuario_actual.id), "nombre_usuario": usuario_actual.nombre_usuario}
-    )
     return TokenResponse(
-        access_token=token,
+        access_token=_token_de(usuario_actual),
         usuario_id=usuario_actual.id,
         nombre_usuario=usuario_actual.nombre_usuario,
         rol=usuario_actual.rol.nombre if usuario_actual.rol else None,
@@ -242,21 +302,15 @@ def _es_admin(usuario: Usuario) -> bool:
 @router.post("/verificar-admin", response_model=VerificarAdminResponse)
 def verificar_admin(datos: LoginRequest, db: Session = Depends(get_db)):
     """Verifica credenciales de un usuario y confirma que sea Administrador o Dueña.
-    NO genera token; solo valida. Se usa para autorizar acciones sensibles (ej. eliminar)."""
-    # Antes aquí se podía probar contraseñas sin límite; ahora cuenta los
-    # intentos fallidos igual que el inicio de sesión.
-    usuario = _buscar_usuario(db, datos.nombre_usuario)
-    if not usuario:
-        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
-    if usuario.activo == 0:
-        raise HTTPException(status_code=403, detail="Usuario inactivo")
-    if (usuario.intentos_fallidos or 0) >= MAX_INTENTOS_FALLIDOS:
-        raise HTTPException(status_code=403, detail="Ese usuario está bloqueado por demasiados intentos fallidos")
-    if not verify_password(datos.password, usuario.password):
-        raise _registrar_intento_fallido(db, usuario, "una autorización de administrador")
-    if usuario.intentos_fallidos:
-        usuario.intentos_fallidos = 0
-        db.commit()
+    Devuelve una autorización que dura 2 minutos. El servidor la exige en las
+    acciones delicadas (antes la autorización solo se revisaba en la pantalla y
+    se podía saltar llamando al servidor directamente)."""
+    usuario = _validar_credenciales(db, datos, "una autorización de administrador")
+    db.commit()
     if not _es_admin(usuario):
         raise HTTPException(status_code=403, detail="El usuario no tiene rol de Administrador")
-    return VerificarAdminResponse(autorizado=True, mensaje=f"Autorizado por {usuario.nombre_usuario}")
+    return VerificarAdminResponse(
+        autorizado=True,
+        mensaje=f"Autorizado por {usuario.nombre_usuario}",
+        token_autorizacion=crear_token_autorizacion_admin(usuario),
+    )

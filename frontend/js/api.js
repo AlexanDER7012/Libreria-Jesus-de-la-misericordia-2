@@ -1,5 +1,13 @@
 // api.js
-const API_BASE_URL = window.location.origin;
+// En Render (y abriendo desde uvicorn, puerto 8000) el sistema está en la misma
+// dirección de la página. Con Live Server (puerto 5500) la página la sirve VS Code
+// y el sistema sigue en uvicorn, así que ahí se usa http://localhost:8000.
+// (Antes estaba fijo en una de las dos y la otra forma dejaba de funcionar.)
+const PUERTOS_LIVE_SERVER = ["5500", "5501", "3000"];
+const API_BASE_URL =
+  window.location.protocol === "file:" || PUERTOS_LIVE_SERVER.includes(window.location.port)
+    ? "http://localhost:8000"
+    : window.location.origin;
 
 class ApiClient {
   constructor() {
@@ -23,6 +31,12 @@ class ApiClient {
     this.token = localStorage.getItem("token") || this.token;
     if (requiresAuth && this.token) {
       headers["Authorization"] = `Bearer ${this.token}`;
+    }
+    // Autorización de administrador (ver verificarAdmin): se manda solo en la
+    // siguiente acción que cambia datos y luego se descarta.
+    if (this._autorizacionAdmin && method !== "GET") {
+      headers["X-Autorizacion-Admin"] = this._autorizacionAdmin;
+      this._autorizacionAdmin = null;
     }
 
     const config = { method, headers };
@@ -64,7 +78,22 @@ class ApiClient {
         return null;
       }
 
-      const responseData = await response.json();
+      // Si el servidor falla (error 500) responde con texto, no con JSON.
+      // Antes eso salía como "Unexpected token 'I'... is not valid JSON".
+      const textoRespuesta = await response.text();
+      let responseData = {};
+      try {
+        responseData = textoRespuesta ? JSON.parse(textoRespuesta) : {};
+      } catch (e) {
+        if (!response.ok) {
+          throw new Error(
+            response.status >= 500
+              ? "Ocurrió un error en el servidor. Revisa la consola donde corre el sistema (uvicorn) para ver el detalle."
+              : `Error en la petición (${response.status})`,
+          );
+        }
+        throw new Error("El servidor respondió algo inesperado");
+      }
 
       if (!response.ok) {
         let mensaje = "Error en la petición";
@@ -98,12 +127,31 @@ class ApiClient {
       body: JSON.stringify({ nombre_usuario, password }),
     });
 
+    // Si la página se abrió con Live Server (puerto 5500) u otro programa, ahí
+    // no está el sistema y antes salía "Usuario o contraseña incorrectos".
+    if (response.status === 404 || response.status === 405) {
+      throw new Error(
+        "No se encontró el servidor del sistema. Revisa que uvicorn esté corriendo y abre http://localhost:8000/login.html.",
+      );
+    }
+    // Antes, si el servidor fallaba, salía "Unexpected token 'I'... is not valid JSON"
+    const texto = await response.text();
+    let data = {};
+    try {
+      data = texto ? JSON.parse(texto) : {};
+    } catch (e) {
+      throw new Error(
+        response.status >= 500
+          ? "Ocurrió un error en el servidor. Intenta de nuevo en un momento."
+          : "No se pudo iniciar sesión. Intenta de nuevo.",
+      );
+    }
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || "Credenciales incorrectas");
+      throw new Error(
+        typeof data.detail === "string" ? data.detail : "Usuario o contraseña incorrectos",
+      );
     }
 
-    const data = await response.json();
     this.token = data.access_token;
     localStorage.setItem("token", data.access_token);
     // "id" = id del usuario (el resto del sistema usa getCurrentUser().id)
@@ -429,12 +477,15 @@ class ApiClient {
   }
 
   async verificarAdmin(nombre_usuario, password) {
-    return this.request(
+    const r = await this.request(
       "/login/verificar-admin",
       "POST",
       { nombre_usuario, password },
       false,
     );
+    // El servidor exige esta autorización en la acción que sigue
+    this._autorizacionAdmin = (r && r.token_autorizacion) || null;
+    return r;
   }
 }
 

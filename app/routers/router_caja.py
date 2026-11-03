@@ -5,10 +5,11 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user, requiere_permiso, requiere_permiso_alguno
+from app.security import get_current_user, requiere_permiso, requiere_permiso_alguno, requiere_autorizacion_admin
 from app.bitacora import registrar_actividad
 from app.catalogos import validar_nombre_unico
 from app.models.model_usuario import Usuario
+from app.models.model_ubicacion import Ubicacion
 from app.models.model_caja import (
     CajaTurno, CajaDenominacion, CajaChicaMovimiento, Gasto, TipoGasto, TipoPago,
 )
@@ -51,7 +52,7 @@ def listar_turnos(
     usuario_actual=Depends(get_current_user),
 ):
     """Filtra por fecha_desde/fecha_hasta (sobre fecha_apertura). Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
-    query = db.query(CajaTurno).order_by(CajaTurno.fecha_apertura.desc())
+    query = db.query(CajaTurno).order_by(CajaTurno.id.desc())
     if estado is not None:
         query = query.filter(CajaTurno.estado == estado)
     if id_usuario is not None:
@@ -192,7 +193,7 @@ def listar_movimientos_caja_chica(
     Filtra por ubicación, tipo (ingreso/egreso), texto (concepto, referencia
     u observaciones) y fechas. Paginado: ?skip=0&limit=50 (default), máximo 200.
     """
-    query = db.query(CajaChicaMovimiento).order_by(CajaChicaMovimiento.fecha.desc(), CajaChicaMovimiento.id.desc())
+    query = db.query(CajaChicaMovimiento).order_by(CajaChicaMovimiento.id.desc())
     if id_ubicacion is not None:
         query = query.filter(CajaChicaMovimiento.id_ubicacion == id_ubicacion)
     if tipo:
@@ -229,10 +230,13 @@ def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Sessio
     ultimo = (
         db.query(CajaChicaMovimiento)
         .filter(CajaChicaMovimiento.id_ubicacion == datos.id_ubicacion)
-        .order_by(CajaChicaMovimiento.fecha.desc(), CajaChicaMovimiento.id.desc())
+        .order_by(CajaChicaMovimiento.id.desc())  # el último registrado (no depende de la hora)
         .first()
     )
     saldo_anterior = float(ultimo.saldo) if ultimo else 0.0
+    if not db.query(Ubicacion).filter(Ubicacion.id == datos.id_ubicacion).first():
+        raise HTTPException(status_code=400, detail="La ubicación elegida no existe")
+    datos.concepto = " ".join((datos.concepto or "").split()) or None
 
     # Se acepta "Ingreso"/"Egreso" y un egreso mandado en negativo (pantalla vieja de caja)
     datos.tipo = (datos.tipo or "").strip().lower()
@@ -280,7 +284,7 @@ def listar_gastos(
     usuario_actual=Depends(get_current_user),
 ):
     """buscar: coincidencia en el concepto u observaciones del gasto. Filtra por fecha_desde/fecha_hasta. Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
-    query = db.query(Gasto).order_by(Gasto.fecha.desc(), Gasto.id.desc())
+    query = db.query(Gasto).order_by(Gasto.id.desc())
     if id_ubicacion is not None:
         query = query.filter(Gasto.id_ubicacion == id_ubicacion)
     if id_tipo_gasto is not None:
@@ -310,6 +314,18 @@ def obtener_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual=D
 def registrar_gasto(datos: GastoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Crear"), ("Caja", "Crear")]))):
     if float(datos.monto or 0) <= 0:
         raise HTTPException(status_code=400, detail="El monto del gasto debe ser mayor a Q0.00")
+    datos.concepto = " ".join((datos.concepto or "").split())
+    if not datos.concepto:
+        raise HTTPException(status_code=400, detail="Escribe el concepto del gasto")
+    tipo = db.query(TipoGasto).filter(TipoGasto.id == datos.id_tipo_gasto).first()
+    if not tipo:
+        raise HTTPException(status_code=400, detail="El tipo de gasto elegido no existe")
+    if tipo.activo == 0:
+        raise HTTPException(status_code=400, detail=f"El tipo de gasto '{tipo.nombre}' está inactivo")
+    if datos.id_ubicacion and not db.query(Ubicacion).filter(Ubicacion.id == datos.id_ubicacion).first():
+        raise HTTPException(status_code=400, detail="La ubicación elegida no existe")
+    if not datos.id_usuario_registra:
+        datos.id_usuario_registra = usuario_actual.id
     nuevo = Gasto(**datos.model_dump())
     db.add(nuevo)
     registrar_actividad(
@@ -371,7 +387,7 @@ def crear_tipo_pago(datos: TipoPagoCreate, db: Session = Depends(get_db), usuari
 # ===================================================================
 
 @router_gasto.delete("/{gasto_id}", status_code=204)
-def eliminar_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Eliminar"), ("Caja", "Eliminar")]))):
+def eliminar_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Eliminar"), ("Caja", "Eliminar")])), _autorizacion=Depends(requiere_autorizacion_admin)):
     if not _es_admin(usuario_actual):
         raise HTTPException(status_code=403, detail="Solo Administrador o Dueña pueden eliminar gastos")
     gasto = db.query(Gasto).filter(Gasto.id == gasto_id).first()
@@ -388,7 +404,7 @@ def eliminar_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual:
 # ===================================================================
 
 @router_caja_chica.delete("/{movimiento_id}", status_code=204)
-def eliminar_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Eliminar"), ("Caja", "Eliminar")]))):
+def eliminar_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Eliminar"), ("Caja", "Eliminar")])), _autorizacion=Depends(requiere_autorizacion_admin)):
     if not _es_admin(usuario_actual):
         raise HTTPException(status_code=403, detail="Solo Administrador o Dueña pueden eliminar movimientos")
     mov = db.query(CajaChicaMovimiento).filter(CajaChicaMovimiento.id == movimiento_id).first()
@@ -405,7 +421,7 @@ def eliminar_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get
     movimientos = (
         db.query(CajaChicaMovimiento)
         .filter(CajaChicaMovimiento.id_ubicacion == id_ubicacion)
-        .order_by(CajaChicaMovimiento.fecha.asc(), CajaChicaMovimiento.id.asc())
+        .order_by(CajaChicaMovimiento.id.asc())
         .all()
     )
     for m in movimientos:

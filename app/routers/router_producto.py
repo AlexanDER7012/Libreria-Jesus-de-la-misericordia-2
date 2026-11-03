@@ -194,7 +194,7 @@ def historico_precios_de_producto(
     return (
         db.query(HistoricoPrecio)
         .filter(HistoricoPrecio.id_producto == producto_id)
-        .order_by(HistoricoPrecio.fecha_cambio.desc())
+        .order_by(HistoricoPrecio.id.desc())
         .all()
     )
 

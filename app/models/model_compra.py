@@ -1,3 +1,4 @@
+from app.timezone import now_gt_naive
 from sqlalchemy import Column, Integer, String, Text, DateTime, Date, DECIMAL, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -12,7 +13,7 @@ class Compra(Base):
     id_ubicacion_destino = Column(Integer, ForeignKey("ubicacion.id"))  # sucursal que recibe
     id_pedido = Column(Integer, ForeignKey("pedido.id"), nullable=True)
     numero_factura = Column(String(50))
-    fecha = Column(DateTime, server_default=func.now())
+    fecha = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     subtotal = Column(DECIMAL(12, 2))
     iva = Column(DECIMAL(12, 2))
     total = Column(DECIMAL(12, 2))
@@ -52,7 +53,7 @@ class CompraPago(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_compra = Column(Integer, ForeignKey("compra.id"), nullable=False)
     id_tipo_pago = Column(Integer, ForeignKey("tipo_pago.id"))
-    fecha_pago = Column(DateTime, server_default=func.now())
+    fecha_pago = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     monto = Column(DECIMAL(12, 2))
     referencia = Column(String(100))
     observaciones = Column(Text)
@@ -67,7 +68,7 @@ class NotaEntrega(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_compra = Column(Integer, ForeignKey("compra.id"), nullable=False)
     numero_nota = Column(String(50))
-    fecha_recepcion = Column(DateTime, server_default=func.now())
+    fecha_recepcion = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     id_usuario_receptor = Column(Integer, ForeignKey("usuario.id"))
     conforme = Column(Integer)
     observaciones = Column(Text)  
@@ -82,9 +83,9 @@ class DevolucionCompra(Base):
     id_compra = Column(Integer, ForeignKey("compra.id"))
     id_proveedor = Column(Integer, ForeignKey("proveedor.id"))
     id_usuario = Column(Integer, ForeignKey("usuario.id"))
-    fecha = Column(DateTime, server_default=func.now())
+    fecha = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     motivo = Column(Text)
     observaciones = Column(Text)
 
     compra = relationship("Compra")
-    proveedor = relationship("Proveedor")
+    proveedor = relationship("Proveedor")
