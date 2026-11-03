@@ -8,11 +8,14 @@ let turnosData = [];
 let modulosData = [];
 let permisosData = [];
 let rolPermisosData = [];
-// Paginación (server-side) de las tablas de Empleados y Pagos
+// Paginación de las tablas de Empleados y del historial individual de pagos
 let skipEmpleadosTabla = 0;
 const LIMITE_EMPLEADOS_TABLA = 10;
 let skipPagos = 0;
 const LIMITE_PAGOS = 10;
+let paginaEmpleadosPagos = 1;
+const LIMITE_EMPLEADOS_PAGOS = 10;
+let empleadoHistorialActual = null;
 
 // ============================================================
 // CARGA DEL MÓDULO
@@ -112,8 +115,17 @@ async function loadUsuariosModule() {
                   placeholder: "Buscar por empleado, concepto, periodo o referencia...",
                   selects: [{ id: "Empleado", label: "Todos los empleados", opciones: [] }],
                   fechas: true,
-                  onChange: "skipPagos=0;cargarPagosTabla()",
+                  onChange: "paginaEmpleadosPagos=1;cargarPagosTabla()",
                 })}
+                <div id="pagosMetricas" class="row g-3 mb-3"></div>
+                <div class="d-flex flex-wrap justify-content-end gap-2 mb-3">
+                    <button class="btn btn-outline-success btn-sm" onclick="exportarPagosEmpleadosExcel()">
+                        <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="exportarPagosEmpleadosPDF()">
+                        <i class="fas fa-file-pdf me-1"></i>PDF
+                    </button>
+                </div>
                 <div id="pagosContainer"><div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando pagos...</p></div></div>
             </div>
             <div class="tab-pane fade" id="catalogosTab">
@@ -131,6 +143,21 @@ async function loadUsuariosModule() {
 // ============================================================
 // CARGAR DATOS
 // ============================================================
+async function obtenerTodosLosEmpleados() {
+  const todos = [];
+  const limite = 200;
+  for (let skip = 0; ; skip += limite) {
+    const pagina = await api.request(
+      `/empleados?estado=todos&skip=${skip}&limit=${limite}`,
+    );
+    if (!Array.isArray(pagina)) {
+      throw new Error("La respuesta de empleados no es válida");
+    }
+    todos.push(...pagina);
+    if (pagina.length < limite) return todos;
+  }
+}
+
 async function cargarDatos() {
   try {
     const [
@@ -141,7 +168,7 @@ async function cargarDatos() {
       turnos,
     ] = await Promise.all([
       api.getUsuarios().catch(() => []),
-      api.request("/empleados?estado=todos").catch(() => []),
+      obtenerTodosLosEmpleados(),
       api.getRoles().catch(() => []),
       api.getPuestos().catch(() => []),
       api.getTurnos().catch(() => []),
@@ -537,76 +564,301 @@ async function quitarUsuarioDeRol(idUsuario) {
 }
 
 // ============================================================
-// RENDER: PAGOS DE EMPLEADOS
+// EMPLEADOS Y PAGOS
 // ============================================================
-function renderPagos(pagos) {
+function renderMetricasPagos(resumen) {
+  const container = document.getElementById("pagosMetricas");
+  if (!container) return;
+  const metricas = [
+    {
+      label: "Total pagado en el filtro",
+      valor: `Q${Number(resumen.total_pagado || 0).toFixed(2)}`,
+      icono: "fa-money-bill-wave",
+      clase: "text-success",
+    },
+    {
+      label: "Pagos registrados",
+      valor: Number(resumen.total_pagos || 0).toLocaleString("es-GT"),
+      icono: "fa-receipt",
+      clase: "text-primary",
+    },
+    {
+      label: "Empleados con pagos",
+      valor: Number(resumen.empleados_pagados || 0).toLocaleString("es-GT"),
+      icono: "fa-user-check",
+      clase: "text-info",
+    },
+  ];
+  container.innerHTML = metricas
+    .map(
+      (m) => `<div class="col-md-4">
+        <div class="card h-100">
+          <div class="card-body d-flex align-items-center gap-3">
+            <i class="fas ${m.icono} ${m.clase} fa-lg" aria-hidden="true"></i>
+            <div><small class="text-muted d-block">${m.label}</small><strong class="${m.clase} fs-5">${m.valor}</strong></div>
+          </div>
+        </div>
+      </div>`,
+    )
+    .join("");
+}
+
+function renderPagos(empleados, resumen) {
   const container = document.getElementById("pagosContainer");
   if (!container) return;
+  renderMetricasPagos(resumen);
 
-  if (!pagos || pagos.length === 0) {
+  if (!empleados || empleados.length === 0) {
     container.innerHTML = `
-            <div class="text-center py-4 text-muted">
-                <i class="fas fa-money-bill-wave fa-3x mb-3"></i>
-                <p>${Object.values(leerBarraFiltros("pagosEmpF")).some((v) => v) || skipPagos > 0 ? "No hay pagos que coincidan con el filtro" : "No hay pagos registrados"}</p>
-                ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-success btn-sm" onclick="showCreatePagoEmpleadoModal()">
-                    <i class="fas fa-plus me-2"></i>Registrar Pago
-                </button>` : ""}
-            </div>
-        `;
+      <div class="text-center py-4 text-muted">
+        <i class="fas fa-user-tie fa-3x mb-3"></i>
+        <p>No hay empleados que coincidan con los filtros</p>
+      </div>`;
     return;
   }
 
-  let html = `
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6 class="mb-0">Historial de Pagos</h6>
-            ${tienePermiso("Usuarios", "Crear") ? `<button class="btn btn-success btn-sm" onclick="showCreatePagoEmpleadoModal()">
-                <i class="fas fa-plus me-2"></i>Nuevo Pago
-            </button>` : ""}
-        </div>
-        <div class="table-responsive">
-            <table class="table table-hover table-striped">
-                <thead class="table-light">
-                    <tr>
-                        <th>ID</th>
-                        <th>Empleado</th>
-                        <th>Concepto</th>
-                        <th>Monto</th>
-                        <th>Periodo</th>
-                        <th>Referencia</th>
-                        <th>Fecha Pago</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
+  const porEmpleado = new Map(
+    (resumen.por_empleado || []).map((p) => [String(p.id_empleado), p]),
+  );
+  const totalPaginas = Math.max(
+    1,
+    Math.ceil(empleados.length / LIMITE_EMPLEADOS_PAGOS),
+  );
+  paginaEmpleadosPagos = Math.min(Math.max(1, paginaEmpleadosPagos), totalPaginas);
+  const desde = (paginaEmpleadosPagos - 1) * LIMITE_EMPLEADOS_PAGOS;
+  const empleadosPagina = empleados.slice(desde, desde + LIMITE_EMPLEADOS_PAGOS);
+  const puedeCrear = tienePermiso("Usuarios", "Crear");
 
-  pagos.forEach((p) => {
-    const empleado = empleadosData.find((e) => e.id === p.id_empleado);
+  let html = `
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <h6 class="mb-0">Pagos por empleado</h6>
+      <small class="text-muted">Selecciona un empleado para consultar su historial de pagos.</small>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-striped align-middle">
+        <thead class="table-light">
+          <tr><th>Empleado</th><th>Puesto</th><th>Estado</th><th class="text-end">Pagos en filtro</th><th class="text-end">Total pagado</th><th>Último pago</th><th>Acciones</th></tr>
+        </thead>
+        <tbody>`;
+
+  empleadosPagina.forEach((empleado) => {
+    const pago = porEmpleado.get(String(empleado.id)) || {
+      cantidad_pagos: 0,
+      total_pagado: 0,
+    };
+    const puesto = puestosData.find((p) => p.id === empleado.id_puesto);
+    const activo = Number(empleado.activo) !== 0;
     html += `
-            <tr>
-                <td>${p.id}</td>
-                <td><strong>${empleado ? empleado.nombre : "--"}</strong></td>
-                <td>${p.concepto || "--"}</td>
-                <td class="fw-bold text-success">Q${(p.monto || 0).toFixed(2)}</td>
-                <td>${p.periodo || "--"}</td>
-                <td>${p.referencia || "--"}</td>
-                <td>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleString() : "--"}</td>
-            </tr>
-        `;
+      <tr>
+        <td><button class="btn btn-link btn-sm p-0 text-start" onclick="verHistorialPagosEmpleado(${empleado.id})">${escaparHtmlUsuarios(empleado.nombre || `Empleado ${empleado.id}`)}</button></td>
+        <td>${escaparHtmlUsuarios(puesto?.nombre || "--")}</td>
+        <td><span class="badge ${activo ? "bg-success" : "bg-secondary"}">${activo ? "Activo" : "Inactivo"}</span></td>
+        <td class="text-end">${Number(pago.cantidad_pagos || 0)}</td>
+        <td class="text-end fw-bold text-success">Q${Number(pago.total_pagado || 0).toFixed(2)}</td>
+        <td>${pago.fecha_ultimo_pago ? new Date(pago.fecha_ultimo_pago).toLocaleString("es-GT") : "--"}</td>
+        <td class="text-nowrap">
+          <button class="btn btn-sm btn-outline-primary" onclick="verHistorialPagosEmpleado(${empleado.id})" title="Ver historial de pagos" aria-label="Ver historial de pagos">
+            <i class="fas fa-clock-rotate-left"></i>
+          </button>
+          ${puedeCrear && activo ? `<button class="btn btn-sm btn-outline-success" onclick="showCreatePagoEmpleadoModal(${empleado.id})" title="Registrar pago por periodo" aria-label="Registrar pago por periodo">
+            <i class="fas fa-money-bill-wave"></i>
+          </button>` : ""}
+        </td>
+      </tr>`;
   });
 
   html += `
-                </tbody>
-            </table>
-        </div>
-        <div class="text-end"><small class="text-muted">Total: ${pagos.length} pagos</small></div>
-    `;
-
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-2">
+      <button class="btn btn-sm btn-outline-secondary" onclick="cambiarPaginaEmpleadosPagos(-1)" ${paginaEmpleadosPagos <= 1 ? "disabled" : ""}>
+        <i class="fas fa-chevron-left me-1"></i>Anterior
+      </button>
+      <small class="text-muted">Mostrando ${desde + 1}–${desde + empleadosPagina.length} de ${empleados.length} empleados · Página ${paginaEmpleadosPagos} de ${totalPaginas}</small>
+      <button class="btn btn-sm btn-outline-secondary" onclick="cambiarPaginaEmpleadosPagos(1)" ${paginaEmpleadosPagos >= totalPaginas ? "disabled" : ""}>
+        Siguiente<i class="fas fa-chevron-right ms-1"></i>
+      </button>
+    </div>`;
   container.innerHTML = html;
 }
 
+function cambiarPaginaEmpleadosPagos(delta) {
+  paginaEmpleadosPagos += delta;
+  cargarPagosTabla();
+}
+
 // ============================================================
-// PAGINACIÓN (server-side) DE EMPLEADOS Y PAGOS
+// HISTORIAL DE PAGOS POR EMPLEADO
 // ============================================================
+async function verHistorialPagosEmpleado(idEmpleado, skip = 0) {
+  const empleado = empleadosData.find((e) => String(e.id) === String(idEmpleado));
+  if (!empleado) {
+    showToast("No se encontró el empleado", "error");
+    return;
+  }
+  empleadoHistorialActual = empleado;
+  skipPagos = skip;
+  try {
+    const [pagos, resumen] = await Promise.all([
+      api.request(`/pagos-empleado?id_empleado=${empleado.id}&skip=${skipPagos}&limit=${LIMITE_PAGOS}`),
+      api.request(`/pagos-empleado/resumen?id_empleado=${empleado.id}`),
+    ]);
+    let modal = document.getElementById("historialPagosEmpleadoModal");
+    if (!modal) {
+      document.body.insertAdjacentHTML(
+        "beforeend",
+        `<div class="modal fade" id="historialPagosEmpleadoModal" tabindex="-1" aria-labelledby="historialPagosEmpleadoTitulo" aria-hidden="true">
+          <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="historialPagosEmpleadoTitulo">Historial de pagos</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" id="historialPagosEmpleadoBody"></div>
+          </div></div>
+        </div>`,
+      );
+      modal = document.getElementById("historialPagosEmpleadoModal");
+    }
+
+    document.getElementById("historialPagosEmpleadoTitulo").textContent =
+      `Historial de pagos · ${empleado.nombre || `Empleado ${empleado.id}`}`;
+    const filas = (pagos || [])
+      .map(
+        (p) => `<tr>
+          <td>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleString("es-GT") : "--"}</td>
+          <td>${escaparHtmlUsuarios(p.concepto || "--")}</td>
+          <td class="text-end fw-bold text-success">Q${Number(p.monto || 0).toFixed(2)}</td>
+          <td>${escaparHtmlUsuarios(p.periodo || "--")}</td>
+          <td>${escaparHtmlUsuarios(p.referencia || "--")}</td>
+        </tr>`,
+      )
+      .join("");
+    const totalPaginas = Math.max(1, Math.ceil(resumen.total_pagos / LIMITE_PAGOS));
+    const pagina = Math.floor(skipPagos / LIMITE_PAGOS) + 1;
+    document.getElementById("historialPagosEmpleadoBody").innerHTML = `
+      <div class="alert alert-light border d-flex flex-wrap justify-content-between gap-2">
+        <span>${Number(resumen.total_pagos || 0)} pagos registrados</span>
+        <strong>Total histórico: Q${Number(resumen.total_pagado || 0).toFixed(2)}</strong>
+      </div>
+      ${tienePermiso("Usuarios", "Crear") && Number(empleado.activo) !== 0 ? `<div class="text-end mb-3">
+        <button class="btn btn-success btn-sm" onclick="showCreatePagoEmpleadoModal(${empleado.id})">
+          <i class="fas fa-plus me-1"></i>Registrar pago
+        </button>
+      </div>` : ""}
+      ${filas
+        ? `<div class="table-responsive"><table class="table table-hover table-striped align-middle">
+          <thead class="table-light"><tr><th>Fecha de pago</th><th>Concepto</th><th class="text-end">Monto</th><th>Periodo</th><th>Referencia</th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table></div>`
+        : `<p class="text-center text-muted py-4">Este empleado aún no tiene pagos registrados.</p>`}
+      <div class="d-flex justify-content-between align-items-center">
+        <button class="btn btn-sm btn-outline-secondary" onclick="verHistorialPagosEmpleado(${empleado.id},${Math.max(0, skipPagos - LIMITE_PAGOS)})" ${skipPagos === 0 ? "disabled" : ""}>
+          <i class="fas fa-chevron-left me-1"></i>Anterior
+        </button>
+        <small class="text-muted">Página ${pagina} de ${totalPaginas}</small>
+        <button class="btn btn-sm btn-outline-secondary" onclick="verHistorialPagosEmpleado(${empleado.id},${skipPagos + LIMITE_PAGOS})" ${pagina >= totalPaginas ? "disabled" : ""}>
+          Siguiente<i class="fas fa-chevron-right ms-1"></i>
+        </button>
+      </div>`;
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+  } catch (error) {
+    showToast(error.message || "No se pudo cargar el historial de pagos", "error");
+  }
+}
+
+// ============================================================
+// EXPORTAR PAGOS (todas las páginas según los filtros actuales)
+// ============================================================
+function urlFiltrosPagosEmpleado(f, skip = 0, limit = 200) {
+  let url = `/pagos-empleado?skip=${skip}&limit=${limit}`;
+  if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
+  if (f.Empleado) url += `&id_empleado=${f.Empleado}`;
+  if (f.desde) url += `&fecha_desde=${f.desde}`;
+  if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
+  return url;
+}
+
+async function obtenerPagosFiltradosParaExportar() {
+  const f = leerBarraFiltros("pagosEmpF");
+  if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return [];
+  const todos = [];
+  const limite = 200;
+  for (let skip = 0; ; skip += limite) {
+    const pagina = await api.request(urlFiltrosPagosEmpleado(f, skip, limite));
+    if (!Array.isArray(pagina)) {
+      throw new Error("La respuesta de pagos no es válida");
+    }
+    todos.push(...pagina);
+    if (pagina.length < limite) return todos;
+  }
+}
+
+function filasExportacionPagos(pagos) {
+  return pagos.map((p) => {
+    const empleado = empleadosData.find((e) => String(e.id) === String(p.id_empleado));
+    return {
+      Empleado: empleado?.nombre || `Empleado ${p.id_empleado}`,
+      Concepto: p.concepto || "--",
+      Monto: Number(p.monto || 0),
+      Periodo: p.periodo || "--",
+      Referencia: p.referencia || "--",
+      "Fecha de pago": p.fecha_pago ? new Date(p.fecha_pago).toLocaleString("es-GT") : "--",
+    };
+  });
+}
+
+async function exportarPagosEmpleadosExcel() {
+  try {
+    const pagos = await obtenerPagosFiltradosParaExportar();
+    if (!pagos.length) {
+      showToast("No hay pagos para exportar con estos filtros", "warning");
+      return;
+    }
+    if (!window.XLSX?.utils) throw new Error("La exportación a Excel no está disponible");
+    const workbook = XLSX.utils.book_new();
+    const hoja = XLSX.utils.json_to_sheet(filasExportacionPagos(pagos));
+    XLSX.utils.book_append_sheet(workbook, hoja, "Pagos empleados");
+    XLSX.writeFile(workbook, `Pagos_Empleados_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    showToast("Pagos exportados a Excel", "success");
+  } catch (error) {
+    showToast(error.message || "No se pudieron exportar los pagos a Excel", "error");
+  }
+}
+
+async function exportarPagosEmpleadosPDF() {
+  let contenedor;
+  try {
+    const pagos = await obtenerPagosFiltradosParaExportar();
+    if (!pagos.length) {
+      showToast("No hay pagos para exportar con estos filtros", "warning");
+      return;
+    }
+    if (typeof window.exportarPDF !== "function") {
+      throw new Error("La exportación a PDF no está disponible");
+    }
+    const filas = filasExportacionPagos(pagos);
+    contenedor = document.createElement("div");
+    contenedor.id = "pagosEmpleadoExportTemporal";
+    contenedor.style.cssText = "position:fixed;left:-10000px;top:0;width:1200px";
+    contenedor.innerHTML = `<table><thead><tr>${Object.keys(filas[0]).map((campo) => `<th>${escaparHtmlUsuarios(campo)}</th>`).join("")}</tr></thead><tbody>${filas.map((fila) => `<tr>${Object.values(fila).map((valor) => `<td>${escaparHtmlUsuarios(valor)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    document.body.appendChild(contenedor);
+    await window.exportarPDF(contenedor.id, "Pagos_Empleados");
+  } catch (error) {
+    showToast(error.message || "No se pudieron exportar los pagos a PDF", "error");
+  } finally {
+    contenedor?.remove();
+  }
+}
+
+// ============================================================
+// CARGAR EMPLEADOS Y MÉTRICAS DE PAGOS
+// ============================================================
+function cambiarPaginaEmpleados(skipDelta) {
+  skipEmpleadosTabla = Math.max(0, skipEmpleadosTabla + skipDelta);
+  cargarEmpleadosTabla();
+}
+
 function _agregarControlesPaginacion(containerId, onAnterior, onSiguiente, skipActual) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -664,20 +916,35 @@ async function cargarPagosTabla() {
     (empleadosData || []).map((e) => [e.id, e.nombre || `Empleado ${e.id}`]),
   );
   try {
-    let url = `/pagos-empleado?skip=${skipPagos}&limit=${LIMITE_PAGOS}`;
-    if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
-    if (f.Empleado) url += `&id_empleado=${f.Empleado}`;
-    if (f.desde) url += `&fecha_desde=${f.desde}`;
-    if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
-    const pagos = await api.request(url);
-    renderPagos(pagos);
-    _agregarControlesPaginacion(
-      "pagosContainer",
-      `skipPagos=Math.max(0,skipPagos-${LIMITE_PAGOS});cargarPagosTabla()`,
-      `skipPagos+=${LIMITE_PAGOS};cargarPagosTabla()`,
-      skipPagos,
+    let url = `/pagos-empleado/resumen`;
+    const filtros = [];
+    if (f.texto) filtros.push(`buscar=${encodeURIComponent(f.texto)}`);
+    if (f.Empleado) filtros.push(`id_empleado=${f.Empleado}`);
+    if (f.desde) filtros.push(`fecha_desde=${f.desde}`);
+    if (f.hasta) filtros.push(`fecha_hasta=${f.hasta}`);
+    if (filtros.length) url += `?${filtros.join("&")}`;
+    const resumen = await api.request(url);
+    const resumenPorEmpleado = new Set(
+      (resumen.por_empleado || []).map((p) => String(p.id_empleado)),
     );
+    const texto = f.texto || "";
+    const empleadosFiltrados = empleadosData.filter((empleado) => {
+      if (f.Empleado && String(empleado.id) !== String(f.Empleado)) return false;
+      if (
+        texto &&
+        !String(empleado.nombre || "").toLowerCase().includes(texto) &&
+        !resumenPorEmpleado.has(String(empleado.id))
+      ) {
+        return false;
+      }
+      return true;
+    });
+    renderPagos(empleadosFiltrados, resumen);
   } catch (error) {
+    const container = document.getElementById("pagosContainer");
+    if (container) {
+      container.innerHTML = `<div class="alert alert-danger">No se pudieron cargar las métricas de pagos: ${escaparHtmlUsuarios(error.message)}</div>`;
+    }
     showToast(error.message || "Error al cargar pagos", "error");
   }
 }
@@ -1731,11 +1998,11 @@ async function saveModulo(event) {
 // ============================================================
 // PAGOS DE EMPLEADOS - CRUD
 // ============================================================
-function showCreatePagoEmpleadoModal() {
+function showCreatePagoEmpleadoModal(idEmpleado = null) {
   let modal = document.getElementById("pagoEmpleadoModal");
   if (!modal) {
     crearModalPagoEmpleado();
-    setTimeout(() => showCreatePagoEmpleadoModal(), 150);
+    setTimeout(() => showCreatePagoEmpleadoModal(idEmpleado), 150);
     return;
   }
 
@@ -1748,10 +2015,10 @@ function showCreatePagoEmpleadoModal() {
   const idInput = document.getElementById("pagoEmpleadoId");
   if (idInput) idInput.value = "";
 
-  llenarSelectEmpleadoPago();
+  llenarSelectEmpleadoPago(idEmpleado);
 
   try {
-    const modalInstance = new bootstrap.Modal(modal);
+    const modalInstance = bootstrap.Modal.getOrCreateInstance(modal);
     modalInstance.show();
   } catch (error) {
     console.error("Error al mostrar modal:", error);
@@ -1789,6 +2056,10 @@ async function savePagoEmpleado(event) {
     showToast("El concepto es obligatorio", "error");
     return;
   }
+  if (!data.periodo) {
+    showToast("El periodo del pago es obligatorio", "error");
+    return;
+  }
   if (data.monto <= 0) {
     showToast("El monto debe ser mayor a 0", "error");
     return;
@@ -1804,7 +2075,18 @@ async function savePagoEmpleado(event) {
       if (modalInstance) modalInstance.hide();
     }
 
-    await cargarDatos();
+    await cargarPagosTabla();
+    const historialModal = document.getElementById("historialPagosEmpleadoModal");
+    if (
+      empleadoHistorialActual &&
+      String(empleadoHistorialActual.id) === String(data.id_empleado) &&
+      historialModal?.classList.contains("show")
+    ) {
+      await verHistorialPagosEmpleado(
+        empleadoHistorialActual.id,
+        skipPagos,
+      );
+    }
   } catch (error) {
     console.error("Error en savePagoEmpleado:", error);
     showToast(error.message || "Error al registrar pago", "error");
@@ -2361,9 +2643,9 @@ function llenarSelectEmpleadoPago(selectedId) {
   const select = document.getElementById("pagoEmpleadoEmpleado");
   if (!select) return;
   select.innerHTML = '<option value="">Seleccionar empleado</option>';
-  empleadosData.forEach((e) => {
+  empleadosData.filter((e) => Number(e.activo) !== 0).forEach((e) => {
     const sel = e.id === selectedId ? "selected" : "";
-    select.innerHTML += `<option value="${e.id}" ${sel}>${e.nombre}</option>`;
+    select.innerHTML += `<option value="${e.id}" ${sel}>${escaparHtmlUsuarios(e.nombre)}</option>`;
   });
 }
 
@@ -2620,8 +2902,8 @@ function crearModalPagoEmpleado() {
                                 <input type="number" step="0.01" class="form-control" id="pagoEmpleadoMonto" required />
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Periodo</label>
-                                <input type="text" class="form-control" id="pagoEmpleadoPeriodo" placeholder="Ej: Agosto 2024" />
+                                <label class="form-label">Periodo *</label>
+                                <input type="text" class="form-control" id="pagoEmpleadoPeriodo" maxlength="50" placeholder="Ej: 2026-10, Semana 1 (2026) o 15/10/2026" required />
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Referencia</label>
@@ -2672,6 +2954,10 @@ window.saveModulo = saveModulo;
 
 window.showCreatePagoEmpleadoModal = showCreatePagoEmpleadoModal;
 window.savePagoEmpleado = savePagoEmpleado;
+window.verHistorialPagosEmpleado = verHistorialPagosEmpleado;
+window.cambiarPaginaEmpleadosPagos = cambiarPaginaEmpleadosPagos;
+window.exportarPagosEmpleadosExcel = exportarPagosEmpleadosExcel;
+window.exportarPagosEmpleadosPDF = exportarPagosEmpleadosPDF;
 
 window.llenarSelectEmpleado = llenarSelectEmpleado;
 window.llenarSelectRol = llenarSelectRol;

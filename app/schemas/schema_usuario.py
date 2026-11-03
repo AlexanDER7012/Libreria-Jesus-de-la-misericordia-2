@@ -7,7 +7,7 @@ Formas del JSON que entra y sale de la API para el módulo usuario.
 from datetime import date, datetime, time
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.validators import TelefonoValidatorMixin, EmailValidatorMixin, DpiValidatorMixin
 
@@ -194,13 +194,24 @@ class HistoricoPagoEmpleadoCreate(BaseModel):
     id_empleado: int
     concepto: str  # Sueldo, Bonificacion, Comision
     monto: float
-    periodo: Optional[str] = None
+    periodo: str = Field(min_length=1, max_length=50)
     referencia: Optional[str] = None
     observaciones: Optional[str] = None
+
+    @field_validator("periodo")
+    @classmethod
+    def validar_periodo(cls, valor: Optional[str]) -> Optional[str]:
+        if valor is None:
+            return None
+        periodo = valor.strip()
+        if not periodo:
+            raise ValueError("El periodo es obligatorio")
+        return periodo
 
 
 class HistoricoPagoEmpleadoResponse(HistoricoPagoEmpleadoCreate):
     id: int
+    periodo: Optional[str] = None
     fecha_pago: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 

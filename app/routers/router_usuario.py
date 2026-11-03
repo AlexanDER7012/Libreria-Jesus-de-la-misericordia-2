@@ -878,6 +878,34 @@ def crear_permiso(datos: PermisoCreate, db: Session = Depends(get_db), usuario_a
 # HISTORICO_PAGO_EMPLEADO (solo se crea y se lista; no tiene sentido editar/borrar un pago ya hecho)
 # ===================================================================
 
+def _filtrar_pagos_empleado(
+    db: Session,
+    id_empleado: Optional[int],
+    buscar: Optional[str],
+    fecha_desde: Optional[date],
+    fecha_hasta: Optional[date],
+):
+    query = (
+        db.query(HistoricoPagoEmpleado)
+        .join(Empleado, HistoricoPagoEmpleado.id_empleado == Empleado.id)
+    )
+    if id_empleado is not None:
+        query = query.filter(HistoricoPagoEmpleado.id_empleado == id_empleado)
+    if buscar:
+        patron = f"%{buscar.strip()}%"
+        query = query.filter(or_(
+            Empleado.nombre.ilike(patron),
+            HistoricoPagoEmpleado.concepto.ilike(patron),
+            HistoricoPagoEmpleado.periodo.ilike(patron),
+            HistoricoPagoEmpleado.referencia.ilike(patron),
+        ))
+    if fecha_desde is not None:
+        query = query.filter(func.date(HistoricoPagoEmpleado.fecha_pago) >= fecha_desde)
+    if fecha_hasta is not None:
+        query = query.filter(func.date(HistoricoPagoEmpleado.fecha_pago) <= fecha_hasta)
+    return query
+
+
 @router_pago.get("", response_model=List[HistoricoPagoEmpleadoResponse])
 def listar_pagos(
     id_empleado: Optional[int] = None,
@@ -889,23 +917,50 @@ def listar_pagos(
     usuario_actual: Usuario = Depends(get_current_user),
 ):
     """Filtra por fecha_desde/fecha_hasta (sobre fecha_pago). Paginado: ?skip=0&limit=50 (default), máximo 200 por página."""
-    query = db.query(HistoricoPagoEmpleado).order_by(HistoricoPagoEmpleado.fecha_pago.desc())
-    if id_empleado is not None:
-        query = query.filter(HistoricoPagoEmpleado.id_empleado == id_empleado)
-    if buscar:
-        patron = f"%{buscar.strip()}%"
-        ids_empleado = db.query(Empleado.id).filter(Empleado.nombre.ilike(patron))
-        query = query.filter(or_(
-            HistoricoPagoEmpleado.concepto.ilike(patron),
-            HistoricoPagoEmpleado.periodo.ilike(patron),
-            HistoricoPagoEmpleado.referencia.ilike(patron),
-            HistoricoPagoEmpleado.id_empleado.in_(ids_empleado),
-        ))
-    if fecha_desde is not None:
-        query = query.filter(func.date(HistoricoPagoEmpleado.fecha_pago) >= fecha_desde)
-    if fecha_hasta is not None:
-        query = query.filter(func.date(HistoricoPagoEmpleado.fecha_pago) <= fecha_hasta)
-    return query.offset(paginacion.skip).limit(paginacion.limit).all()
+    query = _filtrar_pagos_empleado(db, id_empleado, buscar, fecha_desde, fecha_hasta)
+    return query.order_by(
+        HistoricoPagoEmpleado.fecha_pago.desc(),
+        HistoricoPagoEmpleado.id.desc(),
+    ).offset(paginacion.skip).limit(paginacion.limit).all()
+
+
+@router_pago.get("/resumen")
+def resumen_pagos(
+    id_empleado: Optional[int] = None,
+    buscar: Optional[str] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(get_current_user),
+):
+    query = _filtrar_pagos_empleado(db, id_empleado, buscar, fecha_desde, fecha_hasta)
+    total_pagos, total_pagado, empleados_pagados = (
+        query.with_entities(
+            func.count(HistoricoPagoEmpleado.id),
+            func.coalesce(func.sum(HistoricoPagoEmpleado.monto), 0),
+            func.count(func.distinct(HistoricoPagoEmpleado.id_empleado)),
+        ).one()
+    )
+    por_empleado = query.with_entities(
+        HistoricoPagoEmpleado.id_empleado,
+        func.count(HistoricoPagoEmpleado.id),
+        func.coalesce(func.sum(HistoricoPagoEmpleado.monto), 0),
+        func.max(HistoricoPagoEmpleado.fecha_pago),
+    ).group_by(HistoricoPagoEmpleado.id_empleado).all()
+    return {
+        "total_pagos": total_pagos,
+        "total_pagado": round(float(total_pagado or 0), 2),
+        "empleados_pagados": empleados_pagados,
+        "por_empleado": [
+            {
+                "id_empleado": id_empleado,
+                "cantidad_pagos": cantidad,
+                "total_pagado": round(float(total or 0), 2),
+                "fecha_ultimo_pago": fecha_ultimo_pago,
+            }
+            for id_empleado, cantidad, total, fecha_ultimo_pago in por_empleado
+        ],
+    }
 
 
 @router_pago.post("", response_model=HistoricoPagoEmpleadoResponse, status_code=201)
@@ -918,7 +973,7 @@ def registrar_pago(datos: HistoricoPagoEmpleadoCreate, db: Session = Depends(get
     if float(datos.monto or 0) <= 0:
         raise HTTPException(status_code=400, detail="El monto del pago debe ser mayor a Q0.00")
 
-    nuevo = HistoricoPagoEmpleado(**datos.model_dump())
+    nuevo = HistoricoPagoEmpleado(**datos.model_dump(), fecha_pago=func.now())
     db.add(nuevo)
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "HistoricoPagoEmpleado",
