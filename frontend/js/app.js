@@ -837,30 +837,31 @@ class App {
               <div id="conteoContainer"></div>
             </div>
             <div class="tab-pane fade" id="panel-inv-traslados" role="tabpanel">
-              <div class="row mb-2 g-2 align-items-center">
-                ${tienePermiso("Inventario", "Crear") ? `<div class="col-auto">
+              <div class="row mb-2 g-2 align-items-center justify-content-between">
+                ${tienePermiso("Inventario", "Editar") ? `<div class="col-12 col-lg-5">
+                  <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="fas fa-barcode me-1"></i>Confirmar entrega por nota</span>
+                    <input type="text" class="form-control" id="trasladoNotaRecibir" placeholder="Ej. NE-000015 o 15"
+                           autocomplete="off"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();recibirPorNotaEnvio();}">
+                    <button class="btn btn-success" type="button" onclick="recibirPorNotaEnvio()" title="Confirmar entrega del traslado">
+                      <i class="fas fa-check me-1"></i>Entregar
+                    </button>
+                  </div>
+                </div>` : ""}
+                ${tienePermiso("Inventario", "Crear") ? `<div class="col-auto ms-auto">
                   <button class="btn btn-info btn-sm" type="button" onclick="showTrasladoModal()">
                     <i class="fas fa-plus me-1"></i>Nuevo traslado
                   </button>
                 </div>` : ""}
-                <div class="col-md-5">
-                  <div class="input-group input-group-sm">
-                    <span class="input-group-text"><i class="fas fa-barcode me-1"></i>Recibir por nota de envío</span>
-                    <input type="text" class="form-control" id="trasladoNotaRecibir" placeholder="Ej. NE-000015 o 15"
-                           autocomplete="off"
-                           onkeydown="if(event.key==='Enter'){event.preventDefault();recibirPorNotaEnvio();}">
-                    <button class="btn btn-success" type="button" onclick="recibirPorNotaEnvio()">
-                      <i class="fas fa-check me-1"></i>Recibir
-                    </button>
-                  </div>
-                </div>
               </div>
+              <div id="trasladosIndicadores" class="row g-3 mb-3" aria-live="polite"></div>
               ${htmlBarraFiltros({
                 id: "trasladosF",
                 placeholder: "Buscar por nota de envío, producto o código...",
                 selects: [
                   { id: "Direccion", label: "Todas las direcciones", opciones: [["Saliente", "Salientes"], ["Entrante", "Entrantes"], ["Entre ubicaciones", "Entre ubicaciones"]] },
-                  { id: "Estado", label: "Todos los estados", opciones: [["EnProceso", "En camino"], ["Completado", "Recibido"], ["Cancelado", "Cancelado"]] },
+                  { id: "Estado", label: "Todos los estados", opciones: [["EnProceso", "En camino"], ["Completado", "Entregado"], ["Cancelado", "Cancelado"]] },
                   { id: "Pago", label: "Todos los pagos", opciones: [["Con saldo", "Con saldo pendiente"], ["Pendiente", "Pendiente"], ["Parcial", "Parcial"], ["Pagado", "Pagado"], ["No aplica", "No se cobra"]] },
                   { id: "Ubicacion", label: "Todas las ubicaciones", opciones: opcionesUbicacionesFiltro() },
                 ],

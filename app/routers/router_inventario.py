@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
@@ -482,6 +482,36 @@ def listar_traslados(
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
 
 
+@router_traslado.get("/resumen-pagos")
+def resumen_pagos_traslados(
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(get_current_user),
+):
+    saldo_pendiente = case(
+        (
+            func.coalesce(TrasladoSucursal.monto_total, 0)
+            > func.coalesce(TrasladoSucursal.monto_pagado, 0),
+            func.coalesce(TrasladoSucursal.monto_total, 0)
+            - func.coalesce(TrasladoSucursal.monto_pagado, 0),
+        ),
+        else_=0,
+    )
+    saldos = (
+        db.query(TrasladoSucursal.direccion, func.sum(saldo_pendiente))
+        .filter(
+            TrasladoSucursal.estado != "Cancelado",
+            TrasladoSucursal.estado_pago.in_(["Pendiente", "Parcial"]),
+        )
+        .group_by(TrasladoSucursal.direccion)
+        .all()
+    )
+    por_direccion = {direccion: float(saldo or 0) for direccion, saldo in saldos}
+    return {
+        "pendiente_por_cobrar": round(por_direccion.get("Saliente", 0), 2),
+        "pendiente_por_pagar": round(por_direccion.get("Entrante", 0), 2),
+    }
+
+
 @router_traslado.post("", response_model=TrasladoSucursalResponse, status_code=201)
 def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Crear"))):
     """
@@ -564,9 +594,8 @@ def crear_traslado(datos: TrasladoSucursalCreate, db: Session = Depends(get_db),
 @router_traslado.patch("/{traslado_id}/confirmar-recepcion", response_model=TrasladoSucursalResponse)
 def confirmar_recepcion(traslado_id: int, id_usuario_recibe: Optional[int] = None, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar"))):
     """
-    El destino confirma que le llegó el producto: se resta del origen, se
-    suma al destino (el total no cambia) y queda un movimiento "Traslado"
-    en el historial.
+    Confirma que el producto llegó al destino: se suma al destino (el total
+    no cambia) y queda un movimiento "Traslado" en el historial.
     """
     traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).first()
     if not traslado:
@@ -575,8 +604,8 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: Optional[int] = Non
         raise HTTPException(status_code=400, detail="Este traslado ya fue recibido")
     if traslado.estado == "Cancelado":
         raise HTTPException(status_code=400, detail="Este traslado fue cancelado")
-    if traslado.direccion != "Entrante":
-        raise HTTPException(status_code=400, detail="Solo se pueden recibir traslados entrantes")
+    if traslado.estado != "EnProceso":
+        raise HTTPException(status_code=400, detail="Solo se pueden confirmar traslados que estén en camino")
 
     producto = db.query(Producto).filter(Producto.id == traslado.id_producto).first()
     if not producto:

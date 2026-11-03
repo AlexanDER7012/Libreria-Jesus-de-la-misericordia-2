@@ -567,7 +567,7 @@ function renderResumenInventario() {
     )
     .join("");
   const controlesPaginacion = `
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2 inventario-pagination">
             <div class="d-flex align-items-center gap-2">
                 <small class="text-muted">Mostrar</small>
                 <select class="form-select form-select-sm" style="width:auto"
@@ -667,6 +667,7 @@ function renderResumenInventario() {
     return;
   }
 
+  html += controlesPaginacion;
   html += `
         <div class="table-responsive">
             <table class="table table-hover table-striped">
@@ -2120,6 +2121,29 @@ function _infoPagoTraslado(t) {
   };
 }
 
+function renderIndicadoresPagoTraslados(resumen) {
+  const container = document.getElementById("trasladosIndicadores");
+  if (!container) return;
+  const pendientePorCobrar = Number(resumen?.pendiente_por_cobrar) || 0;
+  const pendientePorPagar = Number(resumen?.pendiente_por_pagar) || 0;
+  container.innerHTML = `
+    <div class="col-sm-6 col-lg-4">
+      <div class="traslados-indicador traslados-indicador-cobrar">
+        <span class="traslados-indicador-label">Pendiente por cobrar</span>
+        <strong>Q${pendientePorCobrar.toFixed(2)}</strong>
+        <i class="fas fa-hand-holding-dollar" aria-hidden="true"></i>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+      <div class="traslados-indicador traslados-indicador-pagar">
+        <span class="traslados-indicador-label">Pendiente por pagar</span>
+        <strong>Q${pendientePorPagar.toFixed(2)}</strong>
+        <i class="fas fa-money-bill-transfer" aria-hidden="true"></i>
+      </div>
+    </div>
+  `;
+}
+
 function direccionTraslado(t) {
   if (["Saliente", "Entrante", "Entre ubicaciones"].includes(t?.direccion)) {
     return t.direccion;
@@ -2139,13 +2163,6 @@ function renderTraslados(traslados) {
             <div class="text-center py-5">
                 <i class="fas fa-arrows-alt-h fa-3x text-muted mb-3"></i>
                 <p class="text-muted">${Object.values(leerBarraFiltros("trasladosF")).some((v) => v) ? "No hay traslados que coincidan con el filtro" : "No hay traslados registrados"}</p>
-                ${
-                  tienePermiso("Inventario", "Crear")
-                    ? `<button class="btn btn-info btn-sm" onclick="showTrasladoModal()">
-                    <i class="fas fa-plus me-2"></i>Nuevo Traslado
-                </button>`
-                    : ""
-                }
             </div>
         `;
     return;
@@ -2180,8 +2197,8 @@ function renderTraslados(traslados) {
     const estadoInfo =
       {
         EnProceso: { texto: "En camino", clase: "bg-warning text-dark" },
-        Completado: { texto: "Recibido", clase: "bg-success" },
-        Recibido: { texto: "Recibido", clase: "bg-success" },
+        Completado: { texto: "Entregado", clase: "bg-success" },
+        Recibido: { texto: "Entregado", clase: "bg-success" },
         Cancelado: { texto: "Cancelado", clase: "bg-secondary" },
       }[estado] || { texto: estado, clase: "bg-secondary" };
     const pago = _infoPagoTraslado(t);
@@ -2218,9 +2235,9 @@ function renderTraslados(traslados) {
                         : ""
                     }
                     ${
-                      estado === "EnProceso" && pago.direccion === "Entrante" && puedeEditar
-                        ? `<button class="btn btn-sm btn-outline-success" onclick="recibirTraslado(${t.id})" title="Confirmar que llegó">
-                        <i class="fas fa-check me-1"></i>Recibir
+                      estado === "EnProceso" && puedeEditar
+                        ? `<button class="btn btn-sm btn-outline-success" onclick="recibirTraslado(${t.id})" title="Confirmar que fue entregado">
+                        <i class="fas fa-check me-1"></i>Entregado
                     </button>
                     `
                         : ""
@@ -2277,13 +2294,9 @@ async function recibirPorNotaEnvio() {
   }
   if (traslado.estado !== "EnProceso") {
     showToast(
-      `La nota ${traslado.numero_nota_envio} ya está ${traslado.estado === "Cancelado" ? "cancelada" : "recibida"}`,
+      `La nota ${traslado.numero_nota_envio} ya está ${traslado.estado === "Cancelado" ? "cancelada" : "entregada"}`,
       "warning",
     );
-    return;
-  }
-  if (direccionTraslado(traslado) !== "Entrante") {
-    showToast("Solo se pueden recibir traslados entrantes", "warning");
     return;
   }
   await asegurarProductosCargados([traslado.id_producto]);
@@ -2294,8 +2307,8 @@ async function recibirPorNotaEnvio() {
     `Nota ${traslado.numero_nota_envio}\n` +
       `${traslado.cantidad} × ${producto ? producto.nombre : "producto"}\n` +
       `De ${nombreUbicacionInv(traslado.id_ubicacion_origen)} a ${nombreUbicacionInv(traslado.id_ubicacion_destino)}\n\n` +
-      "¿Confirmar que llegó la mercadería?",
-    { titulo: "Recibir traslado", textoAceptar: "Recibir", peligro: false },
+      "¿Confirmar que la mercadería fue entregada en el destino? El stock se actualizará en esa ubicación.",
+    { titulo: "Confirmar entrega", textoAceptar: "Entregado", peligro: false },
   );
   if (!ok) return;
   try {
@@ -2303,7 +2316,7 @@ async function recibirPorNotaEnvio() {
       `/traslados/nota/${encodeURIComponent(traslado.numero_nota_envio)}/recibir`,
       "PATCH",
     );
-    showToast(`Nota ${traslado.numero_nota_envio} recibida: el stock ya está en el destino`, "success");
+    showToast(`Nota ${traslado.numero_nota_envio} entregada: el stock ya está en el destino`, "success");
     if (input) input.value = "";
     await recargarTraslados();
     await recargarResumenInventario();
@@ -2370,7 +2383,7 @@ async function imprimirNotaEnvio(id) {
         <tfoot><tr><th colspan="4" class="der">Total a precio de costo</th><th class="der">Q${pago.total.toFixed(2)}</th></tr></tfoot>
       </table>
       ${t.observaciones ? `<p><strong>Observaciones:</strong> ${escInv(t.observaciones)}</p>` : ""}
-      <p style="font-size:12px">Para recibir, la sucursal destino ingresa el número <strong>${escInv(t.numero_nota_envio || "")}</strong> en Inventario → Traslados → "Recibir por nota de envío".</p>
+      <p style="font-size:12px">Para confirmar la entrega, ingresa el número <strong>${escInv(t.numero_nota_envio || "")}</strong> en Inventario → Traslados → "Recibir por nota de envío".</p>
       <div class="firmas"><div class="firma">Entrega</div><div class="firma">Recibe</div></div>
       </body></html>`;
     imprimirDocumentoHtml(html);
@@ -2543,21 +2556,16 @@ async function anularPagoTraslado(idTraslado, idPago) {
 // RECIBIR TRASLADO
 // =============================================
 async function recibirTraslado(id) {
-  const traslado = (trasladosData || []).find((t) => String(t.id) === String(id));
-  if (traslado && direccionTraslado(traslado) !== "Entrante") {
-    showToast("Solo se pueden recibir traslados entrantes", "warning");
-    return;
-  }
   const confirmado = await mostrarConfirmacion(
-    "Recibir Traslado",
-    "¿Confirmar recepción del traslado? Esto actualizará el stock en la ubicación destino.",
+    "Confirmar entrega",
+    "¿Confirmar que el traslado fue entregado? Esto actualizará el stock en la ubicación destino.",
   );
 
   if (!confirmado) return;
 
   try {
     await api.request(`/traslados/${id}/confirmar-recepcion`, "PATCH");
-    showToast("Traslado recibido: el stock ya se movió al destino", "success");
+    showToast("Traslado entregado: el stock ya se movió al destino", "success");
     await recargarTraslados();
     await recargarResumenInventario();
   } catch (error) {
@@ -2718,28 +2726,30 @@ function _agregarControlesPaginacionInventario(
   skipActual,
   cantidadPagina,
   limite,
+  hayMasOverride = null,
+  mostrarArriba = false,
 ) {
   const container = document.getElementById(containerId);
   if (!container) return;
   // Si la página vino incompleta, ya no hay más: "Siguiente" se desactiva
   // (antes dejaba avanzar a páginas vacías)
-  const hayMas = cantidadPagina >= limite;
+  const hayMas =
+    hayMasOverride === null ? cantidadPagina >= limite : hayMasOverride;
   if (skipActual === 0 && !hayMas) return; // todo cabe en una página
   const pagina = Math.floor(skipActual / limite) + 1;
-  container.insertAdjacentHTML(
-    "beforeend",
-    `
-        <div class="d-flex justify-content-between align-items-center mt-2">
+  const controles = `
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2 inventario-pagination">
             <button class="btn btn-sm btn-outline-secondary" onclick="${onAnterior}" ${skipActual === 0 ? "disabled" : ""}>
                 <i class="fas fa-chevron-left me-1"></i>Anterior
             </button>
-            <small class="text-muted">Página ${pagina}</small>
+            <small class="text-muted">Mostrando ${skipActual + 1}–${skipActual + cantidadPagina} · Página ${pagina}</small>
             <button class="btn btn-sm btn-outline-secondary" onclick="${onSiguiente}" ${hayMas ? "" : "disabled"}>
                 Siguiente<i class="fas fa-chevron-right ms-1"></i>
             </button>
         </div>
-    `,
-  );
+    `;
+  if (mostrarArriba) container.insertAdjacentHTML("afterbegin", controles);
+  container.insertAdjacentHTML("beforeend", controles);
 }
 
 // Si se avanzó a una página que quedó vacía (por ejemplo, porque se
@@ -2785,7 +2795,7 @@ async function cargarTrasladosTabla() {
     const f = leerBarraFiltros("trasladosF");
     if (!rangoFechasValidoFiltro(f.desde, f.hasta)) return;
     llenarOpcionesFiltro("trasladosFUbicacion", opcionesUbicacionesFiltro());
-    let url = `/traslados?skip=${skipTraslados}&limit=${LIMITE_TRASLADOS}`;
+    let url = `/traslados?skip=${skipTraslados}&limit=${LIMITE_TRASLADOS + 1}`;
     if (f.texto) url += `&buscar=${encodeURIComponent(f.texto)}`;
     if (f.Estado) url += `&estado=${f.Estado}`;
     if (f.Pago) url += `&estado_pago=${encodeURIComponent(f.Pago)}`;
@@ -2793,12 +2803,19 @@ async function cargarTrasladosTabla() {
     if (f.Ubicacion) url += `&id_ubicacion=${f.Ubicacion}`;
     if (f.desde) url += `&fecha_desde=${f.desde}`;
     if (f.hasta) url += `&fecha_hasta=${f.hasta}`;
-    trasladosData = (await api.request(url)) || [];
+    const [respuestaTraslados, resumenPagos] = await Promise.all([
+      api.request(url),
+      api.request("/traslados/resumen-pagos"),
+    ]);
+    const filasTraslados = respuestaTraslados || [];
+    const hayMas = filasTraslados.length > LIMITE_TRASLADOS;
+    trasladosData = filasTraslados.slice(0, LIMITE_TRASLADOS);
     await asegurarProductosCargados(trasladosData.map((t) => t.id_producto));
     if (_paginaVaciaInventario(trasladosData, skipTraslados)) {
       skipTraslados = Math.max(0, skipTraslados - LIMITE_TRASLADOS);
       return cargarTrasladosTabla();
     }
+    renderIndicadoresPagoTraslados(resumenPagos);
     renderTraslados(trasladosData);
     _agregarControlesPaginacionInventario(
       "trasladosContainer",
@@ -2807,8 +2824,14 @@ async function cargarTrasladosTabla() {
       skipTraslados,
       trasladosData.length,
       LIMITE_TRASLADOS,
+      hayMas,
+      true,
     );
   } catch (error) {
+    const indicadores = document.getElementById("trasladosIndicadores");
+    if (indicadores) {
+      indicadores.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">No se pudo cargar el resumen de pagos: ${escInv(error.message)}</div></div>`;
+    }
     document.getElementById("trasladosContainer").innerHTML =
       `<div class="alert alert-danger">${error.message}</div>`;
   }

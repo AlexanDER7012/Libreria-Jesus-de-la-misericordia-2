@@ -504,6 +504,110 @@
   animation-delay: 0.3s;
 }
 
+#inventarioGrupoTabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 16px;
+}
+
+[data-bs-theme="light"] #inventarioGrupoTabs {
+  background: var(--neu-bg-light);
+  box-shadow:
+    inset 4px 4px 10px var(--neu-bg-light-shadow),
+    inset -4px -4px 10px var(--neu-bg-light-highlight);
+}
+
+[data-bs-theme="dark"] #inventarioGrupoTabs {
+  background: var(--neu-bg-dark);
+  box-shadow:
+    inset 4px 4px 10px var(--neu-bg-dark-shadow),
+    inset -4px -4px 10px var(--neu-bg-dark-highlight);
+}
+
+#inventarioGrupoTabs .nav-link {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-weight: 500;
+  transition: var(--transition-smooth);
+}
+
+[data-bs-theme="light"] #inventarioGrupoTabs .nav-link {
+  color: #6b7280;
+}
+
+[data-bs-theme="dark"] #inventarioGrupoTabs .nav-link {
+  color: #9ca3af;
+}
+
+#inventarioGrupoTabs .nav-link:hover {
+  color: var(--neu-naranja);
+  transform: translateY(-1px);
+}
+
+[data-bs-theme="light"] #inventarioGrupoTabs .nav-link.active,
+[data-bs-theme="dark"] #inventarioGrupoTabs .nav-link.active {
+  background: linear-gradient(135deg, var(--neu-azul), var(--neu-azul-medio));
+  color: #fff;
+  box-shadow: 4px 4px 12px rgba(26, 42, 108, 0.2);
+}
+
+.traslados-indicador {
+  position: relative;
+  display: flex;
+  min-height: 100px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  padding: 16px 20px;
+  border-radius: 16px;
+}
+
+[data-bs-theme="light"] .traslados-indicador {
+  background: var(--neu-bg-light);
+  box-shadow:
+    6px 6px 14px var(--neu-bg-light-shadow),
+    -6px -6px 14px var(--neu-bg-light-highlight);
+}
+
+[data-bs-theme="dark"] .traslados-indicador {
+  background: var(--neu-bg-dark);
+  box-shadow:
+    6px 6px 14px var(--neu-bg-dark-shadow),
+    -6px -6px 14px var(--neu-bg-dark-highlight);
+}
+
+.traslados-indicador-label {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.traslados-indicador strong {
+  color: var(--neu-azul);
+  font-size: 1.4rem;
+}
+
+.traslados-indicador > i {
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  color: var(--neu-naranja);
+  font-size: 1.6rem;
+  opacity: 0.65;
+  transform: translateY(-50%);
+}
+
+[data-bs-theme="dark"] .traslados-indicador-label {
+  color: #9ca3af;
+}
+
+[data-bs-theme="dark"] .traslados-indicador strong {
+  color: #e8e8f0;
+}
+
 /* ============================================
    BADGES
    ============================================ */
