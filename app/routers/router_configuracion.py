@@ -22,6 +22,7 @@ from app.schemas.schema_configuracion import (
     ConfiguracionGeneralUpdate, ConfiguracionGeneralResponse,
     MetaFinancieraCreate, MetaFinancieraResponse,
 )
+from app.timezone import APP_TIMEZONE, now_gt
 
 router = APIRouter()        # /configuracion
 router_meta = APIRouter()   # /metas-financieras
@@ -126,7 +127,7 @@ def generar_backup(
     except ValueError as error:
         raise HTTPException(status_code=500, detail=f"Configuración de PostgreSQL inválida: {error}") from error
 
-    momento = datetime.now().astimezone()
+    momento = now_gt()
     base_nombre = f"backup_libreria_{momento.strftime('%Y%m%d_%H%M%S')}"
     ruta_salida = directorio / f"{base_nombre}.backup"
     indice = 1
@@ -181,7 +182,7 @@ def generar_backup(
     tamano = ruta_salida.stat().st_size
     logger.info(
         "Backup generado el %s; tamaño=%s bytes; ruta=%s; usuario_id=%s",
-        datetime.now().astimezone().isoformat(),
+        now_gt().isoformat(),
         tamano,
         ruta_salida,
         usuario_actual.id,
@@ -210,7 +211,7 @@ def listar_backups(
         datos = archivo.stat()
         backups.append({
             "nombre": archivo.name,
-            "fecha": datetime.fromtimestamp(datos.st_mtime).astimezone().isoformat(),
+            "fecha": datetime.fromtimestamp(datos.st_mtime, tz=APP_TIMEZONE).isoformat(),
             "tamano_mb": round(datos.st_size / (1024 * 1024), 2),
         })
     backups.sort(key=lambda backup: backup["fecha"], reverse=True)

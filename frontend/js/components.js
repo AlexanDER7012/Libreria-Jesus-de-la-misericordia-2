@@ -595,7 +595,7 @@ function nombrePersona(idUsuario) {
 function etiquetaTurno(turno, { conEstado = false } = {}) {
   if (!turno) return "";
   const fecha = turno.fecha_apertura
-    ? new Date(turno.fecha_apertura).toLocaleString([], {
+    ? formatearFechaHoraGuatemala(turno.fecha_apertura, {
         day: "2-digit",
         month: "2-digit",
         hour: "numeric",

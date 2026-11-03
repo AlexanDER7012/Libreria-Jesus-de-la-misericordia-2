@@ -17,6 +17,7 @@ from app import models
 from app.config import settings
 from app.database import get_db
 from app.security import get_current_user
+from app.timezone import today_gt
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,7 @@ def _limpiar_respuesta(texto) -> str:
 
 def _obtener_contexto_negocio(db: Session) -> str:
     """Arma métricas y rankings reales para las consultas de negocio."""
-    hoy = date.today()
+    hoy = today_gt()
     inicio_hoy = datetime.combine(hoy, datetime.min.time())
     inicio_manana = inicio_hoy + timedelta(days=1)
     inicio_30d = inicio_hoy - timedelta(days=29)

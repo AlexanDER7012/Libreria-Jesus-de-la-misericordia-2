@@ -4,6 +4,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.model_usuario import LogActividad
+from app.timezone import today_gt
 
 ACCIONES_VALIDAS = {"CREAR", "EDITAR", "ELIMINAR", "CANCELAR", "REACTIVAR", "LOGIN", "LOGIN_FALLIDO"}
 
@@ -61,7 +62,7 @@ def contar_bitacora_a_borrar(db: Session, dias: int) -> int:
 def limpiar_bitacora_antigua(db: Session, forzar: bool = False, id_usuario: int | None = None) -> int:
     """Borra la bitácora vieja según la configuración. Devuelve cuántos registros borró."""
     global _ultima_limpieza
-    if not forzar and _ultima_limpieza == date.today():
+    if not forzar and _ultima_limpieza == today_gt():
         return 0
 
     from app.models.model_configuracion import ConfiguracionGeneral
@@ -69,7 +70,7 @@ def limpiar_bitacora_antigua(db: Session, forzar: bool = False, id_usuario: int 
     try:
         config = db.query(ConfiguracionGeneral).first()
         dias = int(getattr(config, "dias_retencion_bitacora", 0) or 0) if config else 0
-        _ultima_limpieza = date.today()
+        _ultima_limpieza = today_gt()
         if dias <= 0:
             return 0
 

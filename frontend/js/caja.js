@@ -263,7 +263,7 @@
                     const estadoBadge =
                       estado === "Abierto" ? "bg-success" : "bg-secondary";
                     const fechaApertura = t.fecha_apertura
-                      ? new Date(t.fecha_apertura).toLocaleDateString()
+                      ? formatearFechaGuatemala(t.fecha_apertura)
                       : "--";
                     const totalVentas = parseFloat(t.total_ventas) || 0;
                     const totalContado = parseFloat(t.total_contado) || 0;
@@ -505,10 +505,10 @@
       const estado = t.estado || "Abierto";
       const estadoBadge = estado === "Abierto" ? "bg-success" : "bg-secondary";
       const fechaApertura = t.fecha_apertura
-        ? new Date(t.fecha_apertura).toLocaleString()
+        ? formatearFechaHoraGuatemala(t.fecha_apertura)
         : "--";
       const fechaCierre = t.fecha_cierre
-        ? new Date(t.fecha_cierre).toLocaleString()
+        ? formatearFechaHoraGuatemala(t.fecha_cierre)
         : "--";
 
       html += `
@@ -756,7 +756,7 @@
                 ${turnos
                   .map((t) => {
                     const fechaApertura = t.fecha_apertura
-                      ? new Date(t.fecha_apertura).toLocaleString()
+                      ? formatearFechaHoraGuatemala(t.fecha_apertura)
                       : "--";
                     return `
                     <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
@@ -907,7 +907,7 @@
 
       if (turnoExistente) {
         const desde = turnoExistente.fecha_apertura
-          ? new Date(turnoExistente.fecha_apertura).toLocaleString()
+          ? formatearFechaHoraGuatemala(turnoExistente.fecha_apertura)
           : "";
         const confirmar = await mostrarConfirmacion(
           "Turno ya abierto",
@@ -1080,7 +1080,7 @@
 
       html += `
                 <tr>
-                    <td>${m.fecha ? new Date(m.fecha).toLocaleString() : "--"}</td>
+                    <td>${m.fecha ? formatearFechaHoraGuatemala(m.fecha) : "--"}</td>
                     <td><span class="badge ${tipoBadge}">${tipo}</span></td>
                     <td>${m.concepto || "--"}</td>
                     <td class="${montoClass} fw-bold">${esIngreso ? "+" : "-"}Q${monto.toFixed(2)}</td>
@@ -1247,7 +1247,7 @@
       const tipoGasto = tiposGastoData.find((t) => t.id === g.id_tipo_gasto);
       html += `
                 <tr>
-                    <td>${g.fecha ? new Date(g.fecha).toLocaleString() : "--"}</td>
+                    <td>${g.fecha ? formatearFechaHoraGuatemala(g.fecha) : "--"}</td>
                     <td>${tipoGasto ? tipoGasto.nombre : "--"}</td>
                     <td>${g.concepto || "--"}</td>
                     <td class="text-danger fw-bold">Q${g.monto || 0}</td>
@@ -1663,4 +1663,4 @@
   window.abrirModalTurno = abrirModalTurno;
   window.agregarDenominacion = agregarDenominacion;
   window.mostrarSelectorTurnos = mostrarSelectorTurnos;
-})();
+})();

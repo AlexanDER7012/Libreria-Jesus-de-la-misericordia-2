@@ -116,11 +116,8 @@ function limpiarBarraFiltros(id) {
 // Fecha (texto del servidor) -> "AAAA-MM-DD" en la hora que se muestra en pantalla
 function fechaLocalFiltro(fecha) {
   if (!fecha) return "";
-  const d = new Date(fecha);
-  if (isNaN(d)) return String(fecha).slice(0, 10);
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${mm}-${dd}`;
+  const fechaGT = fechaISODeGuatemala(fecha);
+  return fechaGT || String(fecha).slice(0, 10);
 }
 
 // ¿La fecha cae dentro del rango? (sin rango -> siempre sí; sin fecha -> no, si hay rango)

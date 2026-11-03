@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date
 from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
@@ -21,6 +21,7 @@ from app.schemas.schema_compra import (
     CompraPagoCreate, CompraPagoResponse,
     DevolucionCompraCreate, DevolucionCompraResponse,
 )
+from app.timezone import now_gt_naive
 
 router = APIRouter()             
 router_devolucion = APIRouter()  
@@ -421,7 +422,7 @@ def registrar_nota_entrega(compra_id: int, datos: NotaEntregaCreate, db: Session
             if producto:
                 mover_stock(db, producto, id_ubicacion, float(detalle.cantidad_unidades))
 
-        compra.fecha_recepcion = datetime.now()
+        compra.fecha_recepcion = now_gt_naive()
         if compra.estado == "Pendiente":
             compra.estado = "Recibida"
 

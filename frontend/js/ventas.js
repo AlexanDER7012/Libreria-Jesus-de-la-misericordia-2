@@ -530,7 +530,7 @@ function renderVentasTable(ventas) {
                 </td>
                 <td>${nitCliente}</td>
                 <td>${nombreVendedor}</td>
-                <td>${v.fecha ? new Date(v.fecha).toLocaleString() : "--"}</td>
+                <td>${v.fecha ? formatearFechaHoraGuatemala(v.fecha) : "--"}</td>
                 <td>Q${(v.subtotal || 0).toFixed(2)}</td>
                 <td>Q${(v.descuento || 0).toFixed(2)}</td>
                 <td><strong>Q${(v.total || 0).toFixed(2)}</strong>${
@@ -618,7 +618,7 @@ async function exportarVentasExcel() {
       ID: v.id,
       Cliente: cliente ? cliente.nombre : "--",
       NIT: cliente ? cliente.nit || "--" : "--",
-      Fecha: v.fecha ? new Date(v.fecha).toLocaleString() : "--",
+      Fecha: v.fecha ? formatearFechaHoraGuatemala(v.fecha) : "--",
       Subtotal: v.subtotal || 0,
       Descuento: v.descuento || 0,
       Total: v.total || 0,
@@ -629,7 +629,7 @@ async function exportarVentasExcel() {
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Ventas");
-  XLSX.writeFile(wb, `Ventas_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  XLSX.writeFile(wb, `Ventas_${hoyISOGuatemala()}.xlsx`);
   showToast("Ventas exportadas a Excel", "success");
 }
 
@@ -657,7 +657,7 @@ async function exportarVentasPDF() {
     </head>
     <body>
       <h1>Reporte de Ventas</h1>
-      <p><strong>Fecha:</strong> ${new Date().toLocaleString()}</p>
+      <p><strong>Fecha:</strong> ${formatearFechaHoraGuatemala()}</p>
       <p><strong>Total de Ventas:</strong> ${ventas.length}</p>
       <p><strong>Monto Total:</strong> Q${totalVentas.toFixed(2)}</p>
       <table>
@@ -682,7 +682,7 @@ async function exportarVentasPDF() {
         <td>#${v.id}</td>
         <td>${cliente ? cliente.nombre : "--"}</td>
         <td>${cliente ? cliente.nit || "--" : "--"}</td>
-        <td>${v.fecha ? new Date(v.fecha).toLocaleString() : "--"}</td>
+        <td>${v.fecha ? formatearFechaHoraGuatemala(v.fecha) : "--"}</td>
         <td>Q${(v.total || 0).toFixed(2)}</td>
       </tr>
     `;
@@ -776,7 +776,7 @@ async function imprimirVenta(id) {
           <p><strong>Venta #:</strong> ${venta.id}</p>
           <p><strong>Cliente:</strong> ${nombreCliente}</p>
           <p><strong>NIT:</strong> ${nitCliente}</p>
-          <p><strong>Fecha:</strong> ${venta.fecha ? new Date(venta.fecha).toLocaleString() : "--"}</p>
+          <p><strong>Fecha:</strong> ${venta.fecha ? formatearFechaHoraGuatemala(venta.fecha) : "--"}</p>
           <p><strong>Estado:</strong> ${venta.estado || "Completada"}</p>
         </div>
         <table>
@@ -1268,7 +1268,7 @@ async function verFichaCliente(idCliente) {
                   return `
                   <tr>
                     <td><span class="badge bg-secondary">#${v.id}</span></td>
-                    <td>${v.fecha ? new Date(v.fecha).toLocaleDateString() : "--"}</td>
+                    <td>${v.fecha ? formatearFechaGuatemala(v.fecha) : "--"}</td>
                     <td>Q${(v.subtotal || 0).toFixed(2)}</td>
                     <td><strong>Q${(v.total || 0).toFixed(2)}</strong></td>
                     <td>
@@ -1980,7 +1980,7 @@ async function verVenta(id) {
     document.getElementById("verVentaNumero").textContent = venta.id || "";
     document.getElementById("verVentaCliente").textContent = nombreCliente;
     document.getElementById("verVentaFecha").textContent = venta.fecha
-      ? new Date(venta.fecha).toLocaleString()
+      ? formatearFechaHoraGuatemala(venta.fecha)
       : "--";
 
     // Estado
@@ -2054,7 +2054,7 @@ async function verVenta(id) {
             <td>${tipoPago ? tipoPago.nombre : "Efectivo"}</td>
             <td class="text-end">Q${(p.monto || 0).toFixed(2)}</td>
             <td>${p.referencia || "--"}</td>
-            <td>${p.fecha_creacion ? new Date(p.fecha_creacion).toLocaleDateString() : "-"}</td>
+            <td>${p.fecha_creacion ? formatearFechaGuatemala(p.fecha_creacion) : "-"}</td>
           </tr>
         `;
       });
@@ -2482,7 +2482,7 @@ async function cargarSubClientes() {
           <td>${escaparHtmlEscaner(c.email || "--")}</td>
           <td>${escaparHtmlEscaner(c.nit || "--")}</td>
           <td>${escaparHtmlEscaner(c.tipo_cliente || "General")}</td>
-          <td><small>${c.fecha_registro ? new Date(c.fecha_registro).toLocaleDateString("es-GT") : "--"}</small></td>
+          <td><small>${c.fecha_registro ? formatearFechaGuatemala(c.fecha_registro) : "--"}</small></td>
           <td><span class="badge bg-info">${totalVentasCliente}</span></td>
           <td>
             <span class="badge ${activo ? "bg-success" : "bg-danger"}">
@@ -2702,7 +2702,7 @@ async function cargarSubCotizaciones() {
                       ${nombreCliente}
                     </button>
                   </td>
-                  <td>${c.fecha ? new Date(c.fecha).toLocaleString() : "--"}</td>
+                  <td>${c.fecha ? formatearFechaHoraGuatemala(c.fecha) : "--"}</td>
                   <td><strong>Q${(c.total || 0).toFixed(2)}</strong></td>
                   <td>${badgeEstadoCotizacion(c, estadoColor)}</td>
                   <td>
@@ -3315,7 +3315,7 @@ async function verCotizacion(id) {
             <strong>Expediente:</strong> <span class="badge bg-secondary">${cotizacion.numero_expediente || "--"}</span>
           </div>
           <div class="col-md-4">
-            <strong>Fecha:</strong> ${cotizacion.fecha ? new Date(cotizacion.fecha).toLocaleString() : "--"}
+            <strong>Fecha:</strong> ${cotizacion.fecha ? formatearFechaHoraGuatemala(cotizacion.fecha) : "--"}
           </div>
         </div>
         <div class="row mb-3">
@@ -3604,7 +3604,7 @@ function renderServiciosRows(servicios) {
         </td>
         <td>${s.tipo_servicio || "--"}</td>
         <td>${s.descripcion || "--"}</td>
-        <td><small>${s.fecha ? new Date(s.fecha).toLocaleString("es-GT") : "--"}</small></td>
+        <td><small>${s.fecha ? formatearFechaHoraGuatemala(s.fecha) : "--"}</small></td>
         <td>Q${(s.monto_material || 0).toFixed(2)}</td>
         <td>Q${(s.monto_mano_obra || 0).toFixed(2)}</td>
         <td><strong>Q${(s.total || 0).toFixed(2)}</strong></td>
@@ -4075,9 +4075,9 @@ async function _renderVentasServicio(ventas, contenedor) {
       .join(", ");
     return `
       <li class="list-group-item list-group-item-action opcion-venta-servicio" style="cursor:pointer" data-venta="${v.id}"
-          data-texto="venta #${v.id} del ${v.fecha ? new Date(v.fecha).toLocaleDateString() : "--"} (total ${q(v.total)})" onclick="_elegirVentaServicio(${v.id})">
+          data-texto="venta #${v.id} del ${v.fecha ? formatearFechaGuatemala(v.fecha) : "--"} (total ${q(v.total)})" onclick="_elegirVentaServicio(${v.id})">
         <div class="d-flex justify-content-between flex-wrap gap-1">
-          <span><i class="icono-eleccion fas fa-circle text-secondary opacity-50 me-2"></i><strong>Venta #${v.id}</strong> · ${v.fecha ? new Date(v.fecha).toLocaleString() : "--"}</span>
+          <span><i class="icono-eleccion fas fa-circle text-secondary opacity-50 me-2"></i><strong>Venta #${v.id}</strong> · ${v.fecha ? formatearFechaHoraGuatemala(v.fecha) : "--"}</span>
           <span>Total ${q(v.total)}
             ${saldo > 0.009
               ? `<span class="badge bg-warning text-dark ms-1">Debe ${q(saldo)}</span>`

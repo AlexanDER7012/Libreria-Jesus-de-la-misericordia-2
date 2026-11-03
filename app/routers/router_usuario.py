@@ -26,6 +26,7 @@ from app.schemas.schema_usuario import (
     HistoricoPagoEmpleadoCreate, HistoricoPagoEmpleadoResponse,
     LogActividadResponse,
 )
+from app.timezone import today_gt
 
 router = APIRouter()             # /usuarios
 router_empleado = APIRouter()    # /empleados
@@ -506,7 +507,7 @@ def _validar_empleado(datos: dict, actual: Optional[Empleado] = None):
         raise HTTPException(status_code=400, detail="El nombre del empleado es obligatorio")
     if datos.get("salario_base") is not None and float(datos["salario_base"]) < 0:
         raise HTTPException(status_code=400, detail="El salario no puede ser negativo")
-    hoy = date.today()
+    hoy = today_gt()
     nacimiento = datos.get("fecha_nacimiento", actual.fecha_nacimiento if actual else None)
     contratacion = datos.get("fecha_contratacion", actual.fecha_contratacion if actual else None)
     if nacimiento and nacimiento >= hoy:

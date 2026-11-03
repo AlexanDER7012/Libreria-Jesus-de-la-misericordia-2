@@ -876,7 +876,7 @@ function mostrarHistorialModal(producto, movimientos) {
     const movimientosOrdenados = [...movimientos].reverse();
 
     movimientosOrdenados.forEach((m) => {
-      const fecha = m.fecha ? new Date(m.fecha).toLocaleString("es-GT") : "--";
+      const fecha = m.fecha ? formatearFechaHoraGuatemala(m.fecha) : "--";
       const entrada = m.esEntrada === true ? m.cantidad : "-";
       const salida = m.esEntrada === false ? m.cantidad : "-";
       const neutral = m.esEntrada === null;
@@ -2066,7 +2066,7 @@ function renderConteoFisico(conteos) {
                 <td class="${esDiferencia ? (diferencia > 0 ? "text-success" : "text-danger") : ""}">
                     ${diferencia !== 0 ? (diferencia > 0 ? "+" : "") + diferencia : "0"}
                 </td>
-                <td>${c.fecha ? new Date(c.fecha).toLocaleString("es-GT") : "--"}</td>
+                <td>${c.fecha ? formatearFechaHoraGuatemala(c.fecha) : "--"}</td>
                 <td>${
                   c.ajustado === 1
                     ? '<span class="badge bg-success">Aplicado</span>'
@@ -2222,7 +2222,7 @@ function renderTraslados(traslados) {
                     ${pago.estado === "Pendiente" || pago.estado === "Parcial" ? `<div class="small text-muted">${pago.saldoEtiqueta}: Q${pago.saldo.toFixed(2)}</div>` : ""}
                 </td>
                 <td><span class="badge ${estadoInfo.clase}">${estadoInfo.texto}</span></td>
-                <td><small>${t.fecha ? new Date(t.fecha).toLocaleString("es-GT") : "--"}</small></td>
+                <td><small>${t.fecha ? formatearFechaHoraGuatemala(t.fecha) : "--"}</small></td>
                 <td class="text-nowrap">
                     <div class="d-inline-flex align-items-center gap-1">
                     <button class="btn btn-sm btn-outline-secondary" onclick="imprimirNotaEnvio(${t.id})" title="Imprimir nota de envío" aria-label="Imprimir nota de envío">
@@ -2349,7 +2349,7 @@ async function imprimirNotaEnvio(id) {
       (window.productosData || []).find((p) => String(p.id) === String(t.id_producto)) || {};
     const pago = _infoPagoTraslado(t);
     const negocio = escInv((config && config.nombre_negocio) || "Librería y Papelería");
-    const fecha = t.fecha ? new Date(t.fecha).toLocaleString("es-GT") : "";
+    const fecha = t.fecha ? formatearFechaHoraGuatemala(t.fecha) : "";
 
     const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
       <title>Nota de envío ${escInv(t.numero_nota_envio || "")}</title>
@@ -2444,7 +2444,7 @@ async function mostrarPagosTraslado(id) {
     const filas = (pagos || [])
       .map(
         (p) => `<tr class="${p.anulado ? "text-muted text-decoration-line-through" : ""}">
-            <td><small>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleString("es-GT") : "--"}</small></td>
+            <td><small>${p.fecha_pago ? formatearFechaHoraGuatemala(p.fecha_pago) : "--"}</small></td>
             <td class="text-end">Q${(parseFloat(p.monto) || 0).toFixed(2)}</td>
             <td>${escInv(nombreTipo(p.id_tipo_pago))}</td>
             <td>${escInv(p.referencia || "--")}</td>
@@ -2679,7 +2679,7 @@ function renderAlertas(alertas) {
             <tr>
                 <td>${a.id}</td>
                 <td>${producto ? escInv(producto.nombre) : "--"}</td>
-                <td><small>${a.fecha ? new Date(a.fecha).toLocaleString("es-GT") : "--"}</small></td>
+                <td><small>${a.fecha ? formatearFechaHoraGuatemala(a.fecha) : "--"}</small></td>
                 <td class="${stockActual <= stockMinimo ? "text-danger" : "text-success"} fw-bold">
                     ${stockActual}
                 </td>

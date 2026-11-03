@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date
 from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import case, func, or_
@@ -26,6 +26,7 @@ from app.schemas.schema_inventario import (
     AlertaResponse, StockUbicacionResponse,
     TrasladoPagoCreate, TrasladoPagoResponse,
 )
+from app.timezone import now_gt_naive
 
 router = APIRouter()            # /movimientos-inventario
 router_tipo = APIRouter()       # /tipo-movimiento
@@ -987,7 +988,7 @@ def marcar_leida(alerta_id: int, db: Session = Depends(get_db), usuario_actual: 
     if not alerta:
         raise HTTPException(status_code=404, detail="Alerta no encontrada")
     alerta.leida = 1
-    alerta.fecha_lectura = datetime.now()
+    alerta.fecha_lectura = now_gt_naive()
     registrar_actividad(
         db, usuario_actual.id, "EDITAR", "Alerta",
         detalle=f"Marcó como leída la alerta #{alerta.id}: {alerta.mensaje}",

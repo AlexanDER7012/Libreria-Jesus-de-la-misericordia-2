@@ -271,7 +271,7 @@ function renderUsuarios(usuarios) {
                 <td><strong>${u.nombre_usuario || "--"}</strong></td>
                 <td>${empleado ? empleado.nombre : "--"}</td>
                 <td>${rol ? rol.nombre : "--"}</td>
-                <td>${u.fecha_ultimo_acceso ? new Date(u.fecha_ultimo_acceso).toLocaleString() : "--"}</td>
+                <td>${u.fecha_ultimo_acceso ? formatearFechaHoraGuatemala(u.fecha_ultimo_acceso) : "--"}</td>
                 <td>${u.intentos_fallidos || 0}</td>
                 <td>
                     <span class="badge ${bloqueado ? "bg-warning text-dark" : activo ? "bg-success" : "bg-danger"}">
@@ -655,7 +655,7 @@ function renderPagos(empleados, resumen) {
         <td><span class="badge ${activo ? "bg-success" : "bg-secondary"}">${activo ? "Activo" : "Inactivo"}</span></td>
         <td class="text-end">${Number(pago.cantidad_pagos || 0)}</td>
         <td class="text-end fw-bold text-success">Q${Number(pago.total_pagado || 0).toFixed(2)}</td>
-        <td>${pago.fecha_ultimo_pago ? new Date(pago.fecha_ultimo_pago).toLocaleString("es-GT") : "--"}</td>
+        <td>${pago.fecha_ultimo_pago ? formatearFechaHoraGuatemala(pago.fecha_ultimo_pago) : "--"}</td>
         <td class="text-nowrap">
           <button class="btn btn-sm btn-outline-primary" onclick="verHistorialPagosEmpleado(${empleado.id})" title="Ver historial de pagos" aria-label="Ver historial de pagos">
             <i class="fas fa-clock-rotate-left"></i>
@@ -726,7 +726,7 @@ async function verHistorialPagosEmpleado(idEmpleado, skip = 0) {
     const filas = (pagos || [])
       .map(
         (p) => `<tr>
-          <td>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleString("es-GT") : "--"}</td>
+          <td>${p.fecha_pago ? formatearFechaHoraGuatemala(p.fecha_pago) : "--"}</td>
           <td>${escaparHtmlUsuarios(p.concepto || "--")}</td>
           <td class="text-end fw-bold text-success">Q${Number(p.monto || 0).toFixed(2)}</td>
           <td>${escaparHtmlUsuarios(p.periodo || "--")}</td>
@@ -803,7 +803,7 @@ function filasExportacionPagos(pagos) {
       Monto: Number(p.monto || 0),
       Periodo: p.periodo || "--",
       Referencia: p.referencia || "--",
-      "Fecha de pago": p.fecha_pago ? new Date(p.fecha_pago).toLocaleString("es-GT") : "--",
+      "Fecha de pago": p.fecha_pago ? formatearFechaHoraGuatemala(p.fecha_pago) : "--",
     };
   });
 }
@@ -819,7 +819,7 @@ async function exportarPagosEmpleadosExcel() {
     const workbook = XLSX.utils.book_new();
     const hoja = XLSX.utils.json_to_sheet(filasExportacionPagos(pagos));
     XLSX.utils.book_append_sheet(workbook, hoja, "Pagos empleados");
-    XLSX.writeFile(workbook, `Pagos_Empleados_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(workbook, `Pagos_Empleados_${hoyISOGuatemala()}.xlsx`);
     showToast("Pagos exportados a Excel", "success");
   } catch (error) {
     showToast(error.message || "No se pudieron exportar los pagos a Excel", "error");
@@ -1054,8 +1054,8 @@ async function cargarBitacoraUsuarios() {
   const container = document.getElementById("logsContainer");
   if (!container) return;
 
-  const hoy = new Date();
-  const hace30Dias = new Date();
+  const hoy = fechaCalendarioGuatemala();
+  const hace30Dias = fechaCalendarioGuatemala();
   hace30Dias.setDate(hace30Dias.getDate() - 30);
 
   const usuariosOptions = (usuariosData || [])
@@ -1066,11 +1066,11 @@ async function cargarBitacoraUsuarios() {
         <div class="row mb-3 g-2">
             <div class="col-md-3">
                 <label class="form-label small">Fecha Desde</label>
-                <input type="date" class="form-control form-control-sm" id="bitacoraUsrDesde" onchange="actualizarBitacoraUsuarios()" value="${hace30Dias.toISOString().split("T")[0]}">
+                <input type="date" class="form-control form-control-sm" id="bitacoraUsrDesde" onchange="actualizarBitacoraUsuarios()" value="${fechaISOCalendarioGuatemala(hace30Dias)}">
             </div>
             <div class="col-md-3">
                 <label class="form-label small">Fecha Hasta</label>
-                <input type="date" class="form-control form-control-sm" id="bitacoraUsrHasta" onchange="actualizarBitacoraUsuarios()" value="${hoy.toISOString().split("T")[0]}">
+                <input type="date" class="form-control form-control-sm" id="bitacoraUsrHasta" onchange="actualizarBitacoraUsuarios()" value="${fechaISOCalendarioGuatemala(hoy)}">
             </div>
             <div class="col-md-3">
                 <label class="form-label small">Usuario</label>
@@ -1200,7 +1200,7 @@ async function actualizarBitacoraUsuarios() {
             <tr data-accion="${_escFiltro(l.accion || "")}">
                 <td>${l.id}</td>
                 <td><strong>${l.nombre_usuario || "--"}</strong></td>
-                <td>${l.fecha ? new Date(l.fecha).toLocaleString() : "--"}</td>
+                <td>${l.fecha ? formatearFechaHoraGuatemala(l.fecha) : "--"}</td>
                 <td><span class="badge bg-${accionColor}">${l.accion || "--"}</span></td>
                 <td>${l.modulo || "--"}</td>
                 <td>${l.detalles || "--"}</td>
@@ -2972,4 +2972,4 @@ window.reactivarEmpleado = reactivarEmpleado;
 window.filtrarUsuariosTabla = filtrarUsuariosTabla;
 window.cargarEmpleadosTabla = cargarEmpleadosTabla;
 window.cargarPagosTabla = cargarPagosTabla;
-window.actualizarBitacoraUsuarios = actualizarBitacoraUsuarios;
+window.actualizarBitacoraUsuarios = actualizarBitacoraUsuarios;

@@ -174,7 +174,7 @@ async function cargarBackups(notificarError = true) {
     const filas = backups.map((backup) => `
       <tr>
         <td>${escaparHtml(backup.nombre)}</td>
-        <td>${escaparHtml(new Date(backup.fecha).toLocaleString())}</td>
+        <td>${escaparHtml(formatearFechaHoraGuatemala(backup.fecha))}</td>
         <td>${escaparHtml(backup.tamano_mb)} MB</td>
         <td class="text-nowrap">
           <button class="btn btn-sm btn-outline-primary" title="Descargar" onclick="descargarBackup('${escaparHtml(backup.nombre)}')">
@@ -343,7 +343,7 @@ function renderConfiguracion(config) {
                 </div>
                 ${config.logo_ruta ? `<div class="mt-3"><strong>Logo:</strong> <img src="${config.logo_ruta}" style="max-height:100px;" /></div>` : ""}
                 <div class="mt-3 text-muted small">
-                    Última actualización: ${config.fecha_actualizacion ? new Date(config.fecha_actualizacion).toLocaleString() : "--"}
+                    Última actualización: ${config.fecha_actualizacion ? formatearFechaHoraGuatemala(config.fecha_actualizacion) : "--"}
                 </div>
             </div>
         </div>
@@ -451,7 +451,8 @@ async function saveConfig(event) {
       const r = await api.request(`/configuracion/bitacora-a-borrar?dias=${diasNuevos}`);
       cantidad = r?.cantidad;
     }catch(e) {}
-    const fechaLimite = new Date(Date.now() - diasNuevos * 24 * 60 * 60 * 1000).toLocaleDateString();
+    const fechaLimite = fechaCalendarioGuatemala();
+    fechaLimite.setDate(fechaLimite.getDate() - diasNuevos);
     const cuantos =
       cantidad === null || cantidad === undefined
         ? "Se borrarán"
@@ -460,7 +461,7 @@ async function saveConfig(event) {
           : `Se borrarán ahora ${cantidad} registro(s) y, de aquí en adelante,`;
     const ok = await confirmarAccion(
       `Vas a conservar la bitácora solo ${diasNuevos} días.\n\n` +
-        `${cuantos} los registros anteriores al ${fechaLimite} (cada día se borra lo que pase de ${diasNuevos} días).\n\n` +
+        `${cuantos} los registros anteriores al ${formatearFechaGuatemala(fechaISOCalendarioGuatemala(fechaLimite))} (cada día se borra lo que pase de ${diasNuevos} días).\n\n` +
         `Lo borrado NO se puede recuperar. ¿Continuar?`,
       { titulo: "Borrar bitácora antigua", textoAceptar: "Sí, guardar" },
     );
@@ -542,7 +543,7 @@ function renderMetas(metas) {
                 <td>Q${Number(m.meta_ingresos || 0).toFixed(2)}</td>
                 <td>Q${Number(m.meta_utilidad || 0).toFixed(2)}</td>
                 <td>Q${Number(m.meta_gastos || 0).toFixed(2)}</td>
-                <td>${m.fecha_registro ? new Date(m.fecha_registro).toLocaleDateString() : "--"}</td>
+                <td>${m.fecha_registro ? formatearFechaGuatemala(m.fecha_registro) : "--"}</td>
                 <td>
                     ${tienePermiso("Configuracion", "Eliminar") ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteMeta(${m.id})">
                         <i class="fas fa-trash"></i>
@@ -577,7 +578,7 @@ function showCreateMetaModal() {
 
   document.getElementById("metaForm").reset();
   document.getElementById("metaId").value = "";
-  document.getElementById("metaAnio").value = new Date().getFullYear();
+  document.getElementById("metaAnio").value = fechaCalendarioGuatemala().getFullYear();
 
   const modalInstance = new bootstrap.Modal(modal);
   modalInstance.show();
@@ -770,7 +771,7 @@ function crearModalMeta() {
                 </div>
                 <div class="col-md-6 mb-3">
                   <label class="form-label">Año</label>
-                  <input type="number" class="form-control" id="metaAnio" value="${new Date().getFullYear()}" required />
+                  <input type="number" class="form-control" id="metaAnio" value="${fechaCalendarioGuatemala().getFullYear()}" required />
                 </div>
               </div>
               <div class="mb-3">

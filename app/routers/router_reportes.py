@@ -50,6 +50,7 @@ from app.schemas.schema_reportes import (
     UsuariosMasActivosResponse, UsuarioMasActivoItem,
     BitacoraResponse, BitacoraItem,
 )
+from app.timezone import today_gt
 
 router = APIRouter()              # /reportes (ventas y caja, ya existian)
 router_compras = APIRouter()      # /reportes/compras
@@ -65,7 +66,7 @@ def reporte_ventas_diarias(
     usuario_actual: Usuario = Depends(get_current_user),
 ):
     """Requerimiento #25: reporte de ventas por rango de fechas (un solo día si desde=hasta, o el reporte diario si se omiten ambos)."""
-    hoy = date.today()
+    hoy = today_gt()
     desde = desde or hoy
     hasta = hasta or hoy
     if hasta < desde:
@@ -94,7 +95,7 @@ def reporte_conciliacion_pagos(
     usuario_actual: Usuario = Depends(get_current_user),
 ):
     """Requerimiento #22: desglosa lo cobrado por cada método de pago (efectivo, tarjeta, transferencia) en un rango de fechas."""
-    hoy = date.today()
+    hoy = today_gt()
     desde = desde or hoy
     hasta = hasta or hoy
     if hasta < desde:
@@ -388,7 +389,7 @@ def reporte_excesos_inventario(
         .all()
     )
 
-    hoy = date.today()
+    hoy = today_gt()
     return [
         ExcesoInventarioItem(
             id=producto.id,
@@ -456,7 +457,7 @@ def reporte_inventario_valorizado(db: Session = Depends(get_db), usuario_actual:
         ))
     detalle.sort(key=lambda d: d.valor_total, reverse=True)
     return InventarioValorizadoResponse(
-        fecha_corte=date.today(),
+        fecha_corte=today_gt(),
         valor_total_inventario=round(sum(d.valor_total for d in detalle), 2),
         detalle=detalle,
     )
@@ -669,7 +670,7 @@ def reporte_dashboard(db: Session = Depends(get_db), usuario_actual: Usuario = D
     from app.models.model_cliente import Cliente
     from app.models.model_producto import Categoria
 
-    hoy = date.today()
+    hoy = today_gt()
     ventas_validas = db.query(Venta).filter(Venta.estado == "Completada")
 
     def _suma(q):

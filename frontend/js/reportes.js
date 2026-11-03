@@ -196,8 +196,8 @@ function _renderTablaUsuarios(detalle, tituloTabla) {
         (u) => `<tr>
           <td>${u.id}</td>
           <td><strong>${u.nombre_usuario || "--"}</strong></td>
-          <td>${u.fecha_creacion ? new Date(u.fecha_creacion).toLocaleDateString() : "--"}</td>
-          <td>${u.fecha_ultimo_acceso ? new Date(u.fecha_ultimo_acceso).toLocaleString() : "--"}</td>
+          <td>${u.fecha_creacion ? formatearFechaGuatemala(u.fecha_creacion) : "--"}</td>
+          <td>${u.fecha_ultimo_acceso ? formatearFechaHoraGuatemala(u.fecha_ultimo_acceso) : "--"}</td>
           <td><span class="badge ${u.activo !== 0 ? "bg-success" : "bg-danger"}">${u.activo !== 0 ? "Activo" : "Inactivo"}</span></td>
         </tr>`,
       )
@@ -322,8 +322,8 @@ async function cargarReporteUsuariosPorFecha() {
   const container = document.getElementById("reporteUsuariosPorFechaContainer");
   if (!container) return;
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
       <div class="row mb-3">
@@ -579,7 +579,7 @@ async function cargarReporteVentasDiarias() {
   const container = document.getElementById("reporteVentasDiariasContainer");
   if (!container) return;
   try {
-    const hoy = new Date();
+    const hoy = fechaCalendarioGuatemala();
     const fecha = _fechaLocalISO(hoy);
     container.innerHTML = `
             <div class="row mb-3">
@@ -608,9 +608,8 @@ function escaparHtmlReporteTurno(v) {
 }
 
 // Fecha local (YYYY-MM-DD). toISOString usa UTC y después de las 6 p. m. daba el día siguiente.
-function _fechaLocalISO(d = new Date()) {
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+function _fechaLocalISO(d = fechaCalendarioGuatemala()) {
+  return fechaISOCalendarioGuatemala(d);
 }
 
 // Devuelve true (y avisa) si el rango de fechas no es válido
@@ -665,7 +664,7 @@ async function cargarReporteConciliacion() {
   const container = document.getElementById("reporteConciliacionContainer");
   if (!container) return;
   try {
-    const hoy = new Date();
+    const hoy = fechaCalendarioGuatemala();
     const fecha = _fechaLocalISO(hoy);
     container.innerHTML = `
             <div class="row mb-3">
@@ -765,14 +764,14 @@ async function actualizarCuadreCaja() {
                 <div class="col-md-3"><div class="card bg-primary bg-opacity-10"><div class="card-body text-center"><h6 class="text-muted">Total Contado</h6><h4 class="text-primary">Q${(data.total_contado || 0).toFixed(2)}</h4></div></div></div>
                 <div class="col-md-3"><div class="card bg-${diferenciaColor} bg-opacity-10"><div class="card-body text-center"><h6 class="text-muted">Diferencia</h6><h4 class="text-${diferenciaColor}">Q${(diferencia || 0).toFixed(2)}</h4></div></div></div>
             </div>
-            <div class="row mt-3"><div class="col-md-6"><p><strong>Fecha Apertura:</strong> ${data.fecha_apertura ? new Date(data.fecha_apertura).toLocaleString() : "--"}</p></div>
-            <div class="col-md-6"><p><strong>Fecha Cierre:</strong> ${data.fecha_cierre ? new Date(data.fecha_cierre).toLocaleString() : "--"}</p></div></div>
+            <div class="row mt-3"><div class="col-md-6"><p><strong>Fecha Apertura:</strong> ${data.fecha_apertura ? formatearFechaHoraGuatemala(data.fecha_apertura) : "--"}</p></div>
+            <div class="col-md-6"><p><strong>Fecha Cierre:</strong> ${data.fecha_cierre ? formatearFechaHoraGuatemala(data.fecha_cierre) : "--"}</p></div></div>
             <table class="table table-sm table-bordered mt-2">
                 <thead class="table-light"><tr><th>Concepto</th><th>Valor</th></tr></thead>
                 <tbody>
                     <tr><td>Caja de</td><td>${escaparHtmlReporteTurno(nombrePersona(data.id_usuario))} (${data.estado})</td></tr>
-                    <tr><td>Fecha Apertura</td><td>${data.fecha_apertura ? new Date(data.fecha_apertura).toLocaleString() : "--"}</td></tr>
-                    <tr><td>Fecha Cierre</td><td>${data.fecha_cierre ? new Date(data.fecha_cierre).toLocaleString() : "--"}</td></tr>
+                    <tr><td>Fecha Apertura</td><td>${data.fecha_apertura ? formatearFechaHoraGuatemala(data.fecha_apertura) : "--"}</td></tr>
+                    <tr><td>Fecha Cierre</td><td>${data.fecha_cierre ? formatearFechaHoraGuatemala(data.fecha_cierre) : "--"}</td></tr>
                     <tr><td>Fondo Inicial</td><td>Q${(data.fondo_inicial || 0).toFixed(2)}</td></tr>
                     <tr><td>Total Ventas</td><td>Q${(data.total_ventas || 0).toFixed(2)}</td></tr>
                     <tr><td>Total Contado</td><td>Q${(data.total_contado || 0).toFixed(2)}</td></tr>
@@ -792,8 +791,8 @@ async function cargarReporteUtilidad() {
   const container = document.getElementById("reporteUtilidadContainer");
   if (!container) return;
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
@@ -858,8 +857,8 @@ async function cargarReporteTopProductos() {
   const container = document.getElementById("reporteTopProductosContainer");
   if (!container) return;
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
@@ -939,8 +938,8 @@ async function cargarReporteComprasResumen() {
   const container = document.getElementById("reporteComprasResumenContainer");
   if (!container) return;
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
@@ -997,8 +996,8 @@ async function cargarReporteComprasProveedor() {
   const container = document.getElementById("reporteComprasProveedorContainer");
   if (!container) return;
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
@@ -1073,12 +1072,12 @@ async function actualizarCuentasPagar() {
                   .map((item) => {
                     const vencido =
                       item.fecha_vencimiento_pago &&
-                      new Date(item.fecha_vencimiento_pago) < new Date();
+                      fechaISODeGuatemala(item.fecha_vencimiento_pago) < hoyISOGuatemala();
                     return `<tr class="${vencido ? "table-danger" : ""}">
                         <td><strong>${item.proveedor}</strong></td><td>${item.numero_factura || "--"}</td>
                         <td class="text-end">Q${(item.total || 0).toFixed(2)}</td>
                         <td class="text-end fw-bold text-warning">Q${(item.saldo_pendiente || 0).toFixed(2)}</td>
-                        <td>${item.fecha_vencimiento_pago ? new Date(item.fecha_vencimiento_pago).toLocaleDateString() : "--"}${vencido ? " ⚠️ VENCIDO" : ""}</td>
+                        <td>${item.fecha_vencimiento_pago ? formatearFechaGuatemala(item.fecha_vencimiento_pago) : "--"}${vencido ? " ⚠️ VENCIDO" : ""}</td>
                     </tr>`;
                   })
                   .join("")}</tbody></table></div></div></div>
@@ -1224,8 +1223,8 @@ async function cargarReporteMovimientosResumen() {
   );
   if (!container) return;
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
@@ -1313,8 +1312,8 @@ async function cargarReporteLoginResumen() {
   const container = document.getElementById("reporteLoginResumenContainer");
   if (!container) return;
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
@@ -1360,8 +1359,8 @@ async function cargarReporteUsuariosActivos() {
   const container = document.getElementById("reporteUsuariosActivosContainer");
   if (!container) return;
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
@@ -1436,8 +1435,8 @@ async function cargarReporteBitacora() {
   const container = document.getElementById("reporteBitacoraContainer");
   if (!container) return;
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
     container.innerHTML = `
             <div class="row mb-3">
@@ -1476,7 +1475,7 @@ async function actualizarBitacora() {
               .map(
                 (
                   item,
-                ) => `<tr><td><small>${item.fecha ? new Date(item.fecha).toLocaleString() : "--"}</small></td>
+                ) => `<tr><td><small>${item.fecha ? formatearFechaHoraGuatemala(item.fecha) : "--"}</small></td>
                     <td><strong>${item.nombre_usuario || "--"}</strong></td>
                     <td><span class="badge ${item.accion === "LOGIN" ? "bg-success" : item.accion === "LOGIN_FALLIDO" ? "bg-danger" : "bg-info"}">${item.accion || "--"}</span></td>
                     <td>${item.modulo || "--"}</td></tr>`,
@@ -1494,7 +1493,7 @@ async function cargarReporteVentasDiarias() {
   if (!container) return;
 
   try {
-    const hoy = new Date();
+    const hoy = fechaCalendarioGuatemala();
     const fecha = _fechaLocalISO(hoy);
 
     container.innerHTML = `
@@ -1536,7 +1535,7 @@ async function cargarReporteConciliacion() {
   if (!container) return;
 
   try {
-    const hoy = new Date();
+    const hoy = fechaCalendarioGuatemala();
     const fecha = _fechaLocalISO(hoy);
 
     container.innerHTML = `
@@ -1626,8 +1625,8 @@ async function cargarReporteUtilidad() {
   if (!container) return;
 
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
 
     container.innerHTML = `
@@ -1673,8 +1672,8 @@ async function cargarReporteTopProductos() {
   if (!container) return;
 
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
 
     container.innerHTML = `
@@ -1724,8 +1723,8 @@ async function cargarReporteComprasResumen() {
   if (!container) return;
 
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
 
     container.innerHTML = `
@@ -1771,8 +1770,8 @@ async function cargarReporteComprasProveedor() {
   if (!container) return;
 
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
 
     container.innerHTML = `
@@ -1880,8 +1879,8 @@ async function cargarReporteMovimientosResumen() {
   if (!container) return;
 
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
 
     container.innerHTML = `
@@ -1959,8 +1958,8 @@ async function cargarReporteLoginResumen() {
   if (!container) return;
 
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
 
     container.innerHTML = `
@@ -2006,8 +2005,8 @@ async function cargarReporteUsuariosActivos() {
   if (!container) return;
 
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
 
     container.innerHTML = `
@@ -2057,8 +2056,8 @@ async function cargarReporteBitacora() {
   if (!container) return;
 
   try {
-    const hoy = new Date();
-    const hace30Dias = new Date();
+    const hoy = fechaCalendarioGuatemala();
+    const hace30Dias = fechaCalendarioGuatemala();
     hace30Dias.setDate(hace30Dias.getDate() - 30);
 
     container.innerHTML = `
@@ -2184,7 +2183,7 @@ async function exportarPDF(containerId, titulo = "Reporte") {
     const moduloActual =
       document.querySelector("#mainContent .nav-link.active")?.textContent?.trim() || "";
     const usuario = window.app?.user?.nombre_usuario || "Usuario";
-    const fechaTexto = new Date().toLocaleString("es-GT");
+    const fechaTexto = formatearFechaHoraGuatemala();
 
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const anchoPagina = doc.internal.pageSize.getWidth();

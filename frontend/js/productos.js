@@ -2469,7 +2469,7 @@ function descargarInventarioActual() {
   XLSX.utils.book_append_sheet(wb, ws, "Inventario");
   descargarExcelConColores(
     wb,
-    `Inventario_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    `Inventario_${hoyISOGuatemala()}.xlsx`,
     { obligatorias: ["Actualizar", "Codigo"], informativas: ["Stock_Actual"] },
   );
   showToast("Inventario descargado", "success");

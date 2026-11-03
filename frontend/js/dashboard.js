@@ -310,7 +310,7 @@ async function loadDashboardModule() {
                             <tr>
                               <td><strong>#${v.id}</strong></td>
                               <td>${v.cliente ? escaparHtmlDashboard(v.cliente) : "Consumidor final"}</td>
-                              <td>${v.fecha ? new Date(v.fecha).toLocaleDateString() : "--"}</td>
+                              <td>${v.fecha ? formatearFechaGuatemala(v.fecha) : "--"}</td>
                               <td class="text-end"><strong>${_formatMoney(v.total)}</strong></td>
                               <td class="text-center">
                                 <span class="badge ${badgeEstado[v.estado] || "bg-secondary"}">${v.estado}</span>
@@ -407,7 +407,7 @@ async function loadDashboardModule() {
                             const ingreso = m.tipo === "ingreso";
                             return `
                             <tr>
-                              <td>${m.fecha ? new Date(m.fecha).toLocaleDateString() : "--"}</td>
+                              <td>${m.fecha ? formatearFechaGuatemala(m.fecha) : "--"}</td>
                               <td>
                                 <span class="badge ${ingreso ? "bg-success" : "bg-danger"}">
                                   ${ingreso ? "Ingreso" : "Egreso"}
@@ -472,8 +472,7 @@ function crearGraficaVentas7Dias(dias) {
   const dataMonto = [];
 
   dias.forEach((dia) => {
-    const [y, m, dd] = dia.fecha.split("-").map(Number);
-    labels.push(new Date(y, m - 1, dd).toLocaleDateString("es", { weekday: "short", day: "numeric" }));
+    labels.push(formatearFechaGuatemala(dia.fecha, { weekday: "short", day: "numeric" }));
     dataCount.push(dia.cantidad);
     dataMonto.push(dia.total);
   });

@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
@@ -15,6 +15,7 @@ from app.schemas.schema_cotizacion import (
     CotizacionCreate, CotizacionResponse,
     CotizacionParaVentaResponse, CotizacionParaVentaDetalleItem,
 )
+from app.timezone import now_gt
 
 router = APIRouter()
 
@@ -46,7 +47,7 @@ def _venta_de_cotizacion(db: Session, id_cotizacion):
 
 def _generar_numero_expediente(db: Session) -> str:
     """Genera el correlativo 'AAAA-NNN' para el año actual (ej. '2026-014')."""
-    anio_actual = datetime.now().year
+    anio_actual = now_gt().year
     cantidad_este_anio = (
         db.query(func.count(Cotizacion.id))
         .filter(Cotizacion.numero_expediente.like(f"{anio_actual}-%"))

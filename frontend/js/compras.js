@@ -91,7 +91,7 @@ async function registrarMovimientoInventario(
       id_referencia: null,
       referencia: `Compra de producto ID ${id_producto}`,
       observaciones:
-        observacion || `Entrada por compra (${new Date().toLocaleString()})`,
+        observacion || `Entrada por compra (${formatearFechaHoraGuatemala()})`,
       detalles: [
         {
           id_producto: parseInt(id_producto),
@@ -518,7 +518,7 @@ function _estadoRecepcionCompra(c) {
 function _badgeRecepcionCompra(c) {
   const r = _estadoRecepcionCompra(c);
   if (r.tipo === "recibida") {
-    const fecha = r.fecha ? new Date(r.fecha).toLocaleDateString() : "";
+    const fecha = r.fecha ? formatearFechaGuatemala(r.fecha) : "";
     return `<div class="compras-recepcion-cell">
       <span class="badge bg-success">Recibida</span>
       ${fecha ? `<small class="text-muted">${fecha}</small>` : ""}
@@ -694,7 +694,7 @@ function renderComprasTable(compras) {
                 <td>${c.id}</td>
                 <td>${nombreProveedor}</td>
                 <td>${c.numero_factura || "--"}${c.id_pedido ? `<div class="small text-muted">Pedido #${c.id_pedido}</div>` : ""}</td>
-                <td>${c.fecha ? new Date(c.fecha).toLocaleDateString() : "--"}</td>
+                <td>${c.fecha ? formatearFechaGuatemala(c.fecha) : "--"}</td>
                 <td>Q${c.subtotal || 0}</td>
                 <td>Q${c.iva || 0}</td>
                 <td><strong>Q${c.total || 0}</strong></td>
@@ -1164,7 +1164,7 @@ function renderPedidosTab(pedidos) {
             <tr>
                 <td>${p.id}</td>
                 <td>${nombreProveedor}</td>
-                <td>${p.fecha ? new Date(p.fecha).toLocaleDateString() : "--"}</td>
+                <td>${p.fecha ? formatearFechaGuatemala(p.fecha) : "--"}</td>
                 <td>${numProductos}</td>
                 <td><span class="badge ${estadoBadge}">${estado}</span></td>
                 <td>
@@ -1395,7 +1395,7 @@ function renderCajaChicaTab(movimientos) {
             <tr>
                 <td>${m.id}</td>
                 <td>${nombreUbicacion}</td>
-                <td>${m.fecha ? new Date(m.fecha).toLocaleString() : "--"}</td>
+                <td>${m.fecha ? formatearFechaHoraGuatemala(m.fecha) : "--"}</td>
                 <td><span class="badge ${tipoBadge}">${tipo}</span></td>
                 <td><strong>Q${m.monto || 0}</strong></td>
                 <td>Q${m.saldo || 0}</td>
@@ -1570,7 +1570,7 @@ function renderGastosTab(gastos) {
     html += `
             <tr>
                 <td>${g.id}</td>
-                <td>${g.fecha ? new Date(g.fecha).toLocaleString() : "--"}</td>
+                <td>${g.fecha ? formatearFechaHoraGuatemala(g.fecha) : "--"}</td>
                 <td><strong>${nombreTipo}</strong></td>
                 <td>${g.concepto || "--"}</td>
                 <td><strong>Q${g.monto || 0}</strong></td>
@@ -2902,7 +2902,7 @@ async function verPedido(id) {
             <div class="modal-body">
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Proveedor:</strong> ${nombreProveedor}</div>
-                    <div class="col-md-6"><strong>Fecha:</strong> ${pedido.fecha ? new Date(pedido.fecha).toLocaleString() : "--"}</div>
+                    <div class="col-md-6"><strong>Fecha:</strong> ${pedido.fecha ? formatearFechaHoraGuatemala(pedido.fecha) : "--"}</div>
                 </div>
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Estado:</strong> <span class="badge ${estadoBadge}">${pedido.estado || "Pendiente"}</span></div>
@@ -3147,7 +3147,7 @@ async function verCajaChica(id) {
             <div class="modal-body">
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Ubicación:</strong> ${nombreUbicacion}</div>
-                    <div class="col-md-6"><strong>Fecha:</strong> ${movimiento.fecha ? new Date(movimiento.fecha).toLocaleString() : "--"}</div>
+                    <div class="col-md-6"><strong>Fecha:</strong> ${movimiento.fecha ? formatearFechaHoraGuatemala(movimiento.fecha) : "--"}</div>
                 </div>
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Tipo:</strong> <span class="badge ${movimiento.tipo === "ingreso" ? "bg-success" : "bg-danger"}">${movimiento.tipo === "ingreso" ? "Ingreso" : "Egreso"}</span></div>
@@ -3310,7 +3310,7 @@ async function verGasto(id) {
                     <div class="col-md-6"><strong>Ubicación:</strong> ${nombreUbicacion}</div>
                 </div>
                 <div class="row mb-3">
-                    <div class="col-md-6"><strong>Fecha:</strong> ${gasto.fecha ? new Date(gasto.fecha).toLocaleString() : "--"}</div>
+                    <div class="col-md-6"><strong>Fecha:</strong> ${gasto.fecha ? formatearFechaHoraGuatemala(gasto.fecha) : "--"}</div>
                     <div class="col-md-6"><strong>Monto:</strong> Q${gasto.monto || 0}</div>
                 </div>
                 <div class="mb-3"><strong>Concepto:</strong> ${gasto.concepto || "--"}</div>
@@ -4198,7 +4198,7 @@ async function verCompra(id) {
           <td>${tipo ? tipo.nombre : "--"} ${anulado ? '<span class="badge bg-secondary ms-1">Anulado</span>' : ""}${anulado && p.observaciones ? `<div class="small">${escaparHtmlEscaner(p.observaciones)}</div>` : ""}</td>
           <td class="text-end" style="${anulado ? "text-decoration: line-through;" : ""}">Q${Number(p.monto || 0).toFixed(2)}</td>
           <td>${p.referencia || "--"}</td>
-          <td>${p.fecha_pago ? new Date(p.fecha_pago).toLocaleDateString() : "--"}</td>
+          <td>${p.fecha_pago ? formatearFechaGuatemala(p.fecha_pago) : "--"}</td>
           <td class="text-end">
             ${
               anulado
@@ -4232,7 +4232,7 @@ async function verCompra(id) {
               return `
         <tr>
           <td>${n.numero_nota || "--"}</td>
-          <td>${n.fecha_recepcion ? new Date(n.fecha_recepcion).toLocaleString() : "--"}</td>
+          <td>${n.fecha_recepcion ? formatearFechaHoraGuatemala(n.fecha_recepcion) : "--"}</td>
           <td>${n.conforme === 1 ? '<span class="badge bg-success">Conforme</span>' : '<span class="badge bg-danger">No conforme</span>'}</td>
           <td>${receptor}</td>
           <td>${n.observaciones || ""}</td>
@@ -4295,7 +4295,7 @@ async function verCompra(id) {
                         <div class="row g-3">
                             <div class="col-md-4"><div class="small text-muted">Proveedor</div><div class="fw-semibold">${nombreProveedor}</div></div>
                             <div class="col-md-4"><div class="small text-muted">N° de factura</div><div class="fw-semibold">${compra.numero_factura || "--"}</div></div>
-                            <div class="col-md-4"><div class="small text-muted">Fecha</div><div class="fw-semibold">${compra.fecha ? new Date(compra.fecha).toLocaleString() : "--"}</div></div>
+                            <div class="col-md-4"><div class="small text-muted">Fecha</div><div class="fw-semibold">${compra.fecha ? formatearFechaHoraGuatemala(compra.fecha) : "--"}</div></div>
                             <div class="col-md-4"><div class="small text-muted">Estado</div><span class="badge ${estadoBadge}">${compra.estado || "Pendiente"}</span></div>
                             <div class="col-md-4"><div class="small text-muted">Recepción</div>${_badgeRecepcionCompra(compra)}</div>
                             <div class="col-md-4"><div class="small text-muted">Pedido</div><div class="fw-semibold">${compra.id_pedido ? `#${compra.id_pedido}` : "Sin pedido"}</div></div>
@@ -4415,7 +4415,7 @@ async function imprimirCompra(id) {
       })
       .join("");
 
-    const fecha = compra.fecha ? new Date(compra.fecha).toLocaleString() : "--";
+    const fecha = compra.fecha ? formatearFechaHoraGuatemala(compra.fecha) : "--";
 
     const html = `
       <!DOCTYPE html>
@@ -4441,7 +4441,7 @@ async function imprimirCompra(id) {
       </head>
       <body>
         <h1>Reporte de Compra #${compra.id}</h1>
-        <div class="subtitulo">Generado el ${new Date().toLocaleString()}</div>
+        <div class="subtitulo">Generado el ${formatearFechaHoraGuatemala()}</div>
         <div class="datos"><strong>Proveedor:</strong> ${nombreProveedor}</div>
         <div class="datos"><strong>N° Factura:</strong> ${compra.numero_factura || "--"}</div>
         <div class="datos"><strong>Fecha:</strong> ${fecha}</div>
@@ -5127,4 +5127,4 @@ window.toggleTipoGastoEstado = toggleTipoGastoEstado;
 window.confirmarAdmin = confirmarAdmin;
 window.showEditTipoPagoModal = showEditTipoPagoModal;
 window.filtrarCajaChicaTabla = filtrarCajaChicaTabla;
-window.filtrarGastosTabla = filtrarGastosTabla;
+window.filtrarGastosTabla = filtrarGastosTabla;

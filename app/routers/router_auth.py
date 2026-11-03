@@ -1,6 +1,4 @@
 import hmac
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.bitacora import limpiar_bitacora_antigua
 from sqlalchemy import func
@@ -20,6 +18,7 @@ from app.schemas.schema_auth import (
 )
 
 from app.schemas.schema_auth import VerificarAdminResponse
+from app.timezone import now_gt_naive
 
 router = APIRouter()
 
@@ -187,7 +186,7 @@ def login(datos: LoginRequest, db: Session = Depends(get_db)):
 
     # Login correcto
     usuario.intentos_fallidos = 0
-    usuario.fecha_ultimo_acceso = datetime.now()
+    usuario.fecha_ultimo_acceso = now_gt_naive()
     db.add(LogActividad(
         id_usuario=usuario.id, accion="LOGIN", modulo="auth",
         detalles=f"Inicio de sesión de '{usuario.nombre_usuario}'",
