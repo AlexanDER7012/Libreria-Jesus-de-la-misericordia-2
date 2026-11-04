@@ -4486,17 +4486,21 @@ async function cargarSubVendedores() {
       empleadosMap[e.id] = e;
     });
 
-    // Antes solo se mostraban los usuarios con id_rol === 3 (fijo en el
-    // código) y que tuvieran empleado; si el rol "Vendedor" tenía otro id,
-    // la pestaña salía vacía. Ahora se muestran todos los usuarios con su
-    // rol, y primero los que más ventas tienen.
     const roles = await api.getRoles().catch(() => []);
     const rolesMap = {};
     (roles || []).forEach((r) => {
       rolesMap[r.id] = r.nombre;
     });
 
-    const resultado = (usuarios || [])
+    const rolVentas = (roles || []).find(
+      (r) => String(r.nombre || "").trim().toLocaleLowerCase() === "ventas",
+    );
+    const usuariosVentas = rolVentas
+      ? (usuarios || []).filter(
+          (u) => String(u.id_rol) === String(rolVentas.id),
+        )
+      : [];
+    const resultado = usuariosVentas
       .map((u) => {
         const empleado = empleadosMap[u.id_empleado] || {};
         return {

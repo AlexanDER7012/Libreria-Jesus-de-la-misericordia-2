@@ -3643,7 +3643,7 @@ async function verCajaChica(id) {
 // FUNCIONES CRUD: GASTOS
 // =============================================
 
-function showCreateGastoModal() {
+async function showCreateGastoModal() {
   const tiposGasto = (window.tiposGastoData || []).filter(
     (t) => t.activo !== 0,
   );
@@ -3656,11 +3656,26 @@ function showCreateGastoModal() {
   if (ubicaciones.length === 0)
     return showToast("No hay ubicaciones disponibles", "warning");
 
+  let configuracion;
+  try {
+    configuracion = await api.request("/configuracion");
+  } catch (error) {
+    return showToast(
+      error.message || "Error al cargar la ubicación de configuración",
+      "error",
+    );
+  }
+  const ubicacionConfigurada = ubicaciones.find(
+    (u) => String(u.id) === String(configuracion?.id_ubicacion),
+  );
   const tipoOptions = tiposGasto
     .map((t) => `<option value="${t.id}">${t.nombre}</option>`)
     .join("");
   const ubicacionOptions = ubicaciones
-    .map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`)
+    .map(
+      (u) =>
+        `<option value="${u.id}"${ubicacionConfigurada && String(u.id) === String(ubicacionConfigurada.id) ? " selected" : ""}>${escaparHtmlEscaner(u.nombre || u.id)}</option>`,
+    )
     .join("");
 
   const html = `
@@ -4131,7 +4146,7 @@ function crearModalTipoPago() {
 // FUNCIONES CRUD: COMPRAS
 // =============================================
 
-function showCreateCompraModal() {
+async function showCreateCompraModal() {
   compraDetallesTemp = [];
 
   const modal = document.getElementById("compraModal");
@@ -4153,9 +4168,9 @@ function showCreateCompraModal() {
   const infoPedidoEl = document.getElementById("compraPedidoInfo");
   if (infoPedidoEl) infoPedidoEl.textContent = "";
 
+  if (!(await prepararUbicacionDestinoCompra())) return;
   llenarSelectProveedor();
   llenarSelectProductoCompra();
-  prepararUbicacionDestinoCompra();
 
   const lista = document.getElementById("compraDetallesList");
   if (lista) lista.innerHTML = "";
@@ -4185,7 +4200,7 @@ async function prepararUbicacionDestinoCompra() {
       <div class="row g-2 mb-2">
         <div class="col-md-5">
           <label class="form-label fw-bold mb-1">Ubicación de destino <span class="text-danger">*</span></label>
-          <select class="form-select form-select-sm" id="compraUbicacionDestino"></select>
+          <select class="form-select form-select-sm" id="compraUbicacionDestino" required></select>
           <div class="form-text">Donde se guardará la mercadería al recibirla (ej. Bodega).</div>
         </div>
       </div>
@@ -4195,16 +4210,37 @@ async function prepararUbicacionDestinoCompra() {
   const select = document.getElementById("compraUbicacionDestino");
   try {
     const [ubicaciones, config] = await Promise.all([
-      api.request("/ubicaciones").catch(() => []),
-      api.request("/configuracion").catch(() => ({})),
+      api.request("/ubicaciones"),
+      api.request("/configuracion"),
     ]);
+    if (!Array.isArray(ubicaciones)) {
+      throw new Error("La respuesta de ubicaciones no es válida");
+    }
     const activas = (ubicaciones || []).filter((u) => u.activo !== 0);
-    select.innerHTML = activas
-      .map((u) => `<option value="${u.id}">${escaparHtmlEscaner(u.nombre || u.id)}</option>`)
-      .join("");
-    const porDefecto = (config && config.id_ubicacion) || (activas[0] && activas[0].id);
-    if (porDefecto) select.value = String(porDefecto);
-  } catch (e) {}
+    if (activas.length === 0) {
+      showToast("No hay ubicaciones activas disponibles", "warning");
+      return false;
+    }
+    select.innerHTML = `
+      <option value="">Seleccionar ubicación</option>
+      ${activas
+        .map((u) => `<option value="${u.id}">${escaparHtmlEscaner(u.nombre || u.id)}</option>`)
+        .join("")}
+    `;
+    const ubicacionConfigurada = activas.find(
+      (u) => String(u.id) === String(config?.id_ubicacion),
+    );
+    if (ubicacionConfigurada) {
+      select.value = String(ubicacionConfigurada.id);
+    }
+    return true;
+  } catch (error) {
+    showToast(
+      error.message || "Error al cargar la ubicación de configuración",
+      "error",
+    );
+    return false;
+  }
 }
 
 // ============================================================
@@ -4581,7 +4617,7 @@ async function saveCompra(event) {
   let id_ubicacion_destino =
     parseInt(document.getElementById("compraUbicacionDestino")?.value) || null;
   if (!id_ubicacion_destino) try {
-    const config = await api.request("/configuracion").catch(() => ({}));
+    const config = await api.request("/configuracion");
     id_ubicacion_destino = config.id_ubicacion || null;
     if (!id_ubicacion_destino) {
       showToast(

@@ -999,10 +999,13 @@ function populateSelectsInventario() {
     // Fuera de Traslados se propone la ubicación principal (la de
     // Configuración general); en Traslados origen y destino se eligen.
     if (!select.id.startsWith("traslado")) {
-      if (ubicaciones.length === 1) {
-        select.value = String(ubicaciones[0].id);
-      } else if (window.ubicacionPrincipalId) {
+      const ubicacionConfigurada = ubicaciones.find(
+        (u) => String(u.id) === String(window.ubicacionPrincipalId),
+      );
+      if (ubicacionConfigurada) {
         select.value = String(window.ubicacionPrincipalId);
+      } else if (ubicaciones.length === 1) {
+        select.value = String(ubicaciones[0].id);
       }
     }
   });
