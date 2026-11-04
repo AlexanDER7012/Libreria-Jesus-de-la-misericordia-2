@@ -3432,16 +3432,49 @@ async function cambiarEstadoPedido(id) {
 // FUNCIONES CRUD: CAJA CHICA
 // =============================================
 
-function showCreateCajaChicaModal() {
-  const ubicaciones = (window.ubicacionesData || []).filter(
-    (u) => u.activo !== 0,
-  );
-  if (ubicaciones.length === 0)
-    return showToast("No hay ubicaciones disponibles", "warning");
+async function showCreateCajaChicaModal() {
+  let configuracion;
+  let ubicaciones;
+  let turnosAbiertos;
+  let idUbicacionConfigurada;
+  try {
+    [configuracion, ubicaciones] = await Promise.all([
+      api.request("/configuracion"),
+      api.request("/ubicaciones"),
+    ]);
+    idUbicacionConfigurada = Number(configuracion.id_ubicacion);
+    if (!Number.isInteger(idUbicacionConfigurada) || idUbicacionConfigurada <= 0) {
+      return showToast(
+        "No hay sucursal configurada. Configúrala antes de registrar movimientos de caja chica.",
+        "warning",
+      );
+    }
+    turnosAbiertos = await api.request(
+      `/caja-turno?estado=Abierto&id_ubicacion=${idUbicacionConfigurada}&limit=200`,
+    );
+  } catch (error) {
+    showToast(error.message || "No se pudo cargar la sucursal y el turno", "error");
+    return;
+  }
 
-  const ubicacionOptions = ubicaciones
-    .map((u) => `<option value="${u.id}">${u.nombre || u.id}</option>`)
-    .join("");
+  const ubicacion = ubicaciones.find(
+    (u) => Number(u.id) === idUbicacionConfigurada && u.activo !== 0,
+  );
+  if (!ubicacion) {
+    return showToast(
+      "La sucursal configurada no está disponible. Verifica Configuración general.",
+      "error",
+    );
+  }
+  const turnoAbierto = turnosAbiertos.find(
+    (turno) =>
+      Number(turno.id_ubicacion) === idUbicacionConfigurada &&
+      turno.estado === "Abierto",
+  );
+  const nombreUbicacion = escaparHtmlEscaner(ubicacion.nombre || ubicacion.id);
+  const estadoTurno = turnoAbierto
+    ? `Turno #${turnoAbierto.id}`
+    : "No hay turno abierto en esta sucursal";
 
   const html = `
         <div class="modal fade" id="cajaChicaModal" tabindex="-1" aria-hidden="true">
@@ -3457,11 +3490,9 @@ function showCreateCajaChicaModal() {
                         <form id="cajaChicaForm">
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
-                                    <label class="form-label fw-bold">Ubicación <span class="text-danger">*</span></label>
-                                    <select class="form-select" id="cajaChicaUbicacion" required>
-                                        <option value="">Seleccionar ubicación</option>
-                                        ${ubicacionOptions}
-                                    </select>
+                                    <label class="form-label fw-bold">Sucursal</label>
+                                    <input type="hidden" id="cajaChicaUbicacion" value="${idUbicacionConfigurada}" />
+                                    <input class="form-control" value="${nombreUbicacion}" readonly />
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Tipo <span class="text-danger">*</span></label>
@@ -3470,6 +3501,11 @@ function showCreateCajaChicaModal() {
                                         <option value="egreso">Egreso</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <div class="alert ${turnoAbierto ? "alert-info" : "alert-warning"} py-2">
+                                <strong>Turno:</strong> ${escaparHtmlEscaner(estadoTurno)}
+                                <div class="small">${turnoAbierto ? "Los egresos se asociarán automáticamente a este turno." : "Los egresos registrados ahora no quedarán asociados a un corte de caja."}</div>
                             </div>
 
                             <div class="row g-3 mb-3">
@@ -3536,7 +3572,12 @@ async function saveCajaChica(event) {
 
   try {
     const result = await api.request("/caja-chica", "POST", data);
-    showToast(`Movimiento #${result.id} registrado correctamente`, "success");
+    showToast(
+      data.tipo === "egreso" && !result.id_caja_turno
+        ? `Movimiento #${result.id} registrado sin turno asociado.`
+        : `Movimiento #${result.id} registrado correctamente`,
+      data.tipo === "egreso" && !result.id_caja_turno ? "warning" : "success",
+    );
     bootstrap.Modal.getInstance(
       document.getElementById("cajaChicaModal"),
     ).hide();
