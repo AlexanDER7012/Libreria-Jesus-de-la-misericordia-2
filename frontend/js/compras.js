@@ -4040,8 +4040,9 @@ async function recargarVistaTiposPago() {
   }
   if (modulo === "ventas") {
     window.tiposPagoData = (await api.request("/tipos-pago").catch(() => [])) || [];
+    await window.loadTiposPagoVentas?.();
     if (window.cajaContainer && document.body.contains(window.cajaContainer)) {
-      return window.cargarCajaEnContainer?.(window.cajaContainer);
+      await window.cargarCajaEnContainer?.(window.cajaContainer);
     }
     return;
   }

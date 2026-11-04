@@ -106,6 +106,11 @@ async function loadVentasModule() {
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#subTiposPago">
+                    <i class="fas fa-credit-card me-1"></i>Tipos de Pago
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link" data-bs-toggle="tab" href="#subVendedores">
                     <i class="fas fa-user-tie me-1"></i>Vendedores
                 </a>
@@ -150,6 +155,24 @@ async function loadVentasModule() {
                     <div class="text-center py-5">
                         <div class="spinner-border text-warning" role="status"></div>
                         <p class="mt-2 text-muted">Cargando caja...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="subTiposPago">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="fas fa-credit-card me-2"></i>Tipos de Pago</h5>
+                    ${
+                      tienePermiso("Ventas", "Crear")
+                        ? `<button class="btn btn-primary btn-sm" onclick="window.showCrearTipoPagoModal()">
+                            <i class="fas fa-plus me-1"></i>Nuevo Tipo de Pago
+                          </button>`
+                        : ""
+                    }
+                </div>
+                <div id="tiposPagoVentasContainer">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">Cargando tipos de pago...</p>
                     </div>
                 </div>
             </div>
@@ -225,6 +248,7 @@ async function loadVentasModule() {
         cargarSubCajaBasico(cajaContainer);
       }
     }
+    await window.loadTiposPagoVentas?.();
     _restaurarPestanasVentas(pestanasPrevias);
   } catch (error) {
     document.getElementById("ventasTableContainer").innerHTML = `
@@ -4672,37 +4696,13 @@ async function cargarSubCajaBasico(container) {
   if (!container) return;
 
   try {
-    const [turnos, tiposPago] = await Promise.all([
-      api.getCajaTurnos().catch(() => []),
-      api.getTiposPago().catch(() => []),
-    ]);
+    const turnos = (await api.getCajaTurnos().catch(() => [])) || [];
 
     window.turnosActivos = turnos.filter((t) => t.estado === "Abierto");
-    window.tiposPagoData = tiposPago;
 
     let html = `
       <div class="row">
-        <div class="col-md-6">
-          <div class="card">
-            <div class="card-header bg-primary text-white">
-              <i class="fas fa-cash-register me-2"></i>Tipos de Pago (Ventas)
-            </div>
-            <div class="card-body">
-              ${
-                tiposPago.filter((t) => t.para_ventas === 1).length === 0
-                  ? '<p class="text-muted">No hay tipos de pago configurados para ventas</p>'
-                  : tiposPago
-                      .filter((t) => t.para_ventas === 1)
-                      .map(
-                        (t) =>
-                          `<span class="badge bg-primary me-1 mb-1">${t.nombre}</span>`,
-                      )
-                      .join("")
-              }
-            </div>
-          </div>
-        </div>
-        <div class="col-md-6">
+        <div class="col-12">
           <div class="card">
             <div class="card-header bg-success text-white">
               <i class="fas fa-users me-2"></i>Turnos Activos
@@ -4725,34 +4725,18 @@ async function cargarSubCajaBasico(container) {
           </div>
         </div>
       </div>
-      <div class="row mt-3">
-        <div class="col-12">
-          <div class="card">
-            <div class="card-header bg-warning">
-              <i class="fas fa-info-circle me-2"></i>Gestión de Caja
-            </div>
-            <div class="card-body text-center">
-              <p class="text-muted">Para gestionar gastos y caja chica, usa el módulo Caja desde el menú principal.</p>
-              <button class="btn btn-primary" onclick="window.app?.loadModule('caja')">
-                <i class="fas fa-arrow-right me-2"></i>Ir a Caja
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
     `;
 
     container.innerHTML = html;
 
     return {
       turnos: window.turnosActivos,
-      tiposPago: window.tiposPagoData,
       ubicaciones: window.ubicacionesData,
     };
   } catch (error) {
     console.error("Error cargando datos de caja:", error);
     container.innerHTML = `<div class="alert alert-danger">Error al cargar caja: ${error.message}</div>`;
-    return { turnos: [], tiposPago: [], ubicaciones: [] };
+    return { turnos: [], ubicaciones: [] };
   }
 }
 

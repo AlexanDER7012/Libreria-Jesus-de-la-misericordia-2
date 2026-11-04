@@ -395,6 +395,7 @@ const PERMISOS_PESTANAS_MODULOS = {
       subServicios: "Tab:Ventas:Servicios",
       subCotizaciones: "Tab:Ventas:Cotizaciones",
       subCaja: "Tab:Ventas:Caja",
+      subTiposPago: "Tab:Ventas:Caja",
       subVendedores: "Tab:Ventas:Vendedores",
     },
     clienteFichaTabs: {

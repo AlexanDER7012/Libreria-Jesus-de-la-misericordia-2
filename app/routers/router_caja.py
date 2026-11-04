@@ -206,6 +206,7 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
 @router_caja_chica.get("", response_model=List[CajaChicaMovimientoResponse])
 def listar_movimientos_caja_chica(
     id_ubicacion: Optional[int] = None,
+    id_caja_turno: Optional[int] = None,
     tipo: Optional[str] = None,
     buscar: Optional[str] = None,
     fecha_desde: Optional[date] = None,
@@ -221,6 +222,8 @@ def listar_movimientos_caja_chica(
     query = db.query(CajaChicaMovimiento).order_by(CajaChicaMovimiento.id.desc())
     if id_ubicacion is not None:
         query = query.filter(CajaChicaMovimiento.id_ubicacion == id_ubicacion)
+    if id_caja_turno is not None:
+        query = query.filter(CajaChicaMovimiento.id_caja_turno == id_caja_turno)
     if tipo:
         query = query.filter(func.lower(CajaChicaMovimiento.tipo) == tipo.strip().lower())
     if buscar:

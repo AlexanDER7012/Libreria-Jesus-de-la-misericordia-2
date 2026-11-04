@@ -91,7 +91,7 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" data-bs-toggle="tab" href="#tiposTab">
-                        <i class="fas fa-tags me-1"></i>Catálogos
+                        <i class="fas fa-tags me-1"></i>Tipos de Gasto
                     </a>
                 </li>
             </ul>
@@ -159,29 +159,16 @@
                     </div>
                 </div>
                 <div class="tab-pane fade" id="tiposTab">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6 class="fw-bold">Tipos de Gasto</h6>
-                            <div id="tiposGastoContainer">
-                                <div class="text-center py-3">
-                                    <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
-                                </div>
+                    <div>
+                        <h6 class="fw-bold">Tipos de Gasto</h6>
+                        <div id="tiposGastoContainer">
+                            <div class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
                             </div>
-                            ${(tienePermiso("Compras", "Crear") || tienePermiso("Caja", "Crear")) ? `<button class="btn btn-sm btn-outline-primary mt-2" onclick="window.showCrearTipoGastoModal()">
-                                <i class="fas fa-plus me-1"></i>Nuevo Tipo
-                            </button>` : ""}
                         </div>
-                        <div class="col-md-6">
-                            <h6 class="fw-bold">Tipos de Pago</h6>
-                            <div id="tiposPagoContainer">
-                                <div class="text-center py-3">
-                                    <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
-                                </div>
-                            </div>
-                            ${(tienePermiso("Compras", "Crear") || tienePermiso("Ventas", "Crear") || tienePermiso("Caja", "Crear")) ? `<button class="btn btn-sm btn-outline-primary mt-2" onclick="window.showCrearTipoPagoModal()">
-                                <i class="fas fa-plus me-1"></i>Nuevo Tipo
-                            </button>` : ""}
-                        </div>
+                        ${(tienePermiso("Compras", "Crear") || tienePermiso("Caja", "Crear")) ? `<button class="btn btn-sm btn-outline-primary mt-2" onclick="window.showCrearTipoGastoModal()">
+                            <i class="fas fa-plus me-1"></i>Nuevo Tipo
+                        </button>` : ""}
                     </div>
                 </div>
             </div>
@@ -192,7 +179,6 @@
       loadCajaChica(),
       loadGastos(),
       loadTiposGasto(),
-      loadTiposPago(),
       cargarUbicacionesCaja(),
     ]);
   }
@@ -217,17 +203,15 @@
     window.cajaContainer = container;
 
     try {
-      const [turnos, gastos, tiposGasto, tiposPago, cajaChica] =
+      const [turnos, gastos, tiposGasto, cajaChica] =
         await Promise.all([
           api.getCajaTurnos().catch(() => []),
           api.getGastos().catch(() => []),
           api.getTiposGasto().catch(() => []),
-          api.getTiposPago().catch(() => []),
           api.getCajaChica().catch(() => []),
         ]);
 
       window.cajaTurnosData = turnos || [];
-      window.tiposPagoData = tiposPago || [];
       await cargarNombresPersonas();
       gastosData = gastos || [];
       tiposGastoData = tiposGasto || [];
@@ -260,6 +244,7 @@
                   <th>Gastos caja chica</th>
                   <th>Contado</th>
                   <th>Diferencia (+ sobrante / - faltante)</th>
+                  <th>Corte</th>
                 </tr>
               </thead>
               <tbody>
@@ -291,6 +276,7 @@
                       <td class="text-danger">Q${Number(t.gastos_caja_chica || 0).toFixed(2)}</td>
                       <td class="text-success">Q${totalContado.toFixed(2)}</td>
                       <td class="${diferenciaClass}">${formatearDiferenciaCaja(diferencia)}</td>
+                      <td>${estado === "Cerrado" ? accionesExportacionCorte(t.id) : "--"}</td>
                     </tr>
                   `;
                   })
@@ -304,8 +290,7 @@
 
       container.innerHTML = `
         <div class="row">
-          <!-- Columna Izquierda: Turnos -->
-          <div class="col-md-7">
+          <div class="col-12">
             <div class="card">
               <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-clock me-2"></i>Turnos de Caja</span>
@@ -341,41 +326,6 @@
             </div>
           </div>
 
-          <!-- Columna Derecha: Tipos de Pago -->
-          <div class="col-md-5">
-            <div class="card">
-              <div class="card-header bg-success text-white">
-                <i class="fas fa-credit-card me-2"></i>Tipos de Pago (Ventas)
-              </div>
-              <div class="card-body">
-                <div class="d-flex flex-wrap gap-2 mb-3">
-                  ${
-                    tiposPago.filter((t) => t.para_ventas === 1).length === 0
-                      ? '<p class="text-muted small">No hay tipos de pago configurados</p>'
-                      : tiposPago
-                          .filter((t) => t.para_ventas === 1)
-                          .map(
-                            (t) =>
-                              `<span class="badge bg-primary fs-6 p-2">${t.nombre}</span>`,
-                          )
-                          .join("")
-                  }
-                </div>
-                ${(tienePermiso("Compras", "Crear") || tienePermiso("Ventas", "Crear") || tienePermiso("Caja", "Crear")) ? `<button class="btn btn-sm btn-outline-primary" onclick="window.showCrearTipoPagoModal()">
-                  <i class="fas fa-plus me-1"></i>Nuevo Tipo Pago
-                </button>` : ""}
-                <hr>
-                <div class="text-muted small">
-                  <i class="fas fa-info-circle me-1"></i>
-                  Para gestionar gastos y caja chica, usa el módulo 
-                  <button class="btn btn-link btn-sm p-0 text-primary" onclick="window.app?.loadModule('caja')">
-                    Caja
-                  </button>
-                  desde el menú principal.
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       `;
     } catch (error) {
@@ -509,6 +459,7 @@
                             <th>Total Contado</th>
                             <th>Diferencia (+ sobrante / - faltante)</th>
                             <th>Estado</th>
+                            <th>Corte</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -539,6 +490,7 @@
                         ${formatearDiferenciaCaja(t.diferencia)}
                     </td>
                     <td><span class="badge ${estadoBadge}">${estado}</span></td>
+                    <td>${estado === "Cerrado" ? accionesExportacionCorte(t.id) : "--"}</td>
                 </tr>
             `;
     });
@@ -554,6 +506,213 @@
 
     container.innerHTML = html;
     aplicarTextoTurnos();
+  }
+
+  function accionesExportacionCorte(turnoId) {
+    return `
+      <div class="d-flex gap-1">
+        <button class="btn btn-sm btn-outline-danger" onclick="window.exportarCorteCajaPDF(${turnoId})" title="Descargar corte en PDF">
+          <i class="fas fa-file-pdf"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-success" onclick="window.exportarCorteCajaExcel(${turnoId})" title="Descargar corte en Excel">
+          <i class="fas fa-file-excel"></i>
+        </button>
+      </div>
+    `;
+  }
+
+  async function obtenerDatosCorteCaja(turnoId) {
+    const [turno, efectivo] = await Promise.all([
+      api.request(`/caja-turno/${turnoId}`),
+      api.request(`/caja-turno/${turnoId}/efectivo-esperado`),
+    ]);
+    if (turno.estado !== "Cerrado") {
+      throw new Error("Solo se puede exportar el corte de un turno cerrado.");
+    }
+
+    const gastos = [];
+    let skip = 0;
+    while (true) {
+      const pagina = await api.request(
+        `/caja-chica?id_caja_turno=${turnoId}&skip=${skip}&limit=200`,
+      );
+      if (!Array.isArray(pagina)) {
+        throw new Error("La respuesta de egresos del corte no es válida.");
+      }
+      gastos.push(...pagina);
+      if (pagina.length < 200) break;
+      skip += pagina.length;
+    }
+    return { turno, efectivo, gastos };
+  }
+
+  function textoCorteCaja(datos) {
+    const { turno, efectivo } = datos;
+    const fechaApertura = turno.fecha_apertura
+      ? formatearFechaHoraGuatemala(turno.fecha_apertura)
+      : "--";
+    const fechaCierre = turno.fecha_cierre
+      ? formatearFechaHoraGuatemala(turno.fecha_cierre)
+      : "--";
+    return [
+      ["Turno", `#${turno.id}`],
+      ["Estado", turno.estado || "--"],
+      ["Cajero", nombreUsuarioCaja(turno.id_usuario)],
+      ["Sucursal", nombreUbicacionCaja(turno.id_ubicacion)],
+      ["Apertura", fechaApertura],
+      ["Cierre", fechaCierre],
+      ["Fondo inicial", Number(turno.fondo_inicial || 0)],
+      ["Ventas totales", Number(turno.total_ventas || 0)],
+      ["Ventas en efectivo", Number(efectivo.efectivo_ventas || 0)],
+      ["Gastos de caja chica", Number(efectivo.gastos_caja_chica || 0)],
+      ["Efectivo esperado", Number(efectivo.esperado || 0)],
+      ["Total contado", Number(turno.total_contado || 0)],
+      ["Diferencia", Number(turno.diferencia || 0)],
+      ["Observaciones", turno.observaciones || ""],
+    ];
+  }
+
+  function escaparHtmlCorteCaja(valor) {
+    return String(valor ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  async function exportarCorteCajaPDF(turnoId) {
+    if (typeof window.html2pdf !== "function") {
+      showToast("La exportación a PDF no está disponible", "error");
+      return;
+    }
+    let contenido;
+    try {
+      const datos = await obtenerDatosCorteCaja(turnoId);
+      const resumenHtml = textoCorteCaja(datos)
+        .map(
+          ([etiqueta, valor]) =>
+            `<tr><th>${escaparHtmlCorteCaja(etiqueta)}</th><td>${escaparHtmlCorteCaja(typeof valor === "number" ? `Q${valor.toFixed(2)}` : valor)}</td></tr>`,
+        )
+        .join("");
+      const gastosHtml = datos.gastos.length
+        ? datos.gastos
+            .map(
+              (gasto) =>
+                `<tr><td>${escaparHtmlCorteCaja(gasto.fecha ? formatearFechaHoraGuatemala(gasto.fecha) : "--")}</td><td>${escaparHtmlCorteCaja(gasto.concepto || "--")}</td><td>${escaparHtmlCorteCaja(gasto.referencia || "--")}</td><td>Q${Number(gasto.monto || 0).toFixed(2)}</td></tr>`,
+            )
+            .join("")
+        : '<tr><td colspan="4">Sin egresos de caja chica asociados</td></tr>';
+      const denominacionesHtml = (datos.turno.denominaciones || [])
+        .map(
+          (denominacion) =>
+            `<tr><td>Q${Number(denominacion.denominacion || 0).toFixed(2)}</td><td>${Number(denominacion.cantidad || 0)}</td><td>Q${Number(denominacion.total || 0).toFixed(2)}</td></tr>`,
+        )
+        .join("");
+      contenido = document.createElement("div");
+      contenido.innerHTML = `
+        <style>
+          .corte-pdf { color: #212529; font: 12px Arial, sans-serif; }
+          .corte-pdf h2 { margin: 0 0 4px; color: #0d6efd; }
+          .corte-pdf h3 { margin: 18px 0 6px; font-size: 15px; }
+          .corte-pdf table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+          .corte-pdf th, .corte-pdf td { border: 1px solid #dee2e6; padding: 6px; text-align: left; }
+          .corte-pdf .resumen th { width: 38%; background: #f1f3f5; }
+          .corte-pdf tr { page-break-inside: avoid; }
+        </style>
+        <div class="corte-pdf">
+          <h2>Corte de Caja #${Number(datos.turno.id)}</h2>
+          <div>Librería y Papelería Jesús de la Misericordia</div>
+          <h3>Resumen</h3>
+          <table class="resumen"><tbody>${resumenHtml}</tbody></table>
+          <h3>Egresos de Caja Chica</h3>
+          <table><thead><tr><th>Fecha</th><th>Concepto</th><th>Referencia</th><th>Monto</th></tr></thead><tbody>${gastosHtml}</tbody></table>
+          <h3>Conteo de Denominaciones</h3>
+          <table><thead><tr><th>Denominación</th><th>Cantidad</th><th>Total</th></tr></thead><tbody>${denominacionesHtml || '<tr><td colspan="3">Sin denominaciones registradas</td></tr>'}</tbody></table>
+        </div>
+      `;
+      contenido.style.cssText =
+        "position:fixed;left:-10000px;top:0;width:180mm;box-sizing:border-box;background:#fff;padding:10mm;";
+      document.body.appendChild(contenido);
+      await window
+        .html2pdf()
+        .set({
+          margin: 8,
+          filename: `Corte_Caja_Turno_${datos.turno.id}.pdf`,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+          pagebreak: { mode: ["css", "legacy"], avoid: ["tr"] },
+        })
+        .from(contenido)
+        .save();
+    } catch (error) {
+      showToast(error.message || "No se pudo exportar el corte a PDF", "error");
+      return;
+    } finally {
+      contenido?.remove();
+    }
+    showToast("Corte de caja exportado a PDF", "success");
+  }
+
+  async function exportarCorteCajaExcel(turnoId) {
+    if (!window.XLSX?.utils) {
+      showToast("La exportación a Excel no está disponible", "error");
+      return;
+    }
+    try {
+      const datos = await obtenerDatosCorteCaja(turnoId);
+      const libro = XLSX.utils.book_new();
+      const resumen = textoCorteCaja(datos).map(([concepto, valor]) => ({
+        Concepto: concepto,
+        Valor: valor,
+      }));
+      const hojaResumen = XLSX.utils.json_to_sheet(resumen);
+      hojaResumen["!cols"] = [{ wch: 28 }, { wch: 36 }];
+      XLSX.utils.book_append_sheet(libro, hojaResumen, "Corte de Caja");
+
+      const hojaGastos = XLSX.utils.json_to_sheet(
+        datos.gastos.map((gasto) => ({
+          Fecha: gasto.fecha ? formatearFechaHoraGuatemala(gasto.fecha) : "",
+          Tipo: gasto.tipo || "",
+          Concepto: gasto.concepto || "",
+          Referencia: gasto.referencia || "",
+          Monto: Number(gasto.monto || 0),
+          Observaciones: gasto.observaciones || "",
+        })),
+      );
+      hojaGastos["!cols"] = [
+        { wch: 22 },
+        { wch: 12 },
+        { wch: 32 },
+        { wch: 20 },
+        { wch: 14 },
+        { wch: 40 },
+      ];
+      XLSX.utils.book_append_sheet(libro, hojaGastos, "Gastos Caja Chica");
+
+      const hojaDenominaciones = XLSX.utils.json_to_sheet(
+        (datos.turno.denominaciones || []).map((denominacion) => ({
+          Denominacion: Number(denominacion.denominacion || 0),
+          Cantidad: Number(denominacion.cantidad || 0),
+          Total: Number(denominacion.total || 0),
+        })),
+      );
+      hojaDenominaciones["!cols"] = [
+        { wch: 18 },
+        { wch: 14 },
+        { wch: 18 },
+      ];
+      XLSX.utils.book_append_sheet(
+        libro,
+        hojaDenominaciones,
+        "Denominaciones",
+      );
+      XLSX.writeFile(libro, `Corte_Caja_Turno_${datos.turno.id}.xlsx`);
+      showToast("Corte de caja exportado a Excel", "success");
+    } catch (error) {
+      showToast(error.message || "No se pudo exportar el corte a Excel", "error");
+    }
   }
 
   function abrirModalTurno() {
@@ -1497,8 +1656,8 @@
     }
   }
 
-  function renderTiposPago(tipos) {
-    const container = document.getElementById("tiposPagoContainer");
+  function renderTiposPago(tipos, containerId = "tiposPagoContainer") {
+    const container = document.getElementById(containerId);
     if (!container) return;
 
     if (!tipos || tipos.length === 0) {
@@ -1526,6 +1685,17 @@
         `;
       })
       .join("");
+  }
+
+  async function loadTiposPagoVentas() {
+    const container = document.getElementById("tiposPagoVentasContainer");
+    if (!container) return;
+    try {
+      window.tiposPagoData = (await api.getTiposPago()) || [];
+      renderTiposPago(window.tiposPagoData, "tiposPagoVentasContainer");
+    } catch (error) {
+      container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+    }
   }
 
   function showCrearTipoPagoModal() {
@@ -1614,6 +1784,7 @@
       showToast("Tipo de pago creado correctamente", "success");
       bootstrap.Modal.getInstance(document.getElementById("cajaModal")).hide();
       await loadTiposPago();
+      await loadTiposPagoVentas();
       // Si se creó desde Ventas → pestaña Caja, refrescar también esa vista
       // (antes el tipo nuevo no aparecía ahí hasta recargar la página)
       if (window.cajaContainer && document.body.contains(window.cajaContainer)) {
@@ -1678,9 +1849,12 @@
   window.showCrearTipoGastoModal = showCrearTipoGastoModal;
   window.showCrearTipoPagoModal = showCrearTipoPagoModal;
   window.recargarTiposPagoCaja = loadTiposPago;
+  window.loadTiposPagoVentas = loadTiposPagoVentas;
   window.abrirTurno = abrirTurno;
   window.cerrarTurno = cerrarTurno;
   window.abrirModalTurno = abrirModalTurno;
   window.agregarDenominacion = agregarDenominacion;
   window.mostrarSelectorTurnos = mostrarSelectorTurnos;
+  window.exportarCorteCajaPDF = exportarCorteCajaPDF;
+  window.exportarCorteCajaExcel = exportarCorteCajaExcel;
 })();
