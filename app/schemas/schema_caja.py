@@ -83,7 +83,6 @@ class CajaTurnoResponse(BaseModel):
     fecha_cierre: Optional[datetime] = None
     total_contado: Optional[float] = None
     total_ventas: Optional[float] = None
-    vuelto_total: float = 0
     gastos_caja_chica: float = 0
     diferencia: Optional[float] = None
     estado: Optional[str] = None
@@ -94,7 +93,6 @@ class CajaTurnoResponse(BaseModel):
 
 class CajaTurnoCerrar(BaseModel):
     denominaciones: List[CajaDenominacionCreate]
-    vuelto_total: float = 0
     observaciones: Optional[str] = None
 
 
