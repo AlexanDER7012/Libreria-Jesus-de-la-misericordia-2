@@ -1,8 +1,4 @@
 // api.js
-// En Render (y abriendo desde uvicorn, puerto 8000) el sistema está en la misma
-// dirección de la página. Con Live Server (puerto 5500) la página la sirve VS Code
-// y el sistema sigue en uvicorn, así que ahí se usa http://localhost:8000.
-// (Antes estaba fijo en una de las dos y la otra forma dejaba de funcionar.)
 const PUERTOS_LIVE_SERVER = ["5500", "5501", "3000"];
 const API_BASE_URL =
   window.location.protocol === "file:" || PUERTOS_LIVE_SERVER.includes(window.location.port)
