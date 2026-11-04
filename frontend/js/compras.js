@@ -1747,6 +1747,7 @@ function renderCajaChicaTab(movimientos) {
                         <th>Ubicación</th>
                         <th>Fecha</th>
                         <th>Tipo</th>
+                        <th>Turno</th>
                         <th>Monto</th>
                         <th>Saldo</th>
                         <th>Concepto</th>
@@ -1771,6 +1772,7 @@ function renderCajaChicaTab(movimientos) {
                 <td>${nombreUbicacion}</td>
                 <td>${m.fecha ? formatearFechaHoraGuatemala(m.fecha) : "--"}</td>
                 <td><span class="badge ${tipoBadge}">${tipo}</span></td>
+                <td>${m.id_caja_turno ? `#${m.id_caja_turno}` : "--"}</td>
                 <td><strong>Q${m.monto || 0}</strong></td>
                 <td>Q${m.saldo || 0}</td>
                 <td>${m.concepto || "--"}</td>

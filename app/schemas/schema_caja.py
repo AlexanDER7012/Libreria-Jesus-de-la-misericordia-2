@@ -84,6 +84,7 @@ class CajaTurnoResponse(BaseModel):
     total_contado: Optional[float] = None
     total_ventas: Optional[float] = None
     vuelto_total: float = 0
+    gastos_caja_chica: float = 0
     diferencia: Optional[float] = None
     estado: Optional[str] = None
     observaciones: Optional[str] = None
@@ -113,4 +114,5 @@ class CajaChicaMovimientoResponse(CajaChicaMovimientoCreate):
     id: int
     fecha: Optional[datetime] = None
     saldo: Optional[float] = None
+    id_caja_turno: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)

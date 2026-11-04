@@ -62,6 +62,7 @@ class CajaTurno(Base):
     total_contado = Column(DECIMAL(12, 2)) 
     total_ventas = Column(DECIMAL(12, 2)) 
     vuelto_total = Column(DECIMAL(12, 2), nullable=False, default=0, server_default="0")
+    gastos_caja_chica = Column(DECIMAL(12, 2), nullable=False, default=0, server_default="0")
     diferencia = Column(DECIMAL(12, 2))  
     estado = Column(String(20), default="Abierto")  
     observaciones = Column(Text)
@@ -94,3 +95,4 @@ class CajaChicaMovimiento(Base):
     id_usuario = Column(Integer, ForeignKey("usuario.id"))
     referencia = Column(String(100))
     observaciones = Column(Text)
+    id_caja_turno = Column(Integer, ForeignKey("caja_turno.id"), nullable=True)

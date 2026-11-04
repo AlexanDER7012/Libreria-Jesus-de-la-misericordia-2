@@ -106,7 +106,7 @@ def abrir_turno(datos: CajaTurnoAbrir, db: Session = Depends(get_db), usuario_ac
     return nuevo
 
 
-def _efectivo_esperado(db: Session, turno: CajaTurno) -> float:
+def _efectivo_ventas_turno(db: Session, turno: CajaTurno) -> float:
     from app.models.model_venta import Venta, MetodoPagoVenta
     efectivo = (
         db.query(func.coalesce(func.sum(MetodoPagoVenta.monto), 0))
@@ -119,20 +119,35 @@ def _efectivo_esperado(db: Session, turno: CajaTurno) -> float:
         )
         .scalar()
     )
-    return round(float(turno.fondo_inicial or 0) + float(efectivo or 0), 2)
+    return round(float(efectivo or 0), 2)
+
+
+def _gastos_caja_chica_turno(db: Session, turno: CajaTurno) -> float:
+    gastos = (
+        db.query(func.coalesce(func.sum(func.abs(CajaChicaMovimiento.monto)), 0))
+        .filter(
+            CajaChicaMovimiento.id_caja_turno == turno.id,
+            func.lower(CajaChicaMovimiento.tipo) == "egreso",
+        )
+        .scalar()
+    )
+    return round(float(gastos or 0), 2)
 
 
 @router.get("/{turno_id}/efectivo-esperado")
 def efectivo_esperado_turno(turno_id: int, db: Session = Depends(get_db), usuario_actual=Depends(get_current_user)):
-    """Fondo inicial + efectivo cobrado en el turno (lo que debería haber al contar la caja)."""
+    """Fondo inicial + ventas en efectivo - egresos de caja chica del turno."""
     turno = db.query(CajaTurno).filter(CajaTurno.id == turno_id).first()
     if not turno:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
     fondo_inicial = float(turno.fondo_inicial or 0)
-    esperado = _efectivo_esperado(db, turno)
+    efectivo_ventas = _efectivo_ventas_turno(db, turno)
+    gastos_caja_chica = _gastos_caja_chica_turno(db, turno)
+    esperado = round(fondo_inicial + efectivo_ventas - gastos_caja_chica, 2)
     return {
         "fondo_inicial": fondo_inicial,
-        "efectivo_ventas": round(esperado - fondo_inicial, 2),
+        "efectivo_ventas": efectivo_ventas,
+        "gastos_caja_chica": gastos_caja_chica,
         "esperado": esperado,
     }
 
@@ -152,11 +167,17 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
     vuelto_total = round(float(datos.vuelto_total or 0), 2)
     if vuelto_total < 0:
         raise HTTPException(status_code=400, detail="El vuelto acumulado no puede ser negativo")
-    efectivo_disponible = _efectivo_esperado(db, turno)
-    if vuelto_total > efectivo_disponible:
+    gastos_caja_chica = _gastos_caja_chica_turno(db, turno)
+    efectivo_ventas = _efectivo_ventas_turno(db, turno)
+    efectivo_disponible = round(
+        float(turno.fondo_inicial or 0) + efectivo_ventas - gastos_caja_chica,
+        2,
+    )
+    efectivo_para_vuelto = max(0, efectivo_disponible)
+    if vuelto_total > efectivo_para_vuelto:
         raise HTTPException(
             status_code=400,
-            detail=f"El vuelto acumulado (Q{vuelto_total:.2f}) no puede superar el efectivo disponible (Q{efectivo_disponible:.2f})",
+            detail=f"El vuelto acumulado (Q{vuelto_total:.2f}) no puede superar el efectivo disponible (Q{efectivo_para_vuelto:.2f})",
         )
 
     total_contado = 0.0
@@ -174,8 +195,7 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
     turno.fecha_cierre = dt.now()
     turno.total_contado = round(total_contado, 2)
     turno.vuelto_total = vuelto_total
-    # El vuelto se registra por separado y se descuenta del efectivo que
-    # debería quedar junto con el fondo inicial y los pagos en efectivo.
+    turno.gastos_caja_chica = gastos_caja_chica
     turno.diferencia = round(total_contado - (efectivo_disponible - vuelto_total), 2)
     turno.estado = "Cerrado"
     turno.observaciones = datos.observaciones
@@ -272,7 +292,24 @@ def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Sessio
     signo = -1 if datos.tipo == "egreso" else 1
     nuevo_saldo = round(saldo_anterior + (signo * float(datos.monto)), 2)
 
-    nuevo = CajaChicaMovimiento(**datos.model_dump(), saldo=nuevo_saldo)
+    id_caja_turno = None
+    if datos.tipo == "egreso":
+        turno_abierto = (
+            db.query(CajaTurno)
+            .filter(
+                CajaTurno.id_ubicacion == datos.id_ubicacion,
+                CajaTurno.estado == "Abierto",
+            )
+            .first()
+        )
+        if turno_abierto:
+            id_caja_turno = turno_abierto.id
+
+    nuevo = CajaChicaMovimiento(
+        **datos.model_dump(),
+        saldo=nuevo_saldo,
+        id_caja_turno=id_caja_turno,
+    )
     db.add(nuevo)
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "CajaChica",
@@ -425,6 +462,13 @@ def eliminar_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get
     mov = db.query(CajaChicaMovimiento).filter(CajaChicaMovimiento.id == movimiento_id).first()
     if not mov:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    if mov.id_caja_turno:
+        turno = db.query(CajaTurno).filter(CajaTurno.id == mov.id_caja_turno).first()
+        if turno and turno.estado == "Cerrado":
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede eliminar un egreso asociado a un turno cerrado; el movimiento forma parte del corte de caja.",
+            )
     detalle_mov = f"Eliminó el movimiento de caja chica ({mov.tipo}, Q{mov.monto})"
     id_ubicacion = mov.id_ubicacion
     db.delete(mov)

@@ -601,6 +601,9 @@ function renderResumenInventario() {
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Resumen de Inventario</h6>
             <div class="d-flex gap-2 align-items-center">
+                ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-outline-primary btn-sm" onclick="showCargaMasivaResumenModal()">
+                    <i class="fas fa-file-upload me-1"></i>Movimientos masivos
+                </button>` : ""}
                 <span class="badge bg-secondary">${productosFiltrados.length} productos</span>
             </div>
         </div>
@@ -3625,6 +3628,397 @@ window.descargarPlantillaMovimientos = descargarPlantillaMovimientos;
 window.procesarArchivoMovimientos = procesarArchivoMovimientos;
 window.confirmarCargaMasivaMovimientos = confirmarCargaMasivaMovimientos;
 
+// ============================================================
+// MOVIMIENTOS MASIVOS DESDE EL RESUMEN
+// ============================================================
+
+let movimientosResumenMasivosValidados = [];
+let movimientosResumenMasivosFilas = [];
+let ubicacionMovimientosResumenId = null;
+let tipoMovimientoResumenMasivo = null;
+
+async function showCargaMasivaResumenModal() {
+  if (!tienePermiso("Inventario", "Crear")) {
+    showToast("No tienes permiso para registrar movimientos de inventario", "error");
+    return;
+  }
+
+  try {
+    const [configuracion, tipos] = await Promise.all([
+      api.request("/configuracion"),
+      api.getTiposMovimiento(),
+    ]);
+    ubicacionMovimientosResumenId = Number(configuracion?.id_ubicacion) || null;
+    if (!ubicacionMovimientosResumenId) {
+      throw new Error("No hay una ubicación principal definida en Configuración general.");
+    }
+
+    tiposMovimientoData = tipos || [];
+    if (!tiposMovimientoData.length) {
+      throw new Error("No hay tipos de movimiento disponibles. Crea uno en Tipos de movimiento.");
+    }
+
+    const ubicaciones = await api.request("/ubicaciones");
+    window.ubicacionesData = ubicaciones || [];
+    const ubicacion = window.ubicacionesData.find(
+      (item) => String(item.id) === String(ubicacionMovimientosResumenId),
+    );
+    if (!ubicacion || ubicacion.activo === 0) {
+      throw new Error("La ubicación configurada no existe o está inactiva.");
+    }
+    window.ubicacionPrincipalId = ubicacionMovimientosResumenId;
+
+    document.getElementById("cargaMasivaResumenModal")?.remove();
+    const opcionesTipos = tiposMovimientoData
+      .map((tipo) => {
+        const efecto =
+          Number(tipo.signo) === 1
+            ? "Entrada (suma)"
+            : Number(tipo.signo) === 2
+              ? "Salida (resta)"
+              : "Neutral";
+        return `<option value="${tipo.id}">${escInv(tipo.nombre || "")} — ${efecto}</option>`;
+      })
+      .join("");
+
+    const modal = document.createElement("div");
+    modal.className = "modal fade";
+    modal.id = "cargaMasivaResumenModal";
+    modal.tabIndex = -1;
+    modal.innerHTML = `
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title">
+              <i class="fas fa-file-upload me-2"></i>Movimientos masivos de inventario
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info small">
+              <p class="mb-2">Selecciona el tipo de movimiento y descarga la plantilla con los productos. Completa la columna <code>Cantidad</code>; las filas sin cantidad o con cero se omiten. El movimiento seleccionado se aplicará a todas las filas válidas.</p>
+              ${htmlGuiaColumnas([
+                { nombre: "Codigo_Producto", tipo: "obligatoria", detalle: "Código exacto del producto; no lo cambies." },
+                { nombre: "Cantidad", tipo: "obligatoria", detalle: "Cantidad mayor a cero. Las salidas validan que haya existencias suficientes." },
+                { nombre: "Stock_Actual", tipo: "informativa", detalle: "Solo referencia del stock en la ubicación configurada." },
+              ])}
+              <p class="mb-0 mt-2">Ubicación de este movimiento: <strong>${escInv(ubicacion.nombre || ubicacion.id)}</strong> (tomada de Configuración general).</p>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label fw-bold" for="cmResumenTipoMovimiento">Tipo de movimiento</label>
+                <select class="form-select" id="cmResumenTipoMovimiento" onchange="revalidarMovimientosResumenMasivos()">
+                  ${opcionesTipos}
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold" for="cmResumenObservacion">Observación</label>
+                <input type="text" class="form-control" id="cmResumenObservacion"
+                       value="Movimiento masivo de inventario" maxlength="500">
+              </div>
+              <div class="col-auto">
+                <button type="button" class="btn btn-outline-primary" onclick="descargarPlantillaMovimientosResumen()">
+                  <i class="fas fa-download me-1"></i>Descargar lista de productos
+                </button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold" for="cmResumenArchivo">Archivo Excel / CSV</label>
+              <input type="file" class="form-control" id="cmResumenArchivo"
+                     accept=".xlsx,.xls,.csv" onchange="procesarArchivoMovimientosResumen(event)">
+            </div>
+            <div id="cmResumenMovimientosResumen"></div>
+            <div id="cmResumenMovimientosPreview" class="table-responsive mt-2" style="max-height:400px; overflow:auto;"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="cmResumenMovimientosConfirmar" disabled
+                    onclick="confirmarMovimientosResumenMasivos()">
+              <i class="fas fa-check me-1"></i>Aplicar movimiento masivo
+            </button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    movimientosResumenMasivosValidados = [];
+    movimientosResumenMasivosFilas = [];
+    tipoMovimientoResumenMasivo = tiposMovimientoData[0];
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+    modal.addEventListener("hidden.bs.modal", () => modal.remove(), { once: true });
+  } catch (error) {
+    console.error("Error abriendo movimientos masivos:", error);
+    showToast(error.message || "No se pudo preparar el movimiento masivo", "error");
+  }
+}
+
+async function descargarPlantillaMovimientosResumen() {
+  if (!window.XLSX?.utils) {
+    showToast("La descarga de archivos Excel no está disponible", "error");
+    return;
+  }
+  try {
+    await obtenerProductosParaInventario();
+    const productos = (window.productosData || [])
+      .filter((producto) => producto.activo !== 0)
+      .map((producto) => ({
+        Codigo_Producto: producto.codigo || "",
+        Nombre: producto.nombre || "",
+        Stock_Actual: stockEnUbicacionInv(
+          producto.id,
+          ubicacionMovimientosResumenId,
+        ),
+        Cantidad: "",
+      }));
+    if (!productos.length) {
+      showToast("No hay productos activos para exportar", "warning");
+      return;
+    }
+
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      libro,
+      XLSX.utils.json_to_sheet(productos),
+      "Movimientos",
+    );
+    descargarExcelConColores(
+      libro,
+      `Plantilla_Movimientos_Inventario_${hoyISOGuatemala()}.xlsx`,
+      {
+        obligatorias: ["Codigo_Producto", "Cantidad"],
+        informativas: ["Nombre", "Stock_Actual"],
+      },
+    );
+    showToast("Lista de productos descargada", "success");
+  } catch (error) {
+    console.error("Error descargando plantilla de movimientos:", error);
+    showToast(error.message || "No se pudo descargar la plantilla", "error");
+  }
+}
+
+function procesarArchivoMovimientosResumen(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (!window.XLSX?.read) {
+    showToast("La lectura de archivos Excel no está disponible", "error");
+    return;
+  }
+  const resumen = document.getElementById("cmResumenMovimientosResumen");
+  const preview = document.getElementById("cmResumenMovimientosPreview");
+  const boton = document.getElementById("cmResumenMovimientosConfirmar");
+  if (resumen) resumen.innerHTML = '<div class="text-muted">Validando archivo...</div>';
+  if (preview) preview.innerHTML = "";
+  if (boton) boton.disabled = true;
+  movimientosResumenMasivosValidados = [];
+
+  const reader = new FileReader();
+  reader.onerror = () => {
+    const mensaje = "No se pudo leer el archivo seleccionado.";
+    if (resumen) resumen.innerHTML = `<div class="alert alert-danger">${mensaje}</div>`;
+    showToast(mensaje, "error");
+  };
+  reader.onload = async (eventResult) => {
+    try {
+      const workbook = XLSX.read(new Uint8Array(eventResult.target.result), {
+        type: "array",
+      });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const filas = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      if (!filas.length) throw new Error("El archivo está vacío");
+      movimientosResumenMasivosFilas = filas;
+      await validarArchivoMovimientosResumen(filas);
+    } catch (error) {
+      if (resumen) {
+        resumen.innerHTML = `<div class="alert alert-danger">${escInv(error.message)}</div>`;
+      }
+      showToast(error.message || "No se pudo procesar el archivo", "error");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function validarArchivoMovimientosResumen(filas) {
+  const resumen = document.getElementById("cmResumenMovimientosResumen");
+  const preview = document.getElementById("cmResumenMovimientosPreview");
+  const boton = document.getElementById("cmResumenMovimientosConfirmar");
+  const headers = Object.keys(filas[0] || {});
+  const faltantes = ["Codigo_Producto", "Cantidad"].filter(
+    (header) => !headers.includes(header),
+  );
+  if (faltantes.length) {
+    throw new Error(`Faltan columnas requeridas: ${faltantes.join(", ")}`);
+  }
+  if (!ubicacionMovimientosResumenId) {
+    throw new Error("No se encontró la ubicación principal de Configuración general.");
+  }
+
+  const tipoId = Number(
+    document.getElementById("cmResumenTipoMovimiento")?.value,
+  );
+  tipoMovimientoResumenMasivo = (tiposMovimientoData || []).find(
+    (tipo) => Number(tipo.id) === tipoId,
+  );
+  if (!tipoMovimientoResumenMasivo) {
+    throw new Error("Selecciona un tipo de movimiento válido.");
+  }
+  const signo = Number(tipoMovimientoResumenMasivo.signo);
+  if (![0, 1, 2].includes(signo)) {
+    throw new Error("El tipo de movimiento seleccionado tiene un signo inválido.");
+  }
+
+  const productos = window.productosData || [];
+  const vistos = new Set();
+  const errores = [];
+  const validos = [];
+  for (const [indice, fila] of filas.entries()) {
+    const numFila = indice + 2;
+    const codigo = String(fila.Codigo_Producto || "").trim();
+    const cantidadTexto = String(fila.Cantidad ?? "").trim();
+    if (!codigo && !cantidadTexto) continue;
+    if (!codigo) {
+      errores.push(`Fila ${numFila}: falta el código del producto.`);
+      continue;
+    }
+    if (!cantidadTexto) continue;
+
+    const clave = codigo.toLowerCase();
+    if (vistos.has(clave)) {
+      errores.push(`Fila ${numFila}: el código "${codigo}" está duplicado en el archivo.`);
+      continue;
+    }
+    vistos.add(clave);
+    const cantidad = Number(cantidadTexto);
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      errores.push(`Fila ${numFila}: la cantidad debe ser mayor a cero.`);
+      continue;
+    }
+
+    let producto = productos.find(
+      (item) => String(item.codigo || "").trim().toLowerCase() === clave,
+    );
+    if (!producto) {
+      try {
+        producto = await api.request(
+          `/productos/buscar-codigo/${encodeURIComponent(codigo)}`,
+        );
+        if (producto) productos.push(producto);
+      } catch (error) {
+        if (!error.message.startsWith("No existe ningún producto con ese código")) {
+          throw error;
+        }
+      }
+    }
+    if (!producto) {
+      errores.push(`Fila ${numFila}: no se encontró el producto "${codigo}".`);
+      continue;
+    }
+    if (producto.activo === 0) {
+      errores.push(`Fila ${numFila}: el producto "${codigo}" está inactivo.`);
+      continue;
+    }
+
+    const stockActual = stockEnUbicacionInv(
+      producto.id,
+      ubicacionMovimientosResumenId,
+    );
+    if (signo === 2 && cantidad > stockActual) {
+      errores.push(
+        `Fila ${numFila}: stock insuficiente de "${producto.nombre}" (disponible ${stockActual}, salida ${cantidad}).`,
+      );
+      continue;
+    }
+    validos.push({
+      numFila,
+      producto,
+      cantidad,
+      stockActual,
+      stockFinal:
+        signo === 1
+          ? stockActual + cantidad
+          : signo === 2
+            ? stockActual - cantidad
+            : stockActual,
+    });
+  }
+
+  movimientosResumenMasivosValidados = validos;
+  if (resumen) {
+    resumen.innerHTML = `
+      <div class="row g-2">
+        <div class="col-md-6"><div class="alert alert-success py-2 mb-0"><strong>${validos.length}</strong> productos en el movimiento</div></div>
+        <div class="col-md-6"><div class="alert alert-${errores.length ? "danger" : "secondary"} py-2 mb-0"><strong>${errores.length}</strong> errores</div></div>
+      </div>
+      ${errores.length ? `<div class="alert alert-danger small mt-2 mb-0"><ul class="mb-0">${errores.map((error) => `<li>${escInv(error)}</li>`).join("")}</ul></div>` : ""}
+    `;
+  }
+  if (preview) {
+    preview.innerHTML = validos.length
+      ? `<table class="table table-sm table-striped"><thead><tr><th>Fila</th><th>Código</th><th>Producto</th><th class="text-end">Stock actual</th><th class="text-end">Cantidad</th><th class="text-end">Stock resultante</th></tr></thead><tbody>${validos
+          .map(
+            (fila) =>
+              `<tr><td>${fila.numFila}</td><td><code>${escInv(fila.producto.codigo || "")}</code></td><td>${escInv(fila.producto.nombre || "")}</td><td class="text-end">${fila.stockActual}</td><td class="text-end">${fila.cantidad}</td><td class="text-end fw-bold">${fila.stockFinal}</td></tr>`,
+          )
+          .join("")}</tbody></table>`
+      : '<p class="text-muted text-center">No hay filas válidas para previsualizar.</p>';
+  }
+  if (boton) boton.disabled = errores.length > 0 || validos.length === 0;
+}
+
+async function revalidarMovimientosResumenMasivos() {
+  if (!movimientosResumenMasivosFilas.length) return;
+  try {
+    await validarArchivoMovimientosResumen(movimientosResumenMasivosFilas);
+  } catch (error) {
+    const boton = document.getElementById("cmResumenMovimientosConfirmar");
+    if (boton) boton.disabled = true;
+    showToast(error.message || "No se pudo validar el tipo de movimiento", "error");
+  }
+}
+
+async function confirmarMovimientosResumenMasivos() {
+  const boton = document.getElementById("cmResumenMovimientosConfirmar");
+  const observacion =
+    document.getElementById("cmResumenObservacion")?.value.trim() ||
+    "Movimiento masivo de inventario";
+  if (!boton || !movimientosResumenMasivosValidados.length) {
+    showToast("No hay productos válidos para aplicar", "warning");
+    return;
+  }
+  if (!tienePermiso("Inventario", "Crear")) {
+    showToast("No tienes permiso para registrar movimientos de inventario", "error");
+    return;
+  }
+
+  boton.disabled = true;
+  const textoOriginal = boton.innerHTML;
+  boton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Aplicando...';
+  try {
+    await api.request("/movimientos-inventario", "POST", {
+      id_usuario: getCurrentUser()?.id || getCurrentUser()?.usuario_id || null,
+      id_tipo_movimiento: tipoMovimientoResumenMasivo.id,
+      id_ubicacion: ubicacionMovimientosResumenId,
+      observaciones: observacion,
+      detalles: movimientosResumenMasivosValidados.map((fila) => ({
+        id_producto: fila.producto.id,
+        cantidad: fila.cantidad,
+      })),
+    });
+    showToast(
+      `Movimiento "${tipoMovimientoResumenMasivo.nombre}" aplicado a ${movimientosResumenMasivosValidados.length} productos`,
+      "success",
+    );
+    bootstrap.Modal.getInstance(
+      document.getElementById("cargaMasivaResumenModal"),
+    )?.hide();
+    await recargarResumenInventario();
+  } catch (error) {
+    console.error("Error aplicando movimiento masivo:", error);
+    showToast(error.message || "No se pudo aplicar el movimiento masivo", "error");
+    boton.disabled = false;
+  } finally {
+    boton.innerHTML = textoOriginal;
+  }
+}
+
 window.loadInventarioModule = loadInventarioModule;
 window.showMovimientoModal = showMovimientoModal;
 window.showConteoFisicoModal = showConteoFisicoModal;
@@ -3670,3 +4064,8 @@ window.imprimirNotaEnvio = imprimirNotaEnvio;
 window.mostrarPagosTraslado = mostrarPagosTraslado;
 window.registrarPagoTraslado = registrarPagoTraslado;
 window.anularPagoTraslado = anularPagoTraslado;
+window.showCargaMasivaResumenModal = showCargaMasivaResumenModal;
+window.descargarPlantillaMovimientosResumen = descargarPlantillaMovimientosResumen;
+window.procesarArchivoMovimientosResumen = procesarArchivoMovimientosResumen;
+window.revalidarMovimientosResumenMasivos = revalidarMovimientosResumenMasivos;
+window.confirmarMovimientosResumenMasivos = confirmarMovimientosResumenMasivos;

@@ -266,6 +266,7 @@
                   <th>Apertura</th>
                   <th>Fondo</th>
                   <th>Ventas totales</th>
+                  <th>Gastos caja chica</th>
                   <th>Contado</th>
                   <th>Vuelto</th>
                   <th>Diferencia (+ sobrante / - faltante)</th>
@@ -297,6 +298,7 @@
                       <td>${fechaApertura}</td>
                       <td>Q${parseFloat(t.fondo_inicial || 0).toFixed(2)}</td>
                       <td class="text-primary">Q${totalVentas.toFixed(2)}</td>
+                      <td class="text-danger">Q${Number(t.gastos_caja_chica || 0).toFixed(2)}</td>
                       <td class="text-success">Q${totalContado.toFixed(2)}</td>
                       <td>Q${Number(t.vuelto_total || 0).toFixed(2)}</td>
                       <td class="${diferenciaClass}">${formatearDiferenciaCaja(diferencia)}</td>
@@ -514,6 +516,7 @@
                             <th>Cierre</th>
                             <th>Fondo Inicial</th>
                             <th>Ventas totales</th>
+                            <th>Gastos caja chica</th>
                             <th>Total Contado</th>
                             <th>Vuelto</th>
                             <th>Diferencia (+ sobrante / - faltante)</th>
@@ -542,6 +545,7 @@
                     <td>${fechaCierre}</td>
                     <td>Q${t.fondo_inicial || 0}</td>
                     <td>Q${t.total_ventas || 0}</td>
+                    <td>Q${Number(t.gastos_caja_chica || 0).toFixed(2)}</td>
                     <td>Q${t.total_contado || 0}</td>
                     <td>Q${Number(t.vuelto_total || 0).toFixed(2)}</td>
                     <td class="${t.diferencia < 0 ? "text-danger fw-bold" : t.diferencia > 0 ? "text-success fw-bold" : ""}">
@@ -678,7 +682,7 @@
       );
       if (denominacionesList) denominacionesList.innerHTML = "";
 
-      // Cuánto efectivo debería haber al contar (fondo inicial + efectivo cobrado)
+      // Efectivo que debería haber al contar, antes de descontar el vuelto.
       document.getElementById("cajaEfectivoEsperado")?.remove();
       efectivoEsperadoCaja = null;
       try {
@@ -688,7 +692,7 @@
         aviso.id = "cajaEfectivoEsperado";
         aviso.className = "alert alert-info py-2 small";
         aviso.innerHTML = `Efectivo esperado después del vuelto: <strong id="cajaEfectivoEsperadoMonto">Q${efectivoEsperadoCaja.toFixed(2)}</strong>
-          <div>(fondo inicial Q${Number(info.fondo_inicial || 0).toFixed(2)} + ventas en efectivo Q${Number(info.efectivo_ventas || 0).toFixed(2)} - vuelto acumulado)</div>`;
+          <div>(fondo inicial Q${Number(info.fondo_inicial || 0).toFixed(2)} + ventas en efectivo Q${Number(info.efectivo_ventas || 0).toFixed(2)} - gastos de caja chica Q${Number(info.gastos_caja_chica || 0).toFixed(2)} - vuelto acumulado)</div>`;
         denominacionesContainer?.prepend(aviso);
       } catch (error) {
         console.error("No se pudo calcular el efectivo esperado:", error);
@@ -1104,6 +1108,7 @@
                         <tr>
                             <th>Fecha</th>
                             <th>Tipo</th>
+                            <th>Turno</th>
                             <th>Concepto</th>
                             <th>Monto</th>
                             <th>Saldo</th>
@@ -1125,6 +1130,7 @@
                 <tr>
                     <td>${m.fecha ? formatearFechaHoraGuatemala(m.fecha) : "--"}</td>
                     <td><span class="badge ${tipoBadge}">${tipo}</span></td>
+                    <td>${m.id_caja_turno ? `#${m.id_caja_turno}` : "--"}</td>
                     <td>${m.concepto || "--"}</td>
                     <td class="${montoClass} fw-bold">${esIngreso ? "+" : "-"}Q${monto.toFixed(2)}</td>
                     <td>Q${m.saldo || 0}</td>
