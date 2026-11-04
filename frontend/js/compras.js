@@ -1772,7 +1772,7 @@ function renderCajaChicaTab(movimientos) {
                 <td>${nombreUbicacion}</td>
                 <td>${m.fecha ? formatearFechaHoraGuatemala(m.fecha) : "--"}</td>
                 <td><span class="badge ${tipoBadge}">${tipo}</span></td>
-                <td>${m.id_caja_turno ? `#${m.id_caja_turno}` : "--"}</td>
+                <td>${m.id_caja_turno ? `Turno #${m.id_caja_turno}` : "Sin turno asociado"}</td>
                 <td><strong>Q${m.monto || 0}</strong></td>
                 <td>Q${m.saldo || 0}</td>
                 <td>${m.concepto || "--"}</td>
@@ -1837,13 +1837,14 @@ function filtrarCajaChicaTabla() {
 
   for (const row of rows) {
     const cells = row.getElementsByTagName("td");
-    if (cells.length < 8) continue;
+    if (cells.length < 9) continue;
 
     const id = (cells[0]?.textContent || "").trim();
     const ubicacion = (cells[1]?.textContent || "").toLowerCase().trim();
     const tipo = (cells[3]?.textContent || "").toLowerCase().trim();
-    const concepto = (cells[6]?.textContent || "").toLowerCase().trim();
-    const usuario = (cells[7]?.textContent || "").toLowerCase().trim();
+    const turno = (cells[4]?.textContent || "").toLowerCase().trim();
+    const concepto = (cells[7]?.textContent || "").toLowerCase().trim();
+    const usuario = (cells[8]?.textContent || "").toLowerCase().trim();
 
     let match = false;
 
@@ -1855,6 +1856,7 @@ function filtrarCajaChicaTabla() {
       match =
         ubicacion.includes(search) ||
         tipo.includes(search) ||
+        turno.includes(search) ||
         concepto.includes(search) ||
         usuario.includes(search);
     }
@@ -3570,6 +3572,7 @@ async function verCajaChica(id) {
                 </div>
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Saldo:</strong> Q${movimiento.saldo || 0}</div>
+                    <div class="col-md-6"><strong>Turno:</strong> ${movimiento.id_caja_turno ? `#${movimiento.id_caja_turno}` : "Sin turno asociado"}</div>
                     <div class="col-md-6"><strong>Usuario:</strong> ${movimiento.id_usuario || "--"}</div>
                 </div>
                 <div class="mb-3"><strong>Concepto:</strong> ${movimiento.concepto || "--"}</div>

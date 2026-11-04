@@ -1130,7 +1130,7 @@
                 <tr>
                     <td>${m.fecha ? formatearFechaHoraGuatemala(m.fecha) : "--"}</td>
                     <td><span class="badge ${tipoBadge}">${tipo}</span></td>
-                    <td>${m.id_caja_turno ? `#${m.id_caja_turno}` : "--"}</td>
+                    <td>${m.id_caja_turno ? `Turno #${m.id_caja_turno}` : "Sin turno asociado"}</td>
                     <td>${m.concepto || "--"}</td>
                     <td class="${montoClass} fw-bold">${esIngreso ? "+" : "-"}Q${monto.toFixed(2)}</td>
                     <td>Q${m.saldo || 0}</td>
