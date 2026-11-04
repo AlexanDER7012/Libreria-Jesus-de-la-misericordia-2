@@ -6,6 +6,7 @@
   let cajaChicaData = [];
   let gastosData = [];
   let tiposGastoData = [];
+  let efectivoEsperadoCaja = null;
 
   // Paginación (server-side) de la tabla de Turnos
   let skipTurnos = 0;
@@ -24,6 +25,20 @@
       _cuerpoOriginalCajaModal = body.innerHTML;
     }
     return body;
+  }
+
+  function formatearDiferenciaCaja(diferencia) {
+    const valor = Number(diferencia) || 0;
+    const signo = valor > 0 ? "+" : "";
+    return `Q${signo}${valor.toFixed(2)}`;
+  }
+
+  function actualizarEfectivoEsperadoCaja() {
+    const monto = document.getElementById("cajaEfectivoEsperadoMonto");
+    const vuelto = Number(document.getElementById("cajaVueltoTotal")?.value) || 0;
+    if (monto && efectivoEsperadoCaja !== null) {
+      monto.textContent = `Q${(efectivoEsperadoCaja - vuelto).toFixed(2)}`;
+    }
   }
   function _restaurarCajaModal() {
     document.getElementById("cajaGastoFooter")?.remove();
@@ -250,9 +265,10 @@
                   <th>Estado</th>
                   <th>Apertura</th>
                   <th>Fondo</th>
-                  <th>Ventas</th>
+                  <th>Ventas totales</th>
                   <th>Contado</th>
-                  <th>Diferencia</th>
+                  <th>Vuelto</th>
+                  <th>Diferencia (+ sobrante / - faltante)</th>
                 </tr>
               </thead>
               <tbody>
@@ -269,7 +285,11 @@
                     const totalContado = parseFloat(t.total_contado) || 0;
                     const diferencia = parseFloat(t.diferencia) || 0;
                     const diferenciaClass =
-                      diferencia !== 0 ? "text-danger fw-bold" : "";
+                      diferencia < 0
+                        ? "text-danger fw-bold"
+                        : diferencia > 0
+                          ? "text-success fw-bold"
+                          : "";
                     return `
                     <tr>
                       <td>${escaparHtmlEscaner(nombrePersona(t.id_usuario))}</td>
@@ -278,7 +298,8 @@
                       <td>Q${parseFloat(t.fondo_inicial || 0).toFixed(2)}</td>
                       <td class="text-primary">Q${totalVentas.toFixed(2)}</td>
                       <td class="text-success">Q${totalContado.toFixed(2)}</td>
-                      <td class="${diferenciaClass}">Q${diferencia.toFixed(2)}</td>
+                      <td>Q${Number(t.vuelto_total || 0).toFixed(2)}</td>
+                      <td class="${diferenciaClass}">${formatearDiferenciaCaja(diferencia)}</td>
                     </tr>
                   `;
                   })
@@ -492,9 +513,10 @@
                             <th>Apertura</th>
                             <th>Cierre</th>
                             <th>Fondo Inicial</th>
-                            <th>Total Ventas</th>
+                            <th>Ventas totales</th>
                             <th>Total Contado</th>
-                            <th>Diferencia</th>
+                            <th>Vuelto</th>
+                            <th>Diferencia (+ sobrante / - faltante)</th>
                             <th>Estado</th>
                         </tr>
                     </thead>
@@ -521,8 +543,9 @@
                     <td>Q${t.fondo_inicial || 0}</td>
                     <td>Q${t.total_ventas || 0}</td>
                     <td>Q${t.total_contado || 0}</td>
-                    <td class="${t.diferencia && t.diferencia !== 0 ? "text-danger fw-bold" : ""}">
-                        Q${t.diferencia || 0}
+                    <td>Q${Number(t.vuelto_total || 0).toFixed(2)}</td>
+                    <td class="${t.diferencia < 0 ? "text-danger fw-bold" : t.diferencia > 0 ? "text-success fw-bold" : ""}">
+                        ${formatearDiferenciaCaja(t.diferencia)}
                     </td>
                     <td><span class="badge ${estadoBadge}">${estado}</span></td>
                 </tr>
@@ -565,6 +588,9 @@
 
     const observaciones = document.getElementById("cajaObservaciones");
     if (observaciones) observaciones.value = "";
+    const vueltoInput = document.getElementById("cajaVueltoTotal");
+    if (vueltoInput) vueltoInput.value = "0";
+    efectivoEsperadoCaja = null;
 
     const fondoInicial = document.getElementById("cajaFondoInicial");
     if (fondoInicial) {
@@ -654,15 +680,20 @@
 
       // Cuánto efectivo debería haber al contar (fondo inicial + efectivo cobrado)
       document.getElementById("cajaEfectivoEsperado")?.remove();
+      efectivoEsperadoCaja = null;
       try {
         const info = await api.request(`/caja-turno/${turnoParaCerrar.id}/efectivo-esperado`);
+        efectivoEsperadoCaja = Number(info.esperado) || 0;
         const aviso = document.createElement("div");
         aviso.id = "cajaEfectivoEsperado";
         aviso.className = "alert alert-info py-2 small";
-        aviso.innerHTML = `Efectivo que debería haber en caja: <strong>Q${Number(info.esperado || 0).toFixed(2)}</strong>
-          (fondo inicial Q${Number(info.fondo_inicial || 0).toFixed(2)} + ventas cobradas en efectivo)`;
+        aviso.innerHTML = `Efectivo esperado después del vuelto: <strong id="cajaEfectivoEsperadoMonto">Q${efectivoEsperadoCaja.toFixed(2)}</strong>
+          <div>(fondo inicial Q${Number(info.fondo_inicial || 0).toFixed(2)} + ventas en efectivo Q${Number(info.efectivo_ventas || 0).toFixed(2)} - vuelto acumulado)</div>`;
         denominacionesContainer?.prepend(aviso);
-      } catch (e) {}
+      } catch (error) {
+        console.error("No se pudo calcular el efectivo esperado:", error);
+        showToast(error.message || "No se pudo calcular el efectivo esperado", "error");
+      }
 
       const observaciones = document.getElementById("cajaObservaciones");
       if (observaciones) observaciones.value = "";
@@ -986,6 +1017,17 @@
       return;
     }
 
+    const vuelto_total =
+      Number(document.getElementById("cajaVueltoTotal")?.value) || 0;
+    if (!Number.isFinite(vuelto_total) || vuelto_total < 0) {
+      showToast("El vuelto acumulado no puede ser negativo", "error");
+      return;
+    }
+    if (efectivoEsperadoCaja !== null && vuelto_total > efectivoEsperadoCaja) {
+      showToast("El vuelto acumulado no puede superar el efectivo disponible", "error");
+      return;
+    }
+
     // Confirmar cierre
     const confirmar = await mostrarConfirmacion(
       "Confirmar Cierre",
@@ -996,6 +1038,7 @@
 
     const data = {
       denominaciones: denominaciones,
+      vuelto_total,
       observaciones: document.getElementById("cajaObservaciones").value || null,
     };
 
@@ -1663,4 +1706,5 @@
   window.abrirModalTurno = abrirModalTurno;
   window.agregarDenominacion = agregarDenominacion;
   window.mostrarSelectorTurnos = mostrarSelectorTurnos;
+  window.actualizarEfectivoEsperadoCaja = actualizarEfectivoEsperadoCaja;
 })();

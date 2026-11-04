@@ -61,6 +61,7 @@ class CajaTurno(Base):
     fecha_cierre = Column(DateTime)
     total_contado = Column(DECIMAL(12, 2)) 
     total_ventas = Column(DECIMAL(12, 2)) 
+    vuelto_total = Column(DECIMAL(12, 2), nullable=False, default=0, server_default="0")
     diferencia = Column(DECIMAL(12, 2))  
     estado = Column(String(20), default="Abierto")  
     observaciones = Column(Text)

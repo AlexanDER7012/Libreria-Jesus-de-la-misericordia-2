@@ -11,6 +11,7 @@ let proveedoresData = [];
 let tiposProveedorData = [];
 let pedidosData = [];
 let tiposGastoData = [];
+let cargaMasivaComprasGrupos = [];
 
 let skipCajaChica = 0;
 const LIMITE_CAJA_CHICA = 10;
@@ -547,13 +548,18 @@ function renderComprasTable(compras) {
   let html = `
         <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Compras</h6>
-            ${
-              tienePermiso("Compras", "Crear")
-                ? `<button class="btn btn-info btn-sm" onclick="showCreateCompraModal()">
-                <i class="fas fa-plus me-2"></i>Nueva Compra
-            </button>`
-                : ""
-            }
+            <div class="d-flex gap-2">
+              ${
+                tienePermiso("Compras", "Crear")
+                  ? `<button class="btn btn-outline-info btn-sm" onclick="showImportComprasMasivasModal()">
+                      <i class="fas fa-file-import me-1"></i>Carga masiva
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="showCreateCompraModal()">
+                      <i class="fas fa-plus me-2"></i>Nueva Compra
+                    </button>`
+                  : ""
+              }
+            </div>
         </div>
 
         <div class="row g-2 mb-3">
@@ -755,6 +761,371 @@ function renderComprasTable(compras) {
     `;
 
   container.innerHTML = html;
+}
+
+function showImportComprasMasivasModal() {
+  if (!tienePermiso("Compras", "Crear")) {
+    showToast("No tienes permiso para crear compras", "error");
+    return;
+  }
+  document.getElementById("compraMasivaModal")?.remove();
+
+  const modal = document.createElement("div");
+  modal.className = "modal fade";
+  modal.id = "compraMasivaModal";
+  modal.tabIndex = -1;
+  modal.innerHTML = `
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-file-import me-2"></i>Carga masiva de compras</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <p>Sube un archivo Excel o CSV. Las filas con el mismo proveedor y número de factura se agrupan en una compra.</p>
+          <p class="small text-muted">Usa el nombre exacto del proveedor y el código exacto del producto. La ubicación de destino será la configurada en el sistema; las compras se crean pendientes de recepción.</p>
+          <button type="button" class="btn btn-outline-success btn-sm mb-3" onclick="descargarPlantillaCompras()">
+            <i class="fas fa-download me-1"></i>Descargar plantilla
+          </button>
+          <label class="form-label fw-bold" for="cmComprasArchivo">Archivo Excel / CSV</label>
+          <input type="file" class="form-control" id="cmComprasArchivo" accept=".xlsx,.xls,.csv"
+                 onchange="procesarArchivoComprasMasivas(event)">
+          <div id="cmComprasResumen" class="mt-3"></div>
+          <div id="cmComprasPreview" class="table-responsive mt-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="cmComprasConfirmar" disabled
+                  onclick="confirmarCargaMasivaCompras()">
+            <i class="fas fa-check me-1"></i>Confirmar y crear compras
+          </button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  cargaMasivaComprasGrupos = [];
+  bootstrap.Modal.getOrCreateInstance(modal).show();
+  modal.addEventListener("hidden.bs.modal", () => modal.remove(), { once: true });
+}
+
+function descargarPlantillaCompras() {
+  if (!window.XLSX?.utils) {
+    showToast("La exportación a Excel no está disponible", "error");
+    return;
+  }
+  const filas = [
+    {
+      Proveedor: "Proveedor de ejemplo",
+      Numero_Factura: "FAC-001",
+      Codigo_Producto: "PROD-001",
+      Cantidad_Comprada: 2,
+      Cantidad_Unidades: 2,
+      Costo_Unitario: 100,
+      IVA: 12,
+      Monto_Exento: 0,
+      Observaciones: "",
+    },
+    {
+      Proveedor: "Proveedor de ejemplo",
+      Numero_Factura: "FAC-001",
+      Codigo_Producto: "PROD-002",
+      Cantidad_Comprada: 1,
+      Cantidad_Unidades: 1,
+      Costo_Unitario: 50,
+      IVA: 12,
+      Monto_Exento: 0,
+      Observaciones: "",
+    },
+  ];
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    libro,
+    XLSX.utils.json_to_sheet(filas),
+    "Compras",
+  );
+  descargarExcelConColores(libro, "Plantilla_Carga_Masiva_Compras.xlsx", {
+    obligatorias: [
+      "Proveedor",
+      "Numero_Factura",
+      "Codigo_Producto",
+      "Cantidad_Comprada",
+      "Costo_Unitario",
+    ],
+    recomendadas: ["Cantidad_Unidades", "IVA", "Monto_Exento"],
+  });
+  showToast("Plantilla de compras descargada", "success");
+}
+
+async function procesarArchivoComprasMasivas(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (!window.XLSX?.read) {
+    showToast("La lectura de archivos Excel no está disponible", "error");
+    return;
+  }
+
+  const resumen = document.getElementById("cmComprasResumen");
+  const preview = document.getElementById("cmComprasPreview");
+  const confirmar = document.getElementById("cmComprasConfirmar");
+  if (resumen) resumen.innerHTML = '<div class="text-muted">Validando archivo...</div>';
+  if (preview) preview.innerHTML = "";
+  if (confirmar) confirmar.disabled = true;
+  cargaMasivaComprasGrupos = [];
+
+  const reader = new FileReader();
+  reader.onerror = () => {
+    if (resumen) resumen.innerHTML = '<div class="alert alert-danger">No se pudo leer el archivo seleccionado.</div>';
+    showToast("No se pudo leer el archivo seleccionado", "error");
+  };
+  reader.onload = async (e) => {
+    try {
+      const workbook = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const filas = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      if (!filas.length) throw new Error("El archivo está vacío");
+      await validarArchivoComprasMasivas(filas);
+    } catch (error) {
+      if (resumen) resumen.innerHTML = `<div class="alert alert-danger">${escaparHtmlEscaner(error.message)}</div>`;
+      showToast(error.message || "No se pudo procesar el archivo", "error");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function validarArchivoComprasMasivas(filas) {
+  const resumen = document.getElementById("cmComprasResumen");
+  const preview = document.getElementById("cmComprasPreview");
+  const confirmar = document.getElementById("cmComprasConfirmar");
+  const headers = Object.keys(filas[0] || {});
+  const requeridos = [
+    "Proveedor",
+    "Numero_Factura",
+    "Codigo_Producto",
+    "Cantidad_Comprada",
+    "Costo_Unitario",
+  ];
+  const faltantes = requeridos.filter((header) => !headers.includes(header));
+  if (faltantes.length) {
+    throw new Error(`Faltan columnas requeridas: ${faltantes.join(", ")}`);
+  }
+
+  const proveedores = [];
+  for (let skip = 0; ; skip += 200) {
+    const pagina = await api.request(
+      `/proveedores?estado=todos&skip=${skip}&limit=200`,
+    );
+    proveedores.push(...(pagina || []));
+    if (!pagina || pagina.length < 200) break;
+  }
+
+  const productosPorCodigo = new Map();
+  const codigos = [
+    ...new Set(
+      filas
+        .map((fila) => String(fila.Codigo_Producto || "").trim())
+        .filter(Boolean),
+    ),
+  ];
+  for (const codigo of codigos) {
+    let producto = null;
+    try {
+      producto = await api.request(
+        `/productos/buscar-codigo/${encodeURIComponent(codigo)}`,
+      );
+    } catch (error) {
+      if (!error.message.startsWith("No existe ningún producto con ese código")) {
+        throw error;
+      }
+    }
+    productosPorCodigo.set(codigo.toLowerCase(), producto || null);
+  }
+
+  const errores = [];
+  const grupos = new Map();
+  filas.forEach((fila, index) => {
+    const numeroFila = index + 2;
+    const nombreProveedor = String(fila.Proveedor || "").trim();
+    const factura = String(fila.Numero_Factura || "").trim();
+    const codigo = String(fila.Codigo_Producto || "").trim();
+    const coincidencias = proveedores.filter(
+      (proveedor) =>
+        String(proveedor.nombre || "").trim().toLowerCase() ===
+        nombreProveedor.toLowerCase(),
+    );
+    if (!nombreProveedor || coincidencias.length !== 1) {
+      errores.push(
+        `Fila ${numeroFila}: ${coincidencias.length ? "el proveedor coincide con más de un registro" : "proveedor no encontrado"} (${nombreProveedor || "vacío"}).`,
+      );
+      return;
+    }
+    if (!factura) {
+      errores.push(`Fila ${numeroFila}: falta el número de factura.`);
+      return;
+    }
+    const proveedor = coincidencias[0];
+    if (proveedor.activo === 0) {
+      errores.push(`Fila ${numeroFila}: el proveedor "${nombreProveedor}" está inactivo.`);
+      return;
+    }
+    const producto = productosPorCodigo.get(codigo.toLowerCase());
+    if (!producto) {
+      errores.push(`Fila ${numeroFila}: no se encontró el código de producto "${codigo}".`);
+      return;
+    }
+    if (producto.activo === 0) {
+      errores.push(`Fila ${numeroFila}: el producto "${codigo}" está inactivo.`);
+      return;
+    }
+
+    const cantidad = Number(fila.Cantidad_Comprada);
+    const unidades =
+      String(fila.Cantidad_Unidades ?? "").trim() === ""
+        ? cantidad
+        : Number(fila.Cantidad_Unidades);
+    const costo = Number(fila.Costo_Unitario);
+    const iva =
+      String(fila.IVA ?? "").trim() === "" ? 12 : Number(fila.IVA);
+    const exento =
+      String(fila.Monto_Exento ?? "").trim() === ""
+        ? 0
+        : Number(fila.Monto_Exento);
+    if (!Number.isInteger(cantidad) || cantidad <= 0) {
+      errores.push(`Fila ${numeroFila}: Cantidad_Comprada debe ser un entero mayor a 0.`);
+      return;
+    }
+    if (!Number.isInteger(unidades) || unidades <= 0) {
+      errores.push(`Fila ${numeroFila}: Cantidad_Unidades debe ser un entero mayor a 0.`);
+      return;
+    }
+    if (String(fila.Costo_Unitario ?? "").trim() === "") {
+      errores.push(`Fila ${numeroFila}: Costo_Unitario es obligatorio (usa 0 si fue gratis).`);
+      return;
+    }
+    if (!Number.isFinite(costo) || costo < 0) {
+      errores.push(`Fila ${numeroFila}: Costo_Unitario debe ser un número mayor o igual a 0.`);
+      return;
+    }
+    if (!Number.isFinite(iva) || iva < 0 || iva > 100) {
+      errores.push(`Fila ${numeroFila}: IVA debe estar entre 0 y 100.`);
+      return;
+    }
+    if (!Number.isFinite(exento) || exento < 0) {
+      errores.push(`Fila ${numeroFila}: Monto_Exento no puede ser negativo.`);
+      return;
+    }
+
+    const clave = `${proveedor.id}:${factura.toLowerCase()}`;
+    let grupo = grupos.get(clave);
+    if (!grupo) {
+      grupo = {
+        id_proveedor: proveedor.id,
+        nombre_proveedor: proveedor.nombre,
+        numero_factura: factura,
+        iva,
+        monto_exento: exento,
+        observaciones: [],
+        detalles: [],
+        id_creada: null,
+      };
+      grupos.set(clave, grupo);
+    } else if (grupo.iva !== iva || grupo.monto_exento !== exento) {
+      errores.push(
+        `Fila ${numeroFila}: IVA y Monto_Exento deben coincidir en todas las líneas de la factura ${factura}.`,
+      );
+      return;
+    }
+    const observaciones = String(fila.Observaciones || "").trim();
+    if (observaciones && !grupo.observaciones.includes(observaciones)) {
+      grupo.observaciones.push(observaciones);
+    }
+    grupo.detalles.push({
+      id_producto: producto.id,
+      cantidad_comprada: cantidad,
+      cantidad_unidades: unidades,
+      costo_unitario: costo,
+    });
+  });
+
+  cargaMasivaComprasGrupos = [...grupos.values()];
+  if (resumen) {
+    resumen.innerHTML = errores.length
+      ? `<div class="alert alert-danger"><strong>${errores.length} error(es):</strong><ul class="mb-0">${errores.map((error) => `<li>${escaparHtmlEscaner(error)}</li>`).join("")}</ul></div>`
+      : `<div class="alert alert-success">Archivo válido: ${cargaMasivaComprasGrupos.length} factura(s) y ${filas.length} línea(s) de producto.</div>`;
+  }
+  if (preview) {
+    preview.innerHTML = cargaMasivaComprasGrupos.length
+      ? `<table class="table table-sm table-striped"><thead><tr><th>Proveedor</th><th>Factura</th><th>Productos</th><th>Total estimado</th></tr></thead><tbody>${cargaMasivaComprasGrupos
+          .map((grupo) => {
+            const total = grupo.detalles.reduce(
+              (suma, detalle) =>
+                suma + detalle.cantidad_comprada * detalle.costo_unitario,
+              0,
+            );
+            return `<tr><td>${escaparHtmlEscaner(grupo.nombre_proveedor)}</td><td>${escaparHtmlEscaner(grupo.numero_factura)}</td><td>${grupo.detalles.length}</td><td>Q${total.toFixed(2)}</td></tr>`;
+          })
+          .join("")}</tbody></table>`
+      : "";
+  }
+  if (confirmar) confirmar.disabled = errores.length > 0 || !cargaMasivaComprasGrupos.length;
+}
+
+async function confirmarCargaMasivaCompras() {
+  const boton = document.getElementById("cmComprasConfirmar");
+  const resumen = document.getElementById("cmComprasResumen");
+  if (!cargaMasivaComprasGrupos.length || !boton) return;
+
+  boton.disabled = true;
+  try {
+    const configuracion = await api.request("/configuracion");
+    if (!configuracion.id_ubicacion) {
+      throw new Error("No hay ubicación configurada para recibir las compras.");
+    }
+    const usuario = getCurrentUser();
+    for (const grupo of cargaMasivaComprasGrupos) {
+      if (grupo.id_creada) continue;
+      try {
+        const resultado = await api.request("/compras", "POST", {
+          id_proveedor: grupo.id_proveedor,
+          id_ubicacion_destino: configuracion.id_ubicacion,
+          numero_factura: grupo.numero_factura,
+          id_usuario_registra: usuario?.id || null,
+          iva: grupo.iva,
+          monto_exento: grupo.monto_exento,
+          observaciones: grupo.observaciones.join("\n") || null,
+          detalles: grupo.detalles,
+        });
+        grupo.id_creada = resultado.id;
+      } catch (error) {
+        throw new Error(
+          `No se pudo crear la factura ${grupo.numero_factura}: ${error.message}`,
+        );
+      }
+    }
+
+    showToast(
+      `Se crearon ${cargaMasivaComprasGrupos.length} compra(s) correctamente`,
+      "success",
+    );
+    bootstrap.Modal.getInstance(
+      document.getElementById("compraMasivaModal"),
+    )?.hide();
+    await loadComprasModule();
+  } catch (error) {
+    const creadas = cargaMasivaComprasGrupos.filter((grupo) => grupo.id_creada).length;
+    const pendientes = cargaMasivaComprasGrupos.length - creadas;
+    if (resumen) {
+      resumen.innerHTML = `<div class="alert alert-warning">${escaparHtmlEscaner(error.message)} Se crearon ${creadas}; quedan ${pendientes} pendientes. Puedes reintentar sin duplicar las compras ya creadas.</div>`;
+    }
+    showToast(error.message || "No se pudo completar la carga masiva", "error");
+  } finally {
+    if (boton) {
+      boton.disabled = !cargaMasivaComprasGrupos.some((grupo) => !grupo.id_creada);
+      const hayCreadas = cargaMasivaComprasGrupos.some((grupo) => grupo.id_creada);
+      boton.innerHTML = hayCreadas
+        ? '<i class="fas fa-redo me-1"></i>Reintentar compras pendientes'
+        : '<i class="fas fa-check me-1"></i>Confirmar y crear compras';
+    }
+  }
 }
 
 async function cargarResumenCompras() {
@@ -5230,6 +5601,10 @@ window.eliminarPagoCompra = eliminarPagoCompra;
 window.filtrarCompras = filtrarCompras;
 window.limpiarFiltrosCompras = limpiarFiltrosCompras;
 window.cargarComprasTabla = cargarComprasTabla;
+window.showImportComprasMasivasModal = showImportComprasMasivasModal;
+window.descargarPlantillaCompras = descargarPlantillaCompras;
+window.procesarArchivoComprasMasivas = procesarArchivoComprasMasivas;
+window.confirmarCargaMasivaCompras = confirmarCargaMasivaCompras;
 
 // Exponer globalmente
 window.eliminarGasto = eliminarGasto;

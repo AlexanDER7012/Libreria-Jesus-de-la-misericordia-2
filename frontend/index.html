@@ -1400,6 +1400,23 @@
                 style="display: none"
               >
                 <label class="form-label">Denominaciones</label>
+                <div class="mb-3">
+                  <label class="form-label" for="cajaVueltoTotal">
+                    Vuelto acumulado entregado
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    class="form-control"
+                    id="cajaVueltoTotal"
+                    value="0"
+                    oninput="actualizarEfectivoEsperadoCaja()"
+                  />
+                  <div class="form-text">
+                    Se descuenta del fondo inicial más las ventas cobradas en efectivo.
+                  </div>
+                </div>
                 <div id="cajaDenominacionesList"></div>
                 <button
                   type="button"

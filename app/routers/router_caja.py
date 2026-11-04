@@ -128,7 +128,13 @@ def efectivo_esperado_turno(turno_id: int, db: Session = Depends(get_db), usuari
     turno = db.query(CajaTurno).filter(CajaTurno.id == turno_id).first()
     if not turno:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
-    return {"fondo_inicial": float(turno.fondo_inicial or 0), "esperado": _efectivo_esperado(db, turno)}
+    fondo_inicial = float(turno.fondo_inicial or 0)
+    esperado = _efectivo_esperado(db, turno)
+    return {
+        "fondo_inicial": fondo_inicial,
+        "efectivo_ventas": round(esperado - fondo_inicial, 2),
+        "esperado": esperado,
+    }
 
 
 @router.patch("/{turno_id}/cerrar", response_model=CajaTurnoResponse)
@@ -143,6 +149,16 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
 
     if any(d.cantidad < 0 or d.denominacion <= 0 for d in datos.denominaciones):
         raise HTTPException(status_code=400, detail="Las denominaciones y cantidades no pueden ser negativas")
+    vuelto_total = round(float(datos.vuelto_total or 0), 2)
+    if vuelto_total < 0:
+        raise HTTPException(status_code=400, detail="El vuelto acumulado no puede ser negativo")
+    efectivo_disponible = _efectivo_esperado(db, turno)
+    if vuelto_total > efectivo_disponible:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El vuelto acumulado (Q{vuelto_total:.2f}) no puede superar el efectivo disponible (Q{efectivo_disponible:.2f})",
+        )
+
     total_contado = 0.0
     for d in datos.denominaciones:
         total = round(d.denominacion * d.cantidad, 2)
@@ -157,11 +173,10 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
     from datetime import datetime as dt
     turno.fecha_cierre = dt.now()
     turno.total_contado = round(total_contado, 2)
-    # Lo que debería haber en caja = fondo inicial + lo cobrado en EFECTIVO
-    # por las ventas del turno. Antes se restaba el total de ventas (que
-    # incluye tarjeta, transferencias y ventas al crédito) y no se tomaba en
-    # cuenta el fondo inicial, así que la diferencia casi nunca cuadraba.
-    turno.diferencia = round(total_contado - _efectivo_esperado(db, turno), 2)
+    turno.vuelto_total = vuelto_total
+    # El vuelto se registra por separado y se descuenta del efectivo que
+    # debería quedar junto con el fondo inicial y los pagos en efectivo.
+    turno.diferencia = round(total_contado - (efectivo_disponible - vuelto_total), 2)
     turno.estado = "Cerrado"
     turno.observaciones = datos.observaciones
 
