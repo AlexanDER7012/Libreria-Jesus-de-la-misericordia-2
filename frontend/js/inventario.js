@@ -1046,10 +1046,8 @@ function crearModalesInventario() {
                                     <select class="form-select inv-tipo-movimiento" id="movimientoTipo" required></select>
                                     <div class="invalid-feedback" id="movimientoTipoError">Seleccione un tipo</div>
                                 </div>
+                                <input type="hidden" id="movimientoUbicacion" />
                                 <div class="mb-3">
-                                    <label class="form-label">Ubicación</label>
-                                    <input type="hidden" id="movimientoUbicacion" />
-                                    <div class="form-text">Se usa la ubicación de Configuración General.</div>
                                     <div class="form-text" id="movimientoStockInfo"></div>
                                 </div>
                                 <div class="mb-3">
@@ -1089,18 +1087,14 @@ function crearModalesInventario() {
                                     <div id="conteoProductoSelectorWrapper"></div>
                                     <div class="invalid-feedback" id="conteoProductoError">Seleccione un producto</div>
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Ubicación</label>
-                                    <input type="hidden" id="conteoUbicacion" />
-                                    <div class="form-text">Se usa la ubicación de Configuración General.</div>
-                                </div>
+                                <input type="hidden" id="conteoUbicacion" />
                                 <div class="mb-3">
                                     <label class="form-label">Cantidad Contada *</label>
                                     <input type="number" step="0.01" class="form-control" id="conteoCantidad" required />
                                     <div class="invalid-feedback" id="conteoCantidadError">Ingrese una cantidad válida</div>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Stock en Sistema (en esa ubicación)</label>
+                                    <label class="form-label">Stock en Sistema</label>
                                     <input type="number" step="0.01" class="form-control" id="conteoStockSistema" readonly />
                                 </div>
                                 <div class="mb-3 inventory-grid-wide">

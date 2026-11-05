@@ -3699,11 +3699,7 @@ async function showCreateGastoModal() {
                                     ${tipoOptions}
                                 </select>
                             </div>
-                            <div class="mb-3">
-                                <span class="form-label d-block">Ubicación</span>
-                                <input type="hidden" id="gastoUbicacion" value="${ubicacionConfigurada.id}" />
-                                <div class="form-control-plaintext">${escaparHtmlEscaner(ubicacionConfigurada.nombre || ubicacionConfigurada.id)}</div>
-                            </div>
+                            <input type="hidden" id="gastoUbicacion" value="${ubicacionConfigurada.id}" />
                             <div class="mb-3">
                                 <label class="form-label">Concepto *</label>
                                 <input type="text" class="form-control" id="gastoConcepto" required />
@@ -4198,15 +4194,7 @@ async function prepararUbicacionDestinoCompra() {
   if (!document.getElementById("compraUbicacionDestino")) {
     info.parentElement.insertAdjacentHTML(
       "afterend",
-      `
-      <div class="row g-2 mb-2">
-        <div class="col-md-5">
-          <label class="form-label fw-bold mb-1">Ubicación de destino <span class="text-danger">*</span></label>
-          <input type="hidden" id="compraUbicacionDestino" />
-          <div class="form-text">Donde se guardará la mercadería al recibirla (ej. Bodega).</div>
-        </div>
-      </div>
-    `,
+      '<input type="hidden" id="compraUbicacionDestino" />',
     );
   }
   const ubicacionInput = document.getElementById("compraUbicacionDestino");
@@ -4234,10 +4222,6 @@ async function prepararUbicacionDestinoCompra() {
       return false;
     }
     ubicacionInput.value = String(ubicacionConfigurada.id);
-    const ubicacionInfo = ubicacionInput.parentElement.querySelector(".form-text");
-    if (ubicacionInfo) {
-      ubicacionInfo.textContent = `La mercadería se recibirá en ${ubicacionConfigurada.nombre || ubicacionConfigurada.id} (Configuración General).`;
-    }
     return true;
   } catch (error) {
     showToast(
