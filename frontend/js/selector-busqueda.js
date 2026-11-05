@@ -79,7 +79,7 @@ function crearSelectorBusqueda(config) {
     const termino = (filtro || "").toLowerCase().trim();
     if (searchData && !termino) {
       resultadosActuales = [];
-      dropdown.innerHTML = `<li class="list-group-item text-muted small">${emptyText || "Escribe para buscar..."}</li>`;
+      renderMensaje(emptyText || "Escribe para buscar...");
       dropdown.style.display = "block";
       return;
     }
@@ -91,8 +91,7 @@ function crearSelectorBusqueda(config) {
       if (solicitud !== solicitudActual || !entradaEnfocada) return;
       console.error("Error al buscar opciones:", error);
       resultadosActuales = [];
-      dropdown.innerHTML =
-        '<li class="list-group-item text-danger small">No se pudo completar la búsqueda</li>';
+      renderMensaje("No se pudo completar la búsqueda", "text-danger");
       dropdown.style.display = "block";
       return;
     }
@@ -102,7 +101,7 @@ function crearSelectorBusqueda(config) {
       ? data || []
       : termino
         ? (data || []).filter((item) =>
-            (getSearchText ? getSearchText(item) : getLabel(item) || "")
+            String(getSearchText ? getSearchText(item) : getLabel(item) || "")
               .toLowerCase()
               .includes(termino),
           )
@@ -111,19 +110,34 @@ function crearSelectorBusqueda(config) {
     resultadosActuales = filtrados.slice(0, limite);
 
     if (resultadosActuales.length === 0) {
-      dropdown.innerHTML = `<li class="list-group-item text-muted small">Sin resultados</li>`;
+      renderMensaje("Sin resultados");
     } else {
-      dropdown.innerHTML = resultadosActuales
-        .map(
-          (item) =>
-            `<li class="${itemClase}" style="cursor:pointer;" data-id="${getId(item)}">${getLabel(item)}</li>`,
-        )
-        .join("");
+      dropdown.replaceChildren();
+      resultadosActuales.forEach((item) => {
+        const opcion = document.createElement("li");
+        opcion.className = itemClase;
+        opcion.style.cursor = "pointer";
+        opcion.dataset.id = getId(item);
+        opcion.textContent = String(getLabel(item) || "");
+        dropdown.appendChild(opcion);
+      });
       if (totalEncontrados > limite) {
-        dropdown.innerHTML += `<li class="list-group-item text-muted small">Y ${totalEncontrados - limite} más... sigue escribiendo para filtrar</li>`;
+        renderMensaje(
+          `Y ${totalEncontrados - limite} más... sigue escribiendo para filtrar`,
+          "text-muted",
+          true,
+        );
       }
     }
     dropdown.style.display = "block";
+  }
+
+  function renderMensaje(texto, colorClase = "text-muted", agregar = false) {
+    if (!agregar) dropdown.replaceChildren();
+    const mensaje = document.createElement("li");
+    mensaje.className = `list-group-item small ${colorClase}`;
+    mensaje.textContent = texto;
+    dropdown.appendChild(mensaje);
   }
 
   searchInput.addEventListener("input", () => {
@@ -164,7 +178,7 @@ function crearSelectorBusqueda(config) {
     clearTimeout(temporizadorBusqueda);
     solicitudActual++;
     hiddenInput.value = id;
-    searchInput.value = getLabel(item);
+    searchInput.value = String(getLabel(item) || "");
     dropdown.style.display = "none";
     if (typeof onSelect === "function") onSelect(item);
   });
@@ -201,7 +215,7 @@ function crearSelectorBusqueda(config) {
       const item = data.find((d) => String(getId(d)) === String(id));
       if (item) {
         hiddenInput.value = getId(item);
-        searchInput.value = getLabel(item);
+        searchInput.value = String(getLabel(item) || "");
       } else {
         hiddenInput.value = "";
         searchInput.value = "";

@@ -110,32 +110,50 @@ async function loadConfiguracionModule() {
     `;
 
   try {
-    const [configuracion, metas, ubicaciones] = await Promise.all([
-      api.getConfiguracion().catch(() => null),
-      api.getMetasFinancieras().catch(() => []),
-      obtenerTodasLasUbicaciones().catch((err) => {
-        console.warn("Error al cargar ubicaciones:", err);
-        return [];
-      }),
+      const puedeVerGeneral = tienePermiso(
+        "Configuracion",
+        "Tab:Configuracion:General",
+      );
+      const puedeVerMetas = tienePermiso(
+        "Configuracion",
+        "Tab:Configuracion:Metas",
+      );
+      const puedeVerUbicaciones = tienePermiso(
+        "Configuracion",
+        "Tab:Configuracion:Ubicaciones",
+      );
+      const [configuracion, metas, ubicaciones] = await Promise.all([
+        puedeVerGeneral ? api.getConfiguracion().catch(() => null) : null,
+        puedeVerMetas ? api.getMetasFinancieras().catch(() => []) : [],
+        puedeVerUbicaciones
+          ? obtenerTodasLasUbicaciones().catch((err) => {
+              console.warn("Error al cargar ubicaciones:", err);
+              return [];
+            })
+          : [],
     ]);
 
     configuracionData = configuracion;
     metasData = metas || [];
     ubicacionesListaData = ubicaciones || [];
-    window.ubicacionesData = ubicacionesListaData.filter((u) => u.activo !== 0);
+    if (puedeVerUbicaciones) {
+      window.ubicacionesData = ubicacionesListaData.filter((u) => u.activo !== 0);
+    }
 
     // Guardar backup en localStorage
     try {
-      localStorage.setItem(
-        "ubicaciones_backup",
-        JSON.stringify(window.ubicacionesData),
-      );
+      if (puedeVerUbicaciones) {
+        localStorage.setItem(
+          "ubicaciones_backup",
+          JSON.stringify(window.ubicacionesData),
+        );
+      }
     } catch (e) {}
 
     renderConfiguracion(configuracionData);
     renderMetas(metasData);
     renderUbicaciones(ubicacionesListaData);
-    await cargarBackups();
+    if (puedeVerGeneral) await cargarBackups();
   } catch (error) {
     document.getElementById("configuracionContainer").innerHTML = `
             <div class="alert alert-danger">Error al cargar datos: ${error.message}</div>

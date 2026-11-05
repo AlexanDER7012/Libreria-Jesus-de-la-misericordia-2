@@ -72,16 +72,17 @@ function getToken() {
 // iniciar sesión: si un administrador le asignaba un permiso nuevo a un rol,
 // el usuario no lo veía hasta cerrar sesión y volver a entrar.
 async function recargarPermisos() {
+  const anteriores = localStorage.getItem("user_permisos") || "[]";
   try {
     if (!localStorage.getItem("token")) return false;
     const permisos = await window.api.request("/usuarios/mis-permisos");
     const nuevos = JSON.stringify(permisos || []);
-    const anteriores = localStorage.getItem("user_permisos") || "[]";
     localStorage.setItem("user_permisos", nuevos);
     return nuevos !== anteriores;
   } catch (error) {
     console.error("Error recargando permisos:", error);
-    return false;
+    localStorage.setItem("user_permisos", "[]");
+    return anteriores !== "[]";
   }
 }
 

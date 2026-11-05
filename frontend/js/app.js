@@ -155,6 +155,7 @@ class App {
     const cambiaron = await recargarPermisos();
     if (!cambiaron) return;
     this.buildSidebar();
+    window.initIAChat?.();
     const actual = this.currentModule;
     if (actual) {
       this.currentModule = null;
@@ -178,13 +179,10 @@ class App {
   }
 
   tienePermiso(moduleId) {
-    // ⭐ CAMBIO: "reportes" siempre visible (antes era "dashboard").
-    //    Si el usuario podía ver Dashboard, sigue viendo Reportes.
-    // Ahora solo si el rol tiene algún permiso de Reportes (antes se mostraba
-    // a todos, y quien no tenía ningún permiso veía todos los reportes).
     if (moduleId === "reportes") {
-      return this.getPermisosUsuario().some(
-        (p) => (p.modulo_nombre || "").toLowerCase() === "reportes",
+      return (
+        window.tienePermiso?.("Reportes", "Tab:Reportes:Dashboard") ||
+        window.tienePermiso?.("Reportes", "Tab:Reportes:Reportes")
       );
     }
 
@@ -553,12 +551,26 @@ class App {
       );
     }
 
-    if (realModule === this.currentModule && !realTab) return;
-
+    const cambiaronPermisos =
+      typeof recargarPermisos === "function" ? await recargarPermisos() : false;
+    if (cambiaronPermisos) {
+      this.buildSidebar();
+      window.initIAChat?.();
+    }
     if (!this.tienePermiso(realModule)) {
+      if (realModule === this.currentModule) {
+        this.currentModule = null;
+        this.showHome();
+      }
       showToast("No tienes permiso para acceder a este módulo", "error");
       return;
     }
+
+    if (
+      !cambiaronPermisos &&
+      realModule === this.currentModule &&
+      !realTab
+    ) return;
 
     this.currentModule = realModule;
     if (collapseSidebar) {
@@ -625,7 +637,13 @@ class App {
       // Buscar un botón de pestaña cuyo data-bs-target o id coincida
       const selector = `[data-bs-target="#${tabId}"], [data-tab-id="${tabId}"]`;
       const tabBtn = document.querySelector(selector);
-      if (tabBtn && window.bootstrap) {
+      const pane = document.getElementById(tabId);
+      if (
+        tabBtn &&
+        !tabBtn.closest("li")?.hidden &&
+        !pane?.hidden &&
+        window.bootstrap
+      ) {
         try {
           const tab = new bootstrap.Tab(tabBtn);
           tab.show();
@@ -962,14 +980,20 @@ class App {
       </div>
     `;
 
-    if (typeof loadDashboardModule === "function") {
+    if (
+      window.tienePermiso?.("Reportes", "Tab:Reportes:Dashboard") &&
+      typeof loadDashboardModule === "function"
+    ) {
       try {
         await loadDashboardModule();
       } catch (e) {
         console.warn(e);
       }
     }
-    if (typeof loadReportesModule === "function") {
+    if (
+      window.tienePermiso?.("Reportes", "Tab:Reportes:Reportes") &&
+      typeof loadReportesModule === "function"
+    ) {
       try {
         await loadReportesModule();
       } catch (e) {

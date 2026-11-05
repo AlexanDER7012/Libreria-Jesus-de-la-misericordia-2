@@ -252,4 +252,47 @@ def requiere_permiso_alguno(pares: list):
 
         raise HTTPException(status_code=403, detail=f"No tienes permiso para {detalle}")
 
-    return _dependencia
+    return _dependencia
+
+
+
+def requiere_permisos_todos(pares: list):
+    """Exige que el usuario tenga asignados todos los permisos indicados."""
+    pares = [(_modulo_real(modulo), accion) for modulo, accion in pares]
+
+    def _dependencia(
+        usuario_actual=Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ):
+        from app.models.model_usuario import RolPermiso, Permiso, Modulo
+
+        if not usuario_actual.id_rol:
+            raise HTTPException(
+                status_code=403,
+                detail="No tienes todos los permisos necesarios para esta acción",
+            )
+
+        faltantes = []
+        for modulo, accion in pares:
+            asignado = (
+                db.query(RolPermiso)
+                .join(Permiso, RolPermiso.id_permiso == Permiso.id)
+                .join(Modulo, Permiso.id_modulo == Modulo.id)
+                .filter(
+                    RolPermiso.id_rol == usuario_actual.id_rol,
+                    func.lower(Modulo.nombre) == modulo.lower(),
+                    func.lower(Permiso.nombre) == accion.lower(),
+                )
+                .first()
+            )
+            if not asignado:
+                faltantes.append(f"'{accion}' en '{modulo}'")
+
+        if faltantes:
+            raise HTTPException(
+                status_code=403,
+                detail=f"No tienes permiso para {', '.join(faltantes)}",
+            )
+        return usuario_actual
+
+    return _dependencia

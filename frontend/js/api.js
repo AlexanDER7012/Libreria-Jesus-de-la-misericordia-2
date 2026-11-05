@@ -461,7 +461,7 @@ class ApiClient {
   // =============================================
 
   async getConfiguracion() {
-    return this.request("/configuracion");
+    return this.request("/configuracion/pantalla");
   }
 
   async updateConfiguracion(data) {

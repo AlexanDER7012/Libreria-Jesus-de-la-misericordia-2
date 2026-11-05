@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
-from app.security import get_current_user, requiere_permiso
+from app.security import get_current_user, requiere_permiso, requiere_permisos_todos
 from app.bitacora import registrar_actividad, limpiar_bitacora_antigua, contar_bitacora_a_borrar
 from app.models.model_usuario import Usuario
 from app.models.model_configuracion import ConfiguracionGeneral, MetaFinanciera
@@ -272,12 +272,21 @@ def _obtener_o_crear_configuracion(db: Session) -> ConfiguracionGeneral:
 
 @router.get("", response_model=ConfiguracionGeneralResponse)
 def obtener_configuracion(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
-    """Trae la configuración general. Si nunca se ha creado, la crea con valores por defecto."""
+    """Configuración operativa compartida por módulos que la necesitan."""
+    return _obtener_o_crear_configuracion(db)
+
+
+@router.get("/pantalla", response_model=ConfiguracionGeneralResponse)
+def obtener_configuracion_pantalla(
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Ver")),
+):
+    """Trae la configuración para la pantalla administrativa."""
     return _obtener_o_crear_configuracion(db)
 
 
 @router.get("/bitacora-a-borrar")
-def bitacora_a_borrar(dias: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def bitacora_a_borrar(dias: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Editar"))):
     """Cuántos registros de bitácora se borrarían al conservar solo 'dias' días
     (para avisar antes de guardar el cambio)."""
     if dias < 0:
@@ -331,7 +340,16 @@ def actualizar_configuracion(datos: ConfiguracionGeneralUpdate, db: Session = De
 # ===================================================================
 
 @router_meta.get("", response_model=List[MetaFinancieraResponse])
-def listar_metas(anio: Optional[int] = None, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def listar_metas(
+    anio: Optional[int] = None,
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(
+        requiere_permisos_todos([
+            ("Configuracion", "Ver"),
+            ("Configuracion", "Tab:Configuracion:Metas"),
+        ])
+    ),
+):
     query = db.query(MetaFinanciera).order_by(MetaFinanciera.anio.desc(), MetaFinanciera.mes.desc())
     if anio is not None:
         query = query.filter(MetaFinanciera.anio == anio)

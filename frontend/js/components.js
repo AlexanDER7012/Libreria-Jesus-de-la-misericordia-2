@@ -512,14 +512,6 @@ function aplicarPermisosPestanasModulo(modulo, raiz = document) {
   Object.entries(grupos).forEach(([idNav, mapaPermisos]) => {
     const nav = document.getElementById(idNav);
     if (!nav || (raiz !== document && !raiz.contains(nav))) return;
-    if (
-      (modulo || "").toLowerCase() === "reportes" &&
-      !Object.values(mapaPermisos).some((nombrePermiso) =>
-        tienePermiso("Reportes", nombrePermiso),
-      )
-    ) {
-      return;
-    }
     aplicarControlAccesoPorPestana(idNav, mapaPermisos);
   });
 }

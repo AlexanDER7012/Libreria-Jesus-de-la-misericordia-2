@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app import models
 from app.config import settings
 from app.database import get_db
-from app.security import get_current_user
+from app.security import requiere_permiso_alguno
 from app.timezone import today_gt
 
 logger = logging.getLogger(__name__)
@@ -383,18 +383,11 @@ def _obtener_contexto_negocio(db: Session) -> str:
 def chat_con_ia(
     request: ChatRequest,
     db: Session = Depends(get_db),
-    usuario_actual=Depends(get_current_user),
+    usuario_actual=Depends(requiere_permiso_alguno([
+        ("Reportes", "Tab:Reportes:Dashboard"),
+        ("Reportes", "Tab:Reportes:Reportes"),
+    ])),
 ):
-    # El asistente muestra cifras del negocio: solo para roles con acceso a Reportes
-    if not usuario_actual.id_rol or not (
-        db.query(models.RolPermiso)
-        .join(models.Permiso, models.Permiso.id == models.RolPermiso.id_permiso)
-        .join(models.Modulo, models.Modulo.id == models.Permiso.id_modulo)
-        .filter(models.RolPermiso.id_rol == usuario_actual.id_rol, func.lower(models.Modulo.nombre) == "reportes")
-        .first()
-    ):
-        raise HTTPException(status_code=403, detail="Tu rol no tiene acceso al asistente (necesita permisos de Reportes)")
-
     if not settings.OPENROUTER_API_KEY:
         raise HTTPException(
             status_code=503, detail="El asistente de IA no está configurado"

@@ -3,6 +3,15 @@
 // ============================================================
 // CARGA DEL MODULO DE REPORTES
 // ============================================================
+function tienePermisoReporte(secciones) {
+  return (
+    window.tienePermiso?.("Reportes", "Tab:Reportes:Reportes") &&
+    secciones.every((seccion) =>
+      window.tienePermiso?.("Reportes", `Tab:Reportes:${seccion}`),
+    )
+  );
+}
+
 async function loadReportesModule() {
   const container =
     document.getElementById("reportesContainer") ||
@@ -119,32 +128,32 @@ async function loadReportesModule() {
         </div>
     `;
 
-  // Cargar todos los reportes
-  await Promise.all([
-    // Ventas
-    cargarReporteVentasDiarias(),
-    cargarReporteConciliacion(),
-    cargarReporteCuadreCaja(),
-    cargarReporteUtilidad(),
-    cargarReporteTopProductos(),
-    // Compras
-    cargarReporteComprasResumen(),
-    cargarReporteComprasProveedor(),
-    cargarReporteCuentasPagar(),
-    // Inventario
-    cargarReporteStockBajo(),
-    cargarReporteExcesosInventario(),
-    cargarReporteMovimientosResumen(),
-    cargarReporteInventarioValorizado(),
-    // Usuarios
-    cargarReporteLoginResumen(),
-    cargarReporteUsuariosActivos(),
-    cargarReporteBitacora(),
-    cargarReporteCuentasActivas(),
-    cargarReporteCuentasInactivas(),
-    cargarReporteUsuariosPorFecha(),
-    cargarReporteUsuariosBuscar(),
-  ]);
+  const reportes = [
+    [["Ventas", "VentasDiarias"], cargarReporteVentasDiarias],
+    [["Ventas", "Conciliacion"], cargarReporteConciliacion],
+    [["Ventas", "CuadreCaja"], cargarReporteCuadreCaja],
+    [["Ventas", "Utilidad"], cargarReporteUtilidad],
+    [["Ventas", "TopProductos"], cargarReporteTopProductos],
+    [["Compras", "ComprasResumen"], cargarReporteComprasResumen],
+    [["Compras", "ComprasProveedor"], cargarReporteComprasProveedor],
+    [["Compras", "CuentasPagar"], cargarReporteCuentasPagar],
+    [["Inventario", "StockBajo"], cargarReporteStockBajo],
+    [["Inventario", "ExcesosInventario"], cargarReporteExcesosInventario],
+    [["Inventario", "Movimientos"], cargarReporteMovimientosResumen],
+    [["Inventario", "InventarioValorizado"], cargarReporteInventarioValorizado],
+    [["Usuarios", "LoginResumen"], cargarReporteLoginResumen],
+    [["Usuarios", "UsuariosActivos"], cargarReporteUsuariosActivos],
+    [["Usuarios", "Bitacora"], cargarReporteBitacora],
+    [["Usuarios", "CuentasActivas"], cargarReporteCuentasActivas],
+    [["Usuarios", "CuentasInactivas"], cargarReporteCuentasInactivas],
+    [["Usuarios", "UsuariosPorFecha"], cargarReporteUsuariosPorFecha],
+    [["Usuarios", "UsuariosBuscar"], cargarReporteUsuariosBuscar],
+  ];
+  await Promise.all(
+    reportes
+      .filter(([permisos]) => tienePermisoReporte(permisos))
+      .map(([, cargar]) => cargar()),
+  );
 }
 
 // ============================================================

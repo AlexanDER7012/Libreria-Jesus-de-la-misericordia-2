@@ -475,10 +475,7 @@ function renderRoles(roles) {
                 // rol distinto, o de ningún rol).
                 const usuariosDisponibles = (usuariosData || []).filter((u) => u.id_rol !== r.id);
                 const htmlSelectorAgregar = (usuariosDisponibles.length && tienePermiso("Usuarios", "Editar"))
-                  ? `<select class="form-select form-select-sm mt-1" onchange="asignarUsuarioARol(this, ${r.id})">
-                       <option value="">+ Agregar usuario a este rol...</option>
-                       ${usuariosDisponibles.map((u) => `<option value="${u.id}">${u.nombre_usuario}</option>`).join("")}
-                     </select>`
+                  ? `<div class="mt-2" id="selectorUsuarioRol${r.id}"></div>`
                   : "";
 
                 return `
@@ -525,13 +522,35 @@ function renderRoles(roles) {
     `;
 
   container.innerHTML = html;
+  roles.forEach((rol) => {
+    const usuariosDisponibles = (usuariosData || []).filter(
+      (usuario) => usuario.id_rol !== rol.id,
+    );
+    if (!usuariosDisponibles.length || !tienePermiso("Usuarios", "Editar")) return;
+    crearSelectorBusqueda({
+      wrapperId: `selectorUsuarioRol${rol.id}`,
+      hiddenInputId: `usuarioRolId${rol.id}`,
+      searchInputId: `usuarioRolBuscar${rol.id}`,
+      dropdownId: `usuarioRolOpciones${rol.id}`,
+      getData: () => usuariosDisponibles,
+      getId: (usuario) => usuario.id,
+      getLabel: (usuario) => usuario.nombre_usuario || "Usuario",
+      getSearchText: (usuario) => usuario.nombre_usuario || "",
+      placeholder: "Buscar usuario para agregar...",
+      emptyText: "Escribe para buscar un usuario...",
+      small: true,
+      onSelect: (usuario) => {
+        if (usuario) asignarUsuarioARol(usuario.id, rol.id);
+      },
+    });
+  });
 }
 
 // ============================================================
 // ASIGNAR / QUITAR USUARIO DE UN ROL (desde la tarjeta del rol)
 // ============================================================
-async function asignarUsuarioARol(selectElement, idRol) {
-  const idUsuario = parseInt(selectElement.value);
+async function asignarUsuarioARol(idUsuario, idRol) {
+  idUsuario = parseInt(idUsuario, 10);
   if (!idUsuario) return;
 
   try {
@@ -2289,6 +2308,11 @@ function htmlPermisosReportes(idRol, permisos, asignaciones, icono) {
     .sort((a, b) =>
       etiquetaPermisoCorta(a.nombre).localeCompare(etiquetaPermisoCorta(b.nombre)),
     );
+  const acciones = permisosModulo
+    .filter((permiso) => !(permiso.nombre || "").startsWith("Tab:"))
+    .sort((a, b) =>
+      etiquetaPermisoCorta(a.nombre).localeCompare(etiquetaPermisoCorta(b.nombre)),
+    );
 
   return `
     <div class="card border-info mb-3">
@@ -2297,6 +2321,17 @@ function htmlPermisosReportes(idRol, permisos, asignaciones, icono) {
         <span class="small ms-2">Módulo independiente</span>
       </div>
       <div class="card-body">
+        ${acciones.length ? `
+          <h6 class="text-info-emphasis small text-uppercase mb-2">Permisos del módulo</h6>
+          <div class="row row-cols-1 row-cols-sm-2 g-2 mb-3">
+            ${acciones.map((permiso) => `
+              <div class="col">
+                <div class="border rounded p-2 h-100 bg-body-tertiary">
+                  ${htmlControlPermisoRol(idRol, permiso, asignaciones, etiquetaPermisoCorta(permiso.nombre))}
+                </div>
+              </div>
+            `).join("")}
+          </div>` : ""}
         ${permisosPrincipales.length ? `
           <h6 class="text-info-emphasis small text-uppercase mb-2">Acceso al módulo</h6>
           <div class="row row-cols-1 row-cols-sm-2 g-2 mb-3">

@@ -24,7 +24,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.security import get_current_user
+from app.security import requiere_permisos_todos
 from app.pagination import PaginationParams
 from app.models.model_producto import Producto
 from app.models.model_venta import Venta, DetalleVenta, MetodoPagoVenta
@@ -58,12 +58,22 @@ router_inventario = APIRouter()   # /reportes/inventario
 router_usuarios = APIRouter()     # /reportes/usuarios
 
 
+def _permiso_reporte(*secciones: str):
+    permisos = []
+    if "Dashboard" not in secciones:
+        permisos.append(("Reportes", "Tab:Reportes:Reportes"))
+    permisos.extend(
+        ("Reportes", f"Tab:Reportes:{seccion}") for seccion in secciones
+    )
+    return requiere_permisos_todos(permisos)
+
+
 @router.get("/ventas-diarias", response_model=VentasDiariasResponse)
 def reporte_ventas_diarias(
     desde: date = Query(None, description="Si se omite, usa la fecha de hoy"),
     hasta: date = Query(None, description="Si se omite, usa la fecha de hoy"),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Ventas", "VentasDiarias")),
 ):
     """Requerimiento #25: reporte de ventas por rango de fechas (un solo día si desde=hasta, o el reporte diario si se omiten ambos)."""
     hoy = today_gt()
@@ -92,7 +102,7 @@ def reporte_conciliacion_pagos(
     desde: date = Query(None, description="Si se omite, usa la fecha de hoy"),
     hasta: date = Query(None, description="Si se omite, usa la fecha de hoy"),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Ventas", "Conciliacion")),
 ):
     """Requerimiento #22: desglosa lo cobrado por cada método de pago (efectivo, tarjeta, transferencia) en un rango de fechas."""
     hoy = today_gt()
@@ -122,7 +132,7 @@ def reporte_conciliacion_pagos(
 
 
 @router.get("/cuadre-caja/{turno_id}", response_model=CuadreCajaResponse)
-def reporte_cuadre_caja(turno_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def reporte_cuadre_caja(turno_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(_permiso_reporte("Ventas", "CuadreCaja"))):
     """Requerimiento #8: mismo cálculo que se hace al cerrar el turno, en formato de reporte."""
     turno = db.query(CajaTurno).filter(CajaTurno.id == turno_id).first()
     if not turno:
@@ -147,7 +157,7 @@ def reporte_utilidad(
     desde: date = Query(...),
     hasta: date = Query(...),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Ventas", "Utilidad")),
 ):
     """Requerimiento #20: margen de ganancia por producto en un rango de fechas."""
     if hasta < desde:
@@ -204,7 +214,7 @@ def reporte_productos_mas_vendidos(
     hasta: date = Query(...),
     limite: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Ventas", "TopProductos")),
 ):
     if hasta < desde:
         raise HTTPException(status_code=400, detail="'hasta' no puede ser antes que 'desde'")
@@ -244,7 +254,7 @@ def reporte_compras_resumen(
     desde: date = Query(...),
     hasta: date = Query(...),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Compras", "ComprasResumen")),
 ):
     """Total comprado, cantidad de compras y cuánto sigue pendiente de pago, en un rango de fechas."""
     if hasta < desde:
@@ -274,7 +284,7 @@ def reporte_compras_por_proveedor(
     desde: date = Query(...),
     hasta: date = Query(...),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Compras", "ComprasProveedor")),
 ):
     """Ranking de cuánto se le ha comprado a cada proveedor en un rango de fechas."""
     if hasta < desde:
@@ -303,7 +313,7 @@ def reporte_compras_por_proveedor(
 
 
 @router_compras.get("/cuentas-por-pagar", response_model=CuentasPorPagarResponse)
-def reporte_cuentas_por_pagar(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def reporte_cuentas_por_pagar(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(_permiso_reporte("Compras", "CuentasPagar"))):
     """Compras que todavia tienen saldo pendiente de pago a proveedores (a la fecha de hoy)."""
     compras = (
         db.query(Compra)
@@ -334,7 +344,7 @@ def reporte_cuentas_por_pagar(db: Session = Depends(get_db), usuario_actual: Usu
 # ============================================================================
 
 @router_inventario.get("/stock-bajo", response_model=StockBajoResponse)
-def reporte_stock_bajo(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def reporte_stock_bajo(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(_permiso_reporte("Inventario", "StockBajo"))):
     """Productos activos cuyo stock_actual ya llego a su stock_minimo (necesitan reabastecimiento)."""
     productos = (
         db.query(Producto)
@@ -355,7 +365,7 @@ def reporte_stock_bajo(db: Session = Depends(get_db), usuario_actual: Usuario = 
 @router_inventario.get("/excesos", response_model=List[ExcesoInventarioItem])
 def reporte_excesos_inventario(
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Inventario", "ExcesosInventario")),
 ):
     """Productos activos por encima de su stock máximo y días desde la última venta."""
     ultima_venta_por_producto = (
@@ -417,7 +427,7 @@ def reporte_movimientos_resumen(
     desde: date = Query(...),
     hasta: date = Query(...),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Inventario", "Movimientos")),
 ):
     """Cuantos movimientos hubo de cada tipo (Compra, Venta, Ajuste...) y cuantas unidades en total, en un rango de fechas."""
     if hasta < desde:
@@ -447,7 +457,7 @@ def reporte_movimientos_resumen(
 
 
 @router_inventario.get("/valorizado", response_model=InventarioValorizadoResponse)
-def reporte_inventario_valorizado(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def reporte_inventario_valorizado(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(_permiso_reporte("Inventario", "InventarioValorizado"))):
     """Valor total del inventario actual (stock_actual * costo de compra de cada producto), a hoy."""
     productos = db.query(Producto).filter(Producto.activo == 1, Producto.stock_actual > 0).all()
     detalle = []
@@ -472,7 +482,7 @@ def reporte_login_resumen(
     desde: date = Query(...),
     hasta: date = Query(...),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Usuarios", "LoginResumen")),
 ):
     """Por usuario: cuantos logins exitosos y cuantos fallidos hubo en el rango de fechas."""
     if hasta < desde:
@@ -515,7 +525,7 @@ def reporte_usuarios_mas_activos(
     hasta: date = Query(...),
     limite: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Usuarios", "UsuariosActivos")),
 ):
     """Ranking de usuarios con mas acciones registradas en la bitacora, en un rango de fechas."""
     if hasta < desde:
@@ -544,7 +554,7 @@ def reporte_bitacora(
     id_usuario: Optional[int] = None,
     accion: Optional[str] = None,
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Usuarios", "Bitacora")),
 ):
     """Listado detallado de la bitacora (log_actividad), filtrable por usuario y tipo de accion."""
     if hasta < desde:
@@ -591,7 +601,7 @@ def reporte_usuarios_activos(
     orden_direccion: Literal["asc", "desc"] = "asc",
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Usuarios", "CuentasActivas")),
 ):
     """Reporte de usuarios activos, con ordenamiento por columna y paginación."""
     query = db.query(Usuario).filter(Usuario.activo == 1)
@@ -605,7 +615,7 @@ def reporte_usuarios_inactivos(
     orden_direccion: Literal["asc", "desc"] = "asc",
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Usuarios", "CuentasInactivas")),
 ):
     """Reporte de usuarios inactivos (dados de baja), con ordenamiento y paginación."""
     query = db.query(Usuario).filter(Usuario.activo == 0)
@@ -621,7 +631,7 @@ def reporte_usuarios_por_fecha(
     orden_direccion: Literal["asc", "desc"] = "asc",
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Usuarios", "UsuariosPorFecha")),
 ):
     """Reporte de usuarios filtrado por fecha de creación (registro) de la cuenta."""
     query = db.query(Usuario)
@@ -643,7 +653,7 @@ def reporte_usuarios_inteligente(
     orden_direccion: Literal["asc", "desc"] = "asc",
     paginacion: PaginationParams = Depends(),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(get_current_user),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Usuarios", "UsuariosBuscar")),
 ):
     query = db.query(Usuario)
     if estado == "activos":
@@ -669,7 +679,7 @@ def reporte_usuarios_inteligente(
 # servidor calcula las cifras con todas las ventas y compras válidas.
 
 @router.get("/dashboard")
-def reporte_dashboard(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def reporte_dashboard(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(_permiso_reporte("Dashboard"))):
     from datetime import timedelta
     from app.models.model_cliente import Cliente
     from app.models.model_producto import Categoria

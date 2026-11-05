@@ -5,19 +5,23 @@ let iaHistorial = [];
 let iaEnviando = false;
 const IA_MAX_HISTORIAL = 10;
 
-// Solo quien tiene algún permiso de Reportes ve el asistente (muestra cifras del negocio)
+// Solo quien tiene acceso a una pestaña principal de Reportes ve el asistente.
 function _puedeUsarIA() {
-  try {
-    const permisos = JSON.parse(localStorage.getItem("user_permisos") || "[]");
-    return permisos.some((p) => (p.modulo_nombre || "").toLowerCase() === "reportes");
-  } catch (e) {
-    return false;
-  }
+  return (
+    window.tienePermiso?.("Reportes", "Tab:Reportes:Dashboard") ||
+    window.tienePermiso?.("Reportes", "Tab:Reportes:Reportes")
+  );
 }
 
 function initIAChat() {
-  if (document.getElementById("iaWidget")) return;
-  if (!localStorage.getItem("token") || !_puedeUsarIA()) return;
+  const widgetExistente = document.getElementById("iaWidget");
+  if (!localStorage.getItem("token") || !_puedeUsarIA()) {
+    widgetExistente?.remove();
+    iaChatOpen = false;
+    iaHistorial = [];
+    return;
+  }
+  if (widgetExistente) return;
 
   const widget = document.createElement("div");
   widget.id = "iaWidget";
