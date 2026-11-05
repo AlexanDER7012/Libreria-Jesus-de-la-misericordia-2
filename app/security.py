@@ -296,3 +296,52 @@ def requiere_permisos_todos(pares: list):
         return usuario_actual
 
     return _dependencia
+
+
+def requiere_algun_grupo_de_permisos(grupos: list, mensaje: str = "No tienes permiso para esta acción"):
+    """
+    Da acceso si el usuario tiene COMPLETO al menos uno de los grupos de
+    permisos. Ej.: la bitácora se puede ver desde Usuarios (un permiso) o
+    desde Reportes (tres permisos):
+        requiere_algun_grupo_de_permisos([
+            [("Usuarios", "Tab:Usuarios:Bitacora")],
+            [("Reportes", "Tab:Reportes:Reportes"), ("Reportes", "Tab:Reportes:Bitacora")],
+        ])
+    """
+    grupos = [[(_modulo_real(m), a) for m, a in grupo] for grupo in grupos]
+
+    def _dependencia(
+        usuario_actual=Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ):
+        from app.models.model_usuario import RolPermiso, Permiso, Modulo
+
+        if usuario_actual.id_rol:
+            asignados = {
+                ((m or "").lower(), (p or "").lower())
+                for m, p in db.query(Modulo.nombre, Permiso.nombre)
+                .join(Permiso, Permiso.id_modulo == Modulo.id)
+                .join(RolPermiso, RolPermiso.id_permiso == Permiso.id)
+                .filter(RolPermiso.id_rol == usuario_actual.id_rol)
+                .all()
+            }
+            for grupo in grupos:
+                if all((m.lower(), a.lower()) in asignados for m, a in grupo):
+                    return usuario_actual
+        raise HTTPException(status_code=403, detail=mensaje)
+
+    return _dependencia
+
+
+# Bitácora: se ve desde Usuarios > Bitácora o desde Reportes > Usuarios > Bitácora
+PERMISO_BITACORA = requiere_algun_grupo_de_permisos(
+        [
+            [("Usuarios", "Tab:Usuarios:Bitacora")],
+            [
+                ("Reportes", "Tab:Reportes:Reportes"),
+                ("Reportes", "Tab:Reportes:Usuarios"),
+                ("Reportes", "Tab:Reportes:Bitacora"),
+            ],
+        ],
+        "No tienes permiso para ver la bitácora",
+    )

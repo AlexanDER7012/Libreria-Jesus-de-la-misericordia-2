@@ -1383,7 +1383,8 @@ async function saveUsuario(event) {
     showToast("El nombre de usuario no puede llevar espacios", "error");
     return;
   }
-  if (!id && password && password.length < 6) {
+  // Mismo mínimo al crear y al cambiar la contraseña
+  if (password && password.length < 6) {
     showToast("La contraseña debe tener al menos 6 caracteres", "error");
     document.getElementById("usuarioPassword")?.focus();
     return;

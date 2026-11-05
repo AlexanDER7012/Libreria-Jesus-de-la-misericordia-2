@@ -176,6 +176,7 @@ class UsuarioUpdate(BaseModel):
 
 
 class CambioPasswordRequest(BaseModel):
+    password_actual: Optional[str] = None
     password: str
     confirmar_password: str
 

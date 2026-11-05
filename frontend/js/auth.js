@@ -266,9 +266,18 @@ function abrirModalCambiarPassword() {
 
 async function cambiarMiPassword(event) {
   event.preventDefault();
+  const passwordActual = document.getElementById("miPasswordActual")?.value ?? "";
   const password = document.getElementById("miPasswordNueva")?.value ?? "";
   const confirmarPassword =
     document.getElementById("miPasswordConfirmacion")?.value ?? "";
+  if (!passwordActual.trim()) {
+    showToast("Escribe tu contraseña actual", "error");
+    return;
+  }
+  if (password.trim().length < 6) {
+    showToast("La nueva contraseña debe tener al menos 6 caracteres", "error");
+    return;
+  }
   if (password !== confirmarPassword) {
     showToast("Las contraseñas no coinciden", "error");
     return;
@@ -282,6 +291,7 @@ async function cambiarMiPassword(event) {
   let passwordActualizada = false;
   try {
     await window.api.request("/usuarios/mi-password", "PUT", {
+      password_actual: passwordActual,
       password,
       confirmar_password: confirmarPassword,
     });

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import hash_password, get_current_user, requiere_permiso
+from app.security import hash_password, get_current_user, requiere_permiso, PERMISO_BITACORA
 from app.bitacora import registrar_actividad
 from app.models.model_usuario import (
     Usuario, Empleado, Rol, RolPermiso, Puesto, Turno,
@@ -271,10 +271,11 @@ LARGO_MINIMO_PASSWORD = 6
 
 
 def _es_administrador(usuario: Usuario) -> bool:
+    # Igual que en el resto del sistema: la Dueña también cuenta como administradora
     return bool(
         usuario
         and usuario.rol
-        and (usuario.rol.nombre or "").strip().casefold() == "administrador"
+        and (usuario.rol.nombre or "").strip().casefold() in ("administrador", "dueña")
     )
 
 
@@ -284,6 +285,12 @@ def _validar_password_cambio(password: str, confirmar_password: str) -> str:
     password_normalizado = password.strip()
     if not password_normalizado:
         raise HTTPException(status_code=400, detail="La contraseña no puede estar vacía")
+    # Mismo mínimo que al crear el usuario (antes al cambiarla se aceptaba 1 letra)
+    if len(password_normalizado) < LARGO_MINIMO_PASSWORD:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La contraseña debe tener al menos {LARGO_MINIMO_PASSWORD} caracteres",
+        )
     if len(password_normalizado.encode("utf-8")) > 72:
         raise HTTPException(
             status_code=400,
@@ -412,7 +419,26 @@ def cambiar_mi_password(
     db: Session = Depends(get_db),
     usuario_actual: Usuario = Depends(get_current_user),
 ):
+    # Se pide la contraseña actual: si alguien deja la sesión abierta, otra
+    # persona no puede cambiársela. Los intentos fallidos cuentan igual que
+    # en el inicio de sesión (se bloquea a los 5).
+    from app.routers.router_auth import _validar_credenciales, _password_correcta
+    from app.schemas.schema_auth import LoginRequest
+    if not (datos.password_actual or "").strip():
+        raise HTTPException(status_code=400, detail="Escribe tu contraseña actual")
+    try:
+        _validar_credenciales(
+            db,
+            LoginRequest(nombre_usuario=usuario_actual.nombre_usuario, password=datos.password_actual),
+            "un cambio de contraseña",
+        )
+    except HTTPException as error:
+        # 401 cerraría la sesión en la pantalla: se responde 400 con el aviso
+        detalle = str(error.detail).replace("Usuario o contraseña incorrectos", "La contraseña actual no es correcta")
+        raise HTTPException(status_code=400 if error.status_code == 401 else error.status_code, detail=detalle)
     password = _validar_password_cambio(datos.password, datos.confirmar_password)
+    if _password_correcta(password, usuario_actual.password):
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe ser distinta de la actual")
     usuario_actual.password = hash_password(password)
     registrar_actividad(
         db,
@@ -466,12 +492,7 @@ def actualizar_usuario(usuario_id: int, datos: UsuarioUpdate, db: Session = Depe
             )
     if not datos_dict.get("password"):
         datos_dict.pop("password", None)
-    _validar_datos_usuario(
-        db,
-        datos_dict,
-        usuario_id=usuario_id,
-        exigir_minimo_password=False,
-    )
+    _validar_datos_usuario(db, datos_dict, usuario_id=usuario_id)
     # Evita que alguien se deje a sí mismo sin acceso
     if usuario_id == usuario_actual.id:
         if datos_dict.get("activo") == 0:
@@ -1061,7 +1082,12 @@ def registrar_pago(datos: HistoricoPagoEmpleadoCreate, db: Session = Depends(get
 # ===================================================================
 
 @router_log.get("", response_model=List[LogActividadResponse])
-def listar_logs(id_usuario: int | None = None, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(get_current_user)):
+def listar_logs(
+    id_usuario: int | None = None,
+    db: Session = Depends(get_db),
+    # Antes cualquier usuario con sesión podía leer la bitácora por aquí
+    usuario_actual: Usuario = Depends(PERMISO_BITACORA),
+):
     query = db.query(LogActividad).order_by(LogActividad.id.desc())
     if id_usuario is not None:
         query = query.filter(LogActividad.id_usuario == id_usuario)

@@ -24,7 +24,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.security import requiere_permisos_todos
+from app.security import requiere_permisos_todos, PERMISO_BITACORA
 from app.pagination import PaginationParams
 from app.models.model_producto import Producto
 from app.models.model_venta import Venta, DetalleVenta, MetodoPagoVenta
@@ -554,7 +554,9 @@ def reporte_bitacora(
     id_usuario: Optional[int] = None,
     accion: Optional[str] = None,
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(_permiso_reporte("Usuarios", "Bitacora")),
+    # La usan Reportes > Bitácora y también Usuarios > Bitácora: basta con
+    # tener el permiso de cualquiera de las dos pestañas (antes solo Reportes)
+    usuario_actual: Usuario = Depends(PERMISO_BITACORA),
 ):
     """Listado detallado de la bitacora (log_actividad), filtrable por usuario y tipo de accion."""
     if hasta < desde:
