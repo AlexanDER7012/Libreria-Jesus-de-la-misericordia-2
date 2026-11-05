@@ -1249,6 +1249,9 @@ function showCreateUsuarioModal() {
     passwordInput.placeholder = "Nueva contraseña";
     passwordInput.value = "";
   }
+  const confirmarPasswordInput = document.getElementById("usuarioPasswordConfirmacion");
+  if (confirmarPasswordInput) confirmarPasswordInput.value = "";
+  actualizarConfirmacionPasswordUsuario();
 
   const helpText = document.getElementById("passwordHelp");
   if (helpText) {
@@ -1303,6 +1306,9 @@ async function showEditUsuarioModal(id) {
       passwordInput.required = false;
       passwordInput.placeholder = "Dejar en blanco para no cambiar";
     }
+    const confirmarPasswordInput = document.getElementById("usuarioPasswordConfirmacion");
+    if (confirmarPasswordInput) confirmarPasswordInput.value = "";
+    actualizarConfirmacionPasswordUsuario();
 
     const helpText = document.getElementById("passwordHelp");
     if (helpText) {
@@ -1341,6 +1347,8 @@ async function saveUsuario(event) {
     document.getElementById("usuarioNombre")?.value?.trim() || "";
   const password =
     document.getElementById("usuarioPassword")?.value?.trim() || "";
+  const confirmarPassword =
+    document.getElementById("usuarioPasswordConfirmacion")?.value?.trim() || "";
   const id_empleado =
     parseInt(document.getElementById("usuarioEmpleado")?.value) || null;
   const id_rol = parseInt(document.getElementById("usuarioRol")?.value) || null;
@@ -1356,9 +1364,14 @@ async function saveUsuario(event) {
     showToast("El nombre de usuario no puede llevar espacios", "error");
     return;
   }
-  if (password && password.length < 6) {
+  if (!id && password && password.length < 6) {
     showToast("La contraseña debe tener al menos 6 caracteres", "error");
     document.getElementById("usuarioPassword")?.focus();
+    return;
+  }
+  if (password && password !== confirmarPassword) {
+    showToast("Las contraseñas no coinciden", "error");
+    document.getElementById("usuarioPasswordConfirmacion")?.focus();
     return;
   }
 
@@ -1372,7 +1385,10 @@ async function saveUsuario(event) {
     if (id) {
       // Ahora también se guardan el nombre y el empleado (antes se ignoraban)
       const data = { nombre_usuario, id_empleado, id_rol, activo };
-      if (password) data.password = password;
+      if (password) {
+        data.password = password;
+        data.confirmar_password = confirmarPassword;
+      }
       await api.request(`/usuarios/${id}`, "PUT", data);
       // Al cambiar la contraseña se cierran las sesiones abiertas con la anterior.
       // Si es la propia, se avisa y se manda a iniciar sesión de nuevo.
@@ -2576,8 +2592,12 @@ function crearModalUsuario() {
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Contraseña</label>
-                                <input type="password" class="form-control" id="usuarioPassword" />
+                                <input type="password" class="form-control" id="usuarioPassword" autocomplete="new-password" />
                                 <small class="text-muted" id="passwordHelp">Dejar en blanco para no cambiar</small>
+                            </div>
+                            <div class="mb-3 d-none" id="usuarioPasswordConfirmacionContainer">
+                                <label class="form-label">Confirmar nueva contraseña</label>
+                                <input type="password" class="form-control" id="usuarioPasswordConfirmacion" autocomplete="new-password" />
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Empleado</label>
@@ -2602,6 +2622,21 @@ function crearModalUsuario() {
         </div>
     `,
   );
+  const passwordInput = document.getElementById("usuarioPassword");
+  if (passwordInput) {
+    passwordInput.addEventListener("input", actualizarConfirmacionPasswordUsuario);
+  }
+}
+
+function actualizarConfirmacionPasswordUsuario() {
+  const password = document.getElementById("usuarioPassword");
+  const confirmar = document.getElementById("usuarioPasswordConfirmacion");
+  const contenedor = document.getElementById("usuarioPasswordConfirmacionContainer");
+  if (!password || !confirmar || !contenedor) return;
+  const requiereConfirmacion = Boolean(password.value);
+  contenedor.classList.toggle("d-none", !requiereConfirmacion);
+  confirmar.required = requiereConfirmacion;
+  if (!requiereConfirmacion) confirmar.value = "";
 }
 
 // ============================================================

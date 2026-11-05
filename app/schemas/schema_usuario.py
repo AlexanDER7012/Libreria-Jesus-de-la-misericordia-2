@@ -172,6 +172,12 @@ class UsuarioUpdate(BaseModel):
     id_rol: Optional[int] = None
     activo: Optional[int] = None
     password: Optional[str] = None  # si viene, se re-cifra
+    confirmar_password: Optional[str] = None
+
+
+class CambioPasswordRequest(BaseModel):
+    password: str
+    confirmar_password: str
 
 
 class UsuarioResponse(UsuarioBase):

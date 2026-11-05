@@ -17,6 +17,7 @@ from app.models.model_usuario import (
 from app.schemas.validators import solo_digitos, validar_dpi
 from app.schemas.schema_usuario import (
     UsuarioCreate, UsuarioUpdate, UsuarioResponse,
+    CambioPasswordRequest,
     EmpleadoCreate, EmpleadoUpdate, EmpleadoResponse,
     RolCreate, RolUpdate, RolResponse, RolPermisoCreate, RolPermisoResponse,
     PuestoCreate, PuestoResponse,
@@ -269,7 +270,34 @@ ORDEN_USUARIO_PERMITIDO = {"id", "nombre_usuario", "fecha_creacion", "fecha_ulti
 LARGO_MINIMO_PASSWORD = 6
 
 
-def _validar_datos_usuario(db: Session, datos: dict, usuario_id=None) -> dict:
+def _es_administrador(usuario: Usuario) -> bool:
+    return bool(
+        usuario
+        and usuario.rol
+        and (usuario.rol.nombre or "").strip().casefold() == "administrador"
+    )
+
+
+def _validar_password_cambio(password: str, confirmar_password: str) -> str:
+    if password != confirmar_password:
+        raise HTTPException(status_code=400, detail="Las contraseñas no coinciden")
+    password_normalizado = password.strip()
+    if not password_normalizado:
+        raise HTTPException(status_code=400, detail="La contraseña no puede estar vacía")
+    if len(password_normalizado.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=400,
+            detail="La contraseña no puede superar los 72 bytes admitidos por bcrypt",
+        )
+    return password_normalizado
+
+
+def _validar_datos_usuario(
+    db: Session,
+    datos: dict,
+    usuario_id=None,
+    exigir_minimo_password: bool = True,
+) -> dict:
     """Valida nombre, contraseña, rol y empleado de un usuario (crear o editar)."""
     if "nombre_usuario" in datos:
         nombre = (datos["nombre_usuario"] or "").strip()
@@ -286,14 +314,17 @@ def _validar_datos_usuario(db: Session, datos: dict, usuario_id=None) -> dict:
     if "password" in datos and datos["password"] is not None:
         # Se guarda sin espacios al inicio/final, igual que se compara al iniciar sesión
         datos["password"] = datos["password"].strip()
-        if len(datos["password"]) < LARGO_MINIMO_PASSWORD:
+        if exigir_minimo_password and len(datos["password"]) < LARGO_MINIMO_PASSWORD:
             raise HTTPException(
                 status_code=400,
                 detail=f"La contraseña debe tener al menos {LARGO_MINIMO_PASSWORD} caracteres",
             )
         # bcrypt solo usa los primeros 72 bytes; más largo daba error 500
         if len(datos["password"].encode("utf-8")) > 72:
-            raise HTTPException(status_code=400, detail="La contraseña no puede tener más de 72 caracteres")
+            raise HTTPException(
+                status_code=400,
+                detail="La contraseña no puede superar los 72 bytes admitidos por bcrypt",
+            )
     if datos.get("id_rol") is not None:
         if not db.query(Rol).filter(Rol.id == datos["id_rol"]).first():
             raise HTTPException(status_code=400, detail="El rol elegido no existe")
@@ -375,6 +406,25 @@ def obtener_usuario(usuario_id: int, db: Session = Depends(get_db), usuario_actu
     return usuario
 
 
+@router.put("/mi-password")
+def cambiar_mi_password(
+    datos: CambioPasswordRequest,
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(get_current_user),
+):
+    password = _validar_password_cambio(datos.password, datos.confirmar_password)
+    usuario_actual.password = hash_password(password)
+    registrar_actividad(
+        db,
+        usuario_actual.id,
+        "EDITAR",
+        "Usuario",
+        "Actualizó su propia contraseña",
+    )
+    db.commit()
+    return {"mensaje": "Contraseña actualizada"}
+
+
 @router.post("", response_model=UsuarioResponse, status_code=201)
 def crear_usuario(datos: UsuarioCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Usuarios", "Crear"))):
     datos_dict = _validar_datos_usuario(db, datos.model_dump())
@@ -403,9 +453,25 @@ def actualizar_usuario(usuario_id: int, datos: UsuarioUpdate, db: Session = Depe
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     datos_dict = datos.model_dump(exclude_unset=True)
+    confirmar_password = datos_dict.pop("confirmar_password", None)
+    if datos_dict.get("password"):
+        datos_dict["password"] = _validar_password_cambio(
+            datos_dict["password"],
+            confirmar_password or "",
+        )
+        if usuario_id != usuario_actual.id and not _es_administrador(usuario_actual):
+            raise HTTPException(
+                status_code=403,
+                detail="Solo un usuario con rol Administrador puede cambiar la contraseña de otra cuenta",
+            )
     if not datos_dict.get("password"):
         datos_dict.pop("password", None)
-    _validar_datos_usuario(db, datos_dict, usuario_id=usuario_id)
+    _validar_datos_usuario(
+        db,
+        datos_dict,
+        usuario_id=usuario_id,
+        exigir_minimo_password=False,
+    )
     # Evita que alguien se deje a sí mismo sin acceso
     if usuario_id == usuario_actual.id:
         if datos_dict.get("activo") == 0:

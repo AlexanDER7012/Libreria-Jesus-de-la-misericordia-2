@@ -255,4 +255,52 @@ window.checkAuth = checkAuth;
 window.requireAuth = requireAuth;
 window.getCurrentUser = getCurrentUser;
 window.logout = logout;
+
+function abrirModalCambiarPassword() {
+  const form = document.getElementById("cambiarPasswordForm");
+  if (form) form.reset();
+  const modal = document.getElementById("cambiarPasswordModal");
+  if (modal) new bootstrap.Modal(modal).show();
+}
+
+async function cambiarMiPassword(event) {
+  event.preventDefault();
+  const password = document.getElementById("miPasswordNueva")?.value ?? "";
+  const confirmarPassword =
+    document.getElementById("miPasswordConfirmacion")?.value ?? "";
+  if (password !== confirmarPassword) {
+    showToast("Las contraseñas no coinciden", "error");
+    return;
+  }
+
+  const button = document.getElementById("cambiarPasswordSubmit");
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Guardando...';
+  }
+  let passwordActualizada = false;
+  try {
+    await window.api.request("/usuarios/mi-password", "PUT", {
+      password,
+      confirmar_password: confirmarPassword,
+    });
+    passwordActualizada = true;
+    bootstrap.Modal.getInstance(
+      document.getElementById("cambiarPasswordModal"),
+    )?.hide();
+    document.getElementById("cambiarPasswordForm")?.reset();
+    showToast("Contraseña actualizada. Inicia sesión con la nueva contraseña.", "success");
+    setTimeout(logout, 1800);
+  } catch (error) {
+    showToast(error.message || "No se pudo cambiar la contraseña", "error");
+  } finally {
+    if (button && !passwordActualizada) {
+      button.disabled = false;
+      button.textContent = "Guardar contraseña";
+    }
+  }
+}
+
+window.abrirModalCambiarPassword = abrirModalCambiarPassword;
+window.cambiarMiPassword = cambiarMiPassword;
 window.getToken = getToken;

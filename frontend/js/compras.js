@@ -2186,16 +2186,23 @@ function renderTiposGastoTab(tipos) {
 // =============================================
 // PANEL: TIPOS DE PAGO
 // =============================================
-function renderTiposPagoCompras(tipos) {
-  const container = document.getElementById("tiposPagoContainer");
+function renderTiposPagoCompras(tipos, containerId = "tiposPagoContainer") {
+  const esVentas = containerId === "tiposPagoVentasContainer";
+  const container = document.getElementById(containerId);
   if (!container) return;
 
   // Se muestran TODOS los tipos (antes solo los marcados "para compras", y
   // los de solo ventas no se podían editar ni eliminar desde ningún lado)
   const lista = tipos || [];
   const puedeCrear = tienePermiso("Compras", "Crear") || tienePermiso("Ventas", "Crear") || tienePermiso("Caja", "Crear");
+  const puedeCrearEnEstaVista = esVentas
+    ? tienePermiso("Ventas", "Crear")
+    : puedeCrear;
   const puedeEditar = tienePermiso("Compras", "Editar") || tienePermiso("Ventas", "Editar") || tienePermiso("Caja", "Editar");
   const puedeEliminar = tienePermiso("Compras", "Eliminar") || tienePermiso("Ventas", "Eliminar") || tienePermiso("Caja", "Eliminar");
+  const botonCrear = esVentas
+    ? "showCrearTipoPagoModal()"
+    : "showCreateTipoPagoCompraModal()";
   const esc = (v) =>
     String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -2204,7 +2211,7 @@ function renderTiposPagoCompras(tipos) {
             <div class="text-center py-5">
                 <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No hay tipos de pago registrados</p>
-                ${puedeCrear ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
+                ${puedeCrearEnEstaVista ? `<button class="btn btn-primary btn-sm" onclick="${botonCrear}">
                     <i class="fas fa-plus me-2"></i>Crear Tipo de Pago
                 </button>` : ""}
             </div>
@@ -2215,7 +2222,7 @@ function renderTiposPagoCompras(tipos) {
   let html = `
         <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Tipos de Pago</h6>
-            ${puedeCrear ? `<button class="btn btn-primary btn-sm" onclick="showCreateTipoPagoCompraModal()">
+            ${puedeCrearEnEstaVista ? `<button class="btn btn-primary btn-sm" onclick="${botonCrear}">
                 <i class="fas fa-plus me-2"></i>Nuevo Tipo
             </button>` : ""}
         </div>

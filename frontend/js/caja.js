@@ -1692,7 +1692,14 @@
     if (!container) return;
     try {
       window.tiposPagoData = (await api.getTiposPago()) || [];
-      renderTiposPago(window.tiposPagoData, "tiposPagoVentasContainer");
+      if (typeof window.renderTiposPagoCompras === "function") {
+        window.renderTiposPagoCompras(
+          window.tiposPagoData,
+          "tiposPagoVentasContainer",
+        );
+      } else {
+        renderTiposPago(window.tiposPagoData, "tiposPagoVentasContainer");
+      }
     } catch (error) {
       container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
     }

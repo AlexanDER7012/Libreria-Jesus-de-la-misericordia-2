@@ -159,16 +159,6 @@ async function loadVentasModule() {
                 </div>
             </div>
             <div class="tab-pane fade" id="subTiposPago">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0"><i class="fas fa-credit-card me-2"></i>Tipos de Pago</h5>
-                    ${
-                      tienePermiso("Ventas", "Crear")
-                        ? `<button class="btn btn-primary btn-sm" onclick="window.showCrearTipoPagoModal()">
-                            <i class="fas fa-plus me-1"></i>Nuevo Tipo de Pago
-                          </button>`
-                        : ""
-                    }
-                </div>
                 <div id="tiposPagoVentasContainer">
                     <div class="text-center py-4">
                         <div class="spinner-border text-primary" role="status"></div>

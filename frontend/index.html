@@ -65,6 +65,15 @@
           </span>
           <button
             class="btn btn-outline-light btn-sm"
+            type="button"
+            onclick="abrirModalCambiarPassword()"
+            title="Cambiar mi contraseña"
+            aria-label="Cambiar mi contraseña"
+          >
+            <i class="fas fa-key"></i>
+          </button>
+          <button
+            class="btn btn-outline-light btn-sm"
             onclick="window.app?.goHome()"
             title="Volver al inicio"
             aria-label="Volver al inicio"
@@ -104,6 +113,32 @@
         </div>
       </div>
     </nav>
+
+    <div class="modal fade" id="cambiarPasswordModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Cambiar mi contraseña</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <form id="cambiarPasswordForm" onsubmit="cambiarMiPassword(event)">
+              <div class="mb-3">
+                <label class="form-label" for="miPasswordNueva">Nueva contraseña</label>
+                <input type="password" class="form-control" id="miPasswordNueva" autocomplete="new-password" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="miPasswordConfirmacion">Confirmar contraseña</label>
+                <input type="password" class="form-control" id="miPasswordConfirmacion" autocomplete="new-password" required />
+              </div>
+              <button type="submit" class="btn btn-primary w-100" id="cambiarPasswordSubmit">
+                Guardar contraseña
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- CONTENEDOR PRINCIPAL (sidebar + contenido) -->
     <div class="app-wrapper">
