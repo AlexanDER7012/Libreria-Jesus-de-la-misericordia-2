@@ -3566,7 +3566,11 @@ async function saveCajaChica(event) {
       document.getElementById("cajaChicaObservaciones").value.trim() || null,
   };
 
-  if (!data.id_ubicacion) return showToast("Selecciona una ubicación", "error");
+  if (!data.id_ubicacion)
+    return showToast(
+      "No hay una ubicación activa configurada en Configuración General.",
+      "error",
+    );
   if (!data.concepto) return showToast("El concepto es obligatorio", "error");
   if (data.monto <= 0) return showToast("El monto debe ser mayor a 0", "error");
 
@@ -3651,7 +3655,7 @@ async function showCreateGastoModal() {
     return showToast("No hay tipos de gasto. Crea uno primero.", "warning");
 
   const ubicaciones = (window.ubicacionesData || []).filter(
-    (u) => u.activo !== 0,
+    (u) => Number(u.activo) !== 0,
   );
   if (ubicaciones.length === 0)
     return showToast("No hay ubicaciones disponibles", "warning");
@@ -3668,14 +3672,14 @@ async function showCreateGastoModal() {
   const ubicacionConfigurada = ubicaciones.find(
     (u) => String(u.id) === String(configuracion?.id_ubicacion),
   );
+  if (!ubicacionConfigurada) {
+    return showToast(
+      "La ubicación configurada no está disponible. Verifica Configuración General.",
+      "error",
+    );
+  }
   const tipoOptions = tiposGasto
     .map((t) => `<option value="${t.id}">${t.nombre}</option>`)
-    .join("");
-  const ubicacionOptions = ubicaciones
-    .map(
-      (u) =>
-        `<option value="${u.id}"${ubicacionConfigurada && String(u.id) === String(ubicacionConfigurada.id) ? " selected" : ""}>${escaparHtmlEscaner(u.nombre || u.id)}</option>`,
-    )
     .join("");
 
   const html = `
@@ -3696,11 +3700,9 @@ async function showCreateGastoModal() {
                                 </select>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Ubicación *</label>
-                                <select class="form-select" id="gastoUbicacion" required>
-                                    <option value="">Seleccionar ubicación</option>
-                                    ${ubicacionOptions}
-                                </select>
+                                <span class="form-label d-block">Ubicación</span>
+                                <input type="hidden" id="gastoUbicacion" value="${ubicacionConfigurada.id}" />
+                                <div class="form-control-plaintext">${escaparHtmlEscaner(ubicacionConfigurada.nombre || ubicacionConfigurada.id)}</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Concepto *</label>
@@ -4200,14 +4202,14 @@ async function prepararUbicacionDestinoCompra() {
       <div class="row g-2 mb-2">
         <div class="col-md-5">
           <label class="form-label fw-bold mb-1">Ubicación de destino <span class="text-danger">*</span></label>
-          <select class="form-select form-select-sm" id="compraUbicacionDestino" required></select>
+          <input type="hidden" id="compraUbicacionDestino" />
           <div class="form-text">Donde se guardará la mercadería al recibirla (ej. Bodega).</div>
         </div>
       </div>
     `,
     );
   }
-  const select = document.getElementById("compraUbicacionDestino");
+  const ubicacionInput = document.getElementById("compraUbicacionDestino");
   try {
     const [ubicaciones, config] = await Promise.all([
       api.request("/ubicaciones"),
@@ -4216,22 +4218,25 @@ async function prepararUbicacionDestinoCompra() {
     if (!Array.isArray(ubicaciones)) {
       throw new Error("La respuesta de ubicaciones no es válida");
     }
-    const activas = (ubicaciones || []).filter((u) => u.activo !== 0);
+    const activas = (ubicaciones || []).filter((u) => Number(u.activo) !== 0);
     if (activas.length === 0) {
       showToast("No hay ubicaciones activas disponibles", "warning");
       return false;
     }
-    select.innerHTML = `
-      <option value="">Seleccionar ubicación</option>
-      ${activas
-        .map((u) => `<option value="${u.id}">${escaparHtmlEscaner(u.nombre || u.id)}</option>`)
-        .join("")}
-    `;
     const ubicacionConfigurada = activas.find(
       (u) => String(u.id) === String(config?.id_ubicacion),
     );
-    if (ubicacionConfigurada) {
-      select.value = String(ubicacionConfigurada.id);
+    if (!ubicacionConfigurada) {
+      showToast(
+        "La ubicación configurada no está disponible. Verifica Configuración General.",
+        "error",
+      );
+      return false;
+    }
+    ubicacionInput.value = String(ubicacionConfigurada.id);
+    const ubicacionInfo = ubicacionInput.parentElement.querySelector(".form-text");
+    if (ubicacionInfo) {
+      ubicacionInfo.textContent = `La mercadería se recibirá en ${ubicacionConfigurada.nombre || ubicacionConfigurada.id} (Configuración General).`;
     }
     return true;
   } catch (error) {

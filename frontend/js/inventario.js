@@ -440,12 +440,10 @@ async function obtenerUbicacionesParaInventario() {
       api.request("/ubicaciones"),
       api.request("/configuracion").catch(() => null),
     ]);
-    window.ubicacionesData = (ubicaciones || []).filter((u) => u.activo !== 0);
-    // Ubicación que se propone por defecto (la de Configuración general)
-    window.ubicacionPrincipalId =
-      (config && config.id_ubicacion) ||
-      (window.ubicacionesData[0] && window.ubicacionesData[0].id) ||
-      null;
+    window.ubicacionesData = (ubicaciones || []).filter(
+      (u) => Number(u.activo) !== 0,
+    );
+    window.ubicacionPrincipalId = config?.id_ubicacion || null;
     try {
       localStorage.setItem("ubicaciones_backup", JSON.stringify(window.ubicacionesData));
     } catch (e) {}
@@ -457,6 +455,15 @@ async function obtenerUbicacionesParaInventario() {
     } catch (e) {}
   }
   return window.ubicacionesData || [];
+}
+
+function obtenerIdUbicacionPrincipalInventario() {
+  const id = Number(window.ubicacionPrincipalId);
+  const activa = (window.ubicacionesData || []).some(
+    (ubicacion) =>
+      Number(ubicacion.id) === id && Number(ubicacion.activo) !== 0,
+  );
+  return Number.isInteger(id) && id > 0 && activa ? id : null;
 }
 
 async function recargarResumenInventario() {
@@ -1040,11 +1047,10 @@ function crearModalesInventario() {
                                     <div class="invalid-feedback" id="movimientoTipoError">Seleccione un tipo</div>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Ubicación *</label>
-                                    <select class="form-select inv-ubicacion-select" id="movimientoUbicacion" required></select>
-                                    <div class="form-text">Donde entra (entrada) o de donde sale (salida) el producto.</div>
+                                    <label class="form-label">Ubicación</label>
+                                    <input type="hidden" id="movimientoUbicacion" />
+                                    <div class="form-text">Se usa la ubicación de Configuración General.</div>
                                     <div class="form-text" id="movimientoStockInfo"></div>
-                                    <div class="invalid-feedback" id="movimientoUbicacionError">Seleccione una ubicación</div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Cantidad *</label>
@@ -1084,9 +1090,9 @@ function crearModalesInventario() {
                                     <div class="invalid-feedback" id="conteoProductoError">Seleccione un producto</div>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Ubicación *</label>
-                                    <select class="form-select inv-ubicacion-select" id="conteoUbicacion" required></select>
-                                    <div class="invalid-feedback" id="conteoUbicacionError">Seleccione una ubicación</div>
+                                    <label class="form-label">Ubicación</label>
+                                    <input type="hidden" id="conteoUbicacion" />
+                                    <div class="form-text">Se usa la ubicación de Configuración General.</div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Cantidad Contada *</label>
@@ -1244,8 +1250,17 @@ function showMovimientoModal() {
     setTimeout(() => showMovimientoModal(), 100);
     return;
   }
+  const idUbicacion = obtenerIdUbicacionPrincipalInventario();
+  if (!idUbicacion) {
+    showToast(
+      "No hay una ubicación activa configurada en Configuración General.",
+      "error",
+    );
+    return;
+  }
   document.getElementById("movimientoForm").reset();
   document.getElementById("movimientoId").value = "";
+  document.getElementById("movimientoUbicacion").value = String(idUbicacion);
   limpiarErroresFormulario("movimientoForm");
   const productoError = document.getElementById("movimientoProductoError");
   if (productoError) productoError.style.display = "";
@@ -1271,8 +1286,17 @@ function showConteoFisicoModal() {
     setTimeout(() => showConteoFisicoModal(), 100);
     return;
   }
+  const idUbicacion = obtenerIdUbicacionPrincipalInventario();
+  if (!idUbicacion) {
+    showToast(
+      "No hay una ubicación activa configurada en Configuración General.",
+      "error",
+    );
+    return;
+  }
   document.getElementById("conteoForm").reset();
   document.getElementById("conteoId").value = "";
+  document.getElementById("conteoUbicacion").value = String(idUbicacion);
   document.getElementById("conteoStockSistema").value = 0;
   limpiarErroresFormulario("conteoForm");
   limpiarErrorSelectorProductoInventario("conteoProducto");
@@ -1282,8 +1306,6 @@ function showConteoFisicoModal() {
     "conteo",
     () => actualizarStockSistemaConteo(),
   );
-  const ubicacionConteo = document.getElementById("conteoUbicacion");
-  if (ubicacionConteo) ubicacionConteo.onchange = actualizarStockSistemaConteo;
   prepararEscanerInventario("conteoProducto", contarProductoEscaneado);
   modal.addEventListener(
     "shown.bs.modal",
@@ -1407,10 +1429,8 @@ function llenarSelectorProductoMovimiento() {
     "movimiento",
     () => actualizarInfoStockMovimiento(),
   );
-  ["movimientoTipo", "movimientoUbicacion"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.onchange = actualizarInfoStockMovimiento;
-  });
+  const tipo = document.getElementById("movimientoTipo");
+  if (tipo) tipo.onchange = actualizarInfoStockMovimiento;
   const cantidad = document.getElementById("movimientoCantidad");
   if (cantidad) cantidad.oninput = actualizarInfoStockMovimiento;
   actualizarInfoStockMovimiento();
@@ -1725,10 +1745,11 @@ async function saveMovimiento(event) {
     document.getElementById("movimientoUbicacion")?.value,
   );
   if (!idUbicacionMov) {
-    mostrarErrorCampo("movimientoUbicacion", "Seleccione una ubicación");
+    showToast(
+      "No hay una ubicación activa configurada en Configuración General.",
+      "error",
+    );
     valid = false;
-  } else {
-    limpiarErrorCampo("movimientoUbicacion");
   }
 
   const tipoElegido = tiposMovimientoData.find((t) => t.id === idTipo);
@@ -1792,10 +1813,11 @@ async function saveConteoFisico(event) {
     document.getElementById("conteoUbicacion").value,
   );
   if (!idUbicacion) {
-    mostrarErrorCampo("conteoUbicacion", "Seleccione una ubicación");
+    showToast(
+      "No hay una ubicación activa configurada en Configuración General.",
+      "error",
+    );
     valid = false;
-  } else {
-    limpiarErrorCampo("conteoUbicacion");
   }
 
   const cantidad = parseFloat(document.getElementById("conteoCantidad").value);
@@ -2031,6 +2053,15 @@ function renderConteoFisico(conteos) {
   });
 
   let html = `
+        <div class="d-flex justify-content-end mb-2">
+            ${
+              tienePermiso("Inventario", "Crear")
+                ? `<button class="btn btn-warning btn-sm" onclick="showConteoFisicoModal()">
+                    <i class="fas fa-plus me-2"></i>Nuevo Conteo
+                   </button>`
+                : ""
+            }
+        </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="table-light">
