@@ -291,6 +291,8 @@ def bitacora_a_borrar(dias: int, db: Session = Depends(get_db), usuario_actual: 
     (para avisar antes de guardar el cambio)."""
     if dias < 0:
         raise HTTPException(status_code=400, detail="Los días no pueden ser negativos")
+    if dias > 36500:
+        raise HTTPException(status_code=400, detail="Los días no pueden ser más de 36500 (100 años)")
     return {"dias": dias, "cantidad": contar_bitacora_a_borrar(db, dias)}
 
 
@@ -419,4 +421,4 @@ def eliminar_meta(meta_id: int, db: Session = Depends(get_db), usuario_actual: U
     db.delete(meta)
     registrar_actividad(db, usuario_actual.id, "ELIMINAR", "MetaFinanciera", detalle=detalle_meta)
     db.commit()
-    return None
+    return None

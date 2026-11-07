@@ -2,6 +2,8 @@ from datetime import date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, or_
+
+from app.timezone import now_gt_naive
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
@@ -9,6 +11,7 @@ from app.security import get_current_user, requiere_permiso, requiere_permiso_al
 from app.bitacora import registrar_actividad
 from app.catalogos import validar_nombre_unico
 from app.models.model_usuario import Usuario
+from app.models.model_usuario import Empleado
 from app.models.model_ubicacion import Ubicacion
 from app.models.model_caja import (
     CajaTurno, CajaDenominacion, CajaChicaMovimiento, Gasto, TipoGasto, TipoPago,
@@ -25,9 +28,8 @@ ROLES_ADMIN = ("Administrador", "Dueña")
 
 
 def _es_admin(usuario: Usuario) -> bool:
-    if not usuario or not usuario.rol:
-        return False
-    return usuario.rol.nombre in ROLES_ADMIN
+    from app.security import es_usuario_admin
+    return es_usuario_admin(usuario)
 
 router = APIRouter()               
 router_caja_chica = APIRouter()    
@@ -83,12 +85,18 @@ def _nombre_ubicacion(db: Session, id_ubicacion) -> str:
 @router.post("/abrir", response_model=CajaTurnoResponse, status_code=201)
 def abrir_turno(datos: CajaTurnoAbrir, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Caja", "Crear"))):
     """Abre un nuevo turno de caja. No permite dos turnos abiertos a la vez en la misma sucursal."""
+    if datos.fondo_inicial is not None and float(datos.fondo_inicial) < 0:
+        raise HTTPException(status_code=400, detail="El fondo inicial no puede ser negativo")
     turno_abierto = db.query(CajaTurno).filter(
         CajaTurno.id_ubicacion == datos.id_ubicacion, CajaTurno.estado == "Abierto"
     ).first()
     if turno_abierto:
         quien = db.query(Usuario).filter(Usuario.id == turno_abierto.id_usuario).first()
-        abierto_por = f" (lo abrió {quien.nombre_usuario})" if quien and quien.nombre_usuario else ""
+        nombre_quien = None
+        if quien:
+            emp = db.query(Empleado).filter(Empleado.id == quien.id_empleado).first() if quien.id_empleado else None
+            nombre_quien = (emp.nombre if emp and emp.nombre else None) or quien.nombre_usuario
+        abierto_por = f" (lo abrió {nombre_quien})" if nombre_quien else ""
         raise HTTPException(
             status_code=400,
             detail=f"Ya hay un turno abierto en esta ubicación{abierto_por}. Ciérralo antes de abrir otro.",
@@ -154,7 +162,7 @@ def efectivo_esperado_turno(turno_id: int, db: Session = Depends(get_db), usuari
 
 @router.patch("/{turno_id}/cerrar", response_model=CajaTurnoResponse)
 def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Caja", "Editar"))):
-    turno = db.query(CajaTurno).filter(CajaTurno.id == turno_id).first()
+    turno = db.query(CajaTurno).filter(CajaTurno.id == turno_id).with_for_update().first()
     if not turno:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
     if turno.estado == "Cerrado":
@@ -182,8 +190,8 @@ def cerrar_turno(turno_id: int, datos: CajaTurnoCerrar, db: Session = Depends(ge
             total=total,
         ))
 
-    from datetime import datetime as dt
-    turno.fecha_cierre = dt.now()
+    # Hora de Guatemala (antes usaba la hora del servidor: en Render, 6 horas más)
+    turno.fecha_cierre = now_gt_naive()
     turno.total_contado = round(total_contado, 2)
     turno.gastos_caja_chica = gastos_caja_chica
     turno.diferencia = round(total_contado - efectivo_disponible, 2)
@@ -435,7 +443,7 @@ def crear_tipo_pago(datos: TipoPagoCreate, db: Session = Depends(get_db), usuari
 def eliminar_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Eliminar"), ("Caja", "Eliminar")])), _autorizacion=Depends(requiere_autorizacion_admin)):
     if not _es_admin(usuario_actual):
         raise HTTPException(status_code=403, detail="Solo Administrador o Dueña pueden eliminar gastos")
-    gasto = db.query(Gasto).filter(Gasto.id == gasto_id).first()
+    gasto = db.query(Gasto).filter(Gasto.id == gasto_id).with_for_update().first()
     if not gasto:
         raise HTTPException(status_code=404, detail="Gasto no encontrado")
     detalle_gasto = f"Eliminó el gasto '{gasto.concepto}'"
@@ -452,7 +460,7 @@ def eliminar_gasto(gasto_id: int, db: Session = Depends(get_db), usuario_actual:
 def eliminar_movimiento_caja_chica(movimiento_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso_alguno([("Compras", "Eliminar"), ("Caja", "Eliminar")])), _autorizacion=Depends(requiere_autorizacion_admin)):
     if not _es_admin(usuario_actual):
         raise HTTPException(status_code=403, detail="Solo Administrador o Dueña pueden eliminar movimientos")
-    mov = db.query(CajaChicaMovimiento).filter(CajaChicaMovimiento.id == movimiento_id).first()
+    mov = db.query(CajaChicaMovimiento).filter(CajaChicaMovimiento.id == movimiento_id).with_for_update().first()
     if not mov:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
     if mov.id_caja_turno:

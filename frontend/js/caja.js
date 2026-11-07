@@ -381,10 +381,14 @@
   let usuariosCaja = null;
   async function cargarNombresCaja() {
     if (!usuariosCaja) {
-      usuariosCaja = (await api.getUsuarios().catch(() => [])) || [];
+      await cargarNombresPersonas();
+      usuariosCaja = Object.entries(window.__nombresPersonas || {}).map(([id, nombre]) => ({
+        id: Number(id),
+        nombre,
+      }));
       llenarOpcionesFiltro(
         "turnosFUsuario",
-        usuariosCaja.map((u) => [u.id, u.nombre_usuario || `Usuario ${u.id}`]),
+        usuariosCaja.map((u) => [u.id, u.nombre]),
       );
     }
     await cargarUbicacionesCaja();
@@ -392,9 +396,9 @@
     llenarOpcionesFiltro("cajaCcFUbicacion", opcionesUbicacionesFiltro());
     llenarOpcionesFiltro("cajaGaFUbicacion", opcionesUbicacionesFiltro());
   }
+  // Nombre de la persona encargada (empleado), no un número
   function nombreUsuarioCaja(id) {
-    const u = (usuariosCaja || []).find((x) => x.id === id);
-    return u ? u.nombre_usuario : id ? `Usuario ${id}` : "--";
+    return nombrePersona(id);
   }
   function nombreUbicacionCaja(id) {
     const u = (window.ubicacionesData || []).find((x) => x.id === id);
@@ -581,76 +585,81 @@
       .replace(/'/g, "&#39;");
   }
 
+  // Antes el PDF se armaba "tomando una foto" (html2pdf) de un bloque puesto
+  // fuera de la pantalla, y la foto salía vacía: el PDF se descargaba en
+  // blanco. Ahora se arma con el texto (jsPDF + autoTable), igual que en
+  // Reportes.
   async function exportarCorteCajaPDF(turnoId) {
-    if (typeof window.html2pdf !== "function") {
-      showToast("La exportación a PDF no está disponible", "error");
-      return;
-    }
-    let contenido;
     try {
+      await cargarScriptUnaVez(URL_JSPDF);
+      await cargarScriptUnaVez(URL_JSPDF_AUTOTABLE);
+      const { jsPDF } = window.jspdf;
       const datos = await obtenerDatosCorteCaja(turnoId);
-      const resumenHtml = textoCorteCaja(datos)
-        .map(
-          ([etiqueta, valor]) =>
-            `<tr><th>${escaparHtmlCorteCaja(etiqueta)}</th><td>${escaparHtmlCorteCaja(typeof valor === "number" ? `Q${valor.toFixed(2)}` : valor)}</td></tr>`,
-        )
-        .join("");
-      const gastosHtml = datos.gastos.length
-        ? datos.gastos
-            .map(
-              (gasto) =>
-                `<tr><td>${escaparHtmlCorteCaja(gasto.fecha ? formatearFechaHoraGuatemala(gasto.fecha) : "--")}</td><td>${escaparHtmlCorteCaja(gasto.concepto || "--")}</td><td>${escaparHtmlCorteCaja(gasto.referencia || "--")}</td><td>Q${Number(gasto.monto || 0).toFixed(2)}</td></tr>`,
-            )
-            .join("")
-        : '<tr><td colspan="4">Sin egresos de caja chica asociados</td></tr>';
-      const denominacionesHtml = (datos.turno.denominaciones || [])
-        .map(
-          (denominacion) =>
-            `<tr><td>Q${Number(denominacion.denominacion || 0).toFixed(2)}</td><td>${Number(denominacion.cantidad || 0)}</td><td>Q${Number(denominacion.total || 0).toFixed(2)}</td></tr>`,
-        )
-        .join("");
-      contenido = document.createElement("div");
-      contenido.innerHTML = `
-        <style>
-          .corte-pdf { color: #212529; font: 12px Arial, sans-serif; }
-          .corte-pdf h2 { margin: 0 0 4px; color: #0d6efd; }
-          .corte-pdf h3 { margin: 18px 0 6px; font-size: 15px; }
-          .corte-pdf table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-          .corte-pdf th, .corte-pdf td { border: 1px solid #dee2e6; padding: 6px; text-align: left; }
-          .corte-pdf .resumen th { width: 38%; background: #f1f3f5; }
-          .corte-pdf tr { page-break-inside: avoid; }
-        </style>
-        <div class="corte-pdf">
-          <h2>Corte de Caja #${Number(datos.turno.id)}</h2>
-          <div>Librería y Papelería Jesús de la Misericordia</div>
-          <h3>Resumen</h3>
-          <table class="resumen"><tbody>${resumenHtml}</tbody></table>
-          <h3>Egresos de Caja Chica</h3>
-          <table><thead><tr><th>Fecha</th><th>Concepto</th><th>Referencia</th><th>Monto</th></tr></thead><tbody>${gastosHtml}</tbody></table>
-          <h3>Conteo de Denominaciones</h3>
-          <table><thead><tr><th>Denominación</th><th>Cantidad</th><th>Total</th></tr></thead><tbody>${denominacionesHtml || '<tr><td colspan="3">Sin denominaciones registradas</td></tr>'}</tbody></table>
-        </div>
-      `;
-      contenido.style.cssText =
-        "position:fixed;left:-10000px;top:0;width:180mm;box-sizing:border-box;background:#fff;padding:10mm;";
-      document.body.appendChild(contenido);
-      await window
-        .html2pdf()
-        .set({
-          margin: 8,
-          filename: `Corte_Caja_Turno_${datos.turno.id}.pdf`,
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-          pagebreak: { mode: ["css", "legacy"], avoid: ["tr"] },
-        })
-        .from(contenido)
-        .save();
+      const dinero = (n) => `Q${Number(n || 0).toFixed(2)}`;
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const azul = [13, 110, 253];
+
+      doc.setFontSize(16);
+      doc.setTextColor(...azul);
+      doc.text(`Corte de Caja #${Number(datos.turno.id)}`, 14, 16);
+      doc.setFontSize(10);
+      doc.setTextColor(80);
+      doc.text("Librería y Papelería Jesús de la Misericordia", 14, 22);
+      doc.text(`Generado: ${formatearFechaHoraGuatemala(new Date())}`, 14, 27);
+
+      const estilos = {
+        theme: "grid",
+        styles: { fontSize: 9, cellPadding: 2 },
+        headStyles: { fillColor: azul, textColor: 255 },
+        margin: { left: 14, right: 14 },
+      };
+      const titulo = (texto, y) => {
+        doc.setFontSize(12);
+        doc.setTextColor(33);
+        doc.text(texto, 14, y);
+      };
+
+      titulo("Resumen", 36);
+      doc.autoTable({
+        ...estilos,
+        startY: 39,
+        body: textoCorteCaja(datos).map(([etiqueta, valor]) => [
+          etiqueta,
+          typeof valor === "number" ? dinero(valor) : String(valor || "--"),
+        ]),
+        columnStyles: { 0: { cellWidth: 60, fontStyle: "bold", fillColor: [241, 243, 245] } },
+      });
+
+      titulo("Egresos de Caja Chica", doc.lastAutoTable.finalY + 10);
+      doc.autoTable({
+        ...estilos,
+        startY: doc.lastAutoTable.finalY + 13,
+        head: [["Fecha", "Concepto", "Referencia", "Monto"]],
+        body: datos.gastos.length
+          ? datos.gastos.map((g) => [
+              g.fecha ? formatearFechaHoraGuatemala(g.fecha) : "--",
+              g.concepto || "--",
+              g.referencia || "--",
+              dinero(g.monto),
+            ])
+          : [[{ content: "Sin egresos de caja chica asociados", colSpan: 4 }]],
+      });
+
+      titulo("Conteo de Denominaciones", doc.lastAutoTable.finalY + 10);
+      const denominaciones = datos.turno.denominaciones || [];
+      doc.autoTable({
+        ...estilos,
+        startY: doc.lastAutoTable.finalY + 13,
+        head: [["Denominación", "Cantidad", "Total"]],
+        body: denominaciones.length
+          ? denominaciones.map((d) => [dinero(d.denominacion), Number(d.cantidad || 0), dinero(d.total)])
+          : [[{ content: "Sin denominaciones registradas", colSpan: 3 }]],
+      });
+
+      doc.save(`Corte_Caja_Turno_${datos.turno.id}.pdf`);
     } catch (error) {
       showToast(error.message || "No se pudo exportar el corte a PDF", "error");
       return;
-    } finally {
-      contenido?.remove();
     }
     showToast("Corte de caja exportado a PDF", "success");
   }

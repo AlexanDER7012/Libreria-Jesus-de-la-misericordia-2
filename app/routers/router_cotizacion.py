@@ -159,7 +159,7 @@ def cambiar_estado_cotizacion(cotizacion_id: int, nuevo_estado: str, db: Session
     if nuevo_estado not in ("Pendiente", "Aceptada", "Rechazada"):
         raise HTTPException(status_code=400, detail="Estado inválido. Debe ser Pendiente, Aceptada o Rechazada")
 
-    cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
+    cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).with_for_update().first()
     if not cotizacion:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     vendida = _venta_de_cotizacion(db, cotizacion.id)

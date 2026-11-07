@@ -3359,6 +3359,12 @@ async function validarYPrevisualizarMovimientos() {
     const nombreUbicacion = String(row.Ubicacion || "").trim();
     const costo = costoTexto === "" ? null : parseFloat(costoTexto);
 
+    // Etiquetas <...>: el servidor las rechaza; se avisa antes de confirmar
+    const colConEtiqueta = Object.keys(row).find((col) => tieneEtiquetaHtmlCM(row[col]));
+    if (colConEtiqueta) {
+      errores.push(`Fila ${numFila}: ${colConEtiqueta} no puede llevar etiquetas como <...>`);
+      continue;
+    }
     if (!codigoProducto) {
       errores.push(`Fila ${numFila}: falta Codigo_Producto`);
       continue;
@@ -3893,6 +3899,9 @@ async function validarArchivoMovimientosResumen(filas) {
     throw new Error("El tipo de movimiento seleccionado tiene un signo inválido.");
   }
 
+  // Stock al día (si se movió algo desde que se abrió la pantalla, antes se
+  // validaba con el stock viejo)
+  await cargarStockUbicaciones();
   const productos = window.productosData || [];
   const vistos = new Set();
   const errores = [];
@@ -3906,7 +3915,8 @@ async function validarArchivoMovimientosResumen(filas) {
       errores.push(`Fila ${numFila}: falta el código del producto.`);
       continue;
     }
-    if (!cantidadTexto) continue;
+    // La ayuda dice que las filas con cero se omiten (antes daban error)
+    if (!cantidadTexto || Number(cantidadTexto) === 0) continue;
 
     const clave = codigo.toLowerCase();
     if (vistos.has(clave)) {

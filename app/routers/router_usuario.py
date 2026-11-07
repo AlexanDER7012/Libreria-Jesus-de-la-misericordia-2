@@ -27,7 +27,7 @@ from app.schemas.schema_usuario import (
     HistoricoPagoEmpleadoCreate, HistoricoPagoEmpleadoResponse,
     LogActividadResponse,
 )
-from app.timezone import today_gt
+from app.timezone import now_gt_naive, today_gt
 
 router = APIRouter()             # /usuarios
 router_empleado = APIRouter()    # /empleados
@@ -272,11 +272,8 @@ LARGO_MINIMO_PASSWORD = 6
 
 def _es_administrador(usuario: Usuario) -> bool:
     # Igual que en el resto del sistema: la Dueña también cuenta como administradora
-    return bool(
-        usuario
-        and usuario.rol
-        and (usuario.rol.nombre or "").strip().casefold() in ("administrador", "dueña")
-    )
+    from app.security import es_usuario_admin
+    return es_usuario_admin(usuario)
 
 
 def _validar_password_cambio(password: str, confirmar_password: str) -> str:
@@ -403,6 +400,29 @@ def obtener_mis_permisos(usuario_actual: Usuario = Depends(get_current_user), db
     for p in permisos:
         p.modulo_nombre = modulos_por_id.get(p.id_modulo)
     return permisos
+
+
+@router.get("/nombres")
+def listar_nombres_usuarios(
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(get_current_user),
+):
+    """
+    Nombre de cada usuario para mostrarlo en pantallas (cajero del turno,
+    vendedor, quién registró un gasto...). Usa el nombre del empleado y, si no
+    tiene, el nombre de usuario. Antes esas pantallas pedían la lista completa
+    de usuarios, que exige permiso de Usuarios: un cajero veía "Usuario 4".
+    Solo devuelve nombres (sin roles, correos ni datos privados).
+    """
+    filas = (
+        db.query(Usuario.id, Usuario.nombre_usuario, Empleado.nombre)
+        .outerjoin(Empleado, Empleado.id == Usuario.id_empleado)
+        .all()
+    )
+    return [
+        {"id": uid, "nombre": (nombre_emp or "").strip() or usuario, "nombre_usuario": usuario}
+        for uid, usuario, nombre_emp in filas
+    ]
 
 
 @router.get("/{usuario_id}", response_model=UsuarioResponse)
@@ -1066,7 +1086,7 @@ def registrar_pago(datos: HistoricoPagoEmpleadoCreate, db: Session = Depends(get
     if float(datos.monto or 0) <= 0:
         raise HTTPException(status_code=400, detail="El monto del pago debe ser mayor a Q0.00")
 
-    nuevo = HistoricoPagoEmpleado(**datos.model_dump(), fecha_pago=func.now())
+    nuevo = HistoricoPagoEmpleado(**datos.model_dump(), fecha_pago=now_gt_naive())
     db.add(nuevo)
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "HistoricoPagoEmpleado",

@@ -268,7 +268,7 @@ def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db
     (nunca los borra -- quedan en la tabla marcados con anulado=1 para
     auditoría), saldo=0, estado='Cancelada'. Guarda el motivo si se envía.
     """
-    compra = db.query(Compra).filter(Compra.id == compra_id).first()
+    compra = db.query(Compra).filter(Compra.id == compra_id).with_for_update().first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
     if compra.estado == "Cancelada":
@@ -347,7 +347,7 @@ def eliminar_pago_compra(
     anulado, con el motivo en observaciones, y el saldo y el estado de la
     compra se recalculan sin él. Así siempre queda constancia de lo que pasó.
     """
-    compra = db.query(Compra).filter(Compra.id == compra_id).first()
+    compra = db.query(Compra).filter(Compra.id == compra_id).with_for_update().first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
     if compra.estado == "Cancelada":

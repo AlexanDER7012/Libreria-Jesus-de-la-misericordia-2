@@ -569,19 +569,17 @@ window.__nombresPersonas = window.__nombresPersonas || {};
 
 async function cargarNombresPersonas(forzar = false) {
   if (!forzar && Object.keys(window.__nombresPersonas).length) return window.__nombresPersonas;
-  const [usuarios, empleados] = await Promise.all([
-    api.getUsuarios().catch(() => []),
-    api.getEmpleados().catch(() => []),
-  ]);
-  const empleadosPorId = {};
-  (empleados || []).forEach((e) => (empleadosPorId[e.id] = e.nombre));
-  (usuarios || []).forEach((u) => {
-    window.__nombresPersonas[u.id] = empleadosPorId[u.id_empleado] || u.nombre_usuario || "Usuario";
+  // /usuarios/nombres no exige permiso de Usuarios (antes un cajero veía
+  // "Usuario 4" porque no podía leer la lista de usuarios)
+  const nombres = await api.request("/usuarios/nombres").catch(() => []);
+  (nombres || []).forEach((u) => {
+    window.__nombresPersonas[u.id] = u.nombre || u.nombre_usuario || "Usuario";
   });
   return window.__nombresPersonas;
 }
 
 function nombrePersona(idUsuario) {
+  if (!idUsuario) return "--";
   return window.__nombresPersonas[idUsuario] || "Usuario sin nombre";
 }
 

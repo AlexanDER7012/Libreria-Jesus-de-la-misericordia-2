@@ -1,4 +1,8 @@
+import json
+import re
+
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -14,6 +18,48 @@ app = FastAPI(
     description="API del sistema de gestión de inventario, compras, ventas y cotizaciones.",
     version="1.0.0",
 )
+
+# ---------------------------------------------------------------------------
+# Bloqueo de etiquetas HTML en los textos que se guardan
+# ---------------------------------------------------------------------------
+# Antes se podía guardar un nombre como  <img src=x onerror="...">  (en un
+# producto, cliente, proveedor, gasto...). Al mostrarse en las tablas, el
+# navegador lo ejecutaba como código: alguien con permiso de crear podía
+# robar la sesión del administrador. Como ningún dato de la librería necesita
+# etiquetas HTML, se rechazan en todas las altas y ediciones.
+# "<" seguido de espacio o número sigue permitido (ej. "menos de < 5").
+_ETIQUETA_HTML = re.compile(r"<\s*[a-zA-Z!/?]")
+_CAMPOS_SIN_REVISAR = {"password", "password_actual", "confirmar_password"}
+
+
+def _tiene_etiqueta_html(valor, campo=None) -> bool:
+    if isinstance(valor, str):
+        return campo not in _CAMPOS_SIN_REVISAR and bool(_ETIQUETA_HTML.search(valor))
+    if isinstance(valor, dict):
+        return any(_tiene_etiqueta_html(v, k) for k, v in valor.items())
+    if isinstance(valor, list):
+        return any(_tiene_etiqueta_html(v, campo) for v in valor)
+    return False
+
+
+@app.middleware("http")
+async def rechazar_etiquetas_html(request, call_next):
+    if request.method in ("POST", "PUT", "PATCH") and "application/json" in (
+        request.headers.get("content-type") or ""
+    ):
+        cuerpo = await request.body()
+        if b"<" in cuerpo:
+            try:
+                datos = json.loads(cuerpo)
+            except ValueError:
+                datos = None
+            if _tiene_etiqueta_html(datos):
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Los textos no pueden llevar etiquetas como <...>. Quita los signos < y > e intenta de nuevo."},
+                )
+    return await call_next(request)
+
 
 @app.middleware("http")
 async def revalidar_recursos_frontend(request, call_next):

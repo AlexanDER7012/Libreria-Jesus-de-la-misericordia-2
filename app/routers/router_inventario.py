@@ -363,7 +363,7 @@ def aplicar_ajuste(conteo_id: int, db: Session = Depends(get_db), usuario_actual
     Ejemplo: se contaron 8 con 10 en sistema (diferencia -2); luego se
     vendieron 3 (quedan 7); al aplicar quedan 5, no 8.
     """
-    conteo = db.query(InventarioFisico).filter(InventarioFisico.id == conteo_id).first()
+    conteo = db.query(InventarioFisico).filter(InventarioFisico.id == conteo_id).with_for_update().first()
     if not conteo:
         raise HTTPException(status_code=404, detail="Conteo no encontrado")
     if conteo.ajustado == 1:
@@ -598,7 +598,7 @@ def confirmar_recepcion(traslado_id: int, id_usuario_recibe: Optional[int] = Non
     Confirma que el producto llegó al destino: se suma al destino (el total
     no cambia) y queda un movimiento "Traslado" en el historial.
     """
-    traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).first()
+    traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).with_for_update().first()
     if not traslado:
         raise HTTPException(status_code=404, detail="Traslado no encontrado")
     if traslado.estado in ("Completado", "Recibido"):
@@ -758,7 +758,7 @@ def eliminar_traslado(
 @router_traslado.patch("/{traslado_id}/cancelar", response_model=TrasladoSucursalResponse)
 def cancelar_traslado(traslado_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar"))):
     """Cancela un traslado que todavía no se recibió: lo que estaba en camino regresa al origen."""
-    traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).first()
+    traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).with_for_update().first()
     if not traslado:
         raise HTTPException(status_code=404, detail="Traslado no encontrado")
     if traslado.estado != "EnProceso":
@@ -837,7 +837,7 @@ def listar_pagos_traslado(traslado_id: int, db: Session = Depends(get_db), usuar
 @router_traslado.post("/{traslado_id}/pagos", response_model=TrasladoPagoResponse, status_code=201)
 def registrar_pago_traslado(traslado_id: int, datos: TrasladoPagoCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar"))):
     """Registra un abono de la sucursal destino a la de origen, a precio de costo."""
-    traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).first()
+    traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).with_for_update().first()
     if not traslado:
         raise HTTPException(status_code=404, detail="Traslado no encontrado")
     if traslado.estado == "Cancelado":
@@ -886,7 +886,7 @@ def registrar_pago_traslado(traslado_id: int, datos: TrasladoPagoCreate, db: Ses
 @router_traslado.delete("/{traslado_id}/pagos/{pago_id}", response_model=TrasladoPagoResponse)
 def anular_pago_traslado(traslado_id: int, pago_id: int, motivo: Optional[str] = None, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar"))):
     """Anula un pago (no se borra: queda como constancia y deja de contar para el saldo)."""
-    pago = db.query(TrasladoPago).filter(TrasladoPago.id == pago_id, TrasladoPago.id_traslado == traslado_id).first()
+    pago = db.query(TrasladoPago).filter(TrasladoPago.id == pago_id, TrasladoPago.id_traslado == traslado_id).with_for_update().first()
     if not pago:
         raise HTTPException(status_code=404, detail="Pago no encontrado")
     if pago.anulado:

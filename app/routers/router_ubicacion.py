@@ -203,12 +203,25 @@ def obtener_sububicacion(sububicacion_id: int, db: Session = Depends(get_db), us
     return sub
 
 
+def _validar_sububicacion(datos, creando: bool):
+    """Antes se aceptaba sin nombre, y un texto muy largo daba error 500."""
+    if creando or datos.nombre is not None:
+        datos.nombre = " ".join((datos.nombre or "").split())
+        if not datos.nombre:
+            raise HTTPException(status_code=400, detail="El nombre de la sububicación es obligatorio")
+    for campo, maximo, etiqueta in (("nombre", 100, "El nombre"), ("tipo", 20, "El tipo"), ("encargado", 100, "El encargado")):
+        valor = getattr(datos, campo, None)
+        if valor is not None and len(valor) > maximo:
+            raise HTTPException(status_code=400, detail=f"{etiqueta} no puede tener más de {maximo} caracteres")
+
+
 @sub_router.post("", response_model=SububicacionResponse, status_code=201)
 def crear_sububicacion(datos: SububicacionCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Configuracion", "Crear"))):
     """Crea una nueva sububicación. Debe indicar a qué ubicacion (sucursal) pertenece."""
     ubicacion = db.query(Ubicacion).filter(Ubicacion.id == datos.id_ubicacion).first()
     if not ubicacion:
         raise HTTPException(status_code=404, detail="La ubicación (sucursal) indicada no existe")
+    _validar_sububicacion(datos, creando=True)
 
     nueva = Sububicacion(**datos.model_dump(), activo=1)
     db.add(nueva)
@@ -226,6 +239,7 @@ def actualizar_sububicacion(sububicacion_id: int, datos: SububicacionUpdate, db:
     sub = db.query(Sububicacion).filter(Sububicacion.id == sububicacion_id).first()
     if not sub:
         raise HTTPException(status_code=404, detail="Sububicación no encontrada")
+    _validar_sububicacion(datos, creando=False)
 
     cambios = datos.model_dump(exclude_unset=True)
     for campo, valor in cambios.items():

@@ -350,6 +350,7 @@ async function loadComprasModule() {
       api.getProductos().catch(() => []),
       api.request("/ubicaciones").catch(() => []),
       api.getUsuarios().catch(() => []),
+      cargarNombresPersonas().catch(() => null),
     ]);
 
     comprasData = compras || [];
@@ -783,7 +784,18 @@ function showImportComprasMasivasModal() {
         </div>
         <div class="modal-body">
           <p>Sube un archivo Excel o CSV. Las filas con el mismo proveedor y número de factura se agrupan en una compra.</p>
-          <p class="small text-muted">Usa el nombre exacto del proveedor y el código exacto del producto. La ubicación de destino será la configurada en el sistema; las compras se crean pendientes de recepción.</p>
+          ${htmlGuiaColumnas([
+            { nombre: "Proveedor", tipo: "obligatoria", detalle: "Nombre del proveedor (sin importar mayúsculas, tildes ni espacios de más). También sirve su NIT o su código de proveedor." },
+            { nombre: "Numero_Factura", tipo: "obligatoria", detalle: "Las filas con la misma factura y proveedor forman una sola compra. Si esa factura ya está registrada, se marca como error." },
+            { nombre: "Codigo_Producto", tipo: "obligatoria", detalle: "Código exacto del producto (debe estar activo)." },
+            { nombre: "Cantidad_Comprada", tipo: "obligatoria", detalle: "Número entero mayor a 0." },
+            { nombre: "Costo_Unitario", tipo: "obligatoria", detalle: "Costo de cada unidad comprada (0 si fue regalado)." },
+            { nombre: "Cantidad_Unidades", tipo: "recomendada", detalle: "Unidades que entran al inventario. Si se deja vacía, se usa Cantidad_Comprada." },
+            { nombre: "IVA", tipo: "recomendada", detalle: "Porcentaje de 0 a 100 (vacío = 12). Debe ser igual en todas las líneas de la factura." },
+            { nombre: "Monto_Exento", tipo: "recomendada", detalle: "Monto sin IVA de la factura (vacío = 0). Igual en todas sus líneas." },
+            { nombre: "Observaciones", tipo: "opcional", detalle: "Texto libre." },
+          ])}
+          <p class="small text-muted">La ubicación de destino será la configurada en el sistema; las compras se crean pendientes de recepción (el stock se suma al registrar la nota de entrega).</p>
           <button type="button" class="btn btn-outline-success btn-sm mb-3" onclick="descargarPlantillaCompras()">
             <i class="fas fa-download me-1"></i>Descargar plantilla
           </button>
@@ -940,6 +952,12 @@ async function validarArchivoComprasMasivas(filas) {
     productosPorCodigo.set(codigo.toLowerCase(), producto || null);
   }
 
+  // Nombre sin mayúsculas, tildes ni espacios de más (antes "proveedor  prueba"
+  // o "Distribuidora el Estudiante" no se encontraban)
+  const claveTexto = (v) =>
+    String(v ?? "").trim().replace(/\s+/g, " ").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const soloDigitos = (v) => String(v ?? "").replace(/[^0-9a-z]/gi, "").toLowerCase();
+
   const errores = [];
   const grupos = new Map();
   filas.forEach((fila, index) => {
@@ -947,11 +965,23 @@ async function validarArchivoComprasMasivas(filas) {
     const nombreProveedor = String(fila.Proveedor || "").trim();
     const factura = String(fila.Numero_Factura || "").trim();
     const codigo = String(fila.Codigo_Producto || "").trim();
-    const coincidencias = proveedores.filter(
-      (proveedor) =>
-        String(proveedor.nombre || "").trim().toLowerCase() ===
-        nombreProveedor.toLowerCase(),
+    if (!nombreProveedor && !factura && !codigo) return; // fila vacía
+    const colConEtiqueta = Object.keys(fila).find((col) => tieneEtiquetaHtmlCM(fila[col]));
+    if (colConEtiqueta) {
+      errores.push(`Fila ${numeroFila}: ${colConEtiqueta} no puede llevar etiquetas como <...>.`);
+      return;
+    }
+    let coincidencias = proveedores.filter(
+      (proveedor) => claveTexto(proveedor.nombre) === claveTexto(nombreProveedor),
     );
+    if (!coincidencias.length && nombreProveedor) {
+      // También se acepta el NIT o el código de proveedor
+      coincidencias = proveedores.filter(
+        (proveedor) =>
+          (proveedor.nit && soloDigitos(proveedor.nit) === soloDigitos(nombreProveedor)) ||
+          (proveedor.codigo_proveedor && claveTexto(proveedor.codigo_proveedor) === claveTexto(nombreProveedor)),
+      );
+    }
     if (!nombreProveedor || coincidencias.length !== 1) {
       errores.push(
         `Fila ${numeroFila}: ${coincidencias.length ? "el proveedor coincide con más de un registro" : "proveedor no encontrado"} (${nombreProveedor || "vacío"}).`,
@@ -1047,6 +1077,29 @@ async function validarArchivoComprasMasivas(filas) {
   });
 
   cargaMasivaComprasGrupos = [...grupos.values()];
+
+  // Factura ya registrada en el sistema: antes solo fallaba al confirmar,
+  // a la mitad de la carga
+  for (const grupo of cargaMasivaComprasGrupos) {
+    try {
+      const existentes = await api.request(
+        `/compras?id_proveedor=${grupo.id_proveedor}&buscar=${encodeURIComponent(grupo.numero_factura)}&limit=50`,
+      );
+      const repetida = (existentes || []).find(
+        (c) =>
+          c.estado !== "Cancelada" &&
+          String(c.numero_factura || "").trim().toLowerCase() === grupo.numero_factura.toLowerCase(),
+      );
+      if (repetida) {
+        errores.push(
+          `La factura ${grupo.numero_factura} de ${grupo.nombre_proveedor} ya está registrada en la compra #${repetida.id}.`,
+        );
+      }
+    } catch (error) {
+      // si no se puede revisar, el servidor la rechaza al confirmar
+    }
+  }
+
   if (resumen) {
     resumen.innerHTML = errores.length
       ? `<div class="alert alert-danger"><strong>${errores.length} error(es):</strong><ul class="mb-0">${errores.map((error) => `<li>${escaparHtmlEscaner(error)}</li>`).join("")}</ul></div>`
@@ -1776,14 +1829,7 @@ function renderCajaChicaTab(movimientos) {
                 <td><strong>Q${m.monto || 0}</strong></td>
                 <td>Q${m.saldo || 0}</td>
                 <td>${m.concepto || "--"}</td>
-                <td>${(() => {
-                  const u = (window.usuariosData || []).find(
-                    (x) => x.id === m.id_usuario,
-                  );
-                  return u
-                    ? u.nombre_usuario || u.nombre || u.username || u.email
-                    : m.id_usuario || "--";
-                })()}</td>
+                <td>${nombrePersona(m.id_usuario)}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-info" onclick="verCajaChica(${m.id})" title="Ver">
                         <i class="fas fa-eye"></i>
@@ -1953,14 +1999,7 @@ function renderGastosTab(gastos) {
                 <td>${g.concepto || "--"}</td>
                 <td><strong>Q${g.monto || 0}</strong></td>
                 <td>${nombreUbicacion}</td>
-                <td>${(() => {
-                  const u = (window.usuariosData || []).find(
-                    (x) => x.id === g.id_usuario_registra,
-                  );
-                  return u
-                    ? u.nombre_usuario || u.nombre || u.username || u.email
-                    : g.id_usuario_registra || "--";
-                })()}</td>
+                <td>${nombrePersona(g.id_usuario_registra)}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-info" onclick="verGasto(${g.id})" title="Ver">
                         <i class="fas fa-eye"></i>
@@ -4743,12 +4782,7 @@ async function verCompra(id) {
         ? '<tr><td colspan="5" class="text-center text-muted">Todavía no se ha registrado la recepción de esta compra</td></tr>'
         : notasEntrega
             .map((n) => {
-              const u = (window.usuariosData || []).find(
-                (x) => x.id === n.id_usuario_receptor,
-              );
-              const receptor = u
-                ? u.nombre_usuario || u.nombre || u.username || "--"
-                : n.id_usuario_receptor || "--";
+              const receptor = nombrePersona(n.id_usuario_receptor);
               return `
         <tr>
           <td>${n.numero_nota || "--"}</td>

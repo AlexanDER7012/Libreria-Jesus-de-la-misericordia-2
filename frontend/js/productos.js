@@ -2032,6 +2032,12 @@ function validarYPrevisualizarProductos() {
       errores.push(`Fila ${numFila}: falta Nombre`);
       return;
     }
+    // Etiquetas <...>: el servidor las rechaza; se avisa antes de confirmar
+    const colConEtiqueta = Object.keys(row).find((col) => tieneEtiquetaHtmlCM(row[col]));
+    if (colConEtiqueta) {
+      errores.push(`Fila ${numFila}: ${colConEtiqueta} no puede llevar etiquetas como <...>`);
+      return;
+    }
 
     const codigoLower = codigo.toLowerCase();
     if (codigosExistentes.has(codigoLower)) {
@@ -2227,12 +2233,12 @@ function renderPreviewProductos(errores, filas) {
     html += `
       <tr>
         <td>${i + 1}</td>
-        <td><code>${f.codigo}</code></td>
-        <td>${f.nombre}</td>
-        <td>${catMostrar}</td>
-        <td>${marcaMostrar}</td>
-        <td>${undCMostrar}</td>
-        <td>${undVMostrar}</td>
+        <td><code>${escaparHtmlEscaner(f.codigo)}</code></td>
+        <td>${escaparHtmlEscaner(f.nombre)}</td>
+        <td>${escaparHtmlEscaner(catMostrar)}</td>
+        <td>${escaparHtmlEscaner(marcaMostrar)}</td>
+        <td>${escaparHtmlEscaner(undCMostrar)}</td>
+        <td>${escaparHtmlEscaner(undVMostrar)}</td>
         <td>Q${f.precio_venta.toFixed(2)}</td>
         <td>${f.stock_minimo}</td>
       </tr>
@@ -2584,7 +2590,8 @@ function _esSi(valor) {
 }
 
 function _parseActivo(valor, valorActual) {
-  const v = String(valor || "")
+  // ?? y no ||: un 0 que viene como número del Excel antes se ignoraba
+  const v = String(valor ?? "")
     .trim()
     .toUpperCase();
   if (["ACTIVO", "SI", "SÍ", "1", "TRUE"].includes(v)) return 1;
@@ -2697,128 +2704,97 @@ function validarYPrevisualizarActualizacion() {
       }
     }
 
-    // Resolver categoría/marca/unidades
-    const catNombre = String(row.Categoria || "").trim();
-    const marcaNombre = String(row.Marca || "").trim();
-    const undCNombre = String(row.Unidad_Compra || "").trim();
-    const undVNombre = String(row.Unidad_Venta || "").trim();
+    // Celda vacía o columna que no viene = SE DEJA COMO ESTÁ.
+    // (Antes una celda vacía ponía el precio en 0, borraba la categoría,
+    // la marca, la descripción y el stock mínimo.)
+    const conValor = (col) =>
+      Object.prototype.hasOwnProperty.call(row, col) &&
+      String(row[col] ?? "").trim() !== "";
+    const erroresFila = [];
+    const texto = (col, actual) => (conValor(col) ? String(row[col]).trim() : actual || "");
+    const numero = (col, actual, { mayorQueCero = false } = {}) => {
+      if (!conValor(col)) return Number(actual || 0);
+      const n = Number(String(row[col]).trim());
+      if (!Number.isFinite(n) || n < 0 || (mayorQueCero && n <= 0)) {
+        erroresFila.push(
+          `${col} debe ser un número ${mayorQueCero ? "mayor a 0" : "de 0 en adelante"} (tiene "${row[col]}")`,
+        );
+        return Number(actual || 0);
+      }
+      return n;
+    };
+    const nombreDe = (lista, id) => ((lista || []).find((x) => x.id === id) || {}).nombre || "";
 
-    const catExistente = catNombre
-      ? categorias.find(
-          (c) => (c.nombre || "").toLowerCase() === catNombre.toLowerCase(),
-        )
-      : null;
-    const marcaExistente = marcaNombre
-      ? marcas.find(
-          (m) => _claveNombreCM(m.nombre) === _claveNombreCM(marcaNombre),
-        )
-      : null;
-    const undCExistente = undCNombre
-      ? unidades.find(
-          (u) => (u.nombre || "").toLowerCase() === undCNombre.toLowerCase(),
-        )
-      : null;
-    const undVExistente = undVNombre
-      ? unidades.find(
-          (u) => (u.nombre || "").toLowerCase() === undVNombre.toLowerCase(),
-        )
-      : null;
+    const catActual = nombreDe(categorias, productoEncontrado.id_categoria);
+    const marcaActual = nombreDe(marcas, productoEncontrado.id_marca);
+    const undCActual = nombreDe(unidades, productoEncontrado.id_unidad_compra);
+    const undVActual = nombreDe(unidades, productoEncontrado.id_unidad_venta);
+    const catNombre = texto("Categoria", catActual);
+    const marcaNombre = texto("Marca", marcaActual);
+    const undCNombre = texto("Unidad_Compra", undCActual);
+    const undVNombre = texto("Unidad_Venta", undVActual);
+    const esNuevo = (lista, nombre) =>
+      nombre && !(lista || []).some((x) => _claveNombreCM(x.nombre) === _claveNombreCM(nombre));
+    const etiqueta = (lista, nombre) => (esNuevo(lista, nombre) ? `${nombre} (nueva)` : nombre);
 
-    // Calcular diff
+    const finales = {
+      codigo: productoEncontrado.codigo, // no se cambia
+      nombre: nombreArchivo || productoEncontrado.nombre,
+      descripcion: texto("Descripcion", productoEncontrado.descripcion) || null,
+      categoriaNombre: catNombre || null,
+      marcaNombre: marcaNombre || null,
+      unidadCompraNombre: undCNombre || null,
+      unidadVentaNombre: undVNombre || null,
+      factor_conversion: numero("Factor_Conversion", productoEncontrado.factor_conversion || 1, { mayorQueCero: true }),
+      precio_compra: numero("Precio_Compra", productoEncontrado.precio_compra),
+      precio_venta: numero("Precio_Venta", productoEncontrado.precio_venta),
+      margen_ganancia: numero("Margen_Ganancia", productoEncontrado.margen_ganancia),
+      precio_automatico: conValor("Precio_Automatico")
+        ? (parseInt(row.Precio_Automatico) === 1 ? 1 : 0)
+        : productoEncontrado.precio_automatico || 0,
+      stock_minimo: numero("Stock_Minimo", productoEncontrado.stock_minimo),
+      stock_maximo: numero("Stock_Maximo", productoEncontrado.stock_maximo),
+      activo: _parseActivo(row.Activo, productoEncontrado.activo !== 0 ? 1 : 0),
+    };
+    if (finales.stock_maximo > 0 && finales.stock_minimo > finales.stock_maximo) {
+      erroresFila.push(`Stock_Minimo (${finales.stock_minimo}) es mayor que Stock_Maximo (${finales.stock_maximo})`);
+    }
+    if (!finales.precio_automatico && finales.precio_venta <= 0) {
+      erroresFila.push("Precio_Venta debe ser mayor a 0");
+    }
+    const conEtiqueta = ["Nombre", "Descripcion", "Categoria", "Marca", "Unidad_Compra", "Unidad_Venta"].find(
+      (col) => tieneEtiquetaHtmlCM(row[col]),
+    );
+    if (conEtiqueta) erroresFila.push(`${conEtiqueta} no puede llevar etiquetas como <...>`);
+    if (erroresFila.length) {
+      erroresFila.forEach((e) => errores.push(`Fila ${numFila} (${productoEncontrado.codigo}): ${e}`));
+      return;
+    }
+    if (finales.precio_venta > 0 && finales.precio_compra > finales.precio_venta) {
+      advertencias.push(
+        `Fila ${numFila} (${productoEncontrado.codigo}): se vendería con pérdida (compra Q${finales.precio_compra}, venta Q${finales.precio_venta})`,
+      );
+    }
+
+    // Diferencias para la vista previa
     const diff = [];
     const pushDiff = (campo, antes, despues) => {
-      if (String(antes) !== String(despues)) {
-        diff.push({ campo, antes, despues });
-      }
+      if (String(antes ?? "") !== String(despues ?? "")) diff.push({ campo, antes, despues });
     };
-
-    pushDiff(
-      "Nombre",
-      productoEncontrado.nombre || "",
-      nombreArchivo || productoEncontrado.nombre || "",
-    );
-    pushDiff(
-      "Descripcion",
-      productoEncontrado.descripcion || "",
-      String(row.Descripcion || "").trim(),
-    );
-    pushDiff(
-      "Categoria",
-      catNombre
-        ? catExistente
-          ? catExistente.nombre
-          : "(nueva) " + catNombre
-        : "",
-      catNombre,
-    );
-    pushDiff(
-      "Marca",
-      marcaNombre
-        ? marcaExistente
-          ? marcaExistente.nombre
-          : "(nueva) " + marcaNombre
-        : "",
-      marcaNombre,
-    );
-    pushDiff(
-      "Unidad_Compra",
-      undCNombre
-        ? undCExistente
-          ? undCExistente.nombre
-          : "(nueva) " + undCNombre
-        : "",
-      undCNombre,
-    );
-    pushDiff(
-      "Unidad_Venta",
-      undVNombre
-        ? undVExistente
-          ? undVExistente.nombre
-          : "(nueva) " + undVNombre
-        : "",
-      undVNombre,
-    );
-    pushDiff(
-      "Factor_Conversion",
-      productoEncontrado.factor_conversion || 1,
-      parseFloat(row.Factor_Conversion) || 1,
-    );
-    pushDiff(
-      "Precio_Compra",
-      productoEncontrado.precio_compra || 0,
-      parseFloat(row.Precio_Compra) || 0,
-    );
-    pushDiff(
-      "Precio_Venta",
-      productoEncontrado.precio_venta || 0,
-      parseFloat(row.Precio_Venta) || 0,
-    );
-    pushDiff(
-      "Margen_Ganancia",
-      productoEncontrado.margen_ganancia || 0,
-      parseFloat(row.Margen_Ganancia) || 0,
-    );
-    pushDiff(
-      "Precio_Automatico",
-      productoEncontrado.precio_automatico || 0,
-      parseInt(row.Precio_Automatico) === 1 ? 1 : 0,
-    );
-    pushDiff(
-      "Stock_Minimo",
-      productoEncontrado.stock_minimo || 0,
-      parseFloat(row.Stock_Minimo) || 0,
-    );
-    pushDiff(
-      "Stock_Maximo",
-      productoEncontrado.stock_maximo || 0,
-      parseFloat(row.Stock_Maximo) || 0,
-    );
-
-    const activoNuevo = _parseActivo(
-      row.Activo,
-      productoEncontrado.activo !== 0 ? 1 : 0,
-    );
-    pushDiff("Activo", productoEncontrado.activo !== 0 ? 1 : 0, activoNuevo);
+    pushDiff("Nombre", productoEncontrado.nombre || "", finales.nombre);
+    pushDiff("Descripcion", productoEncontrado.descripcion || "", finales.descripcion || "");
+    if (_claveNombreCM(catActual) !== _claveNombreCM(catNombre)) pushDiff("Categoria", catActual, etiqueta(categorias, catNombre));
+    if (_claveNombreCM(marcaActual) !== _claveNombreCM(marcaNombre)) pushDiff("Marca", marcaActual, etiqueta(marcas, marcaNombre));
+    if (_claveNombreCM(undCActual) !== _claveNombreCM(undCNombre)) pushDiff("Unidad_Compra", undCActual, etiqueta(unidades, undCNombre));
+    if (_claveNombreCM(undVActual) !== _claveNombreCM(undVNombre)) pushDiff("Unidad_Venta", undVActual, etiqueta(unidades, undVNombre));
+    pushDiff("Factor_Conversion", Number(productoEncontrado.factor_conversion || 1), finales.factor_conversion);
+    pushDiff("Precio_Compra", Number(productoEncontrado.precio_compra || 0), finales.precio_compra);
+    pushDiff("Precio_Venta", Number(productoEncontrado.precio_venta || 0), finales.precio_venta);
+    pushDiff("Margen_Ganancia", Number(productoEncontrado.margen_ganancia || 0), finales.margen_ganancia);
+    pushDiff("Precio_Automatico", productoEncontrado.precio_automatico || 0, finales.precio_automatico);
+    pushDiff("Stock_Minimo", Number(productoEncontrado.stock_minimo || 0), finales.stock_minimo);
+    pushDiff("Stock_Maximo", Number(productoEncontrado.stock_maximo || 0), finales.stock_maximo);
+    pushDiff("Activo", productoEncontrado.activo !== 0 ? 1 : 0, finales.activo);
 
     // Advertir si modificaron Stock_Actual
     const stockActualArchivo = row.Stock_Actual;
@@ -2842,24 +2818,7 @@ function validarYPrevisualizarActualizacion() {
       metodoBusqueda,
       producto: productoEncontrado,
       diff,
-      // Datos finales para aplicar
-      finales: {
-        codigo: productoEncontrado.codigo, // no se cambia
-        nombre: nombreArchivo || productoEncontrado.nombre,
-        descripcion: String(row.Descripcion || "").trim() || null,
-        categoriaNombre: catNombre || null,
-        marcaNombre: marcaNombre || null,
-        unidadCompraNombre: undCNombre || null,
-        unidadVentaNombre: undVNombre || null,
-        factor_conversion: parseFloat(row.Factor_Conversion) || 1,
-        precio_compra: parseFloat(row.Precio_Compra) || 0,
-        precio_venta: parseFloat(row.Precio_Venta) || 0,
-        margen_ganancia: parseFloat(row.Margen_Ganancia) || 0,
-        precio_automatico: parseInt(row.Precio_Automatico) === 1 ? 1 : 0,
-        stock_minimo: parseFloat(row.Stock_Minimo) || 0,
-        stock_maximo: parseFloat(row.Stock_Maximo) || 0,
-        activo: activoNuevo,
-      },
+      finales,
     });
   });
 
@@ -2903,7 +2862,7 @@ function renderPreviewActualizacion(errores, advertencias, cambios) {
         ? `
       <div class="alert alert-danger small mt-2 mb-0" style="max-height:150px; overflow:auto;">
         <strong>Errores (corrige el archivo y vuelve a cargarlo):</strong>
-        <ul class="mb-0">${errores.map((e) => `<li>${e}</li>`).join("")}</ul>
+        <ul class="mb-0">${errores.map((e) => `<li>${escaparHtmlEscaner(e)}</li>`).join("")}</ul>
       </div>`
         : ""
     }
@@ -2912,7 +2871,7 @@ function renderPreviewActualizacion(errores, advertencias, cambios) {
         ? `
       <div class="alert alert-warning small mt-2 mb-0" style="max-height:150px; overflow:auto;">
         <strong>Advertencias:</strong>
-        <ul class="mb-0">${advertencias.map((a) => `<li>${a}</li>`).join("")}</ul>
+        <ul class="mb-0">${advertencias.map((a) => `<li>${escaparHtmlEscaner(a)}</li>`).join("")}</ul>
       </div>`
         : ""
     }
@@ -2943,7 +2902,7 @@ function renderPreviewActualizacion(errores, advertencias, cambios) {
       html += `
         <tr>
           <td>${idx + 1}</td>
-          <td><strong>${c.producto.codigo}</strong> - ${c.producto.nombre}</td>
+          <td><strong>${escaparHtmlEscaner(c.producto.codigo)}</strong> - ${escaparHtmlEscaner(c.producto.nombre)}</td>
           <td colspan="3" class="text-muted"><em>Sin cambios detectados</em></td>
         </tr>
       `;
@@ -2955,12 +2914,12 @@ function renderPreviewActualizacion(errores, advertencias, cambios) {
           ${
             i === 0
               ? `<td rowspan="${c.diff.length}">${idx + 1}</td>
-                       <td rowspan="${c.diff.length}"><strong>${c.producto.codigo}</strong><br><small>${c.producto.nombre}</small></td>`
+                       <td rowspan="${c.diff.length}"><strong>${escaparHtmlEscaner(c.producto.codigo)}</strong><br><small>${escaparHtmlEscaner(c.producto.nombre)}</small></td>`
               : ""
           }
           <td><code>${d.campo}</code></td>
-          <td class="text-danger">${d.antes}</td>
-          <td class="text-success"><strong>${d.despues}</strong></td>
+          <td class="text-danger">${escaparHtmlEscaner(d.antes)}</td>
+          <td class="text-success"><strong>${escaparHtmlEscaner(d.despues)}</strong></td>
         </tr>
       `;
     });
@@ -2991,18 +2950,18 @@ async function confirmarActualizacionMasivaProductos() {
   const cacheMarcas = {};
   const cacheUnidades = {};
   (categoriasData || []).forEach(
-    (c) => (cacheCategorias[(c.nombre || "").toLowerCase()] = c.id),
+    (c) => (cacheCategorias[_claveNombreCM(c.nombre)] = c.id),
   );
   (marcasData || []).forEach(
-    (m) => (cacheMarcas[(m.nombre || "").toLowerCase()] = m.id),
+    (m) => (cacheMarcas[_claveNombreCM(m.nombre)] = m.id),
   );
   (unidadesData || []).forEach(
-    (u) => (cacheUnidades[(u.nombre || "").toLowerCase()] = u.id),
+    (u) => (cacheUnidades[_claveNombreCM(u.nombre)] = u.id),
   );
 
   async function obtenerCategoriaId(nombre) {
     if (!nombre) return null;
-    const key = nombre.toLowerCase();
+    const key = _claveNombreCM(nombre);
     if (cacheCategorias[key]) return cacheCategorias[key];
     const result = await api.createCategoria({ nombre, activo: 1 });
     cacheCategorias[key] = result.id;
@@ -3010,7 +2969,7 @@ async function confirmarActualizacionMasivaProductos() {
   }
   async function obtenerMarcaId(nombre) {
     if (!nombre) return null;
-    const key = nombre.toLowerCase();
+    const key = _claveNombreCM(nombre);
     if (cacheMarcas[key]) return cacheMarcas[key];
     const result = await api.createMarca({ nombre, activo: 1 });
     cacheMarcas[key] = result.id;
@@ -3018,7 +2977,7 @@ async function confirmarActualizacionMasivaProductos() {
   }
   async function obtenerUnidadId(nombre) {
     if (!nombre) return null;
-    const key = nombre.toLowerCase();
+    const key = _claveNombreCM(nombre);
     if (cacheUnidades[key]) return cacheUnidades[key];
     const result = await api.request("/unidades-medida", "POST", {
       nombre,

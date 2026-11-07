@@ -345,3 +345,18 @@ PERMISO_BITACORA = requiere_algun_grupo_de_permisos(
         ],
         "No tienes permiso para ver la bitácora",
     )
+
+
+
+NOMBRES_ROL_ADMIN = {"administrador", "administradora", "admin", "duena", "dueno"}
+
+
+def es_rol_admin(nombre_rol) -> bool:
+    import unicodedata
+    texto = " ".join(str(nombre_rol or "").split()).casefold()
+    texto = "".join(c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn")
+    return texto in NOMBRES_ROL_ADMIN
+
+
+def es_usuario_admin(usuario) -> bool:
+    return bool(usuario and usuario.rol and es_rol_admin(usuario.rol.nombre))

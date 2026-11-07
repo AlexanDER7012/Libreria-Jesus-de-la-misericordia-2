@@ -196,7 +196,7 @@ def obtener_venta(venta_id: int, db: Session = Depends(get_db), usuario_actual=D
 
 @router.post("", response_model=VentaResponse, status_code=201)
 def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Crear"))):
-    turno = db.query(CajaTurno).filter(CajaTurno.id == datos.id_caja_turno).first()
+    turno = db.query(CajaTurno).filter(CajaTurno.id == datos.id_caja_turno).with_for_update().first()
     if not turno:
         raise HTTPException(status_code=404, detail="Turno de caja no encontrado")
     if turno.estado != "Abierto":
@@ -347,7 +347,7 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
 
 @router.patch("/{venta_id}/cancelar", response_model=VentaResponse)
 def cancelar_venta(venta_id: int, motivo: Optional[str] = None, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Editar"))):
-    venta = db.query(Venta).filter(Venta.id == venta_id).first()
+    venta = db.query(Venta).filter(Venta.id == venta_id).with_for_update().first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
     if venta.estado == "Cancelada":
@@ -406,7 +406,7 @@ def actualizar_venta(venta_id: int, datos: VentaUpdate, db: Session = Depends(ge
     venta, usa PATCH /{venta_id}/cancelar, que sí revierte el stock y el
     total de caja correctamente.
     """
-    venta = db.query(Venta).filter(Venta.id == venta_id).first()
+    venta = db.query(Venta).filter(Venta.id == venta_id).with_for_update().first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
@@ -421,7 +421,7 @@ def actualizar_venta(venta_id: int, datos: VentaUpdate, db: Session = Depends(ge
 
 @router.post("/{venta_id}/pagos", status_code=201)
 def registrar_pago_venta(venta_id: int, pago_data: MetodoPagoVentaCreate, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Editar"))):
-    venta = db.query(Venta).filter(Venta.id == venta_id).first()
+    venta = db.query(Venta).filter(Venta.id == venta_id).with_for_update().first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
     if venta.estado in ("Cancelada", "Anulada"):
@@ -467,7 +467,7 @@ def eliminar_pago_venta(venta_id: int, pago_id: int, forzar: bool = False, db: S
     eliminarlo de todas formas (por ejemplo, para corregir un pago
     duplicado antes de registrar el correcto).
     """
-    venta = db.query(Venta).filter(Venta.id == venta_id).first()
+    venta = db.query(Venta).filter(Venta.id == venta_id).with_for_update().first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
@@ -570,7 +570,7 @@ def registrar_servicio(datos: ServicioAdicionalCreate, db: Session = Depends(get
 
     venta = None
     if datos.id_venta:
-        venta = db.query(Venta).filter(Venta.id == datos.id_venta).first()
+        venta = db.query(Venta).filter(Venta.id == datos.id_venta).with_for_update().first()
         if not venta:
             raise HTTPException(status_code=404, detail=f"La venta #{datos.id_venta} no existe")
         if venta.estado == "Cancelada":
@@ -617,7 +617,7 @@ def pagar_servicio(servicio_id: int, datos: PagoServicioCreate, db: Session = De
     el servicio (sin productos), le registra el pago completo y la deja en el
     turno de caja elegido.
     """
-    servicio = db.query(ServicioAdicional).filter(ServicioAdicional.id == servicio_id).first()
+    servicio = db.query(ServicioAdicional).filter(ServicioAdicional.id == servicio_id).with_for_update().first()
     if not servicio:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     if servicio.id_venta:
@@ -661,7 +661,7 @@ def pagar_servicio(servicio_id: int, datos: PagoServicioCreate, db: Session = De
 
 @router_servicio.delete("/{servicio_id}", status_code=204)
 def eliminar_servicio(servicio_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Eliminar"))):
-    servicio = db.query(ServicioAdicional).filter(ServicioAdicional.id == servicio_id).first()
+    servicio = db.query(ServicioAdicional).filter(ServicioAdicional.id == servicio_id).with_for_update().first()
     if not servicio:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     if servicio.id_venta:

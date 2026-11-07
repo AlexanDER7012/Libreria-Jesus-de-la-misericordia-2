@@ -198,10 +198,12 @@ async function loadVentasModule() {
       api.getUsuarios().catch(() => []),
     ]);
 
-    // Para mostrar el nombre del vendedor en la tabla (antes salía "--")
-    vendedoresData = (usuarios || []).map((u) => ({
-      id_usuario: u.id,
-      nombre: u.nombre_usuario,
+    // Para mostrar el nombre del vendedor en la tabla (antes salía "--").
+    // Se usan los nombres de las personas, que no exigen permiso de Usuarios.
+    await cargarNombresPersonas();
+    vendedoresData = Object.entries(window.__nombresPersonas || {}).map(([id, nombre]) => ({
+      id_usuario: Number(id),
+      nombre,
     }));
     window.clientesData = clientes || [];
     window.productosData = productos || [];
@@ -5208,6 +5210,12 @@ async function validarYPrevisualizarVentasMasivas() {
     const observaciones = String(row.Observaciones || "").trim();
 
     if (!codigo && !String(row.Cantidad || "").trim() && !nitRaw) continue; // fila vacía
+    // Etiquetas <...>: el servidor las rechaza; se avisa antes de confirmar
+    const colConEtiqueta = Object.keys(row).find((col) => tieneEtiquetaHtmlCM(row[col]));
+    if (colConEtiqueta) {
+      errores.push(`Fila ${numFila}: ${colConEtiqueta} no puede llevar etiquetas como <...>`);
+      continue;
+    }
     if (!codigo) {
       errores.push(`Fila ${numFila}: falta Codigo_Producto`);
       continue;

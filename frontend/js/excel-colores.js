@@ -158,3 +158,44 @@ function htmlGuiaColumnas(columnas) {
 }
 
 window.htmlGuiaColumnas = htmlGuiaColumnas;
+
+// ---------------------------------------------------------------------------
+// Ayudas comunes para TODAS las cargas masivas
+// ---------------------------------------------------------------------------
+
+// ¿El texto trae una etiqueta HTML como <b> o <script>? El servidor las
+// rechaza; se avisan en la vista previa para que no fallen al confirmar.
+// "< 5" (con espacio o número) sí se permite.
+function tieneEtiquetaHtmlCM(valor) {
+  return /<\s*[a-zA-Z!\/?]/.test(String(valor ?? ""));
+}
+window.tieneEtiquetaHtmlCM = tieneEtiquetaHtmlCM;
+
+// Los archivos CSV guardados como UTF-8 (lo normal en Excel, Google Sheets y
+// LibreOffice) se leían como si fueran de otro idioma: "Lápiz" salía
+// "LÃ¡piz" y no se encontraban productos, clientes ni proveedores con tilde.
+// Se le indica a la librería que lea el texto como UTF-8.
+(function leerCsvComoUtf8() {
+  if (!window.XLSX || typeof XLSX.read !== "function" || XLSX.__lecturaUtf8) return;
+  const leerOriginal = XLSX.read.bind(XLSX);
+  XLSX.read = function (datos, opciones = {}) {
+    if (opciones && opciones.codepage === undefined && opciones.type === "array") {
+      try {
+        const bytes = datos instanceof Uint8Array ? datos : new Uint8Array(datos);
+        // Los .xlsx empiezan con "PK" (son un zip) y los .xls con D0 CF:
+        // solo a los archivos de texto (CSV) se les aplica UTF-8
+        const esLibroExcel =
+          (bytes[0] === 0x50 && bytes[1] === 0x4b) || (bytes[0] === 0xd0 && bytes[1] === 0xcf);
+        if (!esLibroExcel) {
+          let texto = new TextDecoder("utf-8").decode(bytes);
+          if (texto.charCodeAt(0) === 0xfeff) texto = texto.slice(1);
+          return leerOriginal(texto, { ...opciones, type: "string" });
+        }
+      } catch (e) {
+        // si algo falla se lee como antes
+      }
+    }
+    return leerOriginal(datos, opciones);
+  };
+  XLSX.__lecturaUtf8 = true;
+})();

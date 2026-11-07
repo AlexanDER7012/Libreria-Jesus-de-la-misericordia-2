@@ -294,9 +294,8 @@ ROLES_ADMIN = ("Administrador", "Dueña")
 
 
 def _es_admin(usuario: Usuario) -> bool:
-    if not usuario or not usuario.rol:
-        return False
-    return usuario.rol.nombre in ROLES_ADMIN
+    from app.security import es_usuario_admin
+    return es_usuario_admin(usuario)
 
 
 @router.post("/verificar-admin", response_model=VerificarAdminResponse)
@@ -308,7 +307,10 @@ def verificar_admin(datos: LoginRequest, db: Session = Depends(get_db)):
     usuario = _validar_credenciales(db, datos, "una autorización de administrador")
     db.commit()
     if not _es_admin(usuario):
-        raise HTTPException(status_code=403, detail="El usuario no tiene rol de Administrador")
+        raise HTTPException(
+            status_code=403,
+            detail=f"{usuario.nombre_usuario} no puede autorizar: su rol es '{usuario.rol.nombre if usuario.rol else 'sin rol'}'. Solo un Administrador o la Dueña pueden autorizar.",
+        )
     return VerificarAdminResponse(
         autorizado=True,
         mensaje=f"Autorizado por {usuario.nombre_usuario}",
