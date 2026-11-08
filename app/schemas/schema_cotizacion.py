@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ===================== DetalleCotizacion =====================
 
@@ -21,13 +21,24 @@ class DetalleCotizacionResponse(BaseModel):
 
 class CotizacionCreate(BaseModel):
     id_cliente: int
+    referencia: str = Field(min_length=1, max_length=100)
     observaciones: Optional[str] = None
     detalles: List[DetalleCotizacionCreate]
+
+    @field_validator("referencia")
+    @classmethod
+    def normalizar_referencia(cls, value: str) -> str:
+        referencia = value.strip().upper()
+        if not referencia:
+            raise ValueError("La referencia de la cotización es obligatoria")
+        return referencia
+
 
 class CotizacionResponse(BaseModel):
     id: int
     id_cliente: Optional[int] = None
     numero_expediente: Optional[str] = None
+    referencia: Optional[str] = None
     fecha: Optional[datetime] = None
     total: Optional[float] = None
     estado: Optional[str] = None
@@ -58,6 +69,7 @@ class CotizacionParaVentaResponse(BaseModel):
     id: Optional[int] = None  # mismo valor que id_cotizacion (lo usa el frontend)
     id_cliente: Optional[int] = None
     numero_expediente: Optional[str] = None
+    referencia: Optional[str] = None
     total: float = 0
     observaciones: Optional[str] = None
     tiene_stock_suficiente: bool = True

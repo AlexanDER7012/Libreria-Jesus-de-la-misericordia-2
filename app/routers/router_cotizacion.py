@@ -1,7 +1,8 @@
 from datetime import date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
@@ -83,12 +84,38 @@ def listar_cotizaciones(
     if id_cliente is not None:
         query = query.filter(Cotizacion.id_cliente == id_cliente)
     if buscar:
-        query = query.filter(Cotizacion.numero_expediente.ilike(f"%{buscar}%"))
+        query = query.filter(or_(
+            Cotizacion.numero_expediente.ilike(f"%{buscar}%"),
+            Cotizacion.referencia.ilike(f"%{buscar}%"),
+        ))
     if fecha_desde is not None:
         query = query.filter(func.date(Cotizacion.fecha) >= fecha_desde)
     if fecha_hasta is not None:
         query = query.filter(func.date(Cotizacion.fecha) <= fecha_hasta)
     return _marcar_vendidas(db, query.offset(paginacion.skip).limit(paginacion.limit).all())
+
+
+@router.get("/buscar-para-venta", response_model=CotizacionParaVentaResponse)
+def buscar_cotizacion_para_venta(
+    identificador: str,
+    db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
+):
+    """Busca por referencia única o, si no existe, por ID interno."""
+    identificador = identificador.strip()
+    if not identificador:
+        raise HTTPException(status_code=400, detail="Ingresa el ID o la referencia de la cotización")
+
+    cotizacion = (
+        db.query(Cotizacion)
+        .filter(func.upper(func.trim(Cotizacion.referencia)) == identificador.upper())
+        .first()
+    )
+    if cotizacion is None and identificador.isdigit() and int(identificador) <= 2147483647:
+        cotizacion = db.query(Cotizacion).filter(Cotizacion.id == int(identificador)).first()
+    if cotizacion is None:
+        raise HTTPException(status_code=404, detail="No existe ninguna cotización con ese ID o referencia")
+    return _preparar_cotizacion_para_venta(db, cotizacion)
 
 
 @router.get("/{cotizacion_id}", response_model=CotizacionResponse)
@@ -113,6 +140,14 @@ def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db), usu
     if not datos.detalles:
         raise HTTPException(status_code=400, detail="La cotización debe incluir al menos un producto")
 
+    referencia_existente = (
+        db.query(Cotizacion.id)
+        .filter(func.upper(func.trim(Cotizacion.referencia)) == datos.referencia)
+        .first()
+    )
+    if referencia_existente:
+        raise HTTPException(status_code=409, detail=f"La referencia '{datos.referencia}' ya está registrada en otra cotización")
+
     productos = {}
     for d in datos.detalles:
         producto = db.query(Producto).filter(Producto.id == d.id_producto).first()
@@ -129,12 +164,24 @@ def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db), usu
     nueva_cotizacion = Cotizacion(
         id_cliente=datos.id_cliente,
         numero_expediente=_generar_numero_expediente(db),
+        referencia=datos.referencia,
         total=round(total, 2),
         estado="Pendiente",
         observaciones=datos.observaciones,
     )
     db.add(nueva_cotizacion)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        referencia_existente = (
+            db.query(Cotizacion.id)
+            .filter(func.upper(func.trim(Cotizacion.referencia)) == datos.referencia)
+            .first()
+        )
+        if referencia_existente:
+            raise HTTPException(status_code=409, detail=f"La referencia '{datos.referencia}' ya está registrada en otra cotización")
+        raise
 
     for d in datos.detalles:
         precio = float(productos[d.id_producto].precio_venta or 0)
@@ -147,7 +194,7 @@ def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db), usu
 
     registrar_actividad(
         db, usuario_actual.id, "CREAR", "Cotizacion",
-        detalle=f"Creó la cotización {nueva_cotizacion.numero_expediente} por Q{round(total, 2)}",
+        detalle=f"Creó la cotización {nueva_cotizacion.numero_expediente} (referencia {datos.referencia}) por Q{round(total, 2)}",
     )
     db.commit()
     db.refresh(nueva_cotizacion)
@@ -184,6 +231,10 @@ def cotizacion_para_venta(cotizacion_id: int, db: Session = Depends(get_db), usu
     cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
     if not cotizacion:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    return _preparar_cotizacion_para_venta(db, cotizacion)
+
+
+def _preparar_cotizacion_para_venta(db: Session, cotizacion: Cotizacion) -> CotizacionParaVentaResponse:
     if cotizacion.estado != "Aceptada":
         raise HTTPException(
             status_code=400,
@@ -217,6 +268,7 @@ def cotizacion_para_venta(cotizacion_id: int, db: Session = Depends(get_db), usu
         id=cotizacion.id,
         id_cliente=cotizacion.id_cliente,
         numero_expediente=cotizacion.numero_expediente,
+        referencia=cotizacion.referencia,
         total=round(total, 2),
         observaciones=cotizacion.observaciones,
         tiene_stock_suficiente=all(item.stock_suficiente for item in detalles),

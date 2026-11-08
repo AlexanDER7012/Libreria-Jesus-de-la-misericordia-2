@@ -883,10 +883,10 @@ function crearModalVenta() {
               </div>
               <div class="col-md-4">
                 <div class="mb-3">
-                  <label class="form-label">Número de Cotización</label>
+                  <label class="form-label">ID o referencia de cotización</label>
                   <div class="input-group">
                     <input type="text" class="form-control" id="ventaCotizacion" 
-                           placeholder="ID de cotización aprobada" 
+                           placeholder="ID o referencia de cotización aprobada"
                            onchange="buscarCotizacionParaVenta()" 
                            onkeydown="if(event.key === 'Enter'){ event.preventDefault(); buscarCotizacionParaVenta(); }">
                     <button class="btn btn-outline-info" type="button" onclick="buscarCotizacionParaVenta()">
@@ -1098,30 +1098,25 @@ async function showCreateVentaModal() {
 // ============================================================
 async function buscarCotizacionParaVenta() {
   const input = document.getElementById("ventaCotizacion");
-  const id = input.value.trim();
+  const identificador = input.value.trim();
 
-  if (!id) {
+  if (!identificador) {
     document.getElementById("ventaCotizacionInfo").innerHTML = "";
     return;
   }
 
-  if (!/^\d+$/.test(id)) {
-    document.getElementById("ventaCotizacionInfo").innerHTML = `
-      <div class="text-warning small">Ingresa solo el número de cotización</div>
-    `;
-    return;
-  }
-
   try {
-    const data = await api.request(`/cotizaciones/${id}/para-venta`);
-    const numero = data.id ?? data.id_cotizacion ?? id;
+    const data = await api.request(
+      `/cotizaciones/buscar-para-venta?identificador=${encodeURIComponent(identificador)}`,
+    );
+    const numero = data.id ?? data.id_cotizacion ?? identificador;
     const esc = escaparHtmlEscaner;
     const nombreDetalle = (d) => d.nombre_producto || d.producto || "Producto";
 
     const resumen = `
         <div class="text-success small mb-1">
           <i class="fas fa-check-circle me-1"></i>
-          Cotización #${esc(numero)}${data.numero_expediente ? ` - Exp. ${esc(data.numero_expediente)}` : ""}
+          Cotización #${esc(numero)}${data.referencia ? ` - Ref. ${esc(data.referencia)}` : ""}${data.numero_expediente ? ` - Exp. ${esc(data.numero_expediente)}` : ""}
           - Total: Q${Number(data.total || 0).toFixed(2)}
         </div>`;
 
@@ -2618,7 +2613,7 @@ async function cargarSubCotizaciones() {
 
     let searchHtml = htmlBarraFiltros({
       id: "cotizaciones",
-      placeholder: "Buscar por ID, expediente o cliente...",
+      placeholder: "Buscar por ID, referencia, expediente o cliente...",
       selects: [
         {
           id: "Estado",
@@ -2683,7 +2678,7 @@ async function cargarSubCotizaciones() {
           <thead class="table-light">
             <tr>
               <th>ID</th>
-              <th>Expediente</th>
+              <th>Expediente / Referencia</th>
               <th>Cliente</th>
               <th>Fecha</th>
               <th>Total</th>
@@ -2712,7 +2707,10 @@ async function cargarSubCotizaciones() {
                       return `
                 <tr>
                   <td>#${c.id}</td>
-                  <td><span class="badge bg-secondary">${c.numero_expediente || "--"}</span></td>
+                  <td>
+                    <span class="badge bg-secondary">${escaparHtmlEscaner(c.numero_expediente || "--")}</span>
+                    <div class="small text-muted">Ref: ${escaparHtmlEscaner(c.referencia || "--")}</div>
+                  </td>
                   <td>
                     <button class="btn btn-link btn-sm p-0 text-primary" onclick="verFichaCliente(${c.id_cliente})">
                       ${nombreCliente}
@@ -2871,6 +2869,17 @@ function crearModalCotizacion() {
                 </div>
               </div>
               <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Referencia de la librería <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="cotizacionReferencia"
+                         maxlength="100" required autocomplete="off"
+                         placeholder="Correlativo o código asignado por la librería">
+                  <small class="form-text text-muted">Debe ser única; no se puede repetir en otra cotización.</small>
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-12">
                 <div class="mb-3">
                   <label class="form-label">Observaciones</label>
                   <textarea class="form-control" id="cotizacionObservaciones" rows="2"></textarea>
@@ -3149,6 +3158,7 @@ function showCreateCotizacionModal() {
   _seleccionarProductoCotizacion(null);
 
   document.getElementById("cotizacionObservaciones").value = "";
+  document.getElementById("cotizacionReferencia").value = "";
   document.getElementById("cotizacionProductoCantidad").value = 1;
   document.getElementById("cotizacionProductoPrecio").value = "";
   document.getElementById("cotizacionItemsList").innerHTML = "";
@@ -3270,6 +3280,8 @@ async function saveCotizacion(event) {
   );
   const observaciones =
     document.getElementById("cotizacionObservaciones").value || null;
+  const referencia =
+    document.getElementById("cotizacionReferencia").value.trim();
 
   if (!id_cliente) {
     showToast("Selecciona un cliente", "error");
@@ -3283,6 +3295,7 @@ async function saveCotizacion(event) {
 
   const data = {
     id_cliente,
+    referencia,
     observaciones,
     detalles: cotizacionItemsTemp.map((item) => ({
       id_producto: item.id_producto,
@@ -3292,7 +3305,10 @@ async function saveCotizacion(event) {
 
   try {
     const result = await api.request("/cotizaciones", "POST", data);
-    showToast(`Cotización #${result.id} creada correctamente`, "success");
+    showToast(
+      `Cotización #${result.id} (referencia ${result.referencia}) creada correctamente`,
+      "success",
+    );
     bootstrap.Modal.getInstance(
       document.getElementById("cotizacionModal"),
     ).hide();
@@ -3332,6 +3348,9 @@ async function verCotizacion(id) {
           </div>
           <div class="col-md-4">
             <strong>Fecha:</strong> ${cotizacion.fecha ? formatearFechaHoraGuatemala(cotizacion.fecha) : "--"}
+          </div>
+          <div class="col-md-4">
+            <strong>Referencia de la librería:</strong> ${escaparHtmlEscaner(cotizacion.referencia || "--")}
           </div>
         </div>
         <div class="row mb-3">
