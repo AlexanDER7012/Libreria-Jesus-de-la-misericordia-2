@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.schemas.validators import TelefonoValidatorMixin, EmailValidatorMixin
 
 
@@ -70,13 +70,23 @@ class DetallePedidoResponse(DetallePedidoCreate):
 # ===================== Pedido =====================
 
 class PedidoCreate(BaseModel):
+    numero_pedido: str = Field(min_length=1, max_length=100)
     id_usuario: Optional[int] = None
     id_proveedor: Optional[int] = None
     observaciones: Optional[str] = None
 
+    @field_validator("numero_pedido")
+    @classmethod
+    def validar_numero_pedido(cls, value: str) -> str:
+        numero = value.strip()
+        if not numero:
+            raise ValueError("El número de pedido del proveedor es obligatorio")
+        return numero
+
 
 class PedidoResponse(BaseModel):
     id: int
+    numero_pedido: Optional[str] = None
     fecha: Optional[datetime] = None
     id_usuario: Optional[int] = None
     id_proveedor: Optional[int] = None

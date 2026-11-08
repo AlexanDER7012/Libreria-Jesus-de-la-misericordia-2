@@ -6,6 +6,8 @@
 let comprasData = [];
 let compraDetallesTemp = [];
 let pedidoDetallesTemp = [];
+let compraPedidoSeleccionadoId = null;
+let pedidosCoincidentesCompra = [];
 let comprasTiposPagoData = [];
 let proveedoresData = [];
 let tiposProveedorData = [];
@@ -1519,7 +1521,7 @@ function renderPedidosTab(pedidos) {
                     <span class="input-group-text bg-white"><i class="fas fa-search"></i></span>
                     <input type="text" class="form-control"
                            id="buscarPedidosInput"
-                           placeholder="Buscar por ID o proveedor..."
+                           placeholder="Buscar por ID, referencia o proveedor..."
                            oninput="filtrarPedidosTabla()" />
                     <button class="btn btn-outline-secondary"
                             onclick="document.getElementById('buscarPedidosInput').value='';filtrarPedidosTabla()">
@@ -1556,7 +1558,7 @@ function renderPedidosTab(pedidos) {
             <table class="table table-hover table-striped">
                 <thead class="table-light">
                     <tr>
-                        <th>ID</th>
+                        <th>ID / Referencia</th>
                         <th>Proveedor</th>
                         <th>Fecha</th>
                         <th>Productos</th>
@@ -1588,8 +1590,11 @@ function renderPedidosTab(pedidos) {
     const numProductos = (p.detalles || []).length;
 
     html += `
-            <tr>
-                <td>${p.id}</td>
+            <tr data-pedido-id="${p.id}">
+                <td>
+                    #${p.id}
+                    ${p.numero_pedido ? `<div class="small text-muted">Ref: ${escaparHtmlEscaner(p.numero_pedido)}</div>` : ""}
+                </td>
                 <td>${nombreProveedor}</td>
                 <td>${p.fecha ? formatearFechaGuatemala(p.fecha) : "--"}</td>
                 <td>${numProductos}</td>
@@ -1647,14 +1652,15 @@ function filtrarPedidosTabla() {
   const rows = tbody.getElementsByTagName("tr");
   let visibleCount = 0;
 
-  // ¿Es solo números? → buscar por ID exacto
+  // Los números buscan por ID exacto o por referencia; el texto busca también proveedor.
   const soloNumeros = /^\d+$/.test(search);
 
   for (const row of rows) {
     const cells = row.getElementsByTagName("td");
     if (cells.length < 5) continue;
 
-    const id = (cells[0]?.textContent || "").trim();
+    const id = row.dataset.pedidoId || "";
+    const identificador = (cells[0]?.textContent || "").toLowerCase().trim();
     const proveedor = (cells[1]?.textContent || "").toLowerCase().trim();
 
     let match = false;
@@ -1662,11 +1668,9 @@ function filtrarPedidosTabla() {
     if (!search) {
       match = true;
     } else if (soloNumeros) {
-      // Solo números → ID exacto
-      match = id === search;
+      match = id === search || identificador.includes(search);
     } else {
-      // Texto → buscar en Proveedor
-      match = proveedor.includes(search);
+      match = identificador.includes(search) || proveedor.includes(search);
     }
 
     if (match) {
@@ -2842,6 +2846,12 @@ function showCreatePedidoModal() {
                   <label class="form-label fw-bold">Proveedor <span class="text-danger">*</span></label>
                   <div id="pedidoProveedorSelectorWrapper"></div>
                 </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Nº de pedido del proveedor <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="pedidoNumeroProveedor"
+                         maxlength="100" required autocomplete="off"
+                         placeholder="Referencia del pedido asignada por el proveedor">
+                </div>
               </div>
 
               <div class="mb-3">
@@ -3239,6 +3249,7 @@ async function savePedidoCompleto(event) {
 
   try {
     pedidoCreado = await api.request("/pedidos", "POST", {
+      numero_pedido: document.getElementById("pedidoNumeroProveedor").value.trim(),
       id_usuario: getCurrentUser()?.id || 1,
       id_proveedor,
       observaciones,
@@ -3366,6 +3377,7 @@ async function verPedido(id) {
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Proveedor:</strong> ${nombreProveedor}</div>
                     <div class="col-md-6"><strong>Fecha:</strong> ${pedido.fecha ? formatearFechaHoraGuatemala(pedido.fecha) : "--"}</div>
+                    <div class="col-md-6"><strong>Referencia del proveedor:</strong> ${escaparHtmlEscaner(pedido.numero_pedido || "--")}</div>
                 </div>
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Estado:</strong> <span class="badge ${estadoBadge}">${pedido.estado || "Pendiente"}</span></div>
@@ -4209,6 +4221,13 @@ async function showCreateCompraModal() {
 
   const numPedidoEl = document.getElementById("compraNumeroPedido");
   if (numPedidoEl) numPedidoEl.value = "";
+  compraPedidoSeleccionadoId = null;
+  pedidosCoincidentesCompra = [];
+  const resultadosPedidoEl = document.getElementById("compraPedidoResultados");
+  if (resultadosPedidoEl) {
+    resultadosPedidoEl.innerHTML = '<option value="">Selecciona un pedido...</option>';
+    resultadosPedidoEl.classList.add("d-none");
+  }
   const infoPedidoEl = document.getElementById("compraPedidoInfo");
   if (infoPedidoEl) infoPedidoEl.textContent = "";
 
@@ -4356,77 +4375,153 @@ function seleccionarProductoEscaneadoCompra(producto) {
       };
 }
 
+function cambioIdentificadorPedidoCompra() {
+  compraPedidoSeleccionadoId = null;
+  pedidosCoincidentesCompra = [];
+  const resultados = document.getElementById("compraPedidoResultados");
+  if (resultados) {
+    resultados.innerHTML = '<option value="">Selecciona un pedido...</option>';
+    resultados.classList.add("d-none");
+  }
+  const info = document.getElementById("compraPedidoInfo");
+  if (info) info.textContent = "";
+}
+
 async function cargarPedidoEnCompra() {
   const el = document.getElementById("compraNumeroPedido");
   if (!el) return showToast("No existe el campo Nº Pedido", "error");
 
-  const idPedido = parseInt(el.value);
-  if (!idPedido) return showToast("Ingresa un número de pedido", "error");
+  const termino = el.value.trim();
+  if (!termino) return showToast("Ingresa el ID o referencia del pedido", "error");
+
+  compraPedidoSeleccionadoId = null;
+  pedidosCoincidentesCompra = [];
+  const selectResultados = document.getElementById("compraPedidoResultados");
+  if (selectResultados) {
+    selectResultados.innerHTML = '<option value="">Selecciona un pedido...</option>';
+    selectResultados.classList.add("d-none");
+  }
 
   try {
-    const pedido = await api.request(`/pedidos/${idPedido}`);
-    if (!pedido) return showToast("Pedido no encontrado", "error");
-    await _asegurarNombresCompra(pedido.id_proveedor, (pedido.detalles || []).map((d) => d.id_producto));
-
-    if (pedido.estado === "Cancelado") {
-      return showToast("Ese pedido está cancelado", "error");
-    }
-    if (pedido.estado === "Comprado") {
-      return showToast(
-        "Ese pedido ya fue cargado en una compra anterior",
-        "warning",
-      );
-    }
-
-    await _asegurarNombresCompra(pedido.id_proveedor, (pedido.detalles || []).map((d) => d.id_producto));
-    const proveedorPedido = (window.proveedoresData || []).find((p) => p.id === pedido.id_proveedor);
-    if (proveedorPedido && proveedorPedido.activo === 0) {
-      return showToast(
-        `El proveedor de este pedido (${proveedorPedido.nombre}) está inactivo. Reactívalo en Proveedores para registrar la compra.`,
-        "error",
-      );
-    }
-    if ((pedido.detalles || []).length === 0) {
-      return showToast("Ese pedido no tiene productos", "error");
-    }
-    if (pedido.id_proveedor && window.__compraProveedorSelector) {
-      window.__compraProveedorSelector.setValue(pedido.id_proveedor);
-    }
-
-    compraDetallesTemp = (pedido.detalles || []).map((d) => {
-      const producto = (window.productosData || []).find(
-        (p) => p.id === d.id_producto,
-      );
-      const costoEstimado = d.precio_compra || d.costo_estimado || 0;
-      const cantidad = Math.max(
-        1,
-        Math.round(parseFloat(d.cantidad_pedida) || 1),
-      );
-      return {
-        id_producto: d.id_producto,
-        cantidad_comprada: cantidad,
-        cantidad_unidades: cantidad,
-        costo_unitario: costoEstimado,
-        producto: producto || { nombre: `Producto #${d.id_producto}` },
-      };
-    });
-    renderDetallesCompra();
-
-    const info = document.getElementById("compraPedidoInfo");
-    if (info) {
-      info.textContent = `Pedido #${pedido.id} cargado (${compraDetallesTemp.length} productos). Revisa costos.`;
-    }
-
-    // El pedido pasa a "Comprado" cuando se GUARDA la compra (lo hace el
-    // servidor). Antes se marcaba al cargarlo: si se cerraba la ventana sin
-    // guardar, el pedido quedaba "Comprado" sin ninguna compra.
-    showToast(
-      `Pedido #${idPedido} cargado. Quedará como Comprado al guardar la compra.`,
-      "success",
+    pedidosCoincidentesCompra = await api.request(
+      `/pedidos/buscar?termino=${encodeURIComponent(termino)}`,
     );
+    if (!pedidosCoincidentesCompra.length) {
+      return showToast("No se encontró ningún pedido con ese ID o referencia", "error");
+    }
+
+    const idsProveedores = [...new Set(
+      pedidosCoincidentesCompra.map((pedido) => pedido.id_proveedor).filter(Boolean),
+    )];
+    window.proveedoresData = window.proveedoresData || [];
+    const proveedoresFaltantes = idsProveedores.filter(
+      (id) => !window.proveedoresData.some((proveedor) => proveedor.id === id),
+    );
+    const proveedoresCargados = await Promise.all(
+      proveedoresFaltantes.map((id) => api.request(`/proveedores/${id}`)),
+    );
+    window.proveedoresData.push(...proveedoresCargados);
+
+    if (pedidosCoincidentesCompra.length === 1) {
+      await cargarPedidoSeleccionadoParaCompra(pedidosCoincidentesCompra[0]);
+      return;
+    }
+
+    const select = document.getElementById("compraPedidoResultados");
+    if (!select) return showToast("No se encontró la lista de pedidos coincidentes", "error");
+    select.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Selecciona el pedido correcto...";
+    select.appendChild(placeholder);
+
+    pedidosCoincidentesCompra.forEach((pedido) => {
+      const proveedor = window.proveedoresData.find(
+        (item) => item.id === pedido.id_proveedor,
+      );
+      const opcion = document.createElement("option");
+      opcion.value = String(pedido.id);
+      opcion.textContent = `${pedido.numero_pedido || termino} | ${pedido.fecha ? formatearFechaGuatemala(pedido.fecha) : "Sin fecha"} | ${proveedor?.nombre || "Sin proveedor"} (ID #${pedido.id})`;
+      select.appendChild(opcion);
+    });
+    select.classList.remove("d-none");
+    const info = document.getElementById("compraPedidoInfo");
+    if (info) info.textContent = `Se encontraron ${pedidosCoincidentesCompra.length} pedidos. Selecciona el proveedor, la fecha y la referencia correctos.`;
   } catch (error) {
     showToast(error.message || "Error al cargar pedido", "error");
   }
+}
+
+async function seleccionarPedidoParaCompra(id) {
+  const pedido = pedidosCoincidentesCompra.find(
+    (item) => String(item.id) === String(id),
+  );
+  if (!pedido) {
+    compraPedidoSeleccionadoId = null;
+    if (id) showToast("Selecciona un pedido válido", "error");
+    return;
+  }
+  await cargarPedidoSeleccionadoParaCompra(pedido);
+}
+
+async function cargarPedidoSeleccionadoParaCompra(pedido) {
+  if (pedido.estado === "Cancelado") {
+    compraPedidoSeleccionadoId = null;
+    return showToast("Ese pedido está cancelado", "error");
+  }
+  if (pedido.estado === "Comprado") {
+    compraPedidoSeleccionadoId = null;
+    return showToast("Ese pedido ya fue cargado en una compra anterior", "warning");
+  }
+  if ((pedido.detalles || []).length === 0) {
+    compraPedidoSeleccionadoId = null;
+    return showToast("Ese pedido no tiene productos", "error");
+  }
+
+  const idsProductos = (pedido.detalles || []).map((detalle) => detalle.id_producto);
+  await _asegurarNombresCompra(pedido.id_proveedor, idsProductos);
+  const proveedorPedido = (window.proveedoresData || []).find(
+    (proveedor) => proveedor.id === pedido.id_proveedor,
+  );
+  if (proveedorPedido && proveedorPedido.activo === 0) {
+    compraPedidoSeleccionadoId = null;
+    return showToast(
+      `El proveedor de este pedido (${proveedorPedido.nombre}) está inactivo. Reactívalo en Proveedores para registrar la compra.`,
+      "error",
+    );
+  }
+  if (pedido.id_proveedor && window.__compraProveedorSelector) {
+    window.__compraProveedorSelector.setValue(pedido.id_proveedor);
+  }
+
+  compraDetallesTemp = (pedido.detalles || []).map((detalle) => {
+    const producto = (window.productosData || []).find(
+      (item) => item.id === detalle.id_producto,
+    );
+    const costoEstimado = detalle.precio_compra || detalle.costo_estimado || 0;
+    const cantidad = Math.max(
+      1,
+      Math.round(parseFloat(detalle.cantidad_pedida) || 1),
+    );
+    return {
+      id_producto: detalle.id_producto,
+      cantidad_comprada: cantidad,
+      cantidad_unidades: cantidad,
+      costo_unitario: costoEstimado,
+      producto: producto || { nombre: `Producto #${detalle.id_producto}` },
+    };
+  });
+  compraPedidoSeleccionadoId = pedido.id;
+  renderDetallesCompra();
+
+  const info = document.getElementById("compraPedidoInfo");
+  if (info) {
+    info.textContent = `Pedido #${pedido.id} (referencia ${pedido.numero_pedido || "sin referencia"}) cargado (${compraDetallesTemp.length} productos). Revisa costos.`;
+  }
+  showToast(
+    `Pedido #${pedido.id} cargado. Quedará como Comprado al guardar la compra.`,
+    "success",
+  );
 }
 
 function llenarSelectProveedor() {
@@ -4639,10 +4734,13 @@ async function saveCompra(event) {
   const observaciones =
     document.getElementById("compraObservaciones").value || null;
   const id_usuario_registra = getCurrentUser()?.id || 1;
-  const id_pedido =
-    parseInt(document.getElementById("compraNumeroPedido")?.value) || null;
+  const identificadorPedido = document.getElementById("compraNumeroPedido")?.value.trim();
+  const id_pedido = compraPedidoSeleccionadoId;
 
   if (!id_proveedor) return showToast("Selecciona un proveedor", "error");
+  if (identificadorPedido && !id_pedido) {
+    return showToast("Carga y selecciona el pedido antes de guardar la compra", "error");
+  }
   if (compraDetallesTemp.length === 0)
     return showToast("Agrega al menos un producto", "error");
   if (parseFloat(document.getElementById("compraMontoExento").value) < 0)
@@ -5702,6 +5800,8 @@ window.saveTipoPagoCompra = saveTipoPagoCompra;
 
 // Compras (auxiliares)
 window.cargarPedidoEnCompra = cargarPedidoEnCompra;
+window.cambioIdentificadorPedidoCompra = cambioIdentificadorPedidoCompra;
+window.seleccionarPedidoParaCompra = seleccionarPedidoParaCompra;
 window.llenarSelectProveedor = llenarSelectProveedor;
 window.llenarSelectProductoCompra = llenarSelectProductoCompra;
 window.agregarDetalleCompra = agregarDetalleCompra;

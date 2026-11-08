@@ -1255,25 +1255,34 @@
                 </div>
                 <div class="card-body">
 
-              <!-- Nº Pedido + Proveedor + N° Factura -->
+              <!-- Referencia del proveedor + Proveedor + N° Factura -->
               <div class="row g-2 mb-2 align-items-end">
-                <div class="col-md-2">
-                  <label class="form-label fw-bold mb-1">Nº Pedido</label>
-                  <input
-                    type="number"
-                    class="form-control form-control-sm"
-                    id="compraNumeroPedido"
-                    placeholder="Ej: 12"
-                  />
-                </div>
-                <div class="col-md-2">
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline-primary w-100"
-                    onclick="cargarPedidoEnCompra()"
+                <div class="col-md-4">
+                  <label class="form-label fw-bold mb-1">ID o Nº de pedido del proveedor</label>
+                  <div class="input-group input-group-sm">
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="compraNumeroPedido"
+                      placeholder="ID o referencia del proveedor"
+                      oninput="cambioIdentificadorPedidoCompra()"
+                    />
+                    <button
+                      type="button"
+                      class="btn btn-outline-primary"
+                      onclick="cargarPedidoEnCompra()"
+                    >
+                      <i class="fas fa-download me-1"></i>Cargar
+                    </button>
+                  </div>
+                  <select
+                    class="form-select form-select-sm mt-1 d-none"
+                    id="compraPedidoResultados"
+                    aria-label="Seleccionar pedido coincidente"
+                    onchange="seleccionarPedidoParaCompra(this.value)"
                   >
-                    <i class="fas fa-download me-1"></i>Cargar
-                  </button>
+                    <option value="">Selecciona un pedido...</option>
+                  </select>
                 </div>
                 <div class="col-md-5">
                   <label class="form-label fw-bold mb-1"

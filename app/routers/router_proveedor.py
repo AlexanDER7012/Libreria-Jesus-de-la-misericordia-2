@@ -1,7 +1,7 @@
 from datetime import date
 from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
@@ -269,6 +269,31 @@ def listar_pedidos(
     if fecha_hasta is not None:
         query = query.filter(func.date(Pedido.fecha) <= fecha_hasta)
     return query.offset(paginacion.skip).limit(paginacion.limit).all()
+
+
+@router_pedido.get("/buscar", response_model=List[PedidoResponse])
+def buscar_pedidos_por_identificador(
+    termino: str = Query(..., min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    usuario_actual=Depends(get_current_user),
+):
+    """Busca por ID del sistema o por referencia exacta del proveedor."""
+    termino = termino.strip()
+    if not termino:
+        raise HTTPException(status_code=400, detail="Ingresa un ID o referencia de pedido")
+
+    criterios = [func.lower(func.trim(Pedido.numero_pedido)) == termino.lower()]
+    if termino.isdigit():
+        id_pedido = int(termino)
+        if id_pedido <= 2147483647:
+            criterios.append(Pedido.id == id_pedido)
+
+    return (
+        db.query(Pedido)
+        .filter(or_(*criterios))
+        .order_by(Pedido.fecha.desc(), Pedido.id.desc())
+        .all()
+    )
 
 
 @router_pedido.get("/{pedido_id}", response_model=PedidoResponse)

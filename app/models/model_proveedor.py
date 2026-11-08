@@ -39,6 +39,7 @@ class Pedido(Base):
     __tablename__ = "pedido"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    numero_pedido = Column(String(100), nullable=True)
     fecha = Column(DateTime, server_default=func.now(), default=now_gt_naive)
     id_usuario = Column(Integer, ForeignKey("usuario.id"))
     id_proveedor = Column(Integer, ForeignKey("proveedor.id"))
