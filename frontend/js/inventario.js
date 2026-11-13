@@ -539,6 +539,91 @@ function buscarEnInventario() {
 // RENDER: RESUMEN DE INVENTARIO (CON BÚSQUEDA)
 // =============================================
 
+// =============================================
+// EXPORTAR RESUMEN DE INVENTARIO A EXCEL Y PDF
+// Exporta TODOS los productos que cumplen los filtros de la pantalla
+// (búsqueda, ubicación y estado), no solo la página visible.
+// =============================================
+function _filasResumenInventarioExportar() {
+  const stockMapa = _mapaStockUbicaciones();
+  const stockDe = (p) =>
+    filtroUbicacionResumen
+      ? (stockMapa[String(p.id)] || {})[String(filtroUbicacionResumen)] || 0
+      : parseFloat(p.stock_actual) || 0;
+  const estadoStock = (p) => {
+    const st = stockDe(p);
+    if (st <= 0) return "sin";
+    return st <= (parseFloat(p.stock_minimo) || 0) ? "bajo" : "normal";
+  };
+  const texto = { sin: "Agotado", bajo: "Bajo", normal: "Normal" };
+  return filtrarProductos(window.productosData || [], filtroBusqueda)
+    .filter((p) => !filtroEstadoResumen || estadoStock(p) === filtroEstadoResumen)
+    .map((p) => ({
+      ID: p.id,
+      "Código": p.codigo || "--",
+      Producto: p.nombre || "--",
+      "Categoría": nombreCategoriaProducto(p) || "--",
+      Stock: Number(stockDe(p)),
+      "Stock mínimo": Number(p.stock_minimo || 0),
+      Estado: texto[estadoStock(p)],
+    }));
+}
+
+function _textoFiltrosResumenInventario() {
+  const partes = [filtroUbicacionResumen ? `Ubicación: ${nombreUbicacionInv(filtroUbicacionResumen)}` : "Todas las ubicaciones"];
+  if (filtroEstadoResumen) partes.push(`Estado: ${{ sin: "Agotado", bajo: "Bajo", normal: "Normal" }[filtroEstadoResumen] || filtroEstadoResumen}`);
+  if (filtroBusqueda) partes.push(`Búsqueda: "${filtroBusqueda}"`);
+  return partes.join(" · ");
+}
+
+function exportarResumenInventarioExcel() {
+  const filas = _filasResumenInventarioExportar();
+  if (!filas.length) {
+    showToast("No hay productos para exportar", "warning");
+    return;
+  }
+  const ws = XLSX.utils.json_to_sheet(filas);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Resumen inventario");
+  XLSX.writeFile(wb, `Resumen_Inventario_${hoyISOGuatemala()}.xlsx`);
+  showToast("Resumen de inventario exportado a Excel", "success");
+}
+
+async function exportarResumenInventarioPDF() {
+  const filas = _filasResumenInventarioExportar();
+  if (!filas.length) {
+    showToast("No hay productos para exportar", "warning");
+    return;
+  }
+  try {
+    await cargarScriptUnaVez(URL_JSPDF);
+    await cargarScriptUnaVez(URL_JSPDF_AUTOTABLE);
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "letter" });
+    doc.setFontSize(14);
+    doc.text("Librería y Papelería Jesús de la Misericordia", 40, 40);
+    doc.setFontSize(12);
+    doc.text("Resumen de Inventario", 40, 60);
+    doc.setFontSize(9);
+    doc.text(`${_textoFiltrosResumenInventario()} · ${filas.length} producto(s) · Generado: ${formatearFechaHoraGuatemala()}`, 40, 76);
+    doc.autoTable({
+      startY: 90,
+      head: [["ID", "Código", "Producto", "Categoría", "Stock", "Stock mínimo", "Estado"]],
+      body: filas.map((f) => [f.ID, f["Código"], f.Producto, f["Categoría"], f.Stock, f["Stock mínimo"], f.Estado]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [13, 110, 253] },
+      columnStyles: { 4: { halign: "right" }, 5: { halign: "right" } },
+    });
+    doc.save(`Resumen_Inventario_${hoyISOGuatemala()}.pdf`);
+    showToast("Resumen de inventario exportado a PDF", "success");
+  } catch (error) {
+    showToast(error.message || "No se pudo exportar a PDF", "error");
+  }
+}
+
+window.exportarResumenInventarioExcel = exportarResumenInventarioExcel;
+window.exportarResumenInventarioPDF = exportarResumenInventarioPDF;
+
 function renderResumenInventario() {
   const container = document.getElementById("movimientosContainer");
   if (!container) return;
@@ -608,6 +693,12 @@ function renderResumenInventario() {
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Resumen de Inventario</h6>
             <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-success btn-sm" onclick="exportarResumenInventarioExcel()" title="Exportar el resumen filtrado a Excel">
+                    <i class="fas fa-file-excel me-1"></i>Excel
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="exportarResumenInventarioPDF()" title="Exportar el resumen filtrado a PDF">
+                    <i class="fas fa-file-pdf me-1"></i>PDF
+                </button>
                 ${tienePermiso("Inventario", "Crear") ? `<button class="btn btn-outline-primary btn-sm" onclick="showCargaMasivaResumenModal()">
                     <i class="fas fa-file-upload me-1"></i>Movimientos masivos
                 </button>` : ""}

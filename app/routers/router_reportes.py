@@ -24,7 +24,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.security import requiere_permisos_todos, PERMISO_BITACORA
+from app.security import requiere_permisos_todos, requiere_algun_grupo_de_permisos, PERMISO_BITACORA
 from app.pagination import PaginationParams
 from app.models.model_producto import Producto
 from app.models.model_venta import Venta, DetalleVenta, MetodoPagoVenta
@@ -60,6 +60,19 @@ router = APIRouter()              # /reportes (ventas y caja, ya existian)
 router_compras = APIRouter()      # /reportes/compras
 router_inventario = APIRouter()   # /reportes/inventario
 router_usuarios = APIRouter()     # /reportes/usuarios
+
+
+def _permiso_reporte_o_modulo(modulo: str, *secciones: str):
+    """Como _permiso_reporte, pero también deja entrar a quien tiene «Ver» del
+    módulo, porque el detalle de movimientos también se abre desde
+    Inventario > Resumen de Inventario (no solo desde Reportes)."""
+    grupo_reportes = [("Reportes", "Tab:Reportes:Reportes")] + [
+        ("Reportes", f"Tab:Reportes:{seccion}") for seccion in secciones
+    ]
+    return requiere_algun_grupo_de_permisos(
+        [grupo_reportes, [(modulo, "Ver")]],
+        mensaje="No tienes permiso para ver este reporte",
+    )
 
 
 def _permiso_reporte(*secciones: str):
@@ -568,7 +581,7 @@ def reporte_movimientos_detalle(
     desde: date = Query(...),
     hasta: date = Query(...),
     db: Session = Depends(get_db),
-    usuario_actual: Usuario = Depends(_permiso_reporte("Inventario", "MovimientosDetalle")),
+    usuario_actual: Usuario = Depends(_permiso_reporte_o_modulo("Inventario", "Inventario", "MovimientosDetalle")),
 ):
     """Detalle de productos y cantidades en movimientos de inventario por fecha."""
     if hasta < desde:

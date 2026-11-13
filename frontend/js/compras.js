@@ -552,6 +552,12 @@ function renderComprasTable(compras) {
         <div class="compras-section-header d-flex justify-content-between align-items-center mb-3">
             <h6 class="mb-0">Listado de Compras</h6>
             <div class="d-flex gap-2">
+              <button class="btn btn-success btn-sm" onclick="exportarComprasExcel()" title="Exportar las compras filtradas a Excel">
+                <i class="fas fa-file-excel me-1"></i>Excel
+              </button>
+              <button class="btn btn-danger btn-sm" onclick="exportarComprasPDF()" title="Exportar las compras filtradas a PDF">
+                <i class="fas fa-file-pdf me-1"></i>PDF
+              </button>
               ${
                 tienePermiso("Compras", "Crear")
                   ? `<button class="btn btn-outline-info btn-sm" onclick="showImportComprasMasivasModal()">
@@ -1730,6 +1736,123 @@ function limpiarFiltrosPedidos() {
   if (buscar) buscar.value = "";
   filtrarPedidos();
 }
+
+// =============================================
+// EXPORTAR COMPRAS A EXCEL Y PDF
+// Trae TODAS las compras que coinciden con los filtros de la pantalla
+// (proveedor, fechas, estado, factura y recepción), no solo la página visible.
+// =============================================
+async function obtenerComprasFiltradasParaExportar() {
+  const valor = (id) => document.getElementById(id)?.value?.trim() || "";
+  const filtros = {
+    recepcion: valor("filtroCompraRecepcion"),
+    id_proveedor: valor("filtroCompraProveedor"),
+    fecha_desde: valor("filtroCompraDesde"),
+    fecha_hasta: valor("filtroCompraHasta"),
+    estado: valor("filtroCompraEstado"),
+    buscar: valor("filtroCompraBuscar"),
+  };
+  const LIMITE = 200;
+  let skip = 0;
+  let todas = [];
+  while (true) {
+    let url = `/compras?skip=${skip}&limit=${LIMITE}`;
+    Object.entries(filtros).forEach(([clave, v]) => {
+      if (v) url += `&${clave}=${encodeURIComponent(v)}`;
+    });
+    const pagina = (await api.request(url)) || [];
+    todas = todas.concat(pagina);
+    if (pagina.length < LIMITE) break;
+    skip += LIMITE;
+  }
+  return { compras: todas, filtros };
+}
+
+function _filasComprasExportar(compras) {
+  const textoRecepcion = { recibida: "Recibida", no_conforme: "No conforme", pendiente: "Pendiente", cancelada: "--" };
+  return compras.map((c) => {
+    const proveedor = (window.proveedoresData || []).find((p) => p.id === c.id_proveedor);
+    return {
+      ID: c.id,
+      Proveedor: proveedor ? proveedor.nombre : "--",
+      Factura: c.numero_factura || "--",
+      Fecha: c.fecha ? formatearFechaGuatemala(c.fecha) : "--",
+      Subtotal: Number(c.subtotal || 0),
+      IVA: Number(c.iva || 0),
+      Total: Number(c.total || 0),
+      Estado: c.estado || "Pendiente",
+      "Recepción": textoRecepcion[_estadoRecepcionCompra(c).tipo] || "--",
+      Saldo: Number(c.saldo_pendiente || 0),
+    };
+  });
+}
+
+function _textoPeriodoCompras(filtros) {
+  if (filtros.fecha_desde && filtros.fecha_hasta) return `Del ${filtros.fecha_desde} al ${filtros.fecha_hasta}`;
+  if (filtros.fecha_desde) return `Desde ${filtros.fecha_desde}`;
+  if (filtros.fecha_hasta) return `Hasta ${filtros.fecha_hasta}`;
+  return "Todas las fechas";
+}
+
+async function exportarComprasExcel() {
+  try {
+    const { compras } = await obtenerComprasFiltradasParaExportar();
+    if (!compras.length) {
+      showToast("No hay compras para exportar", "warning");
+      return;
+    }
+    const ws = XLSX.utils.json_to_sheet(_filasComprasExportar(compras));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Compras");
+    XLSX.writeFile(wb, `Compras_${hoyISOGuatemala()}.xlsx`);
+    showToast("Compras exportadas a Excel", "success");
+  } catch (error) {
+    showToast(error.message || "No se pudo exportar a Excel", "error");
+  }
+}
+
+async function exportarComprasPDF() {
+  try {
+    const { compras, filtros } = await obtenerComprasFiltradasParaExportar();
+    if (!compras.length) {
+      showToast("No hay compras para exportar", "warning");
+      return;
+    }
+    await cargarScriptUnaVez(URL_JSPDF);
+    await cargarScriptUnaVez(URL_JSPDF_AUTOTABLE);
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
+    const filas = _filasComprasExportar(compras);
+    const q = (n) => `Q${Number(n || 0).toFixed(2)}`;
+    const total = filas.reduce((s, f) => s + f.Total, 0);
+    const saldo = filas.reduce((s, f) => s + f.Saldo, 0);
+
+    doc.setFontSize(14);
+    doc.text("Librería y Papelería Jesús de la Misericordia", 40, 40);
+    doc.setFontSize(12);
+    doc.text("Listado de Compras", 40, 60);
+    doc.setFontSize(9);
+    doc.text(`${_textoPeriodoCompras(filtros)} · ${filas.length} compra(s) · Generado: ${formatearFechaHoraGuatemala()}`, 40, 76);
+
+    doc.autoTable({
+      startY: 90,
+      head: [["ID", "Proveedor", "Factura", "Fecha", "Subtotal", "IVA", "Total", "Estado", "Recepción", "Saldo"]],
+      body: filas.map((f) => [f.ID, f.Proveedor, f.Factura, f.Fecha, q(f.Subtotal), q(f.IVA), q(f.Total), f.Estado, f["Recepción"], q(f.Saldo)]),
+      foot: [["", "", "", "Totales", "", "", q(total), "", "", q(saldo)]],
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [13, 110, 253] },
+      footStyles: { fillColor: [233, 236, 239], textColor: 20, fontStyle: "bold" },
+      columnStyles: { 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" }, 9: { halign: "right" } },
+    });
+    doc.save(`Compras_${hoyISOGuatemala()}.pdf`);
+    showToast("Compras exportadas a PDF", "success");
+  } catch (error) {
+    showToast(error.message || "No se pudo exportar a PDF", "error");
+  }
+}
+
+window.exportarComprasExcel = exportarComprasExcel;
+window.exportarComprasPDF = exportarComprasPDF;
 
 // =============================================
 // FILTRO SERVER-SIDE: Compras
