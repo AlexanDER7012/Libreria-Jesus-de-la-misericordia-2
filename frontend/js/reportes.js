@@ -2532,7 +2532,7 @@ function exportarBitacoraExcel() {
   exportarExcel("bitacoraResultado", "Bitacora_Actividades");
 }
 
-function _inicializarReporteDetalle(containerId, prefijo, actualizar) {
+function _inicializarReporteDetalle(containerId, prefijo, tituloExportacion, actualizar) {
   const container = document.getElementById(containerId);
   if (!container) return null;
 
@@ -2549,13 +2549,25 @@ function _inicializarReporteDetalle(containerId, prefijo, actualizar) {
         <label class="form-label small" for="${prefijo}Hasta">Fecha Hasta</label>
         <input type="date" class="form-control form-control-sm" id="${prefijo}Hasta" value="${_fechaLocalISO(hoy)}">
       </div>
-      <div class="col-md-3 d-flex align-items-end">
+      <div class="col-md-2 d-flex align-items-end">
         <button class="btn btn-primary btn-sm" type="button"><i class="fas fa-search me-1"></i>Consultar</button>
+      </div>
+      <div class="col-md-4 d-flex align-items-end gap-1">
+        <button class="btn btn-success btn-sm" type="button" data-exportar="pdf" title="Exportar a PDF"><i class="fas fa-file-pdf me-1"></i>PDF</button>
+        <button class="btn btn-info btn-sm" type="button" data-exportar="excel" title="Exportar a Excel"><i class="fas fa-file-excel me-1"></i>Excel</button>
       </div>
     </div>
     <div id="${prefijo}Resultado"></div>
   `;
-  container.querySelector("button").addEventListener("click", actualizar);
+  const [consultar, exportarPDFButton, exportarExcelButton] =
+    container.querySelectorAll("button");
+  consultar.addEventListener("click", actualizar);
+  exportarPDFButton.addEventListener("click", () => {
+    exportarPDF(`${prefijo}Resultado`, tituloExportacion);
+  });
+  exportarExcelButton.addEventListener("click", () => {
+    exportarExcel(`${prefijo}Resultado`, tituloExportacion);
+  });
   return actualizar();
 }
 
@@ -2602,6 +2614,7 @@ async function cargarReporteVentasDetalle() {
   return _inicializarReporteDetalle(
     "reporteVentasDetalleContainer",
     "ventasDetalle",
+    "Ventas_Detalle",
     actualizarReporteVentasDetalle,
   );
 }
@@ -2622,6 +2635,7 @@ async function cargarReporteComprasDetalle() {
   return _inicializarReporteDetalle(
     "reporteComprasDetalleContainer",
     "comprasDetalle",
+    "Compras_Detalle",
     actualizarReporteComprasDetalle,
   );
 }
@@ -2642,6 +2656,7 @@ async function cargarReporteMovimientosDetalle() {
   return _inicializarReporteDetalle(
     "reporteMovimientosDetalleContainer",
     "movimientosDetalle",
+    "Inventario_Movimientos_Detalle",
     actualizarReporteMovimientosDetalle,
   );
 }
