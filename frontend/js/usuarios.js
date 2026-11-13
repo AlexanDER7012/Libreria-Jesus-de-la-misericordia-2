@@ -2974,7 +2974,17 @@ function crearModalPagoEmpleado() {
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Concepto *</label>
-                                <input type="text" class="form-control" id="pagoEmpleadoConcepto" required />
+                                <input type="text" class="form-control" id="pagoEmpleadoConcepto" maxlength="50" list="pagoEmpleadoConceptos" placeholder="Ej: Sueldo, Bonificación, Comisión" required />
+                                <datalist id="pagoEmpleadoConceptos">
+                                    <option value="Sueldo"></option>
+                                    <option value="Bonificación incentivo"></option>
+                                    <option value="Comisión"></option>
+                                    <option value="Horas extra"></option>
+                                    <option value="Bono 14"></option>
+                                    <option value="Aguinaldo"></option>
+                                    <option value="Vacaciones"></option>
+                                    <option value="Anticipo"></option>
+                                </datalist>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Monto *</label>
@@ -2986,7 +2996,7 @@ function crearModalPagoEmpleado() {
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Referencia</label>
-                                <input type="text" class="form-control" id="pagoEmpleadoReferencia" />
+                                <input type="text" class="form-control" id="pagoEmpleadoReferencia" maxlength="100" placeholder="Ej: No. de cheque o transferencia" />
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Observaciones</label>

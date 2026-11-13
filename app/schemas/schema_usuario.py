@@ -199,11 +199,20 @@ class UsuarioResponse(UsuarioBase):
 
 class HistoricoPagoEmpleadoCreate(BaseModel):
     id_empleado: int
-    concepto: str  # Sueldo, Bonificacion, Comision
+    # Antes no tenía límite: con más de 50 letras la base de datos daba error 500
+    concepto: str = Field(min_length=1, max_length=50)  # Sueldo, Bonificacion, Comision
     monto: float
     periodo: str = Field(min_length=1, max_length=50)
-    referencia: Optional[str] = None
+    referencia: Optional[str] = Field(default=None, max_length=100)
     observaciones: Optional[str] = None
+
+    @field_validator("concepto")
+    @classmethod
+    def validar_concepto(cls, valor: str) -> str:
+        concepto = (valor or "").strip()
+        if not concepto:
+            raise ValueError("El concepto es obligatorio")
+        return concepto
 
     @field_validator("periodo")
     @classmethod
@@ -216,9 +225,16 @@ class HistoricoPagoEmpleadoCreate(BaseModel):
         return periodo
 
 
-class HistoricoPagoEmpleadoResponse(HistoricoPagoEmpleadoCreate):
+class HistoricoPagoEmpleadoResponse(BaseModel):
+    # No hereda de Create a propósito: al leer no se vuelve a validar, así los
+    # pagos que ya están guardados se muestran tal cual (sin error 500).
     id: int
+    id_empleado: int
+    concepto: Optional[str] = None
+    monto: float
     periodo: Optional[str] = None
+    referencia: Optional[str] = None
+    observaciones: Optional[str] = None
     fecha_pago: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 

@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # --- Base de datos MySQL local ---
+# --- Base de datos PostgreSQL ---
     DATABASE_URL: str
 
     # --- Seguridad (JWT) ---
