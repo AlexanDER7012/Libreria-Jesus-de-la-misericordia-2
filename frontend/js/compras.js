@@ -3781,6 +3781,9 @@ async function verCajaChica(id) {
       (u) => u.id === movimiento.id_ubicacion,
     );
     const nombreUbicacion = ubicacion ? ubicacion.nombre : "--";
+    // Nombre de la persona que registró el movimiento (antes salía su número)
+    await cargarNombresPersonas().catch(() => null);
+    const nombreUsuario = nombrePersona(movimiento.id_usuario);
 
     const modalContent = `
             <div class="modal-header">
@@ -3799,7 +3802,7 @@ async function verCajaChica(id) {
                 <div class="row mb-3">
                     <div class="col-md-6"><strong>Saldo:</strong> Q${movimiento.saldo || 0}</div>
                     <div class="col-md-6"><strong>Turno:</strong> ${movimiento.id_caja_turno ? `#${movimiento.id_caja_turno}` : "Sin turno asociado"}</div>
-                    <div class="col-md-6"><strong>Usuario:</strong> ${movimiento.id_usuario || "--"}</div>
+                    <div class="col-md-6"><strong>Registrado por:</strong> ${nombreUsuario}</div>
                 </div>
                 <div class="mb-3"><strong>Concepto:</strong> ${movimiento.concepto || "--"}</div>
                 ${movimiento.referencia ? `<div class="mb-3"><strong>Referencia:</strong> ${movimiento.referencia}</div>` : ""}

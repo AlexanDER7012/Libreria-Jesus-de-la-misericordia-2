@@ -306,6 +306,10 @@ def registrar_movimiento_caja_chica(datos: CajaChicaMovimientoCreate, db: Sessio
         if turno_abierto:
             id_caja_turno = turno_abierto.id
 
+    # Quién registró el movimiento: siempre el usuario que inició sesión. Antes
+    # se tomaba lo que mandaba la pantalla, que usaba el usuario 1 si no
+    # encontraba al actual (y se podía cambiar por otro número).
+    datos.id_usuario = usuario_actual.id
     nuevo = CajaChicaMovimiento(
         **datos.model_dump(),
         saldo=nuevo_saldo,
