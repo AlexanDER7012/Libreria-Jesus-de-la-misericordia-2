@@ -29,22 +29,26 @@ from app.pagination import PaginationParams
 from app.models.model_producto import Producto
 from app.models.model_venta import Venta, DetalleVenta, MetodoPagoVenta
 from app.models.model_caja import CajaTurno, TipoPago
-from app.models.model_compra import Compra
+from app.models.model_cliente import Cliente
+from app.models.model_compra import Compra, DetalleCompra
 from app.models.model_proveedor import Proveedor
 from app.models.model_inventario import MovimientoInventario, MovimientoInventarioDetalle, TipoMovimientoInventario
 from app.models.model_usuario import LogActividad, Usuario
 from app.schemas.schema_usuario import UsuarioResponse
 from app.schemas.schema_reportes import (
     VentasDiariasResponse,
+    VentaDetalleReporteResponse, VentaDetalleReporteItem,
     ConciliacionPagosResponse, ConciliacionPagoItem,
     CuadreCajaResponse,
     UtilidadResponse, UtilidadItem,
     ProductoMasVendidoItem,
     CompraResumenResponse,
     CompraPorProveedorResponse, CompraPorProveedorItem,
+    CompraDetalleReporteResponse, CompraDetalleReporteItem,
     CuentasPorPagarResponse, CuentaPorPagarItem,
     StockBajoResponse, StockBajoItem, ExcesoInventarioItem,
     MovimientoResumenResponse, MovimientoResumenItem,
+    MovimientoDetalleReporteResponse, MovimientoDetalleReporteItem,
     InventarioValorizadoResponse, InventarioValorizadoItem,
     LoginResumenResponse, LoginResumenItem,
     UsuariosMasActivosResponse, UsuarioMasActivoItem,
@@ -95,6 +99,53 @@ def reporte_ventas_diarias(
         descuento=round(sum(float(v.descuento or 0) for v in ventas), 2),
         total=round(sum(float(v.total or 0) for v in ventas), 2),
     )
+
+
+@router.get("/ventas-detalle", response_model=VentaDetalleReporteResponse)
+def reporte_ventas_detalle(
+    desde: date = Query(...),
+    hasta: date = Query(...),
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Ventas", "VentasDetalle")),
+):
+    """Detalle de productos vendidos por fecha y venta."""
+    if hasta < desde:
+        raise HTTPException(status_code=400, detail="'hasta' no puede ser antes que 'desde'")
+
+    resultados = (
+        db.query(
+            Venta.id,
+            Venta.fecha,
+            Cliente.nombre,
+            Producto.codigo,
+            Producto.descripcion,
+            Producto.nombre,
+            DetalleVenta.cantidad,
+        )
+        .join(DetalleVenta, DetalleVenta.id_venta == Venta.id)
+        .join(Producto, Producto.id == DetalleVenta.id_producto)
+        .outerjoin(Cliente, Cliente.id == Venta.id_cliente)
+        .filter(
+            func.date(Venta.fecha) >= desde,
+            func.date(Venta.fecha) <= hasta,
+            Venta.estado == "Completada",
+        )
+        .order_by(Venta.fecha.desc(), Venta.id.desc(), DetalleVenta.id)
+        .all()
+    )
+    detalle = [
+        VentaDetalleReporteItem(
+            fecha=fecha,
+            factura=f"Venta #{id_venta}",
+            cliente=nombre_cliente or "Consumidor final",
+            codigo_producto=codigo,
+            descripcion=descripcion or nombre_producto or "",
+            cantidad_vendida=float(cantidad or 0),
+        )
+        for id_venta, fecha, nombre_cliente, codigo, descripcion, nombre_producto, cantidad
+        in resultados
+    ]
+    return VentaDetalleReporteResponse(desde=desde, hasta=hasta, detalle=detalle)
 
 
 @router.get("/conciliacion-pagos", response_model=ConciliacionPagosResponse)
@@ -312,6 +363,62 @@ def reporte_compras_por_proveedor(
     return CompraPorProveedorResponse(desde=desde, hasta=hasta, detalle=detalle)
 
 
+@router_compras.get("/detalle", response_model=CompraDetalleReporteResponse)
+def reporte_compras_detalle(
+    desde: date = Query(...),
+    hasta: date = Query(...),
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Compras", "ComprasDetalle")),
+):
+    """Detalle de productos comprados por fecha y factura."""
+    if hasta < desde:
+        raise HTTPException(status_code=400, detail="'hasta' no puede ser antes que 'desde'")
+
+    resultados = (
+        db.query(
+            Compra.id,
+            Compra.fecha,
+            Compra.numero_factura,
+            Proveedor.nombre,
+            Producto.codigo,
+            Producto.descripcion,
+            Producto.nombre,
+            DetalleCompra.cantidad_comprada,
+        )
+        .join(DetalleCompra, DetalleCompra.id_compra == Compra.id)
+        .join(Producto, Producto.id == DetalleCompra.id_producto)
+        .outerjoin(Proveedor, Proveedor.id == Compra.id_proveedor)
+        .filter(
+            func.date(Compra.fecha) >= desde,
+            func.date(Compra.fecha) <= hasta,
+            Compra.estado != "Cancelada",
+        )
+        .order_by(Compra.fecha.desc(), Compra.id.desc(), DetalleCompra.id)
+        .all()
+    )
+    detalle = [
+        CompraDetalleReporteItem(
+            fecha=fecha,
+            factura=numero_factura or f"Compra #{id_compra}",
+            proveedor=nombre_proveedor or "Sin proveedor",
+            codigo_producto=codigo,
+            descripcion=descripcion or nombre_producto or "",
+            cantidad_comprada=float(cantidad or 0),
+        )
+        for (
+            id_compra,
+            fecha,
+            numero_factura,
+            nombre_proveedor,
+            codigo,
+            descripcion,
+            nombre_producto,
+            cantidad,
+        ) in resultados
+    ]
+    return CompraDetalleReporteResponse(desde=desde, hasta=hasta, detalle=detalle)
+
+
 @router_compras.get("/cuentas-por-pagar", response_model=CuentasPorPagarResponse)
 def reporte_cuentas_por_pagar(db: Session = Depends(get_db), usuario_actual: Usuario = Depends(_permiso_reporte("Compras", "CuentasPagar"))):
     """Compras que todavia tienen saldo pendiente de pago a proveedores (a la fecha de hoy)."""
@@ -454,6 +561,58 @@ def reporte_movimientos_resumen(
         for nombre, cantidad, unidades in resultados
     ]
     return MovimientoResumenResponse(desde=desde, hasta=hasta, detalle=detalle)
+
+
+@router_inventario.get("/movimientos-detalle", response_model=MovimientoDetalleReporteResponse)
+def reporte_movimientos_detalle(
+    desde: date = Query(...),
+    hasta: date = Query(...),
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(_permiso_reporte("Inventario", "MovimientosDetalle")),
+):
+    """Detalle de productos y cantidades en movimientos de inventario por fecha."""
+    if hasta < desde:
+        raise HTTPException(status_code=400, detail="'hasta' no puede ser antes que 'desde'")
+
+    resultados = (
+        db.query(
+            MovimientoInventario.fecha,
+            TipoMovimientoInventario.nombre,
+            MovimientoInventario.referencia,
+            Producto.codigo,
+            Producto.descripcion,
+            Producto.nombre,
+            MovimientoInventarioDetalle.cantidad,
+        )
+        .join(
+            MovimientoInventarioDetalle,
+            MovimientoInventarioDetalle.id_movimiento_cabecera == MovimientoInventario.id,
+        )
+        .join(
+            TipoMovimientoInventario,
+            TipoMovimientoInventario.id == MovimientoInventario.id_tipo_movimiento,
+        )
+        .join(Producto, Producto.id == MovimientoInventarioDetalle.id_producto)
+        .filter(
+            func.date(MovimientoInventario.fecha) >= desde,
+            func.date(MovimientoInventario.fecha) <= hasta,
+        )
+        .order_by(MovimientoInventario.fecha.desc(), MovimientoInventario.id.desc(), MovimientoInventarioDetalle.id)
+        .all()
+    )
+    detalle = [
+        MovimientoDetalleReporteItem(
+            fecha=fecha,
+            tipo_movimiento=tipo_movimiento or "Sin tipo",
+            referencia=referencia,
+            codigo_producto=codigo,
+            descripcion=descripcion or nombre_producto or "",
+            cantidad=float(cantidad or 0),
+        )
+        for fecha, tipo_movimiento, referencia, codigo, descripcion, nombre_producto, cantidad
+        in resultados
+    ]
+    return MovimientoDetalleReporteResponse(desde=desde, hasta=hasta, detalle=detalle)
 
 
 @router_inventario.get("/valorizado", response_model=InventarioValorizadoResponse)

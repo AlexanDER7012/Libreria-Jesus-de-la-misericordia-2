@@ -54,6 +54,7 @@ async function loadReportesModule() {
             <div class="tab-pane fade show active" id="reportesVentas">
                 <ul class="nav nav-tabs mb-3" id="ventasSubTabs">
                     <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#subVentasDiarias"><i class="fas fa-calendar-day me-1"></i>Ventas Diarias</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subVentasDetalle"><i class="fas fa-list-alt me-1"></i>Detalle de Ventas</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subConciliacion"><i class="fas fa-hand-holding-usd me-1"></i>Conciliación Pagos</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subCuadreCaja"><i class="fas fa-cash-register me-1"></i>Cuadre de Caja</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subUtilidad"><i class="fas fa-chart-line me-1"></i>Utilidad por Producto</a></li>
@@ -61,6 +62,7 @@ async function loadReportesModule() {
                 </ul>
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="subVentasDiarias"><div id="reporteVentasDiariasContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
+                    <div class="tab-pane fade" id="subVentasDetalle"><div id="reporteVentasDetalleContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                     <div class="tab-pane fade" id="subConciliacion"><div id="reporteConciliacionContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                     <div class="tab-pane fade" id="subCuadreCaja"><div id="reporteCuadreCajaContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                     <div class="tab-pane fade" id="subUtilidad"><div id="reporteUtilidadContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
@@ -74,11 +76,13 @@ async function loadReportesModule() {
             <div class="tab-pane fade" id="reportesCompras">
                 <ul class="nav nav-tabs mb-3" id="comprasSubTabs">
                     <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#subComprasResumen"><i class="fas fa-chart-bar me-1"></i>Resumen de Compras</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subComprasDetalle"><i class="fas fa-list-alt me-1"></i>Detalle de Compras</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subComprasProveedor"><i class="fas fa-building me-1"></i>Compras por Proveedor</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subCuentasPagar"><i class="fas fa-money-bill-wave me-1"></i>Cuentas por Pagar</a></li>
                 </ul>
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="subComprasResumen"><div id="reporteComprasResumenContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
+                    <div class="tab-pane fade" id="subComprasDetalle"><div id="reporteComprasDetalleContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                     <div class="tab-pane fade" id="subComprasProveedor"><div id="reporteComprasProveedorContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                     <div class="tab-pane fade" id="subCuentasPagar"><div id="reporteCuentasPagarContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                 </div>
@@ -92,12 +96,14 @@ async function loadReportesModule() {
                     <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#subStockBajo"><i class="fas fa-exclamation-triangle me-1"></i>Productos Bajo Mínimo</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subExcesosInventario"><i class="fas fa-boxes-stacked me-1"></i>Excesos de Inventario</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subMovimientosResumen"><i class="fas fa-exchange-alt me-1"></i>Resumen de Movimientos</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subMovimientosDetalle"><i class="fas fa-list-alt me-1"></i>Detalle de Movimientos</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#subInventarioValorizado"><i class="fas fa-dollar-sign me-1"></i>Inventario Valorizado</a></li>
                 </ul>
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="subStockBajo"><div id="reporteStockBajoContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                     <div class="tab-pane fade" id="subExcesosInventario"><div id="reporteExcesosInventarioContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                     <div class="tab-pane fade" id="subMovimientosResumen"><div id="reporteMovimientosResumenContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
+                    <div class="tab-pane fade" id="subMovimientosDetalle"><div id="reporteMovimientosDetalleContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                     <div class="tab-pane fade" id="subInventarioValorizado"><div id="reporteInventarioValorizadoContainer"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando...</p></div></div></div>
                 </div>
             </div>
@@ -128,18 +134,37 @@ async function loadReportesModule() {
         </div>
     `;
 
+  [
+    { panel: "subVentasDetalle", permisos: ["Ventas", "VentasDetalle"] },
+    { panel: "subComprasDetalle", permisos: ["Compras", "ComprasDetalle"] },
+    {
+      panel: "subMovimientosDetalle",
+      permisos: ["Inventario", "MovimientosDetalle"],
+    },
+  ].forEach(({ panel, permisos }) => {
+    if (tienePermisoReporte(permisos)) return;
+    container
+      .querySelector(`[href="#${panel}"]`)
+      ?.closest(".nav-item")
+      ?.remove();
+    container.querySelector(`#${panel}`)?.remove();
+  });
+
   const reportes = [
     [["Ventas", "VentasDiarias"], cargarReporteVentasDiarias],
+    [["Ventas", "VentasDetalle"], cargarReporteVentasDetalle],
     [["Ventas", "Conciliacion"], cargarReporteConciliacion],
     [["Ventas", "CuadreCaja"], cargarReporteCuadreCaja],
     [["Ventas", "Utilidad"], cargarReporteUtilidad],
     [["Ventas", "TopProductos"], cargarReporteTopProductos],
     [["Compras", "ComprasResumen"], cargarReporteComprasResumen],
+    [["Compras", "ComprasDetalle"], cargarReporteComprasDetalle],
     [["Compras", "ComprasProveedor"], cargarReporteComprasProveedor],
     [["Compras", "CuentasPagar"], cargarReporteCuentasPagar],
     [["Inventario", "StockBajo"], cargarReporteStockBajo],
     [["Inventario", "ExcesosInventario"], cargarReporteExcesosInventario],
     [["Inventario", "Movimientos"], cargarReporteMovimientosResumen],
+    [["Inventario", "MovimientosDetalle"], cargarReporteMovimientosDetalle],
     [["Inventario", "InventarioValorizado"], cargarReporteInventarioValorizado],
     [["Usuarios", "LoginResumen"], cargarReporteLoginResumen],
     [["Usuarios", "UsuariosActivos"], cargarReporteUsuariosActivos],
@@ -2505,4 +2530,130 @@ function exportarBitacoraPDF() {
 }
 function exportarBitacoraExcel() {
   exportarExcel("bitacoraResultado", "Bitacora_Actividades");
+}
+
+function _inicializarReporteDetalle(containerId, prefijo, actualizar) {
+  const container = document.getElementById(containerId);
+  if (!container) return null;
+
+  const hoy = fechaCalendarioGuatemala();
+  const hace30Dias = fechaCalendarioGuatemala();
+  hace30Dias.setDate(hace30Dias.getDate() - 30);
+  container.innerHTML = `
+    <div class="row mb-3">
+      <div class="col-md-3">
+        <label class="form-label small" for="${prefijo}Desde">Fecha Desde</label>
+        <input type="date" class="form-control form-control-sm" id="${prefijo}Desde" value="${_fechaLocalISO(hace30Dias)}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small" for="${prefijo}Hasta">Fecha Hasta</label>
+        <input type="date" class="form-control form-control-sm" id="${prefijo}Hasta" value="${_fechaLocalISO(hoy)}">
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button class="btn btn-primary btn-sm" type="button"><i class="fas fa-search me-1"></i>Consultar</button>
+      </div>
+    </div>
+    <div id="${prefijo}Resultado"></div>
+  `;
+  container.querySelector("button").addEventListener("click", actualizar);
+  return actualizar();
+}
+
+async function _actualizarReporteDetalle(prefijo, ruta, mensajeVacio, renderFila) {
+  const desde = document.getElementById(`${prefijo}Desde`)?.value;
+  const hasta = document.getElementById(`${prefijo}Hasta`)?.value;
+  const resultado = document.getElementById(`${prefijo}Resultado`);
+  if (!resultado) return;
+  if (!desde || !hasta) {
+    resultado.innerHTML = `<div class="alert alert-warning">Elige la fecha "Desde" y la fecha "Hasta".</div>`;
+    return;
+  }
+  if (_rangoFechasInvalido(desde, hasta, resultado)) return;
+
+  resultado.innerHTML = `<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando datos...</p></div>`;
+  try {
+    const data = await api.request(
+      `${ruta}?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`,
+    );
+    if (!data || !Array.isArray(data.detalle) || data.detalle.length === 0) {
+      resultado.innerHTML = `<div class="alert alert-warning">${mensajeVacio}</div>`;
+      return;
+    }
+
+    resultado.innerHTML = `
+      <div class="card">
+        <div class="card-header"><h6 class="mb-0 fw-bold">Período: ${escaparHtmlReporteTurno(data.desde)} al ${escaparHtmlReporteTurno(data.hasta)}</h6></div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover table-striped table-sm">
+              <thead><tr>${renderFila(null, true)}</tr></thead>
+              <tbody>${data.detalle.map((item) => `<tr>${renderFila(item, false)}</tr>`).join("")}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (error) {
+    resultado.innerHTML = `<div class="alert alert-danger">Error: ${escaparHtmlReporteTurno(error.message)}</div>`;
+  }
+}
+
+async function cargarReporteVentasDetalle() {
+  return _inicializarReporteDetalle(
+    "reporteVentasDetalleContainer",
+    "ventasDetalle",
+    actualizarReporteVentasDetalle,
+  );
+}
+
+async function actualizarReporteVentasDetalle() {
+  return _actualizarReporteDetalle(
+    "ventasDetalle",
+    "/reportes/ventas-detalle",
+    "No hay ventas en el período seleccionado.",
+    (item, encabezado) =>
+      encabezado
+        ? "<th>Fecha</th><th>Factura</th><th>Cliente</th><th>Código</th><th>Descripción</th><th class=\"text-end\">Cantidad vendida</th>"
+        : `<td>${escaparHtmlReporteTurno(String(item.fecha || "").slice(0, 10))}</td><td>${escaparHtmlReporteTurno(item.factura)}</td><td>${escaparHtmlReporteTurno(item.cliente)}</td><td>${escaparHtmlReporteTurno(item.codigo_producto || "--")}</td><td>${escaparHtmlReporteTurno(item.descripcion)}</td><td class="text-end">${Number(item.cantidad_vendida || 0).toLocaleString("es-GT")}</td>`,
+  );
+}
+
+async function cargarReporteComprasDetalle() {
+  return _inicializarReporteDetalle(
+    "reporteComprasDetalleContainer",
+    "comprasDetalle",
+    actualizarReporteComprasDetalle,
+  );
+}
+
+async function actualizarReporteComprasDetalle() {
+  return _actualizarReporteDetalle(
+    "comprasDetalle",
+    "/reportes/compras/detalle",
+    "No hay compras en el período seleccionado.",
+    (item, encabezado) =>
+      encabezado
+        ? "<th>Fecha</th><th>Factura</th><th>Proveedor</th><th>Código</th><th>Descripción</th><th class=\"text-end\">Cantidad comprada</th>"
+        : `<td>${escaparHtmlReporteTurno(String(item.fecha || "").slice(0, 10))}</td><td>${escaparHtmlReporteTurno(item.factura)}</td><td>${escaparHtmlReporteTurno(item.proveedor)}</td><td>${escaparHtmlReporteTurno(item.codigo_producto || "--")}</td><td>${escaparHtmlReporteTurno(item.descripcion)}</td><td class="text-end">${Number(item.cantidad_comprada || 0).toLocaleString("es-GT")}</td>`,
+  );
+}
+
+async function cargarReporteMovimientosDetalle() {
+  return _inicializarReporteDetalle(
+    "reporteMovimientosDetalleContainer",
+    "movimientosDetalle",
+    actualizarReporteMovimientosDetalle,
+  );
+}
+
+async function actualizarReporteMovimientosDetalle() {
+  return _actualizarReporteDetalle(
+    "movimientosDetalle",
+    "/reportes/inventario/movimientos-detalle",
+    "No hay movimientos en el período seleccionado.",
+    (item, encabezado) =>
+      encabezado
+        ? "<th>Fecha</th><th>Movimiento</th><th>Referencia</th><th>Código</th><th>Descripción</th><th class=\"text-end\">Cantidad</th>"
+        : `<td>${escaparHtmlReporteTurno(String(item.fecha || "").slice(0, 10))}</td><td>${escaparHtmlReporteTurno(item.tipo_movimiento)}</td><td>${escaparHtmlReporteTurno(item.referencia || "--")}</td><td>${escaparHtmlReporteTurno(item.codigo_producto || "--")}</td><td>${escaparHtmlReporteTurno(item.descripcion)}</td><td class="text-end">${Number(item.cantidad || 0).toLocaleString("es-GT")}</td>`,
+  );
 }

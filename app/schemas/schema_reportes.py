@@ -11,6 +11,22 @@ class VentasDiariasResponse(BaseModel):
     descuento: float
     total: float
 
+
+class VentaDetalleReporteItem(BaseModel):
+    fecha: datetime
+    factura: str
+    cliente: str
+    codigo_producto: Optional[str] = None
+    descripcion: str
+    cantidad_vendida: float
+
+
+class VentaDetalleReporteResponse(BaseModel):
+    desde: date
+    hasta: date
+    detalle: List[VentaDetalleReporteItem]
+
+
 class ConciliacionPagoItem(BaseModel):
     tipo_pago: str
     monto: float
@@ -79,6 +95,21 @@ class CompraPorProveedorResponse(BaseModel):
     detalle: List[CompraPorProveedorItem]
 
 
+class CompraDetalleReporteItem(BaseModel):
+    fecha: datetime
+    factura: str
+    proveedor: str
+    codigo_producto: Optional[str] = None
+    descripcion: str
+    cantidad_comprada: float
+
+
+class CompraDetalleReporteResponse(BaseModel):
+    desde: date
+    hasta: date
+    detalle: List[CompraDetalleReporteItem]
+
+
 class CuentaPorPagarItem(BaseModel):
     id_compra: int
     proveedor: str
@@ -128,6 +159,21 @@ class MovimientoResumenResponse(BaseModel):
     desde: date
     hasta: date
     detalle: List[MovimientoResumenItem]
+
+
+class MovimientoDetalleReporteItem(BaseModel):
+    fecha: datetime
+    tipo_movimiento: str
+    referencia: Optional[str] = None
+    codigo_producto: Optional[str] = None
+    descripcion: str
+    cantidad: float
+
+
+class MovimientoDetalleReporteResponse(BaseModel):
+    desde: date
+    hasta: date
+    detalle: List[MovimientoDetalleReporteItem]
 
 
 class InventarioValorizadoItem(BaseModel):
