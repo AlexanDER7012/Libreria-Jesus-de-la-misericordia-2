@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user, requiere_permiso, requiere_autorizacion_admin
+from app.security import get_current_user, requiere_permiso, requiere_autorizacion_admin_configurada
 from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
 from app.models.model_usuario import Usuario
@@ -262,7 +262,7 @@ def crear_compra(datos: CompraCreate, db: Session = Depends(get_db), usuario_act
 
 
 @router.patch("/{compra_id}/cancelar", response_model=CompraResponse)
-def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar")), _autorizacion=Depends(requiere_autorizacion_admin)):
+def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Compras", "Editar")), _autorizacion=Depends(requiere_autorizacion_admin_configurada("requiere_autorizacion_compra"))):
     """
     Cancela una compra: revierte inventario (si aplica), ANULA los pagos
     (nunca los borra -- quedan en la tabla marcados con anulado=1 para
@@ -310,6 +310,19 @@ def cancelar_compra(compra_id: int, datos: CompraCancelar = CompraCancelar(), db
                 # Si ya se vendió o trasladó parte de lo recibido, no se puede
                 # revertir: mover_stock avisa en vez de dejar stock negativo.
                 mover_stock(db, producto, id_ubicacion, -float(detalle.cantidad_unidades))
+
+        movimientos_originales = (
+            db.query(MovimientoInventario)
+            .join(TipoMovimientoInventario)
+            .filter(
+                MovimientoInventario.tabla_referencia == "compra",
+                MovimientoInventario.id_referencia == compra.id,
+                TipoMovimientoInventario.nombre == "Compra",
+            )
+            .all()
+        )
+        for movimiento_original in movimientos_originales:
+            db.delete(movimiento_original)
 
     # Anular pagos SIN borrarlos -- quedan como constancia de que el dinero
     # sí salió, pero ya no cuentan para saldo/estado de la compra.

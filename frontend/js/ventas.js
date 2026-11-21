@@ -2157,6 +2157,12 @@ async function anularVenta(id) {
   if (motivo === null) return;
 
   try {
+    const autorizado = await window.confirmarAdmin(
+      `Se anulará la venta #${id}. Motivo: ${motivo}`,
+      "requiere_autorizacion_venta",
+    );
+    if (!autorizado) return;
+
     await api.request(
       `/ventas/${id}/cancelar?motivo=${encodeURIComponent(motivo)}`,
       "PATCH",

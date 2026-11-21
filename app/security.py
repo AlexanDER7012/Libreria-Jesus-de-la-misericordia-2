@@ -104,6 +104,26 @@ def requiere_autorizacion_admin(
     x_autorizacion_admin: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
+    return _validar_autorizacion_admin(x_autorizacion_admin, db)
+
+
+def requiere_autorizacion_admin_configurada(opcion: str):
+    """Exige autorización administrativa solo si la opción de configuración está activa."""
+    def dependencia(
+        x_autorizacion_admin: Optional[str] = Header(default=None),
+        db: Session = Depends(get_db),
+    ):
+        from app.models.model_configuracion import ConfiguracionGeneral
+
+        config = db.query(ConfiguracionGeneral).first()
+        if config is not None and getattr(config, opcion, True) is False:
+            return None
+        return _validar_autorizacion_admin(x_autorizacion_admin, db)
+
+    return dependencia
+
+
+def _validar_autorizacion_admin(x_autorizacion_admin: Optional[str], db: Session):
     """
     Dependencia para acciones que en pantalla piden usuario y contraseña de
     un administrador (cancelar compra, eliminar gasto, caja chica, traslado).

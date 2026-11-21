@@ -5,7 +5,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user, requiere_permiso
+from app.security import get_current_user, requiere_permiso, requiere_autorizacion_admin_configurada
 from app.bitacora import registrar_actividad
 from app.models.model_cliente import Cliente
 from app.models.model_producto import Producto
@@ -346,7 +346,7 @@ def crear_venta(datos: VentaCreate, db: Session = Depends(get_db), usuario_actua
 
 
 @router.patch("/{venta_id}/cancelar", response_model=VentaResponse)
-def cancelar_venta(venta_id: int, motivo: Optional[str] = None, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Editar"))):
+def cancelar_venta(venta_id: int, motivo: Optional[str] = None, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Ventas", "Editar")), _autorizacion=Depends(requiere_autorizacion_admin_configurada("requiere_autorizacion_venta"))):
     venta = db.query(Venta).filter(Venta.id == venta_id).with_for_update().first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
@@ -379,6 +379,19 @@ def cancelar_venta(venta_id: int, motivo: Optional[str] = None, db: Session = De
                 costo_unitario=detalle.costo_unitario,
                 precio_unitario=detalle.precio_unitario,
             ))
+
+    movimientos_originales = (
+        db.query(MovimientoInventario)
+        .join(TipoMovimientoInventario)
+        .filter(
+            MovimientoInventario.tabla_referencia == "venta",
+            MovimientoInventario.id_referencia == venta.id,
+            TipoMovimientoInventario.nombre == "Venta",
+        )
+        .all()
+    )
+    for movimiento_original in movimientos_originales:
+        db.delete(movimiento_original)
 
     if venta.id_caja_turno:
         turno = db.query(CajaTurno).filter(CajaTurno.id == venta.id_caja_turno).first()

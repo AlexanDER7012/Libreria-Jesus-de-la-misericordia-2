@@ -1,5 +1,5 @@
 from app.timezone import now_gt_naive
-from sqlalchemy import Column, Integer, String, Text, DateTime, DECIMAL, ForeignKey
+from sqlalchemy import Boolean, Column, Integer, String, Text, DateTime, DECIMAL, ForeignKey
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -22,6 +22,9 @@ class ConfiguracionGeneral(Base):
     id_ubicacion = Column(Integer, ForeignKey("ubicacion.id"), nullable=True)
     # Días que se conserva la bitácora (log_actividad). 0 = no borrar nunca.
     dias_retencion_bitacora = Column(Integer, default=0, server_default="0")
+    requiere_autorizacion_compra = Column(Boolean, nullable=False, default=True, server_default="true")
+    requiere_autorizacion_venta = Column(Boolean, nullable=False, default=True, server_default="true")
+    requiere_autorizacion_inventario = Column(Boolean, nullable=False, default=True, server_default="true")
 
 
 class MetaFinanciera(Base):

@@ -359,6 +359,11 @@ function renderConfiguracion(config) {
                         <div class="mb-2"><strong>Conservar bitácora:</strong> ${config.dias_retencion_bitacora > 0 ? `${config.dias_retencion_bitacora} días` : "Siempre (no se borra)"}</div>
                     </div>
                 </div>
+                <hr />
+                <h6 class="fw-bold">Autorización para anulaciones</h6>
+                <div class="mb-2"><strong>Compras:</strong> ${config.requiere_autorizacion_compra !== false ? "Requiere autorización de Administrador" : "No requiere autorización"}</div>
+                <div class="mb-2"><strong>Ventas:</strong> ${config.requiere_autorizacion_venta !== false ? "Requiere autorización de Administrador" : "No requiere autorización"}</div>
+                <div class="mb-2"><strong>Inventario:</strong> ${config.requiere_autorizacion_inventario !== false ? "Requiere autorización de Administrador" : "No requiere autorización"}</div>
                 ${config.logo_ruta ? `<div class="mt-3"><strong>Logo:</strong> <img src="${config.logo_ruta}" style="max-height:100px;" /></div>` : ""}
                 <div class="mt-3 text-muted small">
                     Última actualización: ${config.fecha_actualizacion ? formatearFechaHoraGuatemala(config.fecha_actualizacion) : "--"}
@@ -412,6 +417,12 @@ function showEditConfigModal() {
     document.getElementById("configRetencionBitacora").value = String(
       configuracionData.dias_retencion_bitacora || 0,
     );
+    document.getElementById("configAutorizarCompra").checked =
+      configuracionData.requiere_autorizacion_compra !== false;
+    document.getElementById("configAutorizarVenta").checked =
+      configuracionData.requiere_autorizacion_venta !== false;
+    document.getElementById("configAutorizarInventario").checked =
+      configuracionData.requiere_autorizacion_inventario !== false;
     document.getElementById("configLogo").value =
       configuracionData.logo_ruta || "";
   }
@@ -459,6 +470,9 @@ async function saveConfig(event) {
     logo_ruta: document.getElementById("configLogo").value || null,
     id_ubicacion:
       parseInt(document.getElementById("configUbicacion").value) || null,
+    requiere_autorizacion_compra: document.getElementById("configAutorizarCompra").checked,
+    requiere_autorizacion_venta: document.getElementById("configAutorizarVenta").checked,
+    requiere_autorizacion_inventario: document.getElementById("configAutorizarInventario").checked,
   };
 
   const diasNuevos = data.dias_retencion_bitacora;
@@ -743,6 +757,22 @@ function crearModalConfig() {
                   <label class="form-label">Ruta Logo</label>
                   <input type="text" class="form-control" id="configLogo" placeholder="/assets/img/logo.png" />
                 </div>
+              </div>
+              <div class="border rounded p-3 mb-3">
+                <h6 class="fw-bold">Requerir autorización para anular/eliminar</h6>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="configAutorizarCompra" checked />
+                  <label class="form-check-label" for="configAutorizarCompra">Compras</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="configAutorizarVenta" checked />
+                  <label class="form-check-label" for="configAutorizarVenta">Ventas</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="configAutorizarInventario" checked />
+                  <label class="form-check-label" for="configAutorizarInventario">Inventario (cancelar/eliminar traslados)</label>
+                </div>
+                <small class="text-muted">Si una opción está desactivada, cualquier usuario con permiso para la operación podrá realizarla sin autorización administrativa.</small>
               </div>
               <button type="submit" class="btn btn-dark w-100">Guardar</button>
             </form>

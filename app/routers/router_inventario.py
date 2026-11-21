@@ -5,7 +5,7 @@ from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.pagination import PaginationParams
-from app.security import get_current_user, requiere_permiso, requiere_autorizacion_admin
+from app.security import get_current_user, requiere_permiso, requiere_autorizacion_admin_configurada
 from app.bitacora import registrar_actividad
 from app.models.model_producto import Producto
 from app.models.model_usuario import Usuario
@@ -666,7 +666,7 @@ def eliminar_traslado(
     traslado_id: int,
     db: Session = Depends(get_db),
     usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar")),
-    _autorizacion=Depends(requiere_autorizacion_admin),
+    _autorizacion=Depends(requiere_autorizacion_admin_configurada("requiere_autorizacion_inventario")),
 ):
     """Revierte un traslado y conserva sus movimientos y pagos anulados para auditoría."""
     traslado = (
@@ -756,7 +756,12 @@ def eliminar_traslado(
 
 
 @router_traslado.patch("/{traslado_id}/cancelar", response_model=TrasladoSucursalResponse)
-def cancelar_traslado(traslado_id: int, db: Session = Depends(get_db), usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar"))):
+def cancelar_traslado(
+    traslado_id: int,
+    db: Session = Depends(get_db),
+    usuario_actual: Usuario = Depends(requiere_permiso("Inventario", "Editar")),
+    _autorizacion=Depends(requiere_autorizacion_admin_configurada("requiere_autorizacion_inventario")),
+):
     """Cancela un traslado que todavía no se recibió: lo que estaba en camino regresa al origen."""
     traslado = db.query(TrasladoSucursal).filter(TrasladoSucursal.id == traslado_id).with_for_update().first()
     if not traslado:

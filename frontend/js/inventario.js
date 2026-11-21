@@ -2716,12 +2716,14 @@ async function eliminarTraslado(id) {
     showToast("No está disponible la autorización de Administrador. Recarga la página e inténtalo de nuevo.", "error");
     return;
   }
-  const autorizado = await window.confirmarAdmin(
-    `Se eliminará el traslado ${nota}, se revertirá el stock y se anularán sus pagos.`,
-  );
-  if (!autorizado) return;
 
   try {
+    const autorizado = await window.confirmarAdmin(
+      `Se eliminará el traslado ${nota}, se revertirá el stock y se anularán sus pagos.`,
+      "requiere_autorizacion_inventario",
+    );
+    if (!autorizado) return;
+
     await api.request(`/traslados/${id}/eliminar`, "PATCH");
     showToast(`Traslado ${nota} eliminado; stock y pagos revertidos con historial conservado`, "success");
     await recargarTraslados();
@@ -2738,6 +2740,12 @@ async function cancelarTraslado(id) {
   );
   if (!ok) return;
   try {
+    const autorizado = await window.confirmarAdmin(
+      `Se cancelará el traslado #${id} y se regresará el stock al origen.`,
+      "requiere_autorizacion_inventario",
+    );
+    if (!autorizado) return;
+
     await api.request(`/traslados/${id}/cancelar`, "PATCH");
     showToast("Traslado cancelado: la cantidad regresó al origen", "success");
     await recargarTraslados();

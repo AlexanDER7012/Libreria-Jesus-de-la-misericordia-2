@@ -28,6 +28,9 @@ class ConfiguracionGeneralBase(BaseModel):
     moneda: Optional[str] = None
     id_ubicacion: Optional[int] = None
     dias_retencion_bitacora: Optional[int] = None  # 0 = no borrar nunca
+    requiere_autorizacion_compra: Optional[bool] = None
+    requiere_autorizacion_venta: Optional[bool] = None
+    requiere_autorizacion_inventario: Optional[bool] = None
 
 
 class ConfiguracionGeneralUpdate(ConfiguracionGeneralBase, TelefonoValidatorMixin, EmailValidatorMixin):

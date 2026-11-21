@@ -5552,12 +5552,13 @@ async function cancelarCompra(id) {
   );
   if (!ok) return;
 
-  const autorizado = await confirmarAdmin(
-    "Se cancelará la compra #" + id + ". Motivo: " + motivo,
-  );
-  if (!autorizado) return;
-
   try {
+    const autorizado = await confirmarAdmin(
+      "Se cancelará la compra #" + id + ". Motivo: " + motivo,
+      "requiere_autorizacion_compra",
+    );
+    if (!autorizado) return;
+
     await api.request(`/compras/${id}/cancelar`, "PATCH", { motivo });
     showToast("Compra cancelada correctamente", "success");
     await loadComprasModule();
@@ -5616,7 +5617,12 @@ async function eliminarPagoCompra(compraId, pagoId) {
 // CONFIRMACIÓN CON AUTORIZACIÓN ADMIN
 // =============================================
 
-async function confirmarAdmin(mensaje) {
+async function confirmarAdmin(mensaje, opcionConfiguracion = null) {
+  if (opcionConfiguracion) {
+    const configuracion = await api.request("/configuracion");
+    if (configuracion[opcionConfiguracion] === false) return true;
+  }
+
   return new Promise((resolve) => {
     const existing = document.getElementById("adminAuthModal");
     if (existing) existing.remove();
@@ -5632,8 +5638,8 @@ async function confirmarAdmin(mensaje) {
               <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-              <p class="text-danger fw-bold mb-3">
-                <i class="fas fa-exclamation-triangle me-1"></i>${mensaje}
+              <p class="text-danger fw-bold mb-3" id="adminAuthMensaje">
+                <i class="fas fa-exclamation-triangle me-1"></i>
               </p>
               <p class="small text-muted mb-3">
                 Un Administrador o Dueña debe autorizar esta acción.
@@ -5662,6 +5668,7 @@ async function confirmarAdmin(mensaje) {
 
     const modalEl = document.getElementById("adminAuthModal");
     const modalInstance = new bootstrap.Modal(modalEl);
+    document.getElementById("adminAuthMensaje").append(document.createTextNode(mensaje));
 
     let resolved = false;
 
